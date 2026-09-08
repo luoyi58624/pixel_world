@@ -1,0 +1,64 @@
+{
+  "tiledVersion": "1.11.2",
+  "width": 64,
+  "height": 48,
+  "layers": 10,
+  "cities": 4,
+  "bridges": 2,
+  "bridgeCells": [
+    [
+      29,
+      13
+    ],
+    [
+      30,
+      13
+    ],
+    [
+      31,
+      13
+    ],
+    [
+      32,
+      13
+    ],
+    [
+      33,
+      13
+    ],
+    [
+      34,
+      13
+    ],
+    [
+      27,
+      34
+    ],
+    [
+      28,
+      34
+    ],
+    [
+      29,
+      34
+    ],
+    [
+      30,
+      34
+    ],
+    [
+      31,
+      34
+    ],
+    [
+      32,
+      34
+    ]
+  ],
+  "mountainGroups": 12,
+  "trees": 97,
+  "collisionRectangles": 188,
+  "allCitiesReachable": true,
+  "bridgesAreRequired": true,
+  "eachBridgeWorksIndependently": true
+}
