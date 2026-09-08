@@ -119,7 +119,7 @@ class WorldPainter extends CustomPainter {
       );
     }
 
-    if (c.walking && c.campaign.marches.isEmpty) {
+    if (c.walking && !c.campaign.hasDispatched) {
       final path = Path()..moveTo(c.heroPosition.dx, c.heroPosition.dy);
       for (var n = c.routeStep; n < c.route.length; n++) {
         final point = c.route[n].center;
@@ -156,7 +156,7 @@ class WorldPainter extends CustomPainter {
     }
 
     canvas.restore();
-    if (c.campaign.marches.isEmpty) {
+    if (!c.campaign.hasDispatched) {
       _drawHero(
         canvas,
         size,
@@ -316,7 +316,7 @@ class MinimapPainter extends CustomPainter {
               : const Color(0xffe77d70),
       );
     }
-    final positions = c.campaign.marches.isEmpty
+    final positions = !c.campaign.hasDispatched
         ? [c.heroPosition]
         : c.campaign.marches.values.map((march) => march.position);
     for (final position in positions) {

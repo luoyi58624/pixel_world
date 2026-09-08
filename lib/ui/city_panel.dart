@@ -170,12 +170,14 @@ class CityPanel extends StatelessWidget {
         _section('城池情况'),
         const SizedBox(height: 12),
         _cityStats(situation),
+        const SizedBox(height: 12),
+        _economy(situation),
         const SizedBox(height: 20),
         _section(situation.isPlayer ? '所属英雄' : '守城部队'),
         const SizedBox(height: 10),
         if (!situation.isPlayer)
           Text(
-            '守军 ${situation.enemySoldiers} 人',
+            '守军 ${controller.campaign.soldiersAt(controller.selectedCity!.id)} 人',
             style: const TextStyle(color: _cream, fontSize: 13),
           ),
         for (final hero in heroes)
@@ -192,7 +194,7 @@ class CityPanel extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  _heroStatus(hero),
+                  '${hero.hp}/${hero.maxHp} HP · ${_heroStatus(hero)}',
                   style: const TextStyle(color: _muted, fontSize: 12),
                 ),
               ],
@@ -213,13 +215,21 @@ class CityPanel extends StatelessWidget {
         const SizedBox(height: 18),
         _section('选择英雄'),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            for (var i = 0; i < heroes.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(child: _heroChoice(heroes[i])),
-            ],
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth < 260 ? 2 : 3;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final hero in heroes)
+                  SizedBox(
+                    width: (constraints.maxWidth - (columns - 1) * 8) / columns,
+                    child: _heroChoice(hero),
+                  ),
+              ],
+            );
+          },
         ),
         if (heroes.isEmpty)
           const Text('城中暂无可派遣的英雄', style: TextStyle(color: _muted)),
@@ -248,7 +258,7 @@ class CityPanel extends StatelessWidget {
               const Text('HP', style: TextStyle(fontSize: 11, color: _muted)),
               const Spacer(),
               Text(
-                '${hero.hp} / ${hero.hp}',
+                '${hero.hp} / ${hero.maxHp}',
                 key: const ValueKey('hero-hp'),
                 style: const TextStyle(
                   fontSize: 12,
@@ -259,8 +269,8 @@ class CityPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          const LinearProgressIndicator(
-            value: 1,
+          LinearProgressIndicator(
+            value: hero.hp / hero.maxHp,
             minHeight: 4,
             color: Color(0xffa3be85),
             backgroundColor: _line,
@@ -275,15 +285,15 @@ class CityPanel extends StatelessWidget {
           _stats([('士兵', '${hero.soldiers} 人'), ('王牌', hero.ace)], columns: 2),
           const SizedBox(height: 10),
           Text(
-            '召唤蛋：${hero.hasEgg ? '持有' : '未持有'}',
+            '召唤蛋：${hero.hasEgg ? '可使用' : '不可使用'}',
             style: const TextStyle(fontSize: 11, color: _muted),
           ),
           if (!c.campaign.canDispatch(hero))
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
               child: Text(
-                '这位英雄已出征，可以选择另一位英雄。',
-                style: TextStyle(fontSize: 12, color: _muted),
+                c.campaign.dispatchBlockReason(hero)!,
+                style: const TextStyle(fontSize: 12, color: _muted),
               ),
             ),
         ],
@@ -307,7 +317,7 @@ class CityPanel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _portrait(hero, 32),
+          _portrait(hero, 24),
           const SizedBox(width: 7),
           Expanded(
             child: Column(
@@ -316,7 +326,7 @@ class CityPanel extends StatelessWidget {
                 Text(
                   hero.name,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -334,8 +344,78 @@ class CityPanel extends StatelessWidget {
       switch (controller.campaign.marches[hero.id]?.phase) {
         MarchPhase.marching => '出征中',
         MarchPhase.awaitingBattle => '城下待战',
+        MarchPhase.fighting => '交战中',
         null => '驻守中',
       };
+
+  Widget _economy(CitySituation situation) {
+    final c = controller;
+    final cityId = c.selectedCity!.id;
+    final cost = situation.upgradeCost;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _section('经济情况'),
+        const SizedBox(height: 10),
+        _stats([
+          ('英雄报酬 / 回合', '${c.campaign.salaryAt(cityId)}'),
+          ('本城净产出', '${situation.income - c.campaign.salaryAt(cityId)}'),
+        ], columns: 2),
+        const SizedBox(height: 10),
+        if (situation.isPlayer) ...[
+          Text(
+            '国库 ${c.campaign.gold} 金币 · 每 30 秒结算',
+            style: const TextStyle(fontSize: 12, color: _cream),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const ValueKey('city-upgrade'),
+              onPressed: cost != null && c.campaign.gold >= cost
+                  ? () => onAction(c.upgradeSelectedCity)
+                  : null,
+              icon: const Icon(Icons.upgrade, size: 18),
+              label: Text(
+                cost == null
+                    ? '已满级 · 5 级城市'
+                    : '升级至 ${situation.level + 1} 级 · $cost 金币',
+              ),
+              style: _primaryStyle,
+            ),
+          ),
+          if (cost != null)
+            Text(
+              '升级后每回合产出 ${situation.income + situation.baseIncome}',
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+          if (cost != null && c.campaign.gold < cost)
+            const Text(
+              '金币不足，等待下一次结算',
+              style: TextStyle(fontSize: 11, color: _muted),
+            ),
+        ],
+        const SizedBox(height: 10),
+        const Text(
+          '英雄每战败一位，所属城池降一级；一级城战败即失守，未出战英雄一并消失。',
+          style: TextStyle(fontSize: 11, height: 1.5, color: _muted),
+        ),
+        if (c.campaign.journal.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _section('最近记录'),
+          const SizedBox(height: 6),
+          for (final event in c.campaign.journal.reversed.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                event,
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
 
   Widget _footer() {
     final c = controller;

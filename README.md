@@ -41,6 +41,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `assets/images/hero/advanced.png`、`normal.png`：每位英雄一张 96×16 图集，六帧固定为正面 A/B、背面 A/B、左侧面 A/B。
 - `lib/world/hero_sprite.dart`：八方向判定、角色外观及六帧动画选择。
 - `lib/world/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
+- `assets/data/rom_heroes.json`：41 位正式英雄的提取属性、姓名编码、来源偏移。
+- `lib/world/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
 - `lib/world/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
 - `lib/world/world_data.dart`：地图定义、城池定义、直线路线和地形速度。
 - `lib/world/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。
@@ -64,9 +66,15 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 点击城池只展开“出击 / 情况”，点击“出击”后才进入英雄选择。选择英雄时同时显示 HP、战斗、内政、报酬、士兵、王牌和召唤蛋，底部只有出击和取消。确认英雄后在地图上选择红色标记的敌城；点击地面或我方城池不会误派兵，取消仍保留原驻军。
 
-`CampaignState.prototype` 是新游戏的演示配置，英雄姓名、属性、城池归属、城防及经济数值都不是从 ROM 未知字段推导出来的。每张地图的初始据点属于玩家，配置雷恩和艾琳两位英雄，各携带 4 名士兵；其他城池暂设为敌城。收入和报酬只展示配置，本阶段没有经济回合结算。可在该工厂方法中调整数值和归属，原始地图 JSON 保持不变。
+英雄目录已替换为从 ROM 提取的 41 位正式英雄：40 个固定姓名，以及一位玩家命名的主角。姓名按原字模转写，HP、战斗、内政和报酬按实际读取代码定位。初始据点使用原编号 40、0、2，即主角、泽拉斯、威拉斯。其余城池也按 ROM 关联编号配置驻军，未出现在当前地图的英雄留在目录中，不凭空生成。详情、来源偏移及边界见 [英雄提取报告](docs/nes_heroes.md)，完整数据见 [CSV](docs/nes_heroes.csv)。
 
-两位英雄可独立从城门出发，沿直线抵达敌城城下后进入待战状态。已出征英雄不能重复派遣，城内驻兵数只统计未出征英雄的随行士兵。抵达不自动判定胜负、扣血或占领城池，尚未实现战斗、招募及存档。切换地图保留本次运行中的各自出征记录，未显示的地图暂停行军；重启应用重新初始化。
+`CampaignState.fromRom` 将静态英雄属性与新规则结合：我方初始据点、其他城池暂设敌方的归属、一级城基础产出和初始满编 4 人均是新游戏配置。原 ROM 的驻城士兵开局为 0，兵力和王牌是动态状态；此原型不给英雄编造王牌名称，开局显示无王牌。
+
+城市最高五级，每回合产出为基础产出乘等级。国库初始 300 金币，升级花费为当前等级乘 200；满级或余额不足时不扣款。每 30 秒结算我方产出，并扣除存活我方英雄的报酬，余额最低为零。城池“情况”中显示经济明细、下级产出、升级按钮和近期记录。
+
+一级城市只允许同时派出一位英雄，升级后可派出其他可用英雄。每阵亡一位英雄，其所属城池降一级；若战败前已经是一级，城池易主且该城未出战的败方英雄全部移除，其他城池和已在外的英雄保留。升级不生成新英雄，胜利英雄进驻新城并保留当前 HP。
+
+抵达敌城后按每秒一次的简易顺序公式交战，同一城池同时只处理一支进攻部队。该公式是新游戏原型，不是 NES 原版战斗算法，细节见提取报告。尚未实现召唤、招募、补兵或存档。切换地图保留本次运行中的城池、国库、英雄和出征状态，未显示的地图暂停；重启应用重新初始化。
 
 三张地图的压缩数据分别位于 ROM 文件偏移 `0x010BC7`、`0x01146B`、`0x011D2D`，包含 10、11、12 条初始城池记录。
 
@@ -74,6 +82,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 ```powershell
 python tool/extract_nes_map.py "你的 ROM 路径"
+python tool/extract_nes_heroes.py "你的 ROM 路径"
 ```
 
 提取器校验指定 ROM 版本的哈希，不修改输入文件。日常运行和修改 Flutter 代码无需执行提取器。
@@ -84,4 +93,5 @@ python tool/extract_nes_map.py "你的 ROM 路径"
 flutter analyze
 flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
 flutter test test/city_dispatch_test.dart
+flutter test test/campaign_rules_test.dart
 ```

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 
 import 'hero_sprite.dart';
+import 'rom_hero.dart';
 import 'world_data.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
@@ -14,10 +15,14 @@ class WorldAssets {
     this.water,
     this.scenes,
     this.minimaps,
+    this.heroCatalog,
   );
 
   /// 三个场景的独立地图定义。
   final List<WorldDefinition> worlds;
+
+  /// 从 ROM 提取的正式英雄静态目录。
+  final List<RomHeroDefinition> heroCatalog;
 
   /// 地形组合图块集。
   final ui.Image terrain;
@@ -67,6 +72,9 @@ class WorldAssets {
   static Future<WorldAssets> load() async {
     final worlds = decodeWorlds(
       await rootBundle.loadString('assets/maps/worlds.json'),
+    );
+    final heroCatalog = decodeRomHeroes(
+      await rootBundle.loadString('assets/data/rom_heroes.json'),
     );
     final textures = await Future.wait(
       [
@@ -119,6 +127,7 @@ class WorldAssets {
       textures[3],
       scenes,
       textures.sublist(4),
+      heroCatalog,
     );
   }
 

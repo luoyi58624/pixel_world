@@ -1,67 +1,87 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'hero_sprite.dart';
+import 'rom_hero.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
 
-/// 新游戏的城池情况，数值由原型配置提供，不解释 ROM 的未知字段。
+/// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
-  /// 创建城池的归属和展示数值。
-  const CitySituation({
+  /// 创建一级城池及其基础产出。
+  CitySituation({
     required this.isPlayer,
     required this.defense,
-    required this.income,
-    this.level = 1,
-    this.enemySoldiers = 12,
+    required this.baseIncome,
   });
 
-  /// 是否属于玩家。
-  final bool isPlayer;
+  /// 城池是否属于玩家，失守或占领时改变。
+  bool isPlayer;
 
-  /// 当前城防。
+  /// 基础城防，用于界面展示。
   final int defense;
 
-  /// 每回合收入，经济回合尚未运行。
-  final int income;
+  /// 一级城市每回合产出。
+  final int baseIncome;
+  int _level = 1;
 
-  /// 城池等级。
-  final int level;
+  /// 当前等级，始终处于 1 到 5。
+  int get level => _level;
 
-  /// 敌城驻兵配置。
-  final int enemySoldiers;
+  /// 每升级一级增加一份基础产出。
+  int get income => baseIncome * level;
+
+  /// 升级所需金币，满级后为空。
+  int? get upgradeCost => level < maxLevel ? level * 200 : null;
+
+  /// 城池最高等级。
+  static const maxLevel = 5;
 }
 
-/// 一位英雄的身份、属性和随行部队，外观与英雄身份分开。
+/// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
 class CampaignHero {
-  /// 创建可独立派遣的英雄。
-  const CampaignHero({
-    required this.id,
-    required this.name,
-    required this.appearance,
+  /// 新游戏给驻军配满士兵；原版开局驻城兵力为零，二者有意分开。
+  CampaignHero.fromRom(
+    RomHeroDefinition definition, {
     required this.cityId,
-    required this.hp,
-    required this.combat,
-    required this.politics,
-    required this.salary,
-    required this.soldiers,
-    required this.ace,
-    required this.hasEgg,
-  });
+    required this.isPlayer,
+  }) : sourceId = definition.id,
+       id = 'rom-${definition.id}',
+       name = definition.name ?? '主角',
+       maxHp = definition.maxHp,
+       hp = definition.maxHp,
+       combat = definition.combat,
+       politics = definition.politics,
+       salary = definition.salary,
+       soldiers = definition.soldierLimit,
+       hasEgg = definition.eggCapable,
+       appearance = definition.id == 40
+           ? HeroAppearance.advanced
+           : HeroAppearance.normal;
 
-  /// 本场景内唯一的英雄编号。
+  /// 本场景内唯一标识。
   final String id;
 
-  /// 英雄名称。
+  /// 原 ROM 英雄编号。
+  final int sourceId;
+
+  /// 汉化姓名，玩家主角暂用“主角”作为显示名。
   final String name;
 
-  /// 所用的六帧角色图集。
+  /// 行军外观与英雄身份分开。
   final HeroAppearance appearance;
 
-  /// 英雄所属的出发城池。
-  final int cityId;
+  /// 当前所属城池，进驻新占领城池后更新。
+  int cityId;
 
-  /// 当前和初始生命值，本阶段尚无战斗损耗。
-  final int hp;
+  /// 英雄阵营不会因出发城失守而自动改变。
+  final bool isPlayer;
+
+  /// 生命上限。
+  final int maxHp;
+
+  /// 当前生命值。
+  int hp;
 
   /// 战斗能力。
   final int combat;
@@ -72,28 +92,31 @@ class CampaignHero {
   /// 每回合报酬。
   final int salary;
 
-  /// 英雄携带的士兵数量。
+  /// 随行士兵数量，本阶段战损由英雄生命值表示。
   final int soldiers;
 
-  /// 王牌的显示名称。
-  final String ace;
+  /// 开局没有王牌库存，召唤蛋不冒充王牌道具。
+  String get ace => '无';
 
-  /// 是否持有召唤蛋。
+  /// 是否具备召唤蛋能力，召唤战斗尚未接入。
   final bool hasEgg;
 }
 
-/// 出征状态先覆盖行军和抵达待战，不在界面阶段推断战斗胜负。
+/// 部队从行军进入排队待战或交战。
 enum MarchPhase {
-  /// 前往目标城池。
+  /// 前往目标。
   marching,
 
-  /// 已在目标城下等待战斗。
+  /// 等待同一城池的前一场交战结束。
   awaitingBattle,
+
+  /// 正与守城英雄交战。
+  fighting,
 }
 
-/// 一支已经确认出发的部队，取消选目标不会创建该记录。
+/// 一支已确认出发的部队，地图移动与战斗保留同一英雄身份。
 class HeroMarch {
-  /// 从所属城池城门开始行军。
+  /// 从所属城门出发。
   HeroMarch({
     required this.hero,
     required this.target,
@@ -101,32 +124,32 @@ class HeroMarch {
     required this.destination,
   }) : direction = HeroDirection.fromVector(destination - position);
 
-  /// 统率这支部队的英雄。
+  /// 带队英雄。
   final CampaignHero hero;
 
-  /// 本次进攻的敌城。
+  /// 目标城池。
   final CityDefinition target;
 
-  /// 目标城门的世界坐标。
+  /// 目标城门。
   final Offset destination;
 
-  /// 部队精确位置。
+  /// 精确世界坐标。
   Offset position;
 
-  /// 当前行军朝向。
+  /// 行军朝向。
   final HeroDirection direction;
 
-  /// 已走过的距离，用于地形减速时同步降低步频。
+  /// 实际行军距离。
   double walkDistance = 0;
 
-  /// 当前出征阶段。
+  /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
 
-  /// 行走时播放两帧，抵达后保持站立帧。
+  /// 动画步频随移动速度变化。
   int get animationStep =>
       phase == MarchPhase.marching ? (walkDistance / 6).floor() % 2 : 0;
 
-  /// 推进行军，返回此次是否刚刚抵达。
+  /// 推进行军，抵达后由战役规则决定何时交战。
   bool tick(WorldDefinition world, double elapsed) {
     if (phase != MarchPhase.marching) return false;
     final result = advanceToward(world, position, destination, elapsed);
@@ -140,13 +163,46 @@ class HeroMarch {
   }
 }
 
-/// 每张地图独立保留城池、英雄和出征记录，静态地形数据保持不变。
-class CampaignState {
-  CampaignState._(this.world, this.cities, this.heroes);
+/// 一次战败的城池影响，重复处理已消失英雄不会重复降级。
+typedef DefeatResult = ({
+  int cityId,
+  int oldLevel,
+  int newLevel,
+  bool captured,
+  List<String> removedHeroIds,
+});
 
-  /// 使用明确的演示配置创建新游戏，数值和名称均可在此调整。
-  factory CampaignState.prototype(WorldDefinition world) {
+/// 管理一张地图的经济、出征及战败规则，未显示的场景暂停推进。
+class CampaignState {
+  CampaignState._(this.world, this.cities, this.heroes, this._gold);
+
+  /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
+  factory CampaignState.fromRom(
+    WorldDefinition world,
+    List<RomHeroDefinition> catalog, {
+    int startingGold = 300,
+  }) {
     final home = world.cities.first.id;
+    final placement = <int, int>{};
+    for (final city in world.cities) {
+      for (final id in city.unitIds) {
+        placement[id] = city.id;
+      }
+    }
+    final heroes =
+        [
+          for (final definition in catalog)
+            if (placement.containsKey(definition.id))
+              CampaignHero.fromRom(
+                definition,
+                cityId: placement[definition.id]!,
+                isPlayer: placement[definition.id] == home,
+              ),
+        ]..sort(
+          (a, b) => (a.sourceId == 40 ? -1 : a.sourceId).compareTo(
+            b.sourceId == 40 ? -1 : b.sourceId,
+          ),
+        );
     return CampaignState._(
       world,
       {
@@ -154,72 +210,115 @@ class CampaignState {
           city.id: CitySituation(
             isPlayer: city.id == home,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
-            income: city.id == home ? 126 : 80 + city.id * 6,
+            baseIncome: city.id == home ? 126 : 80 + city.id * 6,
           ),
       },
-      [
-        CampaignHero(
-          id: 'vanguard',
-          name: '雷恩',
-          appearance: HeroAppearance.advanced,
-          cityId: home,
-          hp: 99,
-          combat: 15,
-          politics: 15,
-          salary: 0,
-          soldiers: 4,
-          ace: '烈焰召唤',
-          hasEgg: true,
-        ),
-        CampaignHero(
-          id: 'guardian',
-          name: '艾琳',
-          appearance: HeroAppearance.normal,
-          cityId: home,
-          hp: 84,
-          combat: 12,
-          politics: 18,
-          salary: 2,
-          soldiers: 4,
-          ace: '无',
-          hasEgg: false,
-        ),
-      ],
+      heroes,
+      math.max(0, startingGold),
     );
   }
 
-  /// 所属的静态地图。
+  /// 静态地图。
   final WorldDefinition world;
 
-  /// 以城池编号索引的玩法配置。
+  /// 城池玩法状态。
   final Map<int, CitySituation> cities;
 
-  /// 玩家可查看和派遣的英雄。
+  /// 仍存在的英雄，战败或失城移除时不保留幽灵驻军。
   final List<CampaignHero> heroes;
 
-  /// 已出征的英雄，防止同一英雄被重复派遣。
+  /// 已出征部队。
   final Map<String, HeroMarch> marches = {};
 
-  /// 查询城池所属的英雄，已出征的仍可查看详情。
-  List<CampaignHero> heroesAt(int cityId) =>
-      heroes.where((hero) => hero.cityId == cityId).toList();
+  /// 派兵后即使部队全灭，也不重新生成探索人物。
+  bool hasDispatched = false;
+  int _gold;
 
-  /// 查询城中尚未出征的驻守士兵。
-  int soldiersAt(int cityId) => cities[cityId]!.isPlayer
-      ? heroesAt(cityId)
-            .where((hero) => !marches.containsKey(hero.id))
-            .fold(0, (sum, hero) => sum + hero.soldiers)
-      : cities[cityId]!.enemySoldiers;
+  /// 当前金币。
+  int get gold => _gold;
 
-  /// 英雄必须仍在我方城内且有兵力，才能创建出征命令。
-  bool canDispatch(CampaignHero hero) =>
-      heroes.contains(hero) &&
-      cities[hero.cityId]?.isPlayer == true &&
-      hero.hp > 0 &&
-      hero.soldiers > 0 &&
-      !marches.containsKey(hero.id);
+  /// 已完成的经济结算次数。
+  int settledTurns = 0;
+  double _secondFraction = 0;
+  int _economySeconds = 0;
 
-  /// 原子提交一次出征，只接受当前场景中的敌城。
+  /// 最近一条反馈。
+  String lastEvent = '';
+
+  /// 最近八条记录。
+  final List<String> journal = [];
+
+  /// 我方城池总产出。
+  int get grossIncome => cities.values
+      .where((city) => city.isPlayer)
+      .fold(0, (sum, city) => sum + city.income);
+
+  /// 存活我方英雄的报酬，包括已出征部队。
+  int get salaryCost => heroes
+      .where((hero) => hero.isPlayer)
+      .fold(0, (sum, hero) => sum + hero.salary);
+
+  /// 下一次结算净收入。
+  int get netIncome => grossIncome - salaryCost;
+
+  /// 失去所有城池且没有我方英雄时，本场景战役结束。
+  bool get defeated =>
+      hasDispatched &&
+      !cities.values.any((city) => city.isPlayer) &&
+      !heroes.any((hero) => hero.isPlayer);
+
+  /// 本城所属英雄；失城后已出征的原阵营英雄不列入新驻军。
+  List<CampaignHero> heroesAt(int cityId) => heroes
+      .where(
+        (hero) =>
+            hero.cityId == cityId && hero.isPlayer == cities[cityId]!.isPlayer,
+      )
+      .toList();
+
+  /// 尚未出征的守军。
+  List<CampaignHero> garrisonAt(int cityId) =>
+      heroesAt(cityId).where((hero) => !marches.containsKey(hero.id)).toList();
+
+  /// 驻兵合计。
+  int soldiersAt(int cityId) =>
+      garrisonAt(cityId).fold(0, (sum, hero) => sum + hero.soldiers);
+
+  /// 本城英雄报酬。
+  int salaryAt(int cityId) =>
+      heroesAt(cityId).fold(0, (sum, hero) => sum + hero.salary);
+
+  /// 无法出击时给出原因，一级城只允许同时派出一位英雄。
+  String? dispatchBlockReason(CampaignHero hero) {
+    if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
+    if (!hero.isPlayer || cities[hero.cityId]?.isPlayer != true) {
+      return '英雄不在我方城池中';
+    }
+    if (marches.containsKey(hero.id)) return '这位英雄已经出征';
+    if (hero.soldiers <= 0) return '没有可随行的士兵';
+    if (cities[hero.cityId]!.level == 1 &&
+        marches.values.any((march) => march.hero.cityId == hero.cityId)) {
+      return '一级城池只能同时派出一位英雄，升级后可继续出击';
+    }
+    return null;
+  }
+
+  /// 是否允许出击。
+  bool canDispatch(CampaignHero hero) => dispatchBlockReason(hero) == null;
+
+  /// 升级我方城池，满级或余额不足时不扣款。
+  bool upgradeCity(int cityId) {
+    final city = cities[cityId];
+    final cost = city?.upgradeCost;
+    if (city == null || !city.isPlayer || cost == null || _gold < cost) {
+      return false;
+    }
+    _gold -= cost;
+    city._level++;
+    _record('${_cityName(cityId)}升至 ${city.level} 级，每回合产出 ${city.income}');
+    return true;
+  }
+
+  /// 提交合法目标，取消选目标不会创建这条记录。
   HeroMarch? dispatch(CampaignHero hero, CityDefinition target) {
     if (!canDispatch(hero) ||
         !world.cities.contains(target) ||
@@ -237,6 +336,157 @@ class CampaignState {
       destination: end,
     );
     marches[hero.id] = march;
+    hasDispatched = true;
     return march;
+  }
+
+  /// 英雄战败降一级；一级城易主，只清除该城未出征的败方英雄。
+  DefeatResult? defeatHero(String heroId, {required bool winnerIsPlayer}) {
+    final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
+    if (hero == null || hero.isPlayer == winnerIsPlayer) return null;
+    final city = cities[hero.cityId]!;
+    final oldLevel = city.level;
+    final removed = <String>[hero.id];
+    hero.hp = 0;
+    marches.remove(hero.id);
+    heroes.remove(hero);
+    var captured = false;
+    // 已在外的英雄阵亡时，不再次削弱先前占领出发城的敌方。
+    if (city.isPlayer == hero.isPlayer) {
+      if (city.level > 1) {
+        city._level--;
+      } else {
+        captured = true;
+        removed.addAll(_captureCity(hero.cityId, winnerIsPlayer));
+      }
+    }
+    _record(
+      captured
+          ? '${hero.name}战败，${_cityName(hero.cityId)}失守，未出战英雄已移除'
+          : '${hero.name}战败，${_cityName(hero.cityId)}现为 ${city.level} 级',
+    );
+    return (
+      cityId: hero.cityId,
+      oldLevel: oldLevel,
+      newLevel: city.level,
+      captured: captured,
+      removedHeroIds: List.unmodifiable(removed),
+    );
+  }
+
+  /// 按一秒边界交战、每三十秒结算经济，帧率不改变伤害或产出次数。
+  bool advance(double elapsed) {
+    var remaining = elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
+    var changed = false;
+    while (remaining > 1e-9) {
+      final dt = math.min(remaining, 1 - _secondFraction);
+      for (final march in marches.values) {
+        final terrain = world.movementTerrainAt(cellAt(world, march.position));
+        changed = march.tick(world, dt) || changed;
+        changed =
+            terrain != world.movementTerrainAt(cellAt(world, march.position)) ||
+            changed;
+      }
+      remaining -= dt;
+      _secondFraction += dt;
+      if (_secondFraction >= 1 - 1e-9) {
+        _secondFraction = 0;
+        changed = _combatRound() || changed;
+        _economySeconds++;
+        if (_economySeconds == 30) {
+          _economySeconds = 0;
+          final income = netIncome;
+          _gold = math.max(0, _gold + income);
+          settledTurns++;
+          _record('第 $settledTurns 次结算：${income >= 0 ? '+' : ''}$income 金币');
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+
+  bool _combatRound() {
+    var changed = false;
+    final engagedCities = <int>{};
+    for (final march in marches.values.toList()) {
+      if (!marches.containsKey(march.hero.id) ||
+          march.phase == MarchPhase.marching) {
+        continue;
+      }
+      final target = cities[march.target.id]!;
+      if (target.isPlayer == march.hero.isPlayer) {
+        _station(march);
+        changed = true;
+        continue;
+      }
+      if (!engagedCities.add(march.target.id)) continue;
+      final defender = garrisonAt(march.target.id).firstOrNull;
+      if (defender == null) {
+        _captureCity(march.target.id, march.hero.isPlayer);
+        _station(march);
+        changed = true;
+        continue;
+      }
+      march.phase = MarchPhase.fighting;
+      // 新原型的顺序交战公式，不作为 NES 原版算法。
+      final attack = math.max(
+        1,
+        march.hero.combat + march.hero.soldiers * 2 - target.level * 2,
+      );
+      defender.hp = math.max(0, defender.hp - attack);
+      if (defender.hp == 0) {
+        defeatHero(defender.id, winnerIsPlayer: march.hero.isPlayer);
+        if (target.isPlayer == march.hero.isPlayer ||
+            garrisonAt(march.target.id).isEmpty) {
+          _captureCity(march.target.id, march.hero.isPlayer);
+          _station(march);
+        }
+      } else {
+        final homeLevel = cities[march.hero.cityId]!.level;
+        final retaliation = math.max(
+          1,
+          defender.combat +
+              defender.soldiers * 2 +
+              target.level * 4 -
+              homeLevel * 2,
+        );
+        march.hero.hp = math.max(0, march.hero.hp - retaliation);
+        if (march.hero.hp == 0) {
+          defeatHero(march.hero.id, winnerIsPlayer: defender.isPlayer);
+        }
+      }
+      changed = true;
+    }
+    return changed;
+  }
+
+  List<String> _captureCity(int cityId, bool winnerIsPlayer) {
+    final removed = heroes
+        .where(
+          (hero) =>
+              hero.cityId == cityId &&
+              hero.isPlayer != winnerIsPlayer &&
+              !marches.containsKey(hero.id),
+        )
+        .map((hero) => hero.id)
+        .toList();
+    heroes.removeWhere((hero) => removed.contains(hero.id));
+    cities[cityId]!.isPlayer = winnerIsPlayer;
+    return removed;
+  }
+
+  void _station(HeroMarch march) {
+    marches.remove(march.hero.id);
+    march.hero.cityId = march.target.id;
+    _record('${march.hero.name}已进驻${march.target.label}');
+  }
+
+  String _cityName(int id) =>
+      world.cities.firstWhere((city) => city.id == id).label;
+  void _record(String event) {
+    lastEvent = event;
+    journal.add(event);
+    if (journal.length > 8) journal.removeAt(0);
   }
 }

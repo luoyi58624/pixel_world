@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'campaign.dart';
 import 'hero_sprite.dart';
+import 'rom_hero.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
@@ -24,9 +25,11 @@ enum CityPanelPage {
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。
-  WorldController(this.worlds)
+  WorldController(this.worlds, {List<RomHeroDefinition> heroCatalog = const []})
     : camera = WorldCamera(worlds.first.pixelSize),
-      campaigns = worlds.map(CampaignState.prototype).toList() {
+      campaigns = worlds
+          .map((world) => CampaignState.fromRom(world, heroCatalog))
+          .toList() {
     switchWorld(0);
   }
 
@@ -157,7 +160,7 @@ class WorldController extends ChangeNotifier {
       );
       followHero = false;
     }
-    if (walking && campaign.marches.isEmpty) {
+    if (walking && !campaign.hasDispatched) {
       final oldTerrain = movementTerrain;
       var remainingTime = dt;
       while (walking && remainingTime > 1e-9) {
@@ -195,15 +198,12 @@ class WorldController extends ChangeNotifier {
         refreshUi();
       }
     }
-    for (final march in campaign.marches.values) {
-      final oldTerrain = world.movementTerrainAt(cellAt(world, march.position));
-      if (march.tick(world, dt)) {
-        message = '${march.hero.name}已抵达${march.target.label} · 城下待战';
-        refreshUi();
-      } else if (oldTerrain !=
-          world.movementTerrainAt(cellAt(world, march.position))) {
-        refreshUi();
+    if (campaign.advance(dt)) {
+      if (campaign.lastEvent.isNotEmpty) message = campaign.lastEvent;
+      if (pendingHero != null && !campaign.canDispatch(pendingHero!)) {
+        pendingHero = null;
       }
+      refreshUi();
     }
     if (followHero && campaign.marches.isNotEmpty) {
       camera.center = campaign.marches.values.last.position;
@@ -236,7 +236,7 @@ class WorldController extends ChangeNotifier {
 
   /// 从当前精确位置直线前往目标，途中改点时立即转向。
   void walkTo(TileCoord destination) {
-    if (campaign.marches.isNotEmpty) {
+    if (campaign.hasDispatched) {
       message = '点击我方城池查看情况或派遣英雄';
       refreshUi();
       return;
@@ -347,12 +347,33 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
+  /// 升级当前城池，失败时说明满级或金币不足，不改变余额。
+  void upgradeSelectedCity() {
+    final city = selectedCity;
+    if (city == null) return;
+    if (campaign.upgradeCity(city.id)) {
+      message = campaign.lastEvent;
+    } else {
+      message = campaign.cities[city.id]!.level == CitySituation.maxLevel
+          ? '城池已达到最高五级'
+          : '金币不足，暂时无法升级';
+    }
+    refreshUi();
+  }
+
   /// 镜头跟随最近派出的部队，尚未派兵时跟随探索角色。
   Offset get focusPosition =>
       campaign.marches.values.lastOrNull?.position ?? heroPosition;
 
   /// 地图底部的行军说明，只在界面状态变化时重建。
   String get statusMessage {
+    if (campaign.defeated) return '城池已失守，本场景没有存活英雄';
+    final battle = campaign.marches.values
+        .where((march) => march.phase == MarchPhase.fighting)
+        .firstOrNull;
+    if (battle != null && pendingHero == null && selectedCity == null) {
+      return '${battle.hero.name}正在进攻${battle.target.label} · HP ${battle.hero.hp}/${battle.hero.maxHp}';
+    }
     final march = campaign.marches.values
         .where((march) => march.phase == MarchPhase.marching)
         .lastOrNull;

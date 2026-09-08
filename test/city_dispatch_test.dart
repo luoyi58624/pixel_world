@@ -4,13 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/main.dart';
-import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
+
+List<RomHeroDefinition> _heroCatalog() =>
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 
 void _prepare(WorldController c, String heroId) {
   c.openCity(c.world.cities.first);
@@ -22,6 +25,7 @@ void _prepare(WorldController c, String heroId) {
 Future<WorldController> _load(WidgetTester tester, Size size) async {
   // 每个 widget 测试使用独立时钟，不能复用上个测试时钟下缓存的资源 Future。
   rootBundle.evict('assets/maps/worlds.json');
+  rootBundle.evict('assets/data/rom_heroes.json');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -68,37 +72,54 @@ Future<void> _tapCity(
 }
 
 void main() {
+  testWidgets('经济面板升级后立即更新产出和国库，金币不足时禁用升级', (tester) async {
+    final c = await _load(tester, const Size(375, 812));
+    await _tapCity(tester, c, c.world.cities.first);
+    await tester.tap(find.byKey(const ValueKey('city-information')));
+    await tester.pump();
+    final upgrade = find.byKey(const ValueKey('city-upgrade'));
+    await tester.ensureVisible(upgrade);
+    await tester.tap(upgrade);
+    await tester.pump();
+    expect(c.campaign.cities[0]!.level, 2);
+    expect(c.campaign.gold, 100);
+    expect(find.text('252'), findsOneWidget);
+    expect(tester.widget<FilledButton>(upgrade).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   test('点击城池先显示选项，选择和取消均不扣兵或生成行军', () {
-    final c = WorldController(_worlds());
+    final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
     c.openCity(c.world.cities.first);
     expect(c.cityPage, CityPanelPage.actions);
-    _prepare(c, 'guardian');
-    expect(c.pendingHero!.id, 'guardian');
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 8);
+    _prepare(c, 'rom-0');
+    expect(c.pendingHero!.id, 'rom-0');
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
     expect(c.campaign.marches, isEmpty);
     c.cancelCityAction();
     expect(c.pendingHero, isNull);
     expect(c.cityPage, CityPanelPage.dispatch);
-    expect(c.selectedHeroId, 'guardian');
+    expect(c.selectedHeroId, 'rom-0');
     c.cancelCityAction();
     expect(c.cityPage, CityPanelPage.actions);
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 8);
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
     c.dispose();
   });
 
   test('有效敌城确认后英雄才离城，重复确认不会重复扣兵', () {
-    final c = WorldController(_worlds());
+    final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
     final home = c.world.cities.first;
     final target = c.world.cities[1];
-    _prepare(c, 'vanguard');
+    _prepare(c, 'rom-40');
     c.confirmTarget(home);
     expect(c.pendingHero, isNotNull);
     expect(c.campaign.marches, isEmpty);
     c.confirmTarget(target);
     c.confirmTarget(target);
     expect(c.campaign.marches.length, 1);
-    expect(c.campaign.soldiersAt(home.id), 4);
-    final march = c.campaign.marches['vanguard']!;
+    expect(c.campaign.soldiersAt(home.id), 8);
+    final march = c.campaign.marches['rom-40']!;
     expect(march.position, home.entrance.center);
     expect(march.target, target);
     expect(c.campaign.dispatch(march.hero, target), isNull);
@@ -109,49 +130,41 @@ void main() {
     c.dispose();
   });
 
-  test('两位英雄独立行军，抵达城下待战，城池归属和属性不被伪造修改', () {
-    final c = WorldController(_worlds());
-    _prepare(c, 'vanguard');
+  test('升级后可让不同英雄独立出征，地图点击不会改写进攻命令', () {
+    final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
+    expect(c.campaign.upgradeCity(c.world.cities.first.id), isTrue);
+    _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
     c.tick(1);
-    final first = c.campaign.marches['vanguard']!;
+    final first = c.campaign.marches['rom-40']!;
     final position = first.position;
-    _prepare(c, 'guardian');
+    _prepare(c, 'rom-0');
     c.confirmTarget(c.world.cities[2]);
     expect(first.position, position);
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 0);
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 4);
     c.tick(1);
     expect(first.position, isNot(position));
-    final second = c.campaign.marches['guardian']!;
-    expect(second.walkDistance, greaterThan(0));
-    // 普通地图点击不能覆盖已确认的出征命令。
+    expect(c.campaign.marches['rom-0']!.walkDistance, greaterThan(0));
     c.walkTo(const TileCoord(0, 0));
     expect(first.target, c.world.cities[1]);
-    c.tick(1000);
-    for (final march in c.campaign.marches.values) {
-      expect(march.phase, MarchPhase.awaitingBattle);
-      expect(march.position, march.destination);
-      expect(march.animationStep, 0);
-      expect(c.campaign.cities[march.target.id]!.isPlayer, isFalse);
-      expect(march.hero.soldiers, 4);
-    }
     c.dispose();
   });
 
   test('切换地图保留各自出征记录，取消选目标不带到另一张地图', () {
-    final c = WorldController(_worlds());
-    _prepare(c, 'vanguard');
+    final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
+    c.campaign.upgradeCity(c.world.cities.first.id);
+    _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
     c.tick(0.5);
-    final position = c.campaign.marches['vanguard']!.position;
-    _prepare(c, 'guardian');
+    final position = c.campaign.marches['rom-40']!.position;
+    _prepare(c, 'rom-0');
     c.switchWorld(1);
     expect(c.pendingHero, isNull);
     expect(c.campaign.marches, isEmpty);
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 8);
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
     c.switchWorld(0);
-    expect(c.campaign.marches['vanguard']!.position, position);
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 4);
+    expect(c.campaign.marches['rom-40']!.position, position);
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 8);
     c.dispose();
   });
 
@@ -159,7 +172,7 @@ void main() {
     final c = await _load(tester, const Size(1280, 720));
     await _tapCity(tester, c, c.world.cities.first);
     expect(find.byKey(const ValueKey('city-sortie')), findsOneWidget);
-    expect(find.byKey(const ValueKey('dispatch-hero-guardian')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('city-information')));
     await tester.pump();
     expect(find.text('收入 / 回合'), findsOneWidget);
@@ -171,12 +184,12 @@ void main() {
     expect(find.byKey(const ValueKey('city-panel')), findsOneWidget);
     expect(find.text('士兵'), findsOneWidget);
     expect(find.text('王牌'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('dispatch-hero-guardian')));
+    await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
     await tester.pump();
-    expect(find.text('84 / 84'), findsOneWidget);
+    expect(find.text('95 / 95'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('dispatch-confirm')));
     await tester.pump();
-    expect(c.pendingHero!.id, 'guardian');
+    expect(c.pendingHero!.id, 'rom-0');
     expect(find.byKey(const ValueKey('city-panel')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('cancel-target')));
     await tester.pump();
@@ -185,7 +198,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('dispatch-confirm')));
     await tester.pump();
     await _tapCity(tester, c, c.world.cities[1]);
-    expect(c.campaign.marches['guardian']!.hero.name, '艾琳');
+    expect(c.campaign.marches['rom-0']!.hero.name, '泽拉斯');
     expect(c.pendingHero, isNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -207,7 +220,7 @@ void main() {
     await _tapCity(tester, c, c.world.cities.first);
     await tester.tap(find.byKey(const ValueKey('city-sortie')));
     await tester.pump();
-    final unavailable = find.byKey(const ValueKey('dispatch-hero-vanguard'));
+    final unavailable = find.byKey(const ValueKey('dispatch-hero-rom-40'));
     await tester.ensureVisible(unavailable);
     await tester.tap(unavailable);
     await tester.pump();

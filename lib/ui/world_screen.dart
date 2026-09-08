@@ -53,7 +53,10 @@ class _WorldScreenState extends State<WorldScreen>
         assets.dispose();
         return;
       }
-      final controller = WorldController(assets.worlds);
+      final controller = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+      );
       setState(() {
         _assets = assets;
         _controller = controller;
@@ -468,15 +471,16 @@ class _WorldScreenState extends State<WorldScreen>
                     color: _cream,
                   ),
                 ),
-                if (!compact)
-                  const Text(
-                    '世界地图  /  WORLD EXPLORER',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Color(0xff8f9d91),
-                      letterSpacing: 1.4,
-                    ),
+                Text(
+                  compact
+                      ? '金币 ${c.campaign.gold}'
+                      : '金币 ${c.campaign.gold} · 第 ${c.campaign.settledTurns + 1} 回合',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Color(0xff8f9d91),
+                    letterSpacing: 1.4,
                   ),
+                ),
               ],
             ),
             const Spacer(),
@@ -604,7 +608,7 @@ class _WorldScreenState extends State<WorldScreen>
             tooltip: '选择英雄：${c.appearance.label}',
             initialValue: c.appearance,
             icon: const Icon(Icons.person_outline, size: 19, color: _cream),
-            enabled: c.campaign.marches.isEmpty,
+            enabled: !c.campaign.hasDispatched,
             onSelected: (hero) => _action(() => c.appearance = hero),
             itemBuilder: (_) => HeroAppearance.values
                 .map(
@@ -758,7 +762,7 @@ class _WorldScreenState extends State<WorldScreen>
         backgroundColor: _ink,
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         content: const Text(
-          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n派兵前点击地面　自由探索\n山地速度 60%，涉水速度 50%\n点击城池　展开出击 / 情况\n出击　选择英雄，再在地图上点击敌城\n抵达敌城　部队在城下待战\n小地图　点击或拖动定位\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　取消选目标或返回上一层',
+          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n派兵前点击地面　自由探索\n山地速度 60%，涉水速度 50%\n点击城池　展开出击 / 情况\n情况　查看经济、升级城池，最高五级\n出击　选择英雄，再在地图上点击敌城\n抵达敌城　自动交战，胜利后进驻\n英雄战败　所属城池降一级\n一级城战败　失守并清除未出战英雄\n每 30 秒　结算产出与英雄报酬\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　取消选目标或返回上一层',
           style: TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [
