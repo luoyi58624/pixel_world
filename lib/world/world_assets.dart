@@ -9,7 +9,8 @@ class WorldAssets {
   WorldAssets._(
     this.worlds,
     this.terrain,
-    this.hero,
+    this.heroNormal,
+    this.heroAdvanced,
     this.water,
     this.scenes,
     this.minimaps,
@@ -21,8 +22,11 @@ class WorldAssets {
   /// 地形组合图块集。
   final ui.Image terrain;
 
-  /// 角色动作图块集。
-  final ui.Image hero;
+  /// 普通英雄图块。
+  final ui.Image heroNormal;
+
+  /// 高级英雄图块。
+  final ui.Image heroAdvanced;
 
   /// 水面动画图块集。
   final ui.Image water;
@@ -41,7 +45,8 @@ class WorldAssets {
     final textures = await Future.wait(
       [
         'terrain',
-        'hero',
+        'hero_normal',
+        'hero_advanced',
         'water',
         'minimap_0',
         'minimap_1',
@@ -78,8 +83,9 @@ class WorldAssets {
       textures[0],
       textures[1],
       textures[2],
+      textures[3],
       scenes,
-      textures.sublist(3),
+      textures.sublist(4),
     );
   }
 
@@ -93,7 +99,14 @@ class WorldAssets {
 
   /// 释放本界面持有的图形资源。
   void dispose() {
-    for (final image in [terrain, hero, water, ...scenes, ...minimaps]) {
+    for (final image in [
+      terrain,
+      heroNormal,
+      heroAdvanced,
+      water,
+      ...scenes,
+      ...minimaps,
+    ]) {
       image.dispose();
     }
   }

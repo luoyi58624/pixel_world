@@ -113,15 +113,10 @@ class WorldPainter extends CustomPainter {
       _brackets(canvas, cursor, color, 1);
     }
 
-    final step = c.walking ? (c.time * 7).floor() % 2 : 0;
-    final frame =
-        (c.direction == 1
-            ? 2
-            : c.direction == 2
-            ? 4
-            : 0) +
-        step;
     final hero = c.heroPosition;
+    final heroImage = c.heroKind == HeroKind.normal
+        ? assets.heroNormal
+        : assets.heroAdvanced;
     canvas.drawOval(
       Rect.fromCenter(center: hero + const Offset(0, 4), width: 12, height: 4),
       Paint()..color = const Color(0x55000000),
@@ -130,8 +125,13 @@ class WorldPainter extends CustomPainter {
     canvas.translate(hero.dx.roundToDouble(), hero.dy.roundToDouble() - 3);
     if (c.direction == 3) canvas.scale(-1, 1);
     canvas.drawImageRect(
-      assets.hero,
-      Rect.fromLTWH(frame * 16, 0, 16, 16),
+      heroImage,
+      Rect.fromLTWH(
+        0,
+        0,
+        heroImage.width.toDouble(),
+        heroImage.height.toDouble(),
+      ),
       const Rect.fromLTWH(-8, -8, 16, 16),
       paint,
     );

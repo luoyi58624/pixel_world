@@ -6,6 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
 
+/// 地图上显示的英雄类型。
+enum HeroKind { normal, advanced }
+
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。
@@ -24,6 +27,12 @@ class WorldController extends ChangeNotifier {
 
   /// 当前场景索引。
   int index = 0;
+
+  /// 当前地图角色使用的英雄类型。
+  HeroKind heroKind = HeroKind.normal;
+
+  /// 当前英雄类型的显示名称。
+  String get heroKindLabel => heroKind == HeroKind.normal ? '普通英雄' : '高级英雄';
 
   /// 当前地图。
   WorldDefinition get world => worlds[index];
@@ -84,6 +93,14 @@ class WorldController extends ChangeNotifier {
     camera.center = world.cities.first.bounds.center;
     camera.constrain();
     message = '点击地面行走，拖动地图探索';
+    refreshUi();
+  }
+
+  /// 在普通英雄和高级英雄之间切换。
+  void toggleHeroKind() {
+    heroKind = heroKind == HeroKind.normal
+        ? HeroKind.advanced
+        : HeroKind.normal;
     refreshUi();
   }
 
