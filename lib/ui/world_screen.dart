@@ -9,6 +9,7 @@ import '../world/hero_sprite.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import '../world/world_painter.dart';
+import 'city_panel.dart';
 
 const _ink = Color(0xff141b17);
 const _line = Color(0xff354138);
@@ -128,7 +129,7 @@ class _WorldScreenState extends State<WorldScreen>
       } else if (key == LogicalKeyboardKey.keyM) {
         setState(() => _showMinimap = !_showMinimap);
       } else if (key == LogicalKeyboardKey.escape) {
-        _action(() => c.selectedCity = null);
+        _action(c.cancelCityAction);
       } else if (key == LogicalKeyboardKey.digit1 ||
           key == LogicalKeyboardKey.digit2 ||
           key == LogicalKeyboardKey.digit3) {
@@ -293,7 +294,9 @@ class _WorldScreenState extends State<WorldScreen>
                             child: ValueListenableBuilder(
                               valueListenable: c.uiRevision,
                               builder: (context, value, child) =>
-                                  _locationBadge(c),
+                                  c.pendingHero == null
+                                  ? _locationBadge(c)
+                                  : const SizedBox.shrink(),
                             ),
                           ),
                         ),
@@ -303,17 +306,6 @@ class _WorldScreenState extends State<WorldScreen>
                           child: ValueListenableBuilder(
                             valueListenable: c.uiRevision,
                             builder: (context, value, child) => _mapTools(c),
-                          ),
-                        ),
-                        Positioned(
-                          left: 18,
-                          top: compact ? 76 : 88,
-                          child: ValueListenableBuilder(
-                            valueListenable: c.uiRevision,
-                            builder: (context, value, child) =>
-                                c.selectedCity == null
-                                ? const SizedBox.shrink()
-                                : _cityCard(c, compact),
                           ),
                         ),
                         if (_showMinimap)
@@ -360,6 +352,82 @@ class _WorldScreenState extends State<WorldScreen>
                               ),
                             ),
                           ),
+                        Positioned(
+                          left: compact ? 12 : 18,
+                          top: compact ? 12 : 88,
+                          right: compact ? 12 : null,
+                          child: ValueListenableBuilder(
+                            valueListenable: c.uiRevision,
+                            builder: (context, value, child) =>
+                                c.selectedCity == null
+                                ? const SizedBox.shrink()
+                                : SizedBox(
+                                    width: compact
+                                        ? null
+                                        : c.cityPage == CityPanelPage.actions
+                                        ? 230
+                                        : 380,
+                                    child: CityPanel(
+                                      controller: c,
+                                      assets: assets,
+                                      maxHeight: math.max(
+                                        0,
+                                        size.height - (compact ? 24 : 104),
+                                      ),
+                                      onAction: _action,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        Positioned(
+                          left: compact ? 12 : 180,
+                          right: compact ? 64 : 80,
+                          top: compact ? 12 : 18,
+                          child: ValueListenableBuilder(
+                            valueListenable: c.uiRevision,
+                            builder: (context, value, child) =>
+                                c.pendingHero == null
+                                ? const SizedBox.shrink()
+                                : _panel(
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        8,
+                                        6,
+                                        8,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.flag_outlined,
+                                            color: _gold,
+                                            size: 19,
+                                          ),
+                                          const SizedBox(width: 9),
+                                          Expanded(
+                                            child: Text(
+                                              '为${c.pendingHero!.name}选择目标\n点击红色标记的敌城',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: _cream,
+                                                height: 1.6,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            key: const ValueKey(
+                                              'cancel-target',
+                                            ),
+                                            onPressed: () =>
+                                                _action(c.cancelCityAction),
+                                            child: const Text('取消'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
                       ],
                     );
                   },
@@ -484,7 +552,7 @@ class _WorldScreenState extends State<WorldScreen>
           ),
           const SizedBox(height: 3),
           Text(
-            '${c.world.cities.length} 座城池  ·  自由探索',
+            '${c.world.cities.length} 座城池  ·  点击城池指挥',
             style: const TextStyle(color: Color(0xffb2b9a8), fontSize: 10),
           ),
         ],
@@ -524,7 +592,7 @@ class _WorldScreenState extends State<WorldScreen>
         _tool('跟随角色', Icons.person_pin_circle_outlined, () {
           c.followHero = !c.followHero;
           if (c.followHero) {
-            c.camera.center = c.heroPosition;
+            c.camera.center = c.focusPosition;
             c.camera.constrain();
           }
         }, active: c.followHero),
@@ -536,6 +604,7 @@ class _WorldScreenState extends State<WorldScreen>
             tooltip: '选择英雄：${c.appearance.label}',
             initialValue: c.appearance,
             icon: const Icon(Icons.person_outline, size: 19, color: _cream),
+            enabled: c.campaign.marches.isEmpty,
             onSelected: (hero) => _action(() => c.appearance = hero),
             itemBuilder: (_) => HeroAppearance.values
                 .map(
@@ -565,70 +634,6 @@ class _WorldScreenState extends State<WorldScreen>
       icon: Icon(icon),
     ),
   );
-
-  Widget _cityCard(WorldController c, bool compact) {
-    final city = c.selectedCity!;
-    return _panel(
-      child: SizedBox(
-        width: compact ? 210 : 248,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(15, 10, 10, 15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.fort, color: _gold, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      city.label,
-                      style: const TextStyle(fontSize: 15, color: _cream),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '关闭城池信息',
-                    onPressed: () => _action(() => c.selectedCity = null),
-                    constraints: const BoxConstraints.tightFor(
-                      width: 30,
-                      height: 30,
-                    ),
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.close, size: 17),
-                  ),
-                ],
-              ),
-              const Divider(color: _line, height: 17),
-              Text(
-                '位置  ${city.x}, ${city.y}       驻留单位  ${city.unitIds.length}',
-                style: const TextStyle(fontSize: 12, color: Color(0xffb6c0b2)),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _action(c.visitCity),
-                  icon: const Icon(Icons.flag_outlined, size: 15),
-                  label: const Text('前往城门'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xffd5c18c),
-                    foregroundColor: const Color(0xff20291f),
-                    textStyle: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _minimap(WorldController c, WorldAssets assets, double width) =>
       _panel(
@@ -707,9 +712,7 @@ class _WorldScreenState extends State<WorldScreen>
           child: ValueListenableBuilder(
             valueListenable: c.uiRevision,
             builder: (context, value, child) => Text(
-              c.walking
-                  ? '${c.message} · ${c.movementTerrain.label} ${(c.movementTerrain.speedFactor * 100).round()}%速度'
-                  : c.message,
+              c.statusMessage,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 10, color: Color(0xffb0bba8)),
             ),
@@ -755,7 +758,7 @@ class _WorldScreenState extends State<WorldScreen>
         backgroundColor: _ink,
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         content: const Text(
-          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击地面　角色直线前往，支持斜走\n山地速度 60%，涉水速度 50%\n人物按钮　切换普通 / 进阶英雄\n点击城池　查看信息与前往城门\n小地图　点击或拖动定位\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　关闭城池信息',
+          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n派兵前点击地面　自由探索\n山地速度 60%，涉水速度 50%\n点击城池　展开出击 / 情况\n出击　选择英雄，再在地图上点击敌城\n抵达敌城　部队在城下待战\n小地图　点击或拖动定位\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　取消选目标或返回上一层',
           style: TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [

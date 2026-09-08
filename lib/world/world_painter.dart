@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'campaign.dart';
 import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
@@ -86,7 +87,39 @@ class WorldPainter extends CustomPainter {
       }
     }
 
-    if (c.walking) {
+    for (final city in c.world.cities) {
+      final player = c.campaign.cities[city.id]!.isPlayer;
+      final color = player ? const Color(0xffd6bd7c) : const Color(0xffe77d70);
+      canvas.drawRect(
+        Rect.fromLTWH(city.bounds.right - 7, city.bounds.top + 1, 4, 3),
+        Paint()..color = color,
+      );
+      if (c.pendingHero != null && !player) {
+        _brackets(
+          canvas,
+          city.bounds.inflate(2),
+          color,
+          1 / camera.scale + 0.5,
+        );
+      }
+    }
+
+    for (final march in c.campaign.marches.values) {
+      if (march.phase != MarchPhase.marching) continue;
+      canvas.drawLine(
+        march.position,
+        march.destination,
+        Paint()
+          ..color = const Color(0xbbe4bd7c)
+          ..strokeWidth = 1,
+      );
+      canvas.drawRect(
+        Rect.fromCenter(center: march.destination, width: 5, height: 5),
+        Paint()..color = const Color(0xffe77d70),
+      );
+    }
+
+    if (c.walking && c.campaign.marches.isEmpty) {
       final path = Path()..moveTo(c.heroPosition.dx, c.heroPosition.dy);
       for (var n = c.routeStep; n < c.route.length; n++) {
         final point = c.route[n].center;
@@ -123,16 +156,50 @@ class WorldPainter extends CustomPainter {
     }
 
     canvas.restore();
-    final frame = HeroAnimation.frameIndex(c.direction, c.animationStep);
+    if (c.campaign.marches.isEmpty) {
+      _drawHero(
+        canvas,
+        size,
+        c.heroPosition,
+        c.direction,
+        c.appearance,
+        c.animationStep,
+      );
+    } else {
+      final marches = c.campaign.marches.values.toList()
+        ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
+      for (final march in marches) {
+        _drawHero(
+          canvas,
+          size,
+          march.position,
+          march.direction,
+          march.hero.appearance,
+          march.animationStep,
+        );
+      }
+    }
+    canvas.restore();
+  }
+
+  void _drawHero(
+    Canvas canvas,
+    Size size,
+    Offset position,
+    HeroDirection direction,
+    HeroAppearance appearance,
+    int animationStep,
+  ) {
+    final camera = controller.camera;
+    final frame = HeroAnimation.frameIndex(direction, animationStep);
     // 先合成镜头与角色的精确位置，再对齐最终屏幕像素；世界坐标取整会放大跳动。
     final heroTopLeft = _snapToPhysicalPixel(
       size.center(Offset.zero) +
-          (c.heroPosition - camera.center + const Offset(-8, -11)) *
-              camera.scale,
+          (position - camera.center + const Offset(-8, -11)) * camera.scale,
     );
     final spriteScale = camera.scale * devicePixelRatio;
     final heroImage = assets.heroFrame(
-      c.appearance,
+      appearance,
       frame,
       math.max(1, (16 * spriteScale).round()),
     );
@@ -146,12 +213,17 @@ class WorldPainter extends CustomPainter {
     );
     canvas.save();
     canvas.translate(heroTopLeft.dx, heroTopLeft.dy);
-    if (c.direction.mirrorHorizontally) {
+    if (direction.mirrorHorizontally) {
       canvas.translate(heroImage.width.toDouble(), 0);
       canvas.scale(-1, 1);
     }
-    canvas.drawImage(heroImage, Offset.zero, paint);
-    canvas.restore();
+    canvas.drawImage(
+      heroImage,
+      Offset.zero,
+      Paint()
+        ..filterQuality = FilterQuality.none
+        ..isAntiAlias = false,
+    );
     canvas.restore();
   }
 
@@ -230,9 +302,28 @@ class MinimapPainter extends CustomPainter {
         ..strokeWidth = 1.5
         ..style = PaintingStyle.stroke,
     );
-    final hero = Offset(c.heroPosition.dx * sx, c.heroPosition.dy * sy);
-    canvas.drawCircle(hero, 3, Paint()..color = const Color(0xff111018));
-    canvas.drawCircle(hero, 2, Paint()..color = Colors.white);
+    for (final city in c.world.cities) {
+      final point = city.bounds.center;
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: Offset(point.dx * sx, point.dy * sy),
+          width: 3,
+          height: 3,
+        ),
+        Paint()
+          ..color = c.campaign.cities[city.id]!.isPlayer
+              ? const Color(0xffd6bd7c)
+              : const Color(0xffe77d70),
+      );
+    }
+    final positions = c.campaign.marches.isEmpty
+        ? [c.heroPosition]
+        : c.campaign.marches.values.map((march) => march.position);
+    for (final position in positions) {
+      final hero = Offset(position.dx * sx, position.dy * sy);
+      canvas.drawCircle(hero, 3, Paint()..color = const Color(0xff111018));
+      canvas.drawCircle(hero, 2, Paint()..color = Colors.white);
+    }
   }
 
   @override

@@ -3,14 +3,30 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'campaign.dart';
 import 'hero_sprite.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
+import 'world_movement.dart';
+
+/// 城池入口、情况和出击面板，英雄详情始终与选择列表处于同一页。
+enum CityPanelPage {
+  /// 点击城池后的选项。
+  actions,
+
+  /// 城池情况。
+  information,
+
+  /// 选择出征英雄。
+  dispatch,
+}
 
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。
-  WorldController(this.worlds) : camera = WorldCamera(worlds.first.pixelSize) {
+  WorldController(this.worlds)
+    : camera = WorldCamera(worlds.first.pixelSize),
+      campaigns = worlds.map(CampaignState.prototype).toList() {
     switchWorld(0);
   }
 
@@ -19,6 +35,25 @@ class WorldController extends ChangeNotifier {
 
   /// 当前镜头。
   final WorldCamera camera;
+
+  /// 各场景的独立玩法状态，切换地图不重置出征记录。
+  final List<CampaignState> campaigns;
+
+  /// 当前场景的城池与部队状态。
+  CampaignState get campaign => campaigns[index];
+
+  /// 城池面板当前页面。
+  CityPanelPage cityPage = CityPanelPage.actions;
+
+  /// 选择面板中的英雄编号。
+  String? selectedHeroId;
+
+  /// 已点出击、尚未在地图上确认敌城的英雄。
+  CampaignHero? pendingHero;
+
+  /// 当前选中的英雄详情。
+  CampaignHero? get selectedHero =>
+      campaign.heroes.where((hero) => hero.id == selectedHeroId).firstOrNull;
 
   /// 用于低频界面更新的版本号。
   final ValueNotifier<int> uiRevision = ValueNotifier(0);
@@ -69,7 +104,7 @@ class WorldController extends ChangeNotifier {
   int get animationStep => walking ? (walkDistance / 6).floor() % 2 : 0;
 
   /// 平地行军速度，单位为原生地图像素每秒。
-  static const double baseMovementSpeed = 44;
+  static const double baseMovementSpeed = plainMovementSpeed;
 
   /// 是否显示格子边界。
   bool showGrid = false;
@@ -90,6 +125,9 @@ class WorldController extends ChangeNotifier {
   void switchWorld(int value) {
     index = value;
     selectedCity = null;
+    selectedHeroId = null;
+    pendingHero = null;
+    cityPage = CityPanelPage.actions;
     cursor = null;
     route = [];
     routeStep = 0;
@@ -119,7 +157,7 @@ class WorldController extends ChangeNotifier {
       );
       followHero = false;
     }
-    if (walking) {
+    if (walking && campaign.marches.isEmpty) {
       final oldTerrain = movementTerrain;
       var remainingTime = dt;
       while (walking && remainingTime > 1e-9) {
@@ -132,29 +170,20 @@ class WorldController extends ChangeNotifier {
           continue;
         }
         direction = HeroDirection.fromVector(delta);
-        final unit = delta / distance;
-        // 在格子边界处分段积分，避免一帧跨过河岸时仍沿用上一格的速度。
-        final sample = heroPosition + unit * 1e-7;
-        final cell = _cellAt(sample);
-        final factor = world.movementTerrainAt(cell).speedFactor;
-        final speed = baseMovementSpeed * factor;
-        final toBoundary = math.min(
-          _distanceToBoundary(heroPosition.dx, unit.dx, cell.x),
-          _distanceToBoundary(heroPosition.dy, unit.dy, cell.y),
+        final result = advanceToward(
+          world,
+          heroPosition,
+          target,
+          remainingTime,
         );
-        final travel = math.min(
-          distance,
-          math.min(toBoundary, speed * remainingTime),
-        );
-        heroPosition += unit * travel;
-        walkDistance += travel;
-        remainingTime = math.max(0, remainingTime - travel / speed);
-        if (distance - travel < 1e-8) {
-          heroPosition = target;
+        heroPosition = result.position;
+        walkDistance += result.distance;
+        remainingTime = result.remainingTime;
+        if (heroPosition == target) {
           routeStep++;
         }
       }
-      heroCell = _cellAt(heroPosition);
+      heroCell = cellAt(world, heroPosition);
       if (followHero) {
         camera.center = heroPosition;
         camera.constrain();
@@ -166,18 +195,21 @@ class WorldController extends ChangeNotifier {
         refreshUi();
       }
     }
+    for (final march in campaign.marches.values) {
+      final oldTerrain = world.movementTerrainAt(cellAt(world, march.position));
+      if (march.tick(world, dt)) {
+        message = '${march.hero.name}已抵达${march.target.label} · 城下待战';
+        refreshUi();
+      } else if (oldTerrain !=
+          world.movementTerrainAt(cellAt(world, march.position))) {
+        refreshUi();
+      }
+    }
+    if (followHero && campaign.marches.isNotEmpty) {
+      camera.center = campaign.marches.values.last.position;
+      camera.constrain();
+    }
     notifyListeners();
-  }
-
-  TileCoord _cellAt(Offset position) => TileCoord(
-    (position.dx / 16).floor().clamp(0, world.width - 1),
-    (position.dy / 16).floor().clamp(0, world.height - 1),
-  );
-
-  double _distanceToBoundary(double value, double velocity, int cell) {
-    if (velocity.abs() < 1e-12) return double.infinity;
-    final boundary = (velocity > 0 ? cell + 1 : cell) * 16.0;
-    return math.max(1e-8, (boundary - value) / velocity);
   }
 
   /// 选中城池，或向所点击的地面发出行走指令。
@@ -186,17 +218,29 @@ class WorldController extends ChangeNotifier {
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
     if (!world.contains(cell)) return;
     cursor = cell;
-    selectedCity = world.cityAt(point);
-    if (selectedCity != null) {
-      message = '已选中${selectedCity!.label}';
-      refreshUi();
+    final city = world.cityAt(point);
+    if (pendingHero != null) {
+      if (city == null || campaign.cities[city.id]!.isPlayer) {
+        message = '请选择一座敌方城池作为进攻目标';
+        refreshUi();
+      } else {
+        confirmTarget(city);
+      }
+    } else if (city != null) {
+      openCity(city);
     } else {
+      selectedCity = null;
       walkTo(cell);
     }
   }
 
   /// 从当前精确位置直线前往目标，途中改点时立即转向。
   void walkTo(TileCoord destination) {
+    if (campaign.marches.isNotEmpty) {
+      message = '点击我方城池查看情况或派遣英雄';
+      refreshUi();
+      return;
+    }
     final path = findRoute(world, heroCell, destination);
     if (path == null) {
       message = '目标超出地图范围';
@@ -218,6 +262,108 @@ class WorldController extends ChangeNotifier {
   void visitCity() {
     final city = selectedCity;
     if (city != null) walkTo(world.nearestWalkable(city.entrance));
+  }
+
+  /// 展开城池选项，尚未进入英雄选择。
+  void openCity(CityDefinition city) {
+    if (!world.cities.contains(city) || pendingHero != null) return;
+    selectedCity = city;
+    cityPage = CityPanelPage.actions;
+    final heroes = campaign.heroesAt(city.id);
+    selectedHeroId =
+        (heroes.where(campaign.canDispatch).firstOrNull ?? heroes.firstOrNull)
+            ?.id;
+    message = '已选中${city.label}';
+    refreshUi();
+  }
+
+  /// 从城池选项进入情况或英雄选择。
+  void showCityPage(CityPanelPage page) {
+    if (selectedCity == null) return;
+    if (page == CityPanelPage.dispatch &&
+        !campaign.cities[selectedCity!.id]!.isPlayer) {
+      return;
+    }
+    cityPage = page;
+    refreshUi();
+  }
+
+  /// 只切换详情，不提前改变驻军或地图上的角色。
+  void selectHero(String id) {
+    if (selectedCity == null ||
+        !campaign.heroesAt(selectedCity!.id).any((hero) => hero.id == id)) {
+      return;
+    }
+    selectedHeroId = id;
+    refreshUi();
+  }
+
+  /// 确认英雄后进入地图选敌城模式，真正选定目标才扣除城内驻兵。
+  void prepareDispatch() {
+    final hero = selectedHero;
+    if (cityPage != CityPanelPage.dispatch ||
+        hero == null ||
+        !campaign.canDispatch(hero)) {
+      return;
+    }
+    pendingHero = hero;
+    selectedCity = null;
+    message = '为${hero.name}选择进攻目标 · 点击敌方城池';
+    refreshUi();
+  }
+
+  /// 提交目标后从出发城门生成部队，不影响其他英雄的行军。
+  void confirmTarget(CityDefinition target) {
+    final hero = pendingHero;
+    if (hero == null) return;
+    final march = campaign.dispatch(hero, target);
+    if (march == null) return;
+    pendingHero = null;
+    selectedCity = null;
+    route = [];
+    routeStep = 0;
+    message = '${hero.name}率 ${hero.soldiers} 名士兵出击 → ${target.label}';
+    refreshUi();
+  }
+
+  /// 取消选目标时回到英雄面板，取消详情时回到城池选项。
+  void cancelCityAction() {
+    if (pendingHero case final hero?) {
+      pendingHero = null;
+      selectedCity = world.cities.firstWhere((city) => city.id == hero.cityId);
+      cityPage = CityPanelPage.dispatch;
+      message = '已取消选择进攻目标';
+    } else if (selectedCity != null && cityPage != CityPanelPage.actions) {
+      cityPage = CityPanelPage.actions;
+    } else {
+      selectedCity = null;
+    }
+    refreshUi();
+  }
+
+  /// 关闭城池面板，不改变任何已出征部队。
+  void closeCity() {
+    selectedCity = null;
+    refreshUi();
+  }
+
+  /// 镜头跟随最近派出的部队，尚未派兵时跟随探索角色。
+  Offset get focusPosition =>
+      campaign.marches.values.lastOrNull?.position ?? heroPosition;
+
+  /// 地图底部的行军说明，只在界面状态变化时重建。
+  String get statusMessage {
+    final march = campaign.marches.values
+        .where((march) => march.phase == MarchPhase.marching)
+        .lastOrNull;
+    if (pendingHero != null || selectedCity != null) return message;
+    if (march != null) {
+      final terrain = world.movementTerrainAt(cellAt(world, march.position));
+      return '${march.hero.name} → ${march.target.label} · ${terrain.label} ${(terrain.speedFactor * 100).round()}%速度';
+    }
+    return walking
+        ? '$message · ${movementTerrain.label} ${(movementTerrain.speedFactor * 100).round()}%速度'
+        : message;
   }
 
   /// 更新悬停选框。
