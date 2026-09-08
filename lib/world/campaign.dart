@@ -10,13 +10,16 @@ import 'world_movement.dart';
 class CitySituation {
   /// 创建一级城池及其基础产出。
   CitySituation({
-    required this.isPlayer,
+    required this.ownerCountryId,
     required this.defense,
     required this.baseIncome,
   });
 
-  /// 城池是否属于玩家，失守或占领时改变。
-  bool isPlayer;
+  /// 当前占领国家，决定国旗；城池的固定名称不随之变化。
+  int ownerCountryId;
+
+  /// 编号 0 是玩家国家。
+  bool get isPlayer => ownerCountryId == 0;
 
   /// 基础城防，用于界面展示。
   final int defense;
@@ -44,10 +47,11 @@ class CampaignHero {
   CampaignHero.fromRom(
     RomHeroDefinition definition, {
     required this.cityId,
-    required this.isPlayer,
+    required this.countryId,
   }) : sourceId = definition.id,
        id = 'rom-${definition.id}',
        name = definition.name ?? '主角',
+       type = definition.type,
        maxHp = definition.maxHp,
        hp = definition.maxHp,
        combat = definition.combat,
@@ -55,9 +59,9 @@ class CampaignHero {
        salary = definition.salary,
        soldiers = definition.soldierLimit,
        hasEgg = definition.eggCapable,
-       appearance = definition.id == 40
-           ? HeroAppearance.advanced
-           : HeroAppearance.normal;
+       appearance = definition.type == HeroType.normal
+           ? HeroAppearance.normal
+           : HeroAppearance.advanced;
 
   /// 本场景内唯一标识。
   final String id;
@@ -68,6 +72,9 @@ class CampaignHero {
   /// 汉化姓名，玩家主角暂用“主角”作为显示名。
   final String name;
 
+  /// 明确记录高级、普通及主角类型，界面与行军外观共用。
+  final HeroType type;
+
   /// 行军外观与英雄身份分开。
   final HeroAppearance appearance;
 
@@ -75,7 +82,10 @@ class CampaignHero {
   int cityId;
 
   /// 英雄阵营不会因出发城失守而自动改变。
-  final bool isPlayer;
+  final int countryId;
+
+  /// 英雄是否属于玩家国家。
+  bool get isPlayer => countryId == 0;
 
   /// 生命上限。
   final int maxHp;
@@ -196,7 +206,9 @@ class CampaignState {
               CampaignHero.fromRom(
                 definition,
                 cityId: placement[definition.id]!,
-                isPlayer: placement[definition.id] == home,
+                countryId: world.cities
+                    .firstWhere((city) => city.id == placement[definition.id])
+                    .initialOwnerId,
               ),
         ]..sort(
           (a, b) => (a.sourceId == 40 ? -1 : a.sourceId).compareTo(
@@ -208,7 +220,7 @@ class CampaignState {
       {
         for (final city in world.cities)
           city.id: CitySituation(
-            isPlayer: city.id == home,
+            ownerCountryId: city.initialOwnerId,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
             baseIncome: city.id == home ? 126 : 80 + city.id * 6,
           ),
@@ -271,7 +283,8 @@ class CampaignState {
   List<CampaignHero> heroesAt(int cityId) => heroes
       .where(
         (hero) =>
-            hero.cityId == cityId && hero.isPlayer == cities[cityId]!.isPlayer,
+            hero.cityId == cityId &&
+            hero.countryId == cities[cityId]!.ownerCountryId,
       )
       .toList();
 
@@ -341,9 +354,14 @@ class CampaignState {
   }
 
   /// 英雄战败降一级；一级城易主，只清除该城未出征的败方英雄。
-  DefeatResult? defeatHero(String heroId, {required bool winnerIsPlayer}) {
+  DefeatResult? defeatHero(String heroId, {required int winnerCountryId}) {
     final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
-    if (hero == null || hero.isPlayer == winnerIsPlayer) return null;
+    if (hero == null ||
+        hero.countryId == winnerCountryId ||
+        winnerCountryId < 0 ||
+        winnerCountryId >= 16) {
+      return null;
+    }
     final city = cities[hero.cityId]!;
     final oldLevel = city.level;
     final removed = <String>[hero.id];
@@ -352,12 +370,12 @@ class CampaignState {
     heroes.remove(hero);
     var captured = false;
     // 已在外的英雄阵亡时，不再次削弱先前占领出发城的敌方。
-    if (city.isPlayer == hero.isPlayer) {
+    if (city.ownerCountryId == hero.countryId) {
       if (city.level > 1) {
         city._level--;
       } else {
         captured = true;
-        removed.addAll(_captureCity(hero.cityId, winnerIsPlayer));
+        removed.addAll(_captureCity(hero.cityId, winnerCountryId));
       }
     }
     _record(
@@ -415,7 +433,7 @@ class CampaignState {
         continue;
       }
       final target = cities[march.target.id]!;
-      if (target.isPlayer == march.hero.isPlayer) {
+      if (target.ownerCountryId == march.hero.countryId) {
         _station(march);
         changed = true;
         continue;
@@ -423,7 +441,7 @@ class CampaignState {
       if (!engagedCities.add(march.target.id)) continue;
       final defender = garrisonAt(march.target.id).firstOrNull;
       if (defender == null) {
-        _captureCity(march.target.id, march.hero.isPlayer);
+        _captureCity(march.target.id, march.hero.countryId);
         _station(march);
         changed = true;
         continue;
@@ -436,10 +454,10 @@ class CampaignState {
       );
       defender.hp = math.max(0, defender.hp - attack);
       if (defender.hp == 0) {
-        defeatHero(defender.id, winnerIsPlayer: march.hero.isPlayer);
-        if (target.isPlayer == march.hero.isPlayer ||
+        defeatHero(defender.id, winnerCountryId: march.hero.countryId);
+        if (target.ownerCountryId == march.hero.countryId ||
             garrisonAt(march.target.id).isEmpty) {
-          _captureCity(march.target.id, march.hero.isPlayer);
+          _captureCity(march.target.id, march.hero.countryId);
           _station(march);
         }
       } else {
@@ -453,7 +471,7 @@ class CampaignState {
         );
         march.hero.hp = math.max(0, march.hero.hp - retaliation);
         if (march.hero.hp == 0) {
-          defeatHero(march.hero.id, winnerIsPlayer: defender.isPlayer);
+          defeatHero(march.hero.id, winnerCountryId: defender.countryId);
         }
       }
       changed = true;
@@ -461,18 +479,18 @@ class CampaignState {
     return changed;
   }
 
-  List<String> _captureCity(int cityId, bool winnerIsPlayer) {
+  List<String> _captureCity(int cityId, int winnerCountryId) {
     final removed = heroes
         .where(
           (hero) =>
               hero.cityId == cityId &&
-              hero.isPlayer != winnerIsPlayer &&
+              hero.countryId != winnerCountryId &&
               !marches.containsKey(hero.id),
         )
         .map((hero) => hero.id)
         .toList();
     heroes.removeWhere((hero) => removed.contains(hero.id));
-    cities[cityId]!.isPlayer = winnerIsPlayer;
+    cities[cityId]!.ownerCountryId = winnerCountryId;
     return removed;
   }
 

@@ -93,7 +93,7 @@ void main() {
     final c = _campaign(gold: 2000);
     c.upgradeCity(0);
     c.upgradeCity(0);
-    final result = c.defeatHero('rom-40', winnerIsPlayer: false)!;
+    final result = c.defeatHero('rom-40', winnerCountryId: 1)!;
     expect(result.oldLevel, 3);
     expect(result.newLevel, 2);
     expect(result.captured, isFalse);
@@ -101,21 +101,21 @@ void main() {
     expect(c.cities[0]!.income, 252);
     expect(c.cities[0]!.isPlayer, isTrue);
     expect(c.heroesAt(0).length, 2);
-    expect(c.defeatHero('rom-40', winnerIsPlayer: false), isNull);
+    expect(c.defeatHero('rom-40', winnerCountryId: 1), isNull);
     expect(c.cities[0]!.level, 2);
   });
 
   test('一级城只派一位，战败失城并清理未出战英雄，其他城池不受影响', () {
     final c = _campaign();
     final away = _hero(c, 0)..cityId = 2;
-    c.cities[2]!.isPlayer = true;
+    c.cities[2]!.ownerCountryId = 0;
     final enemyIds = c.heroes
         .where((hero) => !hero.isPlayer)
         .map((hero) => hero.id)
         .toList();
     c.dispatch(_hero(c, 40), c.world.cities[1]);
     expect(c.canDispatch(_hero(c, 2)), isFalse);
-    final result = c.defeatHero('rom-40', winnerIsPlayer: false)!;
+    final result = c.defeatHero('rom-40', winnerCountryId: 1)!;
     expect(result.captured, isTrue);
     expect(result.removedHeroIds, containsAll(['rom-40', 'rom-2']));
     expect(c.cities[0]!.level, 1);
@@ -134,9 +134,9 @@ void main() {
     c.upgradeCity(0);
     c.dispatch(_hero(c, 40), c.world.cities[1]);
     c.dispatch(_hero(c, 0), c.world.cities[2]);
-    c.defeatHero('rom-40', winnerIsPlayer: false);
+    c.defeatHero('rom-40', winnerCountryId: 1);
     expect(c.cities[0]!.level, 1);
-    c.defeatHero('rom-2', winnerIsPlayer: false);
+    c.defeatHero('rom-2', winnerCountryId: 1);
     expect(c.cities[0]!.isPlayer, isFalse);
     expect(c.marches.containsKey('rom-0'), isTrue);
     expect(_hero(c, 0).isPlayer, isTrue);

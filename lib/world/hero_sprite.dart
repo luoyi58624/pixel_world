@@ -41,11 +41,11 @@ enum HeroDirection {
 
 /// 每种英雄独立使用一张六帧图集，切换外观不改变行军状态。
 enum HeroAppearance {
-  /// 蓝黄配色的进阶英雄。
-  advanced('进阶英雄', 'advanced'),
+  /// 高级将领使用的蓝黄配色，主角也复用此图集。
+  advanced('高级将领', 'advanced'),
 
   /// 浅色下装的普通英雄。
-  normal('普通英雄', 'normal');
+  normal('普通将领', 'normal');
 
   const HeroAppearance(this.label, this.assetName);
 

@@ -1,0 +1,457 @@
+{
+  "version": 1,
+  "sourceSha256": "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59",
+  "countries": [
+    {
+      "id": 0,
+      "name": "阿尔马",
+      "flagIndex": 0,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        84,
+        85,
+        86,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 74,
+      "sourceAttribute": 1,
+      "sourcePalette": [
+        15,
+        15,
+        19,
+        48
+      ],
+      "sourceFileOffsets": {
+        "name": 98650,
+        "flagTile": 109711,
+        "flagAttribute": 109727,
+        "tilePixels": 79133
+      }
+    },
+    {
+      "id": 1,
+      "name": "奥尔梅",
+      "flagIndex": 1,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        87,
+        85,
+        88,
+        0
+      ],
+      "sourceTile": 79,
+      "sourceAttribute": 2,
+      "sourcePalette": [
+        15,
+        15,
+        58,
+        26
+      ],
+      "sourceFileOffsets": {
+        "name": 98657,
+        "flagTile": 109712,
+        "flagAttribute": 109728,
+        "tilePixels": 79213
+      }
+    },
+    {
+      "id": 2,
+      "name": "马易",
+      "flagIndex": 2,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        86,
+        89,
+        0
+      ],
+      "sourceTile": 71,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98662,
+        "flagTile": 109713,
+        "flagAttribute": 109729,
+        "tilePixels": 79085
+      }
+    },
+    {
+      "id": 3,
+      "name": "鲍罗布",
+      "flagIndex": 3,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        90,
+        91,
+        92,
+        254,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 73,
+      "sourceAttribute": 2,
+      "sourcePalette": [
+        15,
+        15,
+        58,
+        26
+      ],
+      "sourceFileOffsets": {
+        "name": 98666,
+        "flagTile": 109714,
+        "flagAttribute": 109730,
+        "tilePixels": 79117
+      }
+    },
+    {
+      "id": 4,
+      "name": "墨尔",
+      "flagIndex": 4,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        93,
+        85,
+        0
+      ],
+      "sourceTile": 74,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98676,
+        "flagTile": 109715,
+        "flagAttribute": 109731,
+        "tilePixels": 79133
+      }
+    },
+    {
+      "id": 5,
+      "name": "托洛诺",
+      "flagIndex": 5,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        94,
+        95,
+        96,
+        0
+      ],
+      "sourceTile": 76,
+      "sourceAttribute": 2,
+      "sourcePalette": [
+        15,
+        15,
+        58,
+        26
+      ],
+      "sourceFileOffsets": {
+        "name": 98680,
+        "flagTile": 109716,
+        "flagAttribute": 109732,
+        "tilePixels": 79165
+      }
+    },
+    {
+      "id": 6,
+      "name": "列穆",
+      "flagIndex": 6,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        97,
+        98,
+        254,
+        0
+      ],
+      "sourceTile": 71,
+      "sourceAttribute": 2,
+      "sourcePalette": [
+        15,
+        15,
+        58,
+        26
+      ],
+      "sourceFileOffsets": {
+        "name": 98685,
+        "flagTile": 109717,
+        "flagAttribute": 109733,
+        "tilePixels": 79085
+      }
+    },
+    {
+      "id": 7,
+      "name": "迪麦",
+      "flagIndex": 7,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        99,
+        100,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 73,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98690,
+        "flagTile": 109718,
+        "flagAttribute": 109734,
+        "tilePixels": 79117
+      }
+    },
+    {
+      "id": 8,
+      "name": "索朗",
+      "flagIndex": 8,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        101,
+        102,
+        0
+      ],
+      "sourceTile": 75,
+      "sourceAttribute": 2,
+      "sourcePalette": [
+        15,
+        15,
+        58,
+        26
+      ],
+      "sourceFileOffsets": {
+        "name": 98697,
+        "flagTile": 109719,
+        "flagAttribute": 109735,
+        "tilePixels": 79149
+      }
+    },
+    {
+      "id": 9,
+      "name": "本塔",
+      "flagIndex": 9,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        103,
+        104,
+        254,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 77,
+      "sourceAttribute": 1,
+      "sourcePalette": [
+        15,
+        15,
+        19,
+        48
+      ],
+      "sourceFileOffsets": {
+        "name": 98701,
+        "flagTile": 109720,
+        "flagAttribute": 109736,
+        "tilePixels": 79181
+      }
+    },
+    {
+      "id": 10,
+      "name": "洛埃",
+      "flagIndex": 10,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        95,
+        105,
+        254,
+        0
+      ],
+      "sourceTile": 78,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98710,
+        "flagTile": 109721,
+        "flagAttribute": 109737,
+        "tilePixels": 79197
+      }
+    },
+    {
+      "id": 11,
+      "name": "贝尔",
+      "flagIndex": 11,
+      "specialLocation": false,
+      "encodedName": [
+        57,
+        106,
+        85,
+        254,
+        0
+      ],
+      "sourceTile": 76,
+      "sourceAttribute": 1,
+      "sourcePalette": [
+        15,
+        15,
+        19,
+        48
+      ],
+      "sourceFileOffsets": {
+        "name": 98715,
+        "flagTile": 109722,
+        "flagAttribute": 109738,
+        "tilePixels": 79165
+      }
+    },
+    {
+      "id": 12,
+      "name": "艾布林",
+      "flagIndex": 12,
+      "specialLocation": true,
+      "encodedName": [
+        57,
+        107,
+        92,
+        108,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 72,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98720,
+        "flagTile": 109723,
+        "flagAttribute": 109739,
+        "tilePixels": 79101
+      }
+    },
+    {
+      "id": 13,
+      "name": "格商尔",
+      "flagIndex": 13,
+      "specialLocation": true,
+      "encodedName": [
+        57,
+        109,
+        110,
+        85,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceTile": 72,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98727,
+        "flagTile": 109724,
+        "flagAttribute": 109740,
+        "tilePixels": 79101
+      }
+    },
+    {
+      "id": 14,
+      "name": "格林福",
+      "flagIndex": 14,
+      "specialLocation": true,
+      "encodedName": [
+        57,
+        109,
+        108,
+        111,
+        144,
+        254,
+        0
+      ],
+      "sourceTile": 72,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98735,
+        "flagTile": 109725,
+        "flagAttribute": 109741,
+        "tilePixels": 79101
+      }
+    },
+    {
+      "id": 15,
+      "name": "沃塔",
+      "flagIndex": 15,
+      "specialLocation": true,
+      "encodedName": [
+        57,
+        144,
+        112,
+        104,
+        254,
+        0
+      ],
+      "sourceTile": 72,
+      "sourceAttribute": 0,
+      "sourcePalette": [
+        15,
+        15,
+        39,
+        6
+      ],
+      "sourceFileOffsets": {
+        "name": 98742,
+        "flagTile": 109726,
+        "flagAttribute": 109742,
+        "tilePixels": 79101
+      }
+    }
+  ],
+  "notes": "0–11 是当前三张地图的城池国家，12–15 是特殊地点，共用三角形标记；城名固定，旗帜按当前占领方编号选择。"
+}

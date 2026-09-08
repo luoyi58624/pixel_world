@@ -43,11 +43,31 @@ class TileCoord {
   int get hashCode => Object.hash(x, y);
 }
 
-/// 从 ROM 初始化记录中提取的城池，未知数值不参与玩法。
+/// 从 ROM 名称表和旗帜索引中提取的国家定义。
+class CountryDefinition {
+  /// 从城名、国旗目录读取国家标识。
+  CountryDefinition.fromJson(Map<String, dynamic> json)
+    : id = json['id'] as int,
+      name = json['name'] as String,
+      flagIndex = json['flagIndex'] as int;
+
+  /// 原版国家编号，也是旗帜选择索引。
+  final int id;
+
+  /// 原版汉化国名。
+  final String name;
+
+  /// 8×8 国旗图集中的帧号。
+  final int flagIndex;
+}
+
+/// 从 ROM 初始化记录和城名表提取的静态城池。
 class CityDefinition {
   /// 从独立地图文件读取一条城池记录。
   CityDefinition.fromJson(Map<String, dynamic> json)
     : id = json['id'] as int,
+      name = json['name'] as String? ?? '未命名城池',
+      initialOwnerId = json['initialOwnerId'] as int? ?? json['id'] as int,
       x = json['x'] as int,
       y = json['y'] as int,
       width = json['width'] as int,
@@ -57,6 +77,12 @@ class CityDefinition {
 
   /// 当前地图内的城池编号。
   final int id;
+
+  /// 城池的固定汉化名称，占领后不改名。
+  final String name;
+
+  /// 开局时占有城池的国家编号。
+  final int initialOwnerId;
 
   /// 城池左上角所在的列。
   final int x;
@@ -76,8 +102,8 @@ class CityDefinition {
   /// 初始化数据中关联的单位编号。
   final List<int> unitIds;
 
-  /// 用于本原型的显示名称，不冒充原作城名。
-  String get label => id == 0 ? '初始据点' : '城池 ${id.toString().padLeft(2, '0')}';
+  /// 对用户显示真实城名，编号仅用于内部关联。
+  String get label => name;
 
   /// 建筑在原生地图上的占用范围。
   Rect get bounds => Rect.fromLTWH(x * 16, y * 16, width * 16, height * 16);
@@ -89,16 +115,19 @@ class CityDefinition {
 /// 地形与城池的静态定义，渲染缓存不作为地图事实来源。
 class WorldDefinition {
   /// 读取一个经过校验的地图定义。
-  WorldDefinition.fromJson(Map<String, dynamic> json, this.paletteIds)
-    : id = json['id'] as int,
-      width = json['width'] as int,
-      height = json['height'] as int,
-      terrain = List<int>.unmodifiable((json['tiles'] as List).cast<int>()),
-      cities = List<CityDefinition>.unmodifiable(
-        (json['cities'] as List).map(
-          (item) => CityDefinition.fromJson(item as Map<String, dynamic>),
-        ),
-      ) {
+  WorldDefinition.fromJson(
+    Map<String, dynamic> json,
+    this.paletteIds, {
+    this.countries = const [],
+  }) : id = json['id'] as int,
+       width = json['width'] as int,
+       height = json['height'] as int,
+       terrain = List<int>.unmodifiable((json['tiles'] as List).cast<int>()),
+       cities = List<CityDefinition>.unmodifiable(
+         (json['cities'] as List).map(
+           (item) => CityDefinition.fromJson(item as Map<String, dynamic>),
+         ),
+       ) {
     if (terrain.length != width * height ||
         terrain.any((tile) => tile < 0 || tile >= paletteIds.length)) {
       throw const FormatException('地图尺寸或图块编号无效');
@@ -134,6 +163,15 @@ class WorldDefinition {
 
   /// 本地图的城池配置。
   final List<CityDefinition> cities;
+
+  /// 城名与国旗目录，由三张地图共享静态定义。
+  final List<CountryDefinition> countries;
+
+  /// 查询当前占领国家的名称；简化测试地图可只提供城名。
+  String countryName(int ownerId) =>
+      countries.where((country) => country.id == ownerId).firstOrNull?.name ??
+      cities.where((city) => city.id == ownerId).firstOrNull?.name ??
+      '未知国家';
 
   /// 各组合图块使用的调色板分组。
   final List<int> paletteIds;
@@ -180,10 +218,18 @@ List<WorldDefinition> decodeWorlds(String source) {
   final palettes = List<int>.unmodifiable(
     (json['paletteIds'] as List).cast<int>(),
   );
+  final countries = List<CountryDefinition>.unmodifiable(
+    ((json['countries'] as List?) ?? []).map(
+      (item) => CountryDefinition.fromJson(item as Map<String, dynamic>),
+    ),
+  );
   return List<WorldDefinition>.unmodifiable(
     (json['worlds'] as List).map(
-      (item) =>
-          WorldDefinition.fromJson(item as Map<String, dynamic>, palettes),
+      (item) => WorldDefinition.fromJson(
+        item as Map<String, dynamic>,
+        palettes,
+        countries: countries,
+      ),
     ),
   );
 }

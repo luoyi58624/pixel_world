@@ -9,6 +9,7 @@ import 'rom_hero.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
+import 'world_markers.dart';
 
 /// 城池入口、情况和出击面板，英雄详情始终与选择列表处于同一页。
 enum CityPanelPage {
@@ -216,9 +217,13 @@ class WorldController extends ChangeNotifier {
   void tap(Offset local) {
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
-    if (!world.contains(cell)) return;
-    cursor = cell;
-    final city = world.cityAt(point);
+    final city =
+        world.cities
+            .where((city) => cityFlagRect(camera, city).contains(local))
+            .firstOrNull ??
+        world.cityAt(point);
+    if (!world.contains(cell) && city == null) return;
+    cursor = world.contains(cell) ? cell : null;
     if (pendingHero != null) {
       if (city == null || campaign.cities[city.id]!.isPlayer) {
         message = '请选择一座敌方城池作为进攻目标';

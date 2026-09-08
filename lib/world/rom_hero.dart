@@ -1,11 +1,29 @@
 import 'dart:convert';
 
+/// 将领类型是独立领域数据，不能以主角编号或图片文件名代替。
+enum HeroType {
+  /// 原版编号 0–9 的高级将领。
+  advanced('高级将领'),
+
+  /// 原版编号 10–39 的普通将领。
+  normal('普通将领'),
+
+  /// 有独立初始化类型位的玩家主角。
+  protagonist('主角');
+
+  const HeroType(this.label);
+
+  /// 界面显示的类型名称。
+  final String label;
+}
+
 /// ROM 提取的静态英雄属性，不包含战斗中的可变状态。
 class RomHeroDefinition {
   /// 从提取记录读取属性。
   RomHeroDefinition.fromJson(Map<String, dynamic> json)
     : id = json['id'] as int,
       name = json['name'] as String?,
+      type = HeroType.values.byName(json['type'] as String),
       maxHp = json['maxHp'] as int,
       combat = json['combat'] as int,
       politics = json['politics'] as int,
@@ -18,6 +36,9 @@ class RomHeroDefinition {
 
   /// 字模转写的名字，主角的固定 ROM 名字为空。
   final String? name;
+
+  /// 从原版类型初始化流程提取的将领类型。
+  final HeroType type;
 
   /// 生命上限。
   final int maxHp;

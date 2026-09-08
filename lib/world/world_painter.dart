@@ -6,6 +6,7 @@ import 'campaign.dart';
 import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
+import 'world_markers.dart';
 
 /// 使用地图缓存与少量动态精灵绘制世界，不为每个格子创建组件。
 class WorldPainter extends CustomPainter {
@@ -90,10 +91,6 @@ class WorldPainter extends CustomPainter {
     for (final city in c.world.cities) {
       final player = c.campaign.cities[city.id]!.isPlayer;
       final color = player ? const Color(0xffd6bd7c) : const Color(0xffe77d70);
-      canvas.drawRect(
-        Rect.fromLTWH(city.bounds.right - 7, city.bounds.top + 1, 4, 3),
-        Paint()..color = color,
-      );
       if (c.pendingHero != null && !player) {
         _brackets(
           canvas,
@@ -156,6 +153,15 @@ class WorldPainter extends CustomPainter {
     }
 
     canvas.restore();
+    for (final city in c.world.cities) {
+      final rect = cityFlagRect(camera, city);
+      if (!rect.overlaps(Offset.zero & size)) continue;
+      final flag = assets.flagFrame(
+        c.campaign.cities[city.id]!.ownerCountryId,
+        (rect.width * devicePixelRatio).round(),
+      );
+      canvas.drawImage(flag, _snapToPhysicalPixel(rect.topLeft), paint);
+    }
     if (!c.campaign.hasDispatched) {
       _drawHero(
         canvas,
@@ -304,16 +310,17 @@ class MinimapPainter extends CustomPainter {
     );
     for (final city in c.world.cities) {
       final point = city.bounds.center;
-      canvas.drawRect(
+      canvas.drawImageRect(
+        assets.flags,
+        Rect.fromLTWH(c.campaign.cities[city.id]!.ownerCountryId * 8, 0, 8, 8),
         Rect.fromCenter(
           center: Offset(point.dx * sx, point.dy * sy),
-          width: 3,
-          height: 3,
+          width: 12,
+          height: 12,
         ),
         Paint()
-          ..color = c.campaign.cities[city.id]!.isPlayer
-              ? const Color(0xffd6bd7c)
-              : const Color(0xffe77d70),
+          ..filterQuality = FilterQuality.none
+          ..isAntiAlias = false,
       );
     }
     final positions = !c.campaign.hasDispatched

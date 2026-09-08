@@ -43,6 +43,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `lib/world/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
 - `assets/data/rom_heroes.json`：41 位正式英雄的提取属性、姓名编码、来源偏移。
 - `lib/world/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
+- `assets/data/rom_countries.json`、`assets/images/flags.png`：原版城名、国家及国旗，来源见 [核对报告](docs/nes_cities_flags.md)。
+- `lib/world/world_markers.dart`：国旗的屏幕位置和点击范围，缩小地图时保留可辨识尺寸。
 - `lib/world/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
 - `lib/world/world_data.dart`：地图定义、城池定义、直线路线和地形速度。
 - `lib/world/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。
@@ -68,7 +70,11 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 英雄目录已替换为从 ROM 提取的 41 位正式英雄：40 个固定姓名，以及一位玩家命名的主角。姓名按原字模转写，HP、战斗、内政和报酬按实际读取代码定位。初始据点使用原编号 40、0、2，即主角、泽拉斯、威拉斯。其余城池也按 ROM 关联编号配置驻军，未出现在当前地图的英雄留在目录中，不凭空生成。详情、来源偏移及边界见 [英雄提取报告](docs/nes_heroes.md)，完整数据见 [CSV](docs/nes_heroes.csv)。
 
-`CampaignState.fromRom` 将静态英雄属性与新规则结合：我方初始据点、其他城池暂设敌方的归属、一级城基础产出和初始满编 4 人均是新游戏配置。原 ROM 的驻城士兵开局为 0，兵力和王牌是动态状态；此原型不给英雄编造王牌名称，开局显示无王牌。
+英雄类型现为独立的 `HeroType`：编号 0–9（含希列洛）为高级将领，10–39 为普通将领，主角保留独立类型。高级与普通分别使用对应行军图集，主角目前复用高级图集。
+
+城池显示原版汉化名称，前几座为阿尔马、奥尔梅、马易。每城保留初始名称，当前占领国用 `ownerCountryId` 单独记录；国旗在地图、小地图和城池面板同步显示。失守或占领后改挂实际获胜国家的旗帜，固定城名不变，已在外的英雄不自动转换国家。国旗本身也可点击选择城池。
+
+`CampaignState.fromRom` 将原版英雄、城池和国家标识与新规则结合。玩家控制阿尔马国；一级城基础产出和初始满编 4 人仍是新游戏配置。原 ROM 的驻城士兵开局为 0，兵力和王牌是动态状态；此原型不给英雄编造王牌名称，开局显示无王牌。
 
 城市最高五级，每回合产出为基础产出乘等级。国库初始 300 金币，升级花费为当前等级乘 200；满级或余额不足时不扣款。每 30 秒结算我方产出，并扣除存活我方英雄的报酬，余额最低为零。城池“情况”中显示经济明细、下级产出、升级按钮和近期记录。
 
@@ -83,6 +89,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 ```powershell
 python tool/extract_nes_map.py "你的 ROM 路径"
 python tool/extract_nes_heroes.py "你的 ROM 路径"
+python tool/extract_nes_countries.py "你的 ROM 路径"
 ```
 
 提取器校验指定 ROM 版本的哈希，不修改输入文件。日常运行和修改 Flutter 代码无需执行提取器。
@@ -94,4 +101,5 @@ flutter analyze
 flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
 flutter test test/city_dispatch_test.dart
 flutter test test/campaign_rules_test.dart
+flutter test test/identity_flags_test.dart
 ```

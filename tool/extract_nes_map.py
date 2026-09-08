@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from PIL import Image
+from extract_nes_countries import extract_country_metadata, flag_image
 
 
 # 角色颜色编号由参考截图逐像素核对；编号 0 透明，不能与黑色轮廓混用。
@@ -69,6 +70,7 @@ def _cities(prg, offset):
     # 前 16 字节是四个随机位置槽的范围参数，城池记录在它们之后。
     cursor = offset + 16
     cities = []
+    countries = extract_country_metadata(prg)
     while prg[cursor] < 128:
         record = list(prg[cursor : cursor + 6])
         cursor += 6
@@ -83,6 +85,8 @@ def _cities(prg, offset):
         shape_offset = 0x3CC11 + prg[0x3CC0B + kind]
         cities.append({
             "id": len(cities), "x": record[4], "y": record[5],
+            "name": countries[len(cities)]["name"], "initialOwnerId": len(cities),
+            "sourceNameFileOffset": countries[len(cities)]["sourceFileOffsets"]["name"],
             "width": width, "height": height,
             "shape": list(prg[shape_offset : shape_offset + width * height]),
             "unitIds": [unit[0] for unit in units], "sourceRecord": record,
@@ -135,6 +139,10 @@ def _main():
     (args.output / "images" / "hero").mkdir(exist_ok=True)
     for variant, name in enumerate(["advanced", "normal"]):
         _hero_animation(prg, variant).save(args.output / "images" / "hero" / f"{name}.png")
+    flags = Image.new("RGBA", (128, 8))
+    for country in extract_country_metadata(prg):
+        flags.paste(flag_image(prg, country), (country['id'] * 8, 0))
+    flags.save(args.output / "images" / "flags.png")
 
     worlds = []
     for index in range(3):
@@ -150,7 +158,7 @@ def _main():
             for cell, value in enumerate(city["shape"]):
                 preview.paste(meta_images[value], ((city["x"] + cell % city["width"]) * 16, (city["y"] + cell // city["width"]) * 16))
         preview.resize((256, 240), Image.NEAREST).save(args.output / "images" / f"minimap_{index}.png")
-    output = {"version": 1, "sourceSha256": digest, "tileSize": 16, "paletteIds": palette_ids, "worlds": worlds}
+    output = {"version": 1, "sourceSha256": digest, "tileSize": 16, "paletteIds": palette_ids, "worlds": worlds, "countries": extract_country_metadata(prg)}
     (args.output / "maps" / "worlds.json").write_text(json.dumps(output, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     assert hashlib.sha256(args.rom.read_bytes()).hexdigest() == digest
     print("已提取三张地图、128 个组合图块、两种角色各六帧动画，以及地图预览；原 ROM 未变更。")

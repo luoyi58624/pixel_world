@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/main.dart';
+import 'package:pixel_world/ui/country_flag.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -72,6 +73,27 @@ Future<void> _tapCity(
 }
 
 void main() {
+  testWidgets('城池面板显示真实城名、国家国旗和高级将领类型', (tester) async {
+    final c = await _load(tester, const Size(1280, 720));
+    await _tapCity(tester, c, c.world.cities.first);
+    expect(find.text('阿尔马'), findsOneWidget);
+    final flag = find.byKey(const ValueKey('city-country-flag'));
+    expect(tester.widget<CountryFlag>(flag).countryId, 0);
+    await tester.tap(find.byKey(const ValueKey('city-sortie')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
+    await tester.pump();
+    expect(find.text('泽拉斯 · 高级将领'), findsOneWidget);
+    c.campaign.defeatHero('rom-40', winnerCountryId: 4);
+    c.refreshUi();
+    await tester.pump();
+    expect(tester.widget<CountryFlag>(flag).countryId, 4);
+    expect(find.text('阿尔马'), findsOneWidget);
+    expect(find.text('墨尔国 · 敌方 · Lv.1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('经济面板升级后立即更新产出和国库，金币不足时禁用升级', (tester) async {
     final c = await _load(tester, const Size(375, 812));
     await _tapCity(tester, c, c.world.cities.first);

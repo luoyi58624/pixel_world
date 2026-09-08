@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../world/campaign.dart';
+import '../world/rom_hero.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
+import 'country_flag.dart';
 
 const _ink = Color(0xff141b17);
 const _cream = Color(0xffece7d1);
@@ -63,10 +65,11 @@ class CityPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
             child: Row(
               children: [
-                Icon(
-                  Icons.fort_outlined,
-                  size: 23,
-                  color: situation.isPlayer ? _gold : const Color(0xffdd9585),
+                CountryFlag(
+                  key: const ValueKey('city-country-flag'),
+                  image: assets.flags,
+                  countryId: situation.ownerCountryId,
+                  countryName: c.world.countryName(situation.ownerCountryId),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -83,7 +86,7 @@ class CityPanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${situation.isPlayer ? '我方城池' : '敌方城池'} · Lv.${situation.level}',
+                        '${c.world.countryName(situation.ownerCountryId)}国 · ${situation.isPlayer ? '我方' : '敌方'} · Lv.${situation.level}',
                         style: const TextStyle(fontSize: 11, color: _muted),
                       ),
                     ],
@@ -194,7 +197,7 @@ class CityPanel extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${hero.hp}/${hero.maxHp} HP · ${_heroStatus(hero)}',
+                  '${hero.type.label} · ${hero.hp}/${hero.maxHp} HP',
                   style: const TextStyle(color: _muted, fontSize: 12),
                 ),
               ],
@@ -238,7 +241,9 @@ class CityPanel extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${hero.name} · 将军',
+                hero.type == HeroType.protagonist
+                    ? hero.name
+                    : '${hero.name} · ${hero.type.label}',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,

@@ -117,6 +117,8 @@ void main() {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       expect(assets.heroes.length, 2);
+      expect(assets.flags.width, 128);
+      expect(assets.flags.height, 8);
       for (final image in assets.heroes.values) {
         expect(image.width, 96);
         expect(image.height, 16);
@@ -177,10 +179,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('hero-picker')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('普通英雄').last);
+    await tester.tap(find.text('普通将领').last);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byTooltip('选择英雄：普通英雄'), findsOneWidget);
+    expect(find.byTooltip('选择英雄：普通将领'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

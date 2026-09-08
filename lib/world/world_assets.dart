@@ -16,6 +16,7 @@ class WorldAssets {
     this.scenes,
     this.minimaps,
     this.heroCatalog,
+    this.flags,
   );
 
   /// 三个场景的独立地图定义。
@@ -23,6 +24,9 @@ class WorldAssets {
 
   /// 从 ROM 提取的正式英雄静态目录。
   final List<RomHeroDefinition> heroCatalog;
+
+  /// 原版 8×8 国旗和特殊地点标记图集。
+  final ui.Image flags;
 
   /// 地形组合图块集。
   final ui.Image terrain;
@@ -41,6 +45,34 @@ class WorldAssets {
 
   int? _heroFrameSize;
   final _heroFrames = <(HeroAppearance, int), ui.Image>{};
+  int? _flagFrameSize;
+  final _flagFrames = <int, ui.Image>{};
+
+  /// 缓存当前地图缩放下的旗帜，平移镜头时不重复进行非整数采样。
+  ui.Image flagFrame(int countryId, int pixelSize) {
+    if (_flagFrameSize != pixelSize) {
+      for (final image in _flagFrames.values) {
+        image.dispose();
+      }
+      _flagFrames.clear();
+      _flagFrameSize = pixelSize;
+    }
+    return _flagFrames.putIfAbsent(countryId, () {
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder).drawImageRect(
+        flags,
+        ui.Rect.fromLTWH(countryId * 8, 0, 8, 8),
+        ui.Rect.fromLTWH(0, 0, pixelSize.toDouble(), pixelSize.toDouble()),
+        ui.Paint()
+          ..filterQuality = ui.FilterQuality.none
+          ..isAntiAlias = false,
+      );
+      final picture = recorder.endRecording();
+      final image = picture.toImageSync(pixelSize, pixelSize);
+      picture.dispose();
+      return image;
+    });
+  }
 
   /// 按当前物理尺寸缓存动画帧，平移时直接贴图，避免非整数放大的重复采样抖动。
   ui.Image heroFrame(HeroAppearance appearance, int frame, int pixelSize) {
@@ -85,12 +117,16 @@ class WorldAssets {
         'minimap_0',
         'minimap_1',
         'minimap_2',
+        'flags',
       ].map(_image),
     );
     for (final hero in textures.sublist(1, 3)) {
       if (hero.width != 96 || hero.height != 16) {
         throw const FormatException('英雄图集必须为六帧横排的 96×16 图片');
       }
+    }
+    if (textures[7].width != 128 || textures[7].height != 8) {
+      throw const FormatException('国旗图集必须为十六帧横排的 128×8 图片');
     }
     final scenes = <ui.Image>[];
     final paint = ui.Paint()
@@ -126,8 +162,9 @@ class WorldAssets {
       }),
       textures[3],
       scenes,
-      textures.sublist(4),
+      textures.sublist(4, 7),
       heroCatalog,
+      textures[7],
     );
   }
 
@@ -148,6 +185,8 @@ class WorldAssets {
       ...scenes,
       ...minimaps,
       ..._heroFrames.values,
+      flags,
+      ..._flagFrames.values,
     ]) {
       image.dispose();
     }

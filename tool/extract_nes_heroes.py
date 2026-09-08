@@ -61,8 +61,11 @@ def extract(original):
         egg_index = prg[0x1375D + hero_id]
         heroes.append({
             "id": hero_id,
-            "name": NAMES[hero_id] if hero_id < 40 else None,
-            "nameSource": "rom_glyph_transcription" if hero_id < 40 else "player_input_ram_6FB0",
+            "name": ("希列洛" if hero_id == 9 else NAMES[hero_id]) if hero_id < 40 else None,
+            "romGlyphTranscription": NAMES[hero_id] if hero_id < 40 else None,
+            "type": "protagonist" if hero_id == 40 else "advanced" if prg[0x1825E + hero_id] == 0 else "normal",
+            "rawTypeSeed": prg[0x1825E + hero_id],
+            "nameSource": ("user_correction" if hero_id == 9 else "rom_glyph_transcription") if hero_id < 40 else "player_input_ram_6FB0",
             "encodedName": encoded,
             "maxHp": prg[0x1822C + hero_id],
             "combat": prg[0x181AC + hero_id],
@@ -81,12 +84,15 @@ def extract(original):
                 "combat": 0x181BC + hero_id,
                 "packedPoliticsSalary": 0x181EA + hero_id,
                 "eggFlags": 0x18213 + hero_id,
+                "typeSeed": 0x1826E + hero_id,
             },
         })
     return {
         "version": 1, "sourceSha256": ROM_SHA256, "heroes": heroes,
         "notes": {
             "names": "40 个姓名按原字模转写，ID 40 主角姓名来自玩家输入的 RAM，不存在固定 ROM 姓名。",
+            "types": "C201–C20E 从 825E+ID 初始化类型位：0–9 高级，10–39 普通。主角 40 在 C224–C226 被单独设置为 30，保留独立类型。",
+            "nameCorrection": "编号 9 的显示名按用户校正为希列洛，原字模转写仍保留在 romGlyphTranscription 中。",
             "soldiers": "驻城单位的士兵 RAM 在开局清零，行军初始单位设为 4；兵力上限为 4，不是固定英雄属性。",
             "aces": "王牌库存属于 RAM 的动态物品槽，开局清为 FF；召唤蛋与王牌库存不是同一个字段。",
             "egg": "eggCapable 来自 CF77 对 8203+ID 最高位的检查；蛋的具体召唤结果依赖运行状态，未展开。",
@@ -109,9 +115,9 @@ def main():
     (data_dir / "rom_heroes.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with (docs_dir / "nes_heroes.csv").open("w", encoding="utf-8-sig", newline="") as output:
         writer = csv.writer(output)
-        writer.writerow(["编号", "姓名", "HP", "战斗", "内政", "报酬", "可持蛋", "HP文件偏移"])
+        writer.writerow(["编号", "姓名", "类型", "HP", "战斗", "内政", "报酬", "可持蛋", "HP文件偏移"])
         for hero in result["heroes"]:
-            writer.writerow([hero["id"], hero["name"] or "主角（玩家命名）", hero["maxHp"], hero["combat"],
+            writer.writerow([hero["id"], hero["name"] or "主角（玩家命名）", {"advanced": "高级将领", "normal": "普通将领", "protagonist": "主角"}[hero["type"]], hero["maxHp"], hero["combat"],
                 hero["politics"], hero["salary"], "是" if hero["eggCapable"] else "否", f'0x{hero["sourceFileOffsets"]["maxHp"]:06X}'])
     # 直接还原字模，供人工检查 Unicode 转写，不依赖系统字体绘制英雄姓名。
     chart = Image.new("RGB", (720, 21 * 44), (25, 28, 27))
