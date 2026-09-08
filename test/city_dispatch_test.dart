@@ -128,12 +128,12 @@ void main() {
     c.dispose();
   });
 
-  test('有效敌城确认后英雄才离城，重复确认不会重复扣兵', () {
+  test('有效位置确认后英雄才离城，越界或重复确认不会重复扣兵', () {
     final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
     final home = c.world.cities.first;
     final target = c.world.cities[1];
     _prepare(c, 'rom-40');
-    c.confirmTarget(home);
+    c.confirmPosition(const Offset(-1, -1));
     expect(c.pendingHero, isNotNull);
     expect(c.campaign.marches, isEmpty);
     c.confirmTarget(target);

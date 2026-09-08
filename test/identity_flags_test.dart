@@ -104,8 +104,10 @@ void main() {
     c.camera.center = enemy.bounds.center;
     c.camera.constrain();
     c.tap(c.camera.toScreen(enemy.bounds.topCenter) - const Offset(0, 15));
-    expect(c.pendingHero, isNotNull);
-    expect(c.campaign.marches, isEmpty);
+    expect(c.pendingHero, isNull);
+    expect(c.campaign.marches.values.single.target, isNull);
+    c.openUnit(c.campaign.marches.keys.single);
+    c.prepareMove();
     c.tap(c.camera.toScreen(enemy.bounds.center));
     expect(c.pendingHero, isNull);
     expect(c.campaign.marches.values.single.target, enemy);

@@ -90,7 +90,7 @@ class WorldPainter extends CustomPainter {
     for (final city in c.world.cities) {
       final player = c.campaign.cities[city.id]!.isPlayer;
       final color = player ? const Color(0xffd6bd7c) : const Color(0xffe77d70);
-      if (c.pendingHero != null && !player) {
+      if (c.choosingTarget && !player) {
         _brackets(
           canvas,
           city.bounds.inflate(2),
@@ -143,12 +143,40 @@ class WorldPainter extends CustomPainter {
         1 / camera.scale + 0.5,
       );
     }
+    if (c.selectedMapHero != null) {
+      _brackets(
+        canvas,
+        Rect.fromCenter(
+          center: c.selectedUnit?.position ?? c.heroPosition,
+          width: 18,
+          height: 18,
+        ),
+        const Color(0xffffe5a3),
+        1,
+      );
+    }
     if (c.cursor case final cell?) {
       final cursor = Rect.fromLTWH(cell.x * 16, cell.y * 16, 16, 16);
-      final color = c.world.isWalkable(cell)
-          ? const Color(0xffe6d5ff)
-          : const Color(0xffed9c84);
+      final color = c.choosingTarget
+          ? const Color(0xffffe5a3)
+          : const Color(0xffe6d5ff);
       _brackets(canvas, cursor, color, 1);
+      if (c.choosingTarget) {
+        final center = cursor.center;
+        final aim = Paint()
+          ..color = color
+          ..strokeWidth = 1 / camera.scale;
+        canvas.drawLine(
+          center - const Offset(3, 0),
+          center + const Offset(3, 0),
+          aim,
+        );
+        canvas.drawLine(
+          center - const Offset(0, 3),
+          center + const Offset(0, 3),
+          aim,
+        );
+      }
     }
 
     canvas.restore();
@@ -165,15 +193,114 @@ class WorldPainter extends CustomPainter {
       final marches = c.campaign.marches.values.toList()
         ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
       for (final march in marches) {
-        _drawHero(
-          canvas,
-          size,
-          march.position,
-          march.direction,
-          march.hero.appearance,
-          march.animationStep,
-        );
+        if (march.phase == MarchPhase.camped) {
+          _drawCamp(canvas, size, march.position);
+        } else {
+          _drawHero(
+            canvas,
+            size,
+            march.position,
+            march.direction,
+            march.hero.appearance,
+            march.animationStep,
+          );
+        }
       }
+    }
+    for (final battle in c.campaign.battles.values) {
+      if (battle.isActive) _drawBattle(canvas, battle);
+    }
+    canvas.restore();
+  }
+
+  void _drawCamp(Canvas canvas, Size size, Offset position) {
+    final camera = controller.camera;
+    final topLeft = _snapToPhysicalPixel(
+      size.center(Offset.zero) +
+          (position - camera.center - const Offset(8, 8)) * camera.scale,
+    );
+    canvas.save();
+    canvas.translate(topLeft.dx, topLeft.dy);
+    canvas.scale(camera.scale * devicePixelRatio);
+    final paint = Paint()..isAntiAlias = false;
+    // 按参考图的 16×16 格式画屋顶、墙体与门柱，营地沿用部队的中心和点击范围。
+    canvas.drawRect(
+      const Rect.fromLTWH(0, 0, 16, 16),
+      paint..color = const Color(0xff000000),
+    );
+    canvas.drawRect(
+      const Rect.fromLTWH(1, 1, 14, 7),
+      paint..color = const Color(0xffea9e22),
+    );
+    canvas.drawRect(
+      const Rect.fromLTWH(1, 9, 14, 6),
+      paint..color = const Color(0xff333500),
+    );
+    canvas.drawRect(
+      const Rect.fromLTWH(2, 10, 12, 3),
+      paint..color = const Color(0xff000000),
+    );
+    for (final x in [4.0, 9.0]) {
+      canvas.drawRect(
+        Rect.fromLTWH(x, 11, 1, 4),
+        paint..color = const Color(0xff000000),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(x + 1, 11, 1, 4),
+        paint..color = const Color(0xffea9e22),
+      );
+    }
+    canvas.restore();
+  }
+
+  void _drawBattle(Canvas canvas, CityBattle battle) {
+    final center = controller.battleMarkerBounds(battle).center;
+    canvas.save();
+    canvas.translate(
+      center.dx * devicePixelRatio,
+      center.dy * devicePixelRatio,
+    );
+    canvas.scale(devicePixelRatio);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-20, -18, 40, 36),
+        const Radius.circular(4),
+      ),
+      Paint()..color = const Color(0xeb141b17),
+    );
+    final swing = math.sin(controller.time * 10) * 0.25;
+    for (final side in [-1.0, 1.0]) {
+      canvas.save();
+      canvas.rotate(side * (0.65 + swing));
+      canvas.drawPath(
+        Path()
+          ..moveTo(0, -14)
+          ..lineTo(3, -9)
+          ..lineTo(3, 6)
+          ..lineTo(-3, 6)
+          ..lineTo(-3, -9)
+          ..close(),
+        Paint()
+          ..color = side < 0
+              ? const Color(0xffece7d1)
+              : const Color(0xffb4c6d2),
+      );
+      canvas.drawRect(
+        const Rect.fromLTWH(-6, 5, 12, 3),
+        Paint()..color = const Color(0xffd6bd7c),
+      );
+      canvas.drawRect(
+        const Rect.fromLTWH(-2, 8, 4, 7),
+        Paint()..color = const Color(0xff9b7346),
+      );
+      canvas.restore();
+    }
+    if (swing > 0.12) {
+      final spark = Paint()
+        ..color = const Color(0xffffd763)
+        ..strokeWidth = 2;
+      canvas.drawLine(const Offset(-3, -16), const Offset(-5, -20), spark);
+      canvas.drawLine(const Offset(3, -16), const Offset(5, -20), spark);
     }
     canvas.restore();
   }
@@ -191,7 +318,7 @@ class WorldPainter extends CustomPainter {
     // 先合成镜头与角色的精确位置，再对齐最终屏幕像素；世界坐标取整会放大跳动。
     final heroTopLeft = _snapToPhysicalPixel(
       size.center(Offset.zero) +
-          (position - camera.center + const Offset(-8, -11)) * camera.scale,
+          (position - camera.center + const Offset(-8, -8)) * camera.scale,
     );
     final spriteScale = camera.scale * devicePixelRatio;
     final heroImage = assets.heroFrame(

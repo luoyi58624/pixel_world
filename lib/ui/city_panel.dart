@@ -114,6 +114,19 @@ class CityPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (controller.campaign.battles[controller.selectedCity!.id]
+            case final battle? when battle.isActive) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              key: const ValueKey('city-watch-battle'),
+              onPressed: () => onAction(() => controller.watchBattle(battle)),
+              icon: const Icon(Icons.bolt, size: 18),
+              label: const Text('正在交战 · 进入观战'),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         _section('城池情况'),
         const SizedBox(height: 12),
         _cityStats(situation),
@@ -294,6 +307,7 @@ class CityPanel extends StatelessWidget {
 
   String _heroStatus(CampaignHero hero) =>
       switch (controller.campaign.marches[hero.id]?.phase) {
+        MarchPhase.camped => '扎营中',
         MarchPhase.marching => '出征中',
         MarchPhase.awaitingBattle => '城下待战',
         MarchPhase.fighting => '交战中',

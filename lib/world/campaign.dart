@@ -121,6 +121,9 @@ class CampaignHero {
 
 /// 部队从行军进入排队待战或交战。
 enum MarchPhase {
+  /// 原地扎营，保留在地图上并继续结算所属城池经济。
+  camped,
+
   /// 前往目标。
   marching,
 
@@ -136,25 +139,27 @@ class HeroMarch {
   /// 从所属城门出发。
   HeroMarch({
     required this.hero,
-    required this.target,
+    this.target,
     required this.position,
     required this.destination,
-  }) : direction = HeroDirection.fromVector(destination - position);
+  }) : direction = destination == position
+           ? HeroDirection.south
+           : HeroDirection.fromVector(destination - position);
 
   /// 带队英雄。
   final CampaignHero hero;
 
-  /// 目标城池。
-  final CityDefinition target;
+  /// 目标城池；自由行军时为空。
+  CityDefinition? target;
 
-  /// 目标城门。
-  final Offset destination;
+  /// 任意地图位置，选中城池时使用城门位置。
+  Offset destination;
 
   /// 精确世界坐标。
   Offset position;
 
   /// 行军朝向。
-  final HeroDirection direction;
+  HeroDirection direction;
 
   /// 实际行军距离。
   double walkDistance = 0;
@@ -166,6 +171,25 @@ class HeroMarch {
   int get animationStep =>
       phase == MarchPhase.marching ? (walkDistance / 6).floor() % 2 : 0;
 
+  /// 从当前位置改道，保留连续位置和步行动画进度。
+  void moveTo(Offset point, {CityDefinition? city}) {
+    target = city;
+    destination = point;
+    if (point != position) {
+      direction = HeroDirection.fromVector(point - position);
+    }
+    phase = point == position
+        ? (city == null ? MarchPhase.camped : MarchPhase.awaitingBattle)
+        : MarchPhase.marching;
+  }
+
+  /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
+  void camp() {
+    target = null;
+    destination = position;
+    phase = MarchPhase.camped;
+  }
+
   /// 推进行军，抵达后由战役规则决定何时交战。
   bool tick(WorldDefinition world, double elapsed) {
     if (phase != MarchPhase.marching) return false;
@@ -173,10 +197,43 @@ class HeroMarch {
     position = result.position;
     walkDistance += result.distance;
     if (position == destination) {
-      phase = MarchPhase.awaitingBattle;
+      phase = target == null ? MarchPhase.camped : MarchPhase.awaitingBattle;
       return true;
     }
     return false;
+  }
+}
+
+/// 后台交战的实时记录，观战只读取这份状态，不另起战斗时钟。
+class CityBattle {
+  /// 记录一支部队与当前守将的交战。
+  CityBattle(this.city, this.attacker, this.defender);
+
+  /// 战斗所在城池。
+  final CityDefinition city;
+
+  /// 进攻英雄，战败后仍保留本场结果供查看。
+  final CampaignHero attacker;
+
+  /// 当前守将，每轮从存活驻军中更新。
+  CampaignHero defender;
+
+  /// 已执行的交战轮次。
+  int rounds = 0;
+
+  /// 战斗结果，为空表示仍在交战。
+  String? outcome;
+
+  /// 最近的伤害与战败记录。
+  final List<String> events = [];
+
+  /// 是否仍在后台交战。
+  bool get isActive => outcome == null;
+
+  /// 添加有限数量的战斗记录。
+  void record(String event) {
+    events.add(event);
+    if (events.length > 6) events.removeAt(0);
   }
 }
 
@@ -249,6 +306,9 @@ class CampaignState {
 
   /// 已出征部队。
   final Map<String, HeroMarch> marches = {};
+
+  /// 各城最近一场交战，结束后保留结果直到下次交战。
+  final Map<int, CityBattle> battles = {};
 
   /// 派兵后即使部队全灭，也不重新生成探索人物。
   bool hasDispatched = false;
@@ -341,15 +401,19 @@ class CampaignState {
 
   /// 提交合法目标，取消选目标不会创建这条记录。
   HeroMarch? dispatch(CampaignHero hero, CityDefinition target) {
-    if (!canDispatch(hero) ||
-        !world.cities.contains(target) ||
-        cities[target.id]!.isPlayer) {
-      return null;
-    }
+    if (!world.cities.contains(target)) return null;
+    return dispatchTo(hero, target.bounds.center);
+  }
+
+  /// 确认任意地图位置后派兵，选城则在抵达后进驻或自动交战。
+  HeroMarch? dispatchTo(CampaignHero hero, Offset point) {
+    if (!canDispatch(hero) || !_containsPoint(point)) return null;
+    final target = world.cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
     final start = world.nearestWalkable(source.entrance).center;
-    final end = world.nearestWalkable(target.entrance).center;
-    if (start == end) return null;
+    final end = target == null
+        ? point
+        : world.nearestWalkable(target.entrance).center;
     final march = HeroMarch(
       hero: hero,
       target: target,
@@ -357,8 +421,46 @@ class CampaignState {
       destination: end,
     );
     marches[hero.id] = march;
+    march.moveTo(end, city: target);
     hasDispatched = true;
     return march;
+  }
+
+  /// 为已出征的我方英雄重新指定目的地。
+  bool moveTo(String heroId, Offset point) {
+    final march = marches[heroId];
+    if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
+      return false;
+    }
+    _endBattle(march, '${march.hero.name}已撤离');
+    final city = world.cityAt(point);
+    march.moveTo(
+      city == null ? point : world.nearestWalkable(city.entrance).center,
+      city: city,
+    );
+    return true;
+  }
+
+  /// 命令一支部队原地扎营，其他行军和交战照常推进。
+  bool camp(String heroId) {
+    final march = marches[heroId];
+    if (march == null || !march.hero.isPlayer) return false;
+    _endBattle(march, '${march.hero.name}已停止进攻');
+    march.camp();
+    _record('${march.hero.name}已原地扎营');
+    return true;
+  }
+
+  bool _containsPoint(Offset point) =>
+      point.dx.isFinite &&
+      point.dy.isFinite &&
+      (Offset.zero & world.pixelSize).contains(point);
+
+  void _endBattle(HeroMarch march, String outcome) {
+    final battle = battles[march.target?.id];
+    if (battle != null && battle.isActive && battle.attacker == march.hero) {
+      battle.outcome = outcome;
+    }
   }
 
   /// 英雄战败降一级；一级城易主，只清除该城未出征的败方英雄。
@@ -373,6 +475,8 @@ class CampaignState {
     final city = cities[hero.cityId]!;
     final oldLevel = city.level;
     final removed = <String>[hero.id];
+    final march = marches[hero.id];
+    if (march != null) _endBattle(march, '${hero.name}战败');
     hero.hp = 0;
     marches.remove(hero.id);
     heroes.remove(hero);
@@ -408,7 +512,37 @@ class CampaignState {
       final dt = math.min(remaining, 1 - _secondFraction);
       for (final march in marches.values) {
         final terrain = world.movementTerrainAt(cellAt(world, march.position));
+        final previous = march.position;
         changed = march.tick(world, dt) || changed;
+        // 检查实际走过的线段，避免低帧率或远距离指令穿过敌城而不交战。
+        if (previous != march.position) {
+          CityDefinition? encountered;
+          var nearest = 2.0;
+          for (final city in world.cities) {
+            if (cities[city.id]!.ownerCountryId == march.hero.countryId) {
+              continue;
+            }
+            final fraction = _entryFraction(
+              previous,
+              march.position,
+              city.bounds,
+            );
+            if (fraction != null && fraction < nearest) {
+              nearest = fraction;
+              encountered = city;
+            }
+          }
+          if (encountered != null) {
+            final entry = previous + (march.position - previous) * nearest;
+            march.walkDistance -= (march.position - entry).distance;
+            march.position = entry;
+            march.destination = entry;
+            march.target = encountered;
+            march.phase = MarchPhase.awaitingBattle;
+            changed = true;
+          }
+        }
+        if (march.phase == MarchPhase.awaitingBattle) _beginBattle(march);
         changed =
             terrain != world.movementTerrainAt(cellAt(world, march.position)) ||
             changed;
@@ -437,35 +571,47 @@ class CampaignState {
     final engagedCities = <int>{};
     for (final march in marches.values.toList()) {
       if (!marches.containsKey(march.hero.id) ||
-          march.phase == MarchPhase.marching) {
+          march.target == null ||
+          (march.phase != MarchPhase.awaitingBattle &&
+              march.phase != MarchPhase.fighting)) {
         continue;
       }
-      final target = cities[march.target.id]!;
+      final city = march.target!;
+      final target = cities[city.id]!;
       if (target.ownerCountryId == march.hero.countryId) {
         _station(march);
         changed = true;
         continue;
       }
-      if (!engagedCities.add(march.target.id)) continue;
-      final defender = garrisonAt(march.target.id).firstOrNull;
+      final active = battles[city.id];
+      if (active != null && active.isActive && active.attacker != march.hero) {
+        continue;
+      }
+      if (!engagedCities.add(city.id)) continue;
+      final defender = garrisonAt(city.id).firstOrNull;
       if (defender == null) {
-        _captureCity(march.target.id, march.hero.countryId);
+        _captureCity(city.id, march.hero.countryId);
         _station(march);
         changed = true;
         continue;
       }
       march.phase = MarchPhase.fighting;
+      final battle = _beginBattle(march)!;
+      battle.defender = defender;
+      battle.rounds++;
       // 新原型的顺序交战公式，不作为 NES 原版算法。
       final attack = math.max(
         1,
         march.hero.combat + march.hero.soldiers * 2 - target.level * 2,
       );
       defender.hp = math.max(0, defender.hp - attack);
+      battle.record('${march.hero.name}攻击${defender.name}，造成 $attack 点伤害');
       if (defender.hp == 0) {
+        battle.record('${defender.name}战败');
         defeatHero(defender.id, winnerCountryId: march.hero.countryId);
         if (target.ownerCountryId == march.hero.countryId ||
-            garrisonAt(march.target.id).isEmpty) {
-          _captureCity(march.target.id, march.hero.countryId);
+            garrisonAt(city.id).isEmpty) {
+          _captureCity(city.id, march.hero.countryId);
           _station(march);
         }
       } else {
@@ -478,6 +624,7 @@ class CampaignState {
               homeLevel * 2,
         );
         march.hero.hp = math.max(0, march.hero.hp - retaliation);
+        battle.record('${defender.name}反击，造成 $retaliation 点伤害');
         if (march.hero.hp == 0) {
           defeatHero(march.hero.id, winnerCountryId: defender.countryId);
         }
@@ -503,9 +650,49 @@ class CampaignState {
   }
 
   void _station(HeroMarch march) {
+    _endBattle(march, '${march.hero.name}已进驻${march.target!.label}');
     marches.remove(march.hero.id);
-    march.hero.cityId = march.target.id;
-    _record('${march.hero.name}已进驻${march.target.label}');
+    march.hero.cityId = march.target!.id;
+    _record('${march.hero.name}已进驻${march.target!.label}');
+  }
+
+  CityBattle? _beginBattle(HeroMarch march) {
+    final city = march.target;
+    if (city == null ||
+        cities[city.id]!.ownerCountryId == march.hero.countryId) {
+      return null;
+    }
+    final defender = garrisonAt(city.id).firstOrNull;
+    if (defender == null) return null;
+    final existing = battles[city.id];
+    if (existing != null && existing.isActive) {
+      return existing.attacker == march.hero ? existing : null;
+    }
+    march.phase = MarchPhase.fighting;
+    return battles[city.id] = CityBattle(city, march.hero, defender);
+  }
+
+  // 只拦截从城外进入的线段；已在城边的部队可以接收撤离指令。
+  double? _entryFraction(Offset start, Offset end, Rect bounds) {
+    if (bounds.inflate(0.001).contains(start)) return null;
+    var enter = 0.0;
+    var leave = 1.0;
+    final delta = end - start;
+    for (final axis in [
+      (start.dx, delta.dx, bounds.left, bounds.right),
+      (start.dy, delta.dy, bounds.top, bounds.bottom),
+    ]) {
+      if (axis.$2.abs() < 1e-9) {
+        if (axis.$1 < axis.$3 || axis.$1 > axis.$4) return null;
+      } else {
+        final a = (axis.$3 - axis.$1) / axis.$2;
+        final b = (axis.$4 - axis.$1) / axis.$2;
+        enter = math.max(enter, math.min(a, b));
+        leave = math.min(leave, math.max(a, b));
+        if (enter > leave) return null;
+      }
+    }
+    return enter;
   }
 
   String _cityName(int id) =>

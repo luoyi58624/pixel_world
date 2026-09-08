@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/main.dart';
+import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/hero_sprite.dart';
 import 'package:pixel_world/world/world_assets.dart';
 import 'package:pixel_world/world/world_controller.dart';
@@ -48,6 +49,75 @@ Offset _topLeft(List<Offset> pixels) => Offset(
 );
 
 void main() {
+  testWidgets('野外驻守显示居中的橙顶小屋，点击仍选中英雄，重新移动恢复人物', (tester) async {
+    await tester.runAsync(() async {
+      final assets = await WorldAssets.load();
+      final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
+      c.camera.resize(const Size(160, 160));
+      c.camera.scale = 3;
+      final hero = c.previewHero!;
+      final unit = c.campaign.dispatchTo(hero, c.heroPosition)!;
+      c.camera.center = unit.position;
+      expect(unit.phase, MarchPhase.camped);
+      for (final ratio in [1.0, 1.75, 2.0]) {
+        final pixels = await _heroPixels(c, assets, ratio);
+        // 屋顶宽 14 格、高 7 格，另有两根各高 4 格的门柱；全按参考图主色着色。
+        final minimum = _topLeft(pixels);
+        expect(minimum.dx, closeTo((80 - 7 * 3) * ratio, 1));
+        expect(minimum.dy, closeTo((80 - 7 * 3) * ratio, 1));
+        expect(pixels.length, closeTo((14 * 7 + 8) * 9 * ratio * ratio, 80));
+      }
+      c.tap(c.camera.toScreen(unit.position));
+      expect(c.selectedUnit, same(unit));
+      final roof = await _heroPixels(c, assets, 1);
+      c.prepareMove();
+      c.confirmPosition(unit.position + const Offset(48, 0));
+      expect(unit.phase, MarchPhase.marching);
+      expect(await _heroPixels(c, assets, 1), isNot(roof));
+      c.dispose();
+      assets.dispose();
+    });
+  });
+
+  testWidgets('人物完整帧以所在格子中心定位，不再向上偏移三个原生像素', (tester) async {
+    await tester.runAsync(() async {
+      final assets = await WorldAssets.load();
+      final c = WorldController(assets.worlds);
+      c.camera.resize(const Size(160, 160));
+      c.heroPosition = const Offset(248, 808);
+      c.camera.center = c.heroPosition;
+      c.camera.scale = 3;
+      c.direction = HeroDirection.south;
+      for (final ratio in [1.0, 1.75, 2.0]) {
+        final side = (16 * 3 * ratio).round();
+        final frame = assets.heroFrame(c.appearance, 0, side);
+        final bytes = (await frame.toByteData())!;
+        final topLeft = Offset(
+          (80 * ratio - side / 2).roundToDouble(),
+          (80 * ratio - side / 2).roundToDouble(),
+        );
+        final expected = <Offset>[];
+        for (var y = 0; y < side; y++) {
+          for (var x = 0; x < side; x++) {
+            final i = (y * side + x) * 4;
+            if (bytes.getUint8(i) == 234 &&
+                bytes.getUint8(i + 1) == 158 &&
+                bytes.getUint8(i + 2) == 34) {
+              expected.add(topLeft + Offset(x.toDouble(), y.toDouble()));
+            }
+          }
+        }
+        expect(
+          await _heroPixels(c, assets, ratio),
+          expected,
+          reason: 'DPR=$ratio',
+        );
+      }
+      c.dispose();
+      assets.dispose();
+    });
+  });
+
   testWidgets('斜向跟随时人物锚点及像素形状稳定，包括 175% 屏幕缩放', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
