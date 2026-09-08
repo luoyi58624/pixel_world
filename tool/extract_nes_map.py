@@ -12,6 +12,11 @@ from extract_nes_countries import extract_country_metadata, flag_image
 # 角色颜色编号由参考截图逐像素核对；编号 0 透明，不能与黑色轮廓混用。
 _HERO_PALETTE = [(0, 0, 0, 0), (0, 0, 0, 255), (66, 64, 255, 255), (228, 229, 148, 255)]
 _HERO_PALETTES = [_HERO_PALETTE, _HERO_PALETTE[:3] + [(255, 254, 255, 255)]]
+# 主角上、下半身分别使用橙金和红褐调色板，RGB 按用户主角截图核对。
+_PROTAGONIST_PALETTES = [
+    [(0, 0, 0, 0), (0, 0, 0, 255), (181, 49, 32, 255), (228, 229, 148, 255)],
+    [(0, 0, 0, 0), (0, 0, 0, 255), (234, 158, 34, 255), (228, 229, 148, 255)],
+]
 
 
 def _tile(data, palette):
@@ -35,6 +40,7 @@ def _hero_image(prg):
 
 def _hero_animation(prg, variant):
     image = Image.new("RGBA", (96, 16))
+    palettes = _PROTAGONIST_PALETTES if variant == 3 else _HERO_PALETTES
     # 每种角色的 ROM 表含六帧；统一导出顺序为正面、背面、侧面，各两帧。
     for frame, original in enumerate([2, 3, 4, 5, 0, 1]):
         for quadrant in range(4):
@@ -42,7 +48,7 @@ def _hero_animation(prg, variant):
             tile_id = prg[0x18612 + entry]
             attribute = prg[0x18672 + entry]
             start = 0x1306D + tile_id * 16
-            tile = _tile(prg[start : start + 16], _HERO_PALETTES[attribute & 3])
+            tile = _tile(prg[start : start + 16], palettes[attribute & 3])
             if attribute & 0x40:
                 tile = tile.transpose(Image.FLIP_LEFT_RIGHT)
             if attribute & 0x80:
@@ -137,7 +143,7 @@ def _main():
 
     _hero_image(prg).save(args.output / "images" / "hero.png")
     (args.output / "images" / "hero").mkdir(exist_ok=True)
-    for variant, name in enumerate(["advanced", "normal"]):
+    for variant, name in [(0, "advanced"), (1, "normal"), (3, "protagonist")]:
         _hero_animation(prg, variant).save(args.output / "images" / "hero" / f"{name}.png")
     flags = Image.new("RGBA", (128, 8))
     for country in extract_country_metadata(prg):
@@ -161,7 +167,7 @@ def _main():
     output = {"version": 1, "sourceSha256": digest, "tileSize": 16, "paletteIds": palette_ids, "worlds": worlds, "countries": extract_country_metadata(prg)}
     (args.output / "maps" / "worlds.json").write_text(json.dumps(output, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     assert hashlib.sha256(args.rom.read_bytes()).hexdigest() == digest
-    print("已提取三张地图、128 个组合图块、两种角色各六帧动画，以及地图预览；原 ROM 未变更。")
+    print("已提取三张地图、128 个组合图块、高级/普通/主角各六帧动画，以及地图预览；原 ROM 未变更。")
 
 
 if __name__ == "__main__":

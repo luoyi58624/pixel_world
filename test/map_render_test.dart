@@ -22,13 +22,16 @@ Future<List<Offset>> _heroPixels(
   final image = await picture.toImage(width, width);
   final bytes = (await image.toByteData())!;
   final pixels = <Offset>[];
-  // 该蓝色仅出现在英雄身上，可排除地图和阴影，直接比较真实栅格结果。
+  final color = controller.appearance == HeroAppearance.protagonist
+      ? [234, 158, 34]
+      : [66, 64, 255];
+  // 当前测试位置没有同色地形或旗帜，可用衣帽主色直接比较真实栅格结果。
   for (var y = 0; y < width; y++) {
     for (var x = 0; x < width; x++) {
       final index = (y * width + x) * 4;
-      if (bytes.getUint8(index) == 66 &&
-          bytes.getUint8(index + 1) == 64 &&
-          bytes.getUint8(index + 2) == 255) {
+      if (bytes.getUint8(index) == color[0] &&
+          bytes.getUint8(index + 1) == color[1] &&
+          bytes.getUint8(index + 2) == color[2]) {
         pixels.add(Offset(x.toDouble(), y.toDouble()));
       }
     }
@@ -116,7 +119,7 @@ void main() {
   testWidgets('地图绘制不会清除画布上方的工具栏', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
-      expect(assets.heroes.length, 2);
+      expect(assets.heroes.length, 3);
       expect(assets.flags.width, 128);
       expect(assets.flags.height, 8);
       for (final image in assets.heroes.values) {

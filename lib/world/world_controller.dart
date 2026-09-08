@@ -96,7 +96,7 @@ class WorldController extends ChangeNotifier {
   HeroDirection direction = HeroDirection.south;
 
   /// 当前使用的英雄图集。
-  HeroAppearance appearance = HeroAppearance.advanced;
+  HeroAppearance appearance = HeroAppearance.protagonist;
 
   /// 当前行程已走过的像素距离，用于使步频随地形减速。
   double walkDistance = 0;

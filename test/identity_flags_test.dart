@@ -30,12 +30,11 @@ void main() {
     for (final definition in heroes) {
       final hero = CampaignHero.fromRom(definition, cityId: 0, countryId: 0);
       expect(hero.type, definition.type);
-      expect(
-        hero.appearance,
-        definition.type == HeroType.normal
-            ? HeroAppearance.normal
-            : HeroAppearance.advanced,
-      );
+      expect(hero.appearance, switch (definition.type) {
+        HeroType.normal => HeroAppearance.normal,
+        HeroType.advanced => HeroAppearance.advanced,
+        HeroType.protagonist => HeroAppearance.protagonist,
+      });
     }
   });
 

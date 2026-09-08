@@ -31,7 +31,7 @@ class WorldAssets {
   /// 地形组合图块集。
   final ui.Image terrain;
 
-  /// 两种英雄各自的六帧动作图集。
+  /// 高级将领、普通将领和主角各自的六帧动作图集。
   final Map<HeroAppearance, ui.Image> heroes;
 
   /// 水面动画图块集。
@@ -118,9 +118,10 @@ class WorldAssets {
         'minimap_1',
         'minimap_2',
         'flags',
+        'hero/protagonist',
       ].map(_image),
     );
-    for (final hero in textures.sublist(1, 3)) {
+    for (final hero in [textures[1], textures[2], textures[8]]) {
       if (hero.width != 96 || hero.height != 16) {
         throw const FormatException('英雄图集必须为六帧横排的 96×16 图片');
       }
@@ -159,6 +160,7 @@ class WorldAssets {
       Map.unmodifiable({
         HeroAppearance.advanced: textures[1],
         HeroAppearance.normal: textures[2],
+        HeroAppearance.protagonist: textures[8],
       }),
       textures[3],
       scenes,

@@ -59,9 +59,11 @@ class CampaignHero {
        salary = definition.salary,
        soldiers = definition.soldierLimit,
        hasEgg = definition.eggCapable,
-       appearance = definition.type == HeroType.normal
-           ? HeroAppearance.normal
-           : HeroAppearance.advanced;
+       appearance = switch (definition.type) {
+         HeroType.advanced => HeroAppearance.advanced,
+         HeroType.normal => HeroAppearance.normal,
+         HeroType.protagonist => HeroAppearance.protagonist,
+       };
 
   /// 本场景内唯一标识。
   final String id;
