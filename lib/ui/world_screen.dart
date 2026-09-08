@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../world/hero_sprite.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import '../world/world_painter.dart';
@@ -270,7 +271,14 @@ class _WorldScreenState extends State<WorldScreen>
                                   label: '世界地图，拖动探索，点击地面行走，点击城堡查看信息',
                                   child: CustomPaint(
                                     key: const ValueKey('world-canvas'),
-                                    painter: WorldPainter(c, assets),
+                                    painter: WorldPainter(
+                                      c,
+                                      assets,
+                                      devicePixelRatio:
+                                          MediaQuery.devicePixelRatioOf(
+                                            context,
+                                          ),
+                                    ),
                                     child: const SizedBox.expand(),
                                   ),
                                 ),
@@ -520,6 +528,22 @@ class _WorldScreenState extends State<WorldScreen>
             c.camera.constrain();
           }
         }, active: c.followHero),
+        SizedBox(
+          width: 40,
+          height: 38,
+          child: PopupMenuButton<HeroAppearance>(
+            key: const ValueKey('hero-picker'),
+            tooltip: '选择英雄：${c.appearance.label}',
+            initialValue: c.appearance,
+            icon: const Icon(Icons.person_outline, size: 19, color: _cream),
+            onSelected: (hero) => _action(() => c.appearance = hero),
+            itemBuilder: (_) => HeroAppearance.values
+                .map(
+                  (hero) => PopupMenuItem(value: hero, child: Text(hero.label)),
+                )
+                .toList(),
+          ),
+        ),
       ],
     ),
   );
@@ -683,7 +707,9 @@ class _WorldScreenState extends State<WorldScreen>
           child: ValueListenableBuilder(
             valueListenable: c.uiRevision,
             builder: (context, value, child) => Text(
-              c.message,
+              c.walking
+                  ? '${c.message} · ${c.movementTerrain.label} ${(c.movementTerrain.speedFactor * 100).round()}%速度'
+                  : c.message,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 10, color: Color(0xffb0bba8)),
             ),
@@ -729,7 +755,7 @@ class _WorldScreenState extends State<WorldScreen>
         backgroundColor: _ink,
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         content: const Text(
-          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击地面　角色自动寻路\n点击城池　查看信息与前往城门\n小地图　点击或拖动定位\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　关闭城池信息',
+          '拖动 / 双指手势　移动与缩放地图\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击地面　角色直线前往，支持斜走\n山地速度 60%，涉水速度 50%\n人物按钮　切换普通 / 进阶英雄\n点击城池　查看信息与前往城门\n小地图　点击或拖动定位\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc　关闭城池信息',
           style: TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [

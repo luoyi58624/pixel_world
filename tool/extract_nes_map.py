@@ -8,12 +8,45 @@ from pathlib import Path
 from PIL import Image
 
 
+# 角色颜色编号由参考截图逐像素核对；编号 0 透明，不能与黑色轮廓混用。
+_HERO_PALETTE = [(0, 0, 0, 0), (0, 0, 0, 255), (66, 64, 255, 255), (228, 229, 148, 255)]
+_HERO_PALETTES = [_HERO_PALETTE, _HERO_PALETTE[:3] + [(255, 254, 255, 255)]]
+
+
 def _tile(data, palette):
     image = Image.new("RGBA", (8, 8))
     for y in range(8):
         for x in range(8):
             index = ((data[y] >> (7 - x)) & 1) | (((data[y + 8] >> (7 - x)) & 1) << 1)
             image.putpixel((x, y), palette[index])
+    return image
+
+
+def _hero_image(prg):
+    # 旧图保留原始图块排列，供已有 3D 美术参考文件使用。
+    image = Image.new("RGBA", (256, 16))
+    for frame in range(16):
+        for quadrant in range(4):
+            start = 0x1306D + (frame * 4 + quadrant) * 16
+            image.paste(_tile(prg[start : start + 16], _HERO_PALETTE), (frame * 16 + (quadrant % 2) * 8, (quadrant // 2) * 8))
+    return image
+
+
+def _hero_animation(prg, variant):
+    image = Image.new("RGBA", (96, 16))
+    # 每种角色的 ROM 表含六帧；统一导出顺序为正面、背面、侧面，各两帧。
+    for frame, original in enumerate([2, 3, 4, 5, 0, 1]):
+        for quadrant in range(4):
+            entry = variant * 24 + original * 4 + quadrant
+            tile_id = prg[0x18612 + entry]
+            attribute = prg[0x18672 + entry]
+            start = 0x1306D + tile_id * 16
+            tile = _tile(prg[start : start + 16], _HERO_PALETTES[attribute & 3])
+            if attribute & 0x40:
+                tile = tile.transpose(Image.FLIP_LEFT_RIGHT)
+            if attribute & 0x80:
+                tile = tile.transpose(Image.FLIP_TOP_BOTTOM)
+            image.paste(tile, (frame * 16 + quadrant % 2 * 8, quadrant // 2 * 8))
     return image
 
 
@@ -98,13 +131,10 @@ def _main():
                 waves.putpixel((frame * 16 + x, y), meta_images[32].getpixel(((x + frame * 2) % 16, y)))
     waves.save(args.output / "images" / "water.png")
 
-    hero = Image.new("RGBA", (256, 16))
-    hero_palette = [(0, 0, 0, 0), (100, 88, 255, 255), (248, 248, 240, 255), (0, 0, 0, 255)]
-    for frame in range(16):
-        for quadrant in range(4):
-            start = 0x1306D + (frame * 4 + quadrant) * 16
-            hero.paste(_tile(prg[start : start + 16], hero_palette), (frame * 16 + (quadrant % 2) * 8, (quadrant // 2) * 8))
-    hero.save(args.output / "images" / "hero.png")
+    _hero_image(prg).save(args.output / "images" / "hero.png")
+    (args.output / "images" / "hero").mkdir(exist_ok=True)
+    for variant, name in enumerate(["advanced", "normal"]):
+        _hero_animation(prg, variant).save(args.output / "images" / "hero" / f"{name}.png")
 
     worlds = []
     for index in range(3):
@@ -123,7 +153,7 @@ def _main():
     output = {"version": 1, "sourceSha256": digest, "tileSize": 16, "paletteIds": palette_ids, "worlds": worlds}
     (args.output / "maps" / "worlds.json").write_text(json.dumps(output, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     assert hashlib.sha256(args.rom.read_bytes()).hexdigest() == digest
-    print("已提取三张地图、128 个组合图块、16 帧角色，以及地图预览；原 ROM 未变更。")
+    print("已提取三张地图、128 个组合图块、两种角色各六帧动画，以及地图预览；原 ROM 未变更。")
 
 
 if __name__ == "__main__":

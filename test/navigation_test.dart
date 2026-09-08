@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/world/hero_sprite.dart';
 import 'package:pixel_world/world/world_camera.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -24,8 +25,14 @@ WorldDefinition _fixture(List<int> tiles) => WorldDefinition.fromJson(
       },
     ],
   },
-  [0, 1, 2],
+  [0, 1, 2, 3],
 );
+
+void _advance(WorldController controller, int frames, [double dt = 0.05]) {
+  for (var n = 0; n < frames; n++) {
+    controller.tick(dt);
+  }
+}
 
 void main() {
   test('三张真实地图的尺寸、城池配置和出生点有效', () {
@@ -50,7 +57,7 @@ void main() {
     expect(worlds.first.cities.first.y, 47);
   });
 
-  test('路线绕过水域并且每步只移动一格', () {
+  test('路线直接连接目标，水域和山地都可以穿越', () {
     final world = _fixture([
       0,
       0,
@@ -83,17 +90,11 @@ void main() {
       const TileCoord(1, 0),
       const TileCoord(3, 0),
     )!;
-    expect(path.length, 7);
+    expect(path, [const TileCoord(1, 0), const TileCoord(3, 0)]);
     expect(path.every(world.isWalkable), isTrue);
-    for (var n = 1; n < path.length; n++) {
-      expect(
-        (path[n].x - path[n - 1].x).abs() + (path[n].y - path[n - 1].y).abs(),
-        1,
-      );
-    }
     expect(
       findRoute(world, const TileCoord(1, 0), const TileCoord(2, 0)),
-      isNull,
+      isNotNull,
     );
     expect(
       findRoute(world, const TileCoord(1, 0), const TileCoord(-1, 0)),
@@ -101,12 +102,12 @@ void main() {
     );
   });
 
-  test('无法到达的另一岸不产生路线', () {
+  test('隔着河流也选择最短直线', () {
     final world = _fixture(List.generate(25, (n) => n % 5 == 2 ? 1 : 0));
-    expect(
-      findRoute(world, const TileCoord(0, 1), const TileCoord(4, 1)),
-      isNull,
-    );
+    expect(findRoute(world, const TileCoord(0, 1), const TileCoord(4, 1)), [
+      const TileCoord(0, 1),
+      const TileCoord(4, 1),
+    ]);
   });
 
   test('缩放保持鼠标锚点处的世界位置不动', () {
@@ -143,6 +144,99 @@ void main() {
     }
     expect(controller.heroCell, const TileCoord(1, 4));
     expect(controller.walking, isFalse);
+    controller.dispose();
+  });
+
+  test('斜向和水平行军具有相同的实际速度', () {
+    final world = _fixture(List.filled(25, 0));
+    final horizontal = WorldController([world]);
+    final diagonal = WorldController([world]);
+    final start = horizontal.heroPosition;
+    horizontal.walkTo(const TileCoord(4, 1));
+    diagonal.walkTo(const TileCoord(4, 4));
+    _advance(horizontal, 20);
+    _advance(diagonal, 20);
+    expect((horizontal.heroPosition - start).distance, closeTo(44, 1e-8));
+    expect((diagonal.heroPosition - start).distance, closeTo(44, 1e-8));
+    expect(diagonal.direction, HeroDirection.southEast);
+    final moved = diagonal.heroPosition - start;
+    expect(moved.dx * 48 - moved.dy * 64, closeTo(0, 1e-8));
+    horizontal.dispose();
+    diagonal.dispose();
+  });
+
+  test('山地和水域只减速，仍然可以抵达目标', () {
+    for (final entry in {0: 1.0, 1: 0.5, 2: 0.6, 3: 1.0}.entries) {
+      final controller = WorldController([
+        _fixture(List.filled(25, entry.key)),
+      ]);
+      final start = controller.heroPosition;
+      controller.walkTo(const TileCoord(4, 1));
+      _advance(controller, 20);
+      expect(
+        (controller.heroPosition - start).distance,
+        closeTo(44 * entry.value, 1e-8),
+      );
+      _advance(controller, 100);
+      expect(controller.heroPosition, const TileCoord(4, 1).center);
+      expect(controller.walking, isFalse);
+      controller.dispose();
+    }
+  });
+
+  test('跨越河岸时按各段地形计算时间，结果不依赖帧长', () {
+    final world = _fixture(List.generate(25, (n) => n % 5 >= 2 ? 1 : 0));
+    for (final frames in [1, 5, 20, 100]) {
+      final controller = WorldController([world]);
+      controller.walkTo(const TileCoord(4, 1));
+      _advance(controller, frames, 1 / frames);
+      // 从 x=8 到 x=32 为平地，剩余时间在水中移动到 x=42。
+      expect(controller.heroPosition.dx, closeTo(42, 1e-8));
+      expect(controller.heroPosition.dy, 24);
+      expect(controller.movementTerrain, MovementTerrain.water);
+      controller.dispose();
+    }
+  });
+
+  test('反向跨越河岸后立即恢复平地速度', () {
+    final world = _fixture(List.generate(25, (n) => n % 5 >= 2 ? 1 : 0));
+    final controller = WorldController([world]);
+    controller.heroPosition = const Offset(56, 24);
+    controller.heroCell = const TileCoord(3, 1);
+    controller.walkTo(const TileCoord(0, 1));
+    _advance(controller, 30);
+    expect(controller.heroPosition.dx, closeTo(14, 1e-8));
+    expect(controller.movementTerrain, MovementTerrain.plain);
+    expect(controller.direction, HeroDirection.west);
+    controller.dispose();
+  });
+
+  test('途中改点从当前像素位置立刻转向，不走完旧格子', () {
+    final controller = WorldController([_fixture(List.filled(25, 0))]);
+    controller.walkTo(const TileCoord(4, 1));
+    _advance(controller, 5);
+    final before = controller.heroPosition;
+    final target = const TileCoord(0, 4).center;
+    controller.walkTo(const TileCoord(0, 4));
+    expect(controller.heroPosition, before);
+    controller.tick(0.05);
+    expect(controller.heroPosition.dx, lessThan(before.dx));
+    expect(controller.heroPosition.dy, greaterThan(before.dy));
+    final moved = controller.heroPosition - before;
+    final remaining = target - before;
+    expect(moved.dx * remaining.dy - moved.dy * remaining.dx, closeTo(0, 1e-8));
+    controller.dispose();
+  });
+
+  test('切换角色外观不改变位置、朝向和目的地', () {
+    final controller = WorldController([_fixture(List.filled(25, 0))]);
+    controller.walkTo(const TileCoord(4, 4));
+    controller.tick(0.05);
+    final before = controller.heroPosition;
+    controller.appearance = HeroAppearance.normal;
+    expect(controller.heroPosition, before);
+    expect(controller.direction, HeroDirection.southEast);
+    expect(controller.route.last, const TileCoord(4, 4));
     controller.dispose();
   });
 }

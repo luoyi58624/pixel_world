@@ -2,19 +2,24 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
 
 /// 使用地图缓存与少量动态精灵绘制世界，不为每个格子创建组件。
 class WorldPainter extends CustomPainter {
   /// 创建由探索状态驱动的绘制层。
-  WorldPainter(this.controller, this.assets) : super(repaint: controller);
+  WorldPainter(this.controller, this.assets, {this.devicePixelRatio = 1})
+    : super(repaint: controller);
 
   /// 当前探索状态。
   final WorldController controller;
 
   /// 共享图像资源。
   final WorldAssets assets;
+
+  /// 屏幕物理像素比例，仅用于最终绘制对齐，不改变世界坐标。
+  final double devicePixelRatio;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -30,11 +35,15 @@ class WorldPainter extends CustomPainter {
     );
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    canvas.translate(
-      size.width / 2 - camera.center.dx * camera.scale,
-      size.height / 2 - camera.center.dy * camera.scale,
+    // 在物理像素空间绘制，避免 DPR 往返换算使最近邻采样落在边界两侧。
+    canvas.scale(1 / devicePixelRatio);
+    canvas.save();
+    // 地图与水面共用对齐后的屏幕原点，防止平移时纹理在子像素之间反复采样。
+    final origin = _snapToPhysicalPixel(
+      size.center(Offset.zero) - camera.center * camera.scale,
     );
-    canvas.scale(camera.scale);
+    canvas.translate(origin.dx, origin.dy);
+    canvas.scale(camera.scale * devicePixelRatio);
     canvas.drawImage(assets.scenes[c.index], Offset.zero, paint);
 
     final visible = camera.visibleWorld;
@@ -113,31 +122,43 @@ class WorldPainter extends CustomPainter {
       _brackets(canvas, cursor, color, 1);
     }
 
-    final step = c.walking ? (c.time * 7).floor() % 2 : 0;
-    final frame =
-        (c.direction == 1
-            ? 2
-            : c.direction == 2
-            ? 4
-            : 0) +
-        step;
-    final hero = c.heroPosition;
+    canvas.restore();
+    final frame = HeroAnimation.frameIndex(c.direction, c.animationStep);
+    // 先合成镜头与角色的精确位置，再对齐最终屏幕像素；世界坐标取整会放大跳动。
+    final heroTopLeft = _snapToPhysicalPixel(
+      size.center(Offset.zero) +
+          (c.heroPosition - camera.center + const Offset(-8, -11)) *
+              camera.scale,
+    );
+    final spriteScale = camera.scale * devicePixelRatio;
+    final heroImage = assets.heroFrame(
+      c.appearance,
+      frame,
+      math.max(1, (16 * spriteScale).round()),
+    );
     canvas.drawOval(
-      Rect.fromCenter(center: hero + const Offset(0, 4), width: 12, height: 4),
+      Rect.fromCenter(
+        center: heroTopLeft + const Offset(8, 15) * spriteScale,
+        width: 12 * spriteScale,
+        height: 4 * spriteScale,
+      ),
       Paint()..color = const Color(0x55000000),
     );
     canvas.save();
-    canvas.translate(hero.dx.roundToDouble(), hero.dy.roundToDouble() - 3);
-    if (c.direction == 3) canvas.scale(-1, 1);
-    canvas.drawImageRect(
-      assets.hero,
-      Rect.fromLTWH(frame * 16, 0, 16, 16),
-      const Rect.fromLTWH(-8, -8, 16, 16),
-      paint,
-    );
+    canvas.translate(heroTopLeft.dx, heroTopLeft.dy);
+    if (c.direction.mirrorHorizontally) {
+      canvas.translate(heroImage.width.toDouble(), 0);
+      canvas.scale(-1, 1);
+    }
+    canvas.drawImage(heroImage, Offset.zero, paint);
     canvas.restore();
     canvas.restore();
   }
+
+  Offset _snapToPhysicalPixel(Offset position) => Offset(
+    (position.dx * devicePixelRatio).roundToDouble(),
+    (position.dy * devicePixelRatio).roundToDouble(),
+  );
 
   void _brackets(Canvas canvas, Rect rect, Color color, double width) {
     final paint = Paint()
@@ -166,7 +187,9 @@ class WorldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant WorldPainter oldDelegate) =>
-      oldDelegate.controller != controller || oldDelegate.assets != assets;
+      oldDelegate.controller != controller ||
+      oldDelegate.assets != assets ||
+      oldDelegate.devicePixelRatio != devicePixelRatio;
 }
 
 /// 显示整个世界、当前镜头范围和角色位置。

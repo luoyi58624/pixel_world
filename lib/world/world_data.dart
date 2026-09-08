@@ -1,6 +1,25 @@
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:ui';
+
+/// 行军地形只改变速度，地图内的格子均可通行。
+enum MovementTerrain {
+  /// 草地、树林、道路、桥梁和建筑区域使用正常速度。
+  plain('平地', 1),
+
+  /// 涉水时使用正常速度的一半。
+  water('涉水', 0.5),
+
+  /// 翻越山地时使用正常速度的六成。
+  mountain('山地', 0.6);
+
+  const MovementTerrain(this.label, this.speedFactor);
+
+  /// 用于行军状态显示的名称。
+  final String label;
+
+  /// 相对于平地的行军速度。
+  final double speedFactor;
+}
 
 /// 地图中的整数格子坐标，与屏幕缩放无关。
 class TileCoord {
@@ -129,11 +148,17 @@ class WorldDefinition {
   bool contains(TileCoord cell) =>
       cell.x >= 0 && cell.y >= 0 && cell.x < width && cell.y < height;
 
-  /// 演示通行规则：阻挡水域和山地，城池及其他地形可通过。
-  bool isWalkable(TileCoord cell) {
-    if (!contains(cell)) return false;
-    final palette = paletteIds[displayTiles[cell.y * width + cell.x]];
-    return palette != 1 && palette != 2;
+  /// 地图内均可通行，山地和水域由速度规则处理。
+  bool isWalkable(TileCoord cell) => contains(cell);
+
+  /// 查询所在格子的行军地形，叠加后的桥梁和建筑按平地处理。
+  MovementTerrain movementTerrainAt(TileCoord cell) {
+    if (!contains(cell)) throw RangeError('行军位置超出地图');
+    return switch (paletteIds[displayTiles[cell.y * width + cell.x]]) {
+      1 => MovementTerrain.water,
+      2 => MovementTerrain.mountain,
+      _ => MovementTerrain.plain,
+    };
   }
 
   /// 返回某个位置上的城池。
@@ -144,21 +169,9 @@ class WorldDefinition {
     return null;
   }
 
-  /// 在目标附近寻找可落脚的格子，用于出生点和城门位置。
-  TileCoord nearestWalkable(TileCoord target) {
-    for (var radius = 0; radius < width + height; radius++) {
-      for (var y = target.y - radius; y <= target.y + radius; y++) {
-        for (var x = target.x - radius; x <= target.x + radius; x++) {
-          final candidate = TileCoord(x, y);
-          if ((x - target.x).abs() + (y - target.y).abs() == radius &&
-              isWalkable(candidate)) {
-            return candidate;
-          }
-        }
-      }
-    }
-    throw StateError('地图中没有可通行区域');
-  }
+  /// 将出生点或城门位置限制在地图内。
+  TileCoord nearestWalkable(TileCoord target) =>
+      TileCoord(target.x.clamp(0, width - 1), target.y.clamp(0, height - 1));
 }
 
 /// 从独立资源解析地图包，运行游戏时无需加载 ROM。
@@ -175,37 +188,12 @@ List<WorldDefinition> decodeWorlds(String source) {
   );
 }
 
-/// 使用四方向广度优先搜索，返回包含起点和终点的最短可行路线。
+/// 返回几何距离最短的直线路线，途中地形影响速度而不改变路线。
 List<TileCoord>? findRoute(
   WorldDefinition world,
   TileCoord start,
   TileCoord end,
 ) {
   if (!world.isWalkable(start) || !world.isWalkable(end)) return null;
-  final queue = Queue<TileCoord>()..add(start);
-  final previous = <TileCoord, TileCoord?>{start: null};
-  while (queue.isNotEmpty) {
-    final cell = queue.removeFirst();
-    if (cell == end) {
-      final result = <TileCoord>[];
-      TileCoord? step = end;
-      while (step != null) {
-        result.add(step);
-        step = previous[step];
-      }
-      return result.reversed.toList(growable: false);
-    }
-    for (final next in [
-      TileCoord(cell.x + 1, cell.y),
-      TileCoord(cell.x - 1, cell.y),
-      TileCoord(cell.x, cell.y + 1),
-      TileCoord(cell.x, cell.y - 1),
-    ]) {
-      if (world.isWalkable(next) && !previous.containsKey(next)) {
-        previous[next] = cell;
-        queue.add(next);
-      }
-    }
-  }
-  return null;
+  return start == end ? [start] : [start, end];
 }
