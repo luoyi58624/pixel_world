@@ -1,0 +1,29 @@
+{
+  "blender": "5.2.1 LTS",
+  "vertices": 5526,
+  "triangles": 10752,
+  "bones": 22,
+  "materials": 11,
+  "actions": {
+    "Idle": {
+      "frames": 48,
+      "fps": 24,
+      "seconds": 2.0,
+      "root_motion": false
+    },
+    "Walk": {
+      "frames": 32,
+      "fps": 24,
+      "seconds": 1.3333333333333333,
+      "root_motion": false
+    },
+    "Run": {
+      "frames": 24,
+      "fps": 24,
+      "seconds": 1.0,
+      "root_motion": false
+    }
+  },
+  "reference": "assets/images/hero.png",
+  "style": "蓝黄配色的风格化卡通冒险者；立体细节为补充设计"
+}
