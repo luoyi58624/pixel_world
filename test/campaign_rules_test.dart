@@ -15,6 +15,20 @@ CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
 void main() {
+  test('初始等级按各图 ROM 城池记录加载，奥尔梅分别为二、三、四级', () {
+    final worlds = _worlds();
+    for (var index = 0; index < worlds.length; index++) {
+      final world = worlds[index];
+      final c = CampaignState.fromRom(world, _catalog());
+      expect(world.cities[1].initialLevel, index + 2);
+      expect(c.cities[1]!.level, index + 2);
+      expect(c.cities[1]!.income, 86 * (index + 2));
+      for (final city in world.cities) {
+        expect(c.cities[city.id]!.level, city.initialLevel);
+      }
+    }
+  });
+
   test('读取 41 位正式英雄，主角姓名与固定汉化姓名区分', () {
     final heroes = _catalog();
     expect(heroes.length, 41);
@@ -157,7 +171,7 @@ void main() {
     expect(c.journal.last, contains('失守'));
   });
 
-  test('击败一级城守将后占领并进驻，剩余未出战守将移除', () {
+  test('二级城首位守将战败只降级，再次战败才占领并清除剩余守将', () {
     final c = _campaign();
     final defenderIds = c.garrisonAt(1).map((hero) => hero.id).toList();
     c.garrisonAt(1).first.hp = 1;
@@ -165,6 +179,11 @@ void main() {
     final march = c.dispatch(hero, c.world.cities[1])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
+    c.advance(1);
+    expect(c.cities[1]!.level, 1);
+    expect(c.cities[1]!.isPlayer, isFalse);
+    expect(c.garrisonAt(1).length, defenderIds.length - 1);
+    c.garrisonAt(1).first.hp = 1;
     c.advance(1);
     expect(c.cities[1]!.isPlayer, isTrue);
     expect(hero.cityId, 1);

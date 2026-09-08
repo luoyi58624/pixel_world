@@ -18,7 +18,6 @@ List<RomHeroDefinition> _heroCatalog() =>
 
 void _prepare(WorldController c, String heroId) {
   c.openCity(c.world.cities.first);
-  c.showCityPage(CityPanelPage.dispatch);
   c.selectHero(heroId);
   c.prepareDispatch();
 }
@@ -76,10 +75,9 @@ void main() {
   testWidgets('城池面板显示真实城名、国家国旗和高级将领类型', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     await _tapCity(tester, c, c.world.cities.first);
-    expect(find.text('阿尔马'), findsOneWidget);
+    expect(find.text('阿尔马国'), findsOneWidget);
     final flag = find.byKey(const ValueKey('city-country-flag'));
     expect(tester.widget<CountryFlag>(flag).countryId, 0);
-    await tester.tap(find.byKey(const ValueKey('city-sortie')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
     await tester.pump();
@@ -88,8 +86,10 @@ void main() {
     c.refreshUi();
     await tester.pump();
     expect(tester.widget<CountryFlag>(flag).countryId, 4);
-    expect(find.text('阿尔马'), findsOneWidget);
-    expect(find.text('墨尔国 · 敌方 · Lv.1'), findsOneWidget);
+    expect(find.text('阿尔马国'), findsOneWidget);
+    expect(find.textContaining('Lv.'), findsNothing);
+    expect(find.textContaining('敌方'), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-confirm')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -97,7 +97,6 @@ void main() {
   testWidgets('经济面板升级后立即更新产出和国库，金币不足时禁用升级', (tester) async {
     final c = await _load(tester, const Size(375, 812));
     await _tapCity(tester, c, c.world.cities.first);
-    await tester.tap(find.byKey(const ValueKey('city-information')));
     await tester.pump();
     final upgrade = find.byKey(const ValueKey('city-upgrade'));
     await tester.ensureVisible(upgrade);
@@ -111,20 +110,20 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  test('点击城池先显示选项，选择和取消均不扣兵或生成行军', () {
+  test('直接查看城池和选择英雄，关闭或取消选目标均不扣兵', () {
     final c = WorldController(_worlds(), heroCatalog: _heroCatalog());
     c.openCity(c.world.cities.first);
-    expect(c.cityPage, CityPanelPage.actions);
+    expect(c.selectedCity, c.world.cities.first);
     _prepare(c, 'rom-0');
     expect(c.pendingHero!.id, 'rom-0');
     expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
     expect(c.campaign.marches, isEmpty);
     c.cancelCityAction();
     expect(c.pendingHero, isNull);
-    expect(c.cityPage, CityPanelPage.dispatch);
+    expect(c.selectedCity, c.world.cities.first);
     expect(c.selectedHeroId, 'rom-0');
     c.cancelCityAction();
-    expect(c.cityPage, CityPanelPage.actions);
+    expect(c.selectedCity, isNull);
     expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
     c.dispose();
   });
@@ -190,34 +189,32 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('城池选项到英雄选择在同一面板完成，包含士兵、王牌和取消回退', (tester) async {
+  testWidgets('点击我方城池直接选英雄，取消在左出击在右，选目标可无损返回', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     await _tapCity(tester, c, c.world.cities.first);
-    expect(find.byKey(const ValueKey('city-sortie')), findsOneWidget);
-    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('city-information')));
-    await tester.pump();
+    expect(find.byKey(const ValueKey('city-sortie')), findsNothing);
+    expect(find.byKey(const ValueKey('city-information')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
     expect(find.text('收入 / 回合'), findsOneWidget);
     expect(find.text('驻守士兵'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('city-cancel')));
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('city-sortie')));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('city-panel')), findsOneWidget);
     expect(find.text('士兵'), findsOneWidget);
     expect(find.text('王牌'), findsOneWidget);
+    final cancel = find.byKey(const ValueKey('city-cancel'));
+    final sortie = find.byKey(const ValueKey('dispatch-confirm'));
+    expect(tester.getCenter(cancel).dx, lessThan(tester.getCenter(sortie).dx));
     await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
     await tester.pump();
     expect(find.text('95 / 95'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('dispatch-confirm')));
+    await tester.tap(sortie);
     await tester.pump();
     expect(c.pendingHero!.id, 'rom-0');
     expect(find.byKey(const ValueKey('city-panel')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('cancel-target')));
     await tester.pump();
     expect(c.pendingHero, isNull);
+    expect(c.selectedHeroId, 'rom-0');
     expect(c.campaign.marches, isEmpty);
-    await tester.tap(find.byKey(const ValueKey('dispatch-confirm')));
+    await tester.tap(sortie);
     await tester.pump();
     await _tapCity(tester, c, c.world.cities[1]);
     expect(c.campaign.marches['rom-0']!.hero.name, '泽拉斯');
@@ -226,10 +223,30 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('敌城点击直接显示详情，标题只留国名，取消直接关闭', (tester) async {
+    final c = await _load(tester, const Size(1280, 720));
+    await _tapCity(tester, c, c.world.cities[1]);
+    expect(find.text('奥尔梅国'), findsOneWidget);
+    expect(find.text('城池情况'), findsOneWidget);
+    expect(find.text('经济情况'), findsOneWidget);
+    expect(find.text('守城部队'), findsOneWidget);
+    expect(find.text('172'), findsOneWidget);
+    expect(find.textContaining('Lv.'), findsNothing);
+    expect(find.textContaining('敌方'), findsNothing);
+    expect(find.byKey(const ValueKey('city-sortie')), findsNothing);
+    expect(find.byKey(const ValueKey('city-information')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-confirm')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('city-cancel')));
+    await tester.pump();
+    expect(c.selectedCity, isNull);
+    expect(find.byKey(const ValueKey('city-panel')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('小窗口中详情可滚动，出击取消按钮始终可见且已出征英雄不能重复出击', (tester) async {
     final c = await _load(tester, const Size(600, 360));
     await _tapCity(tester, c, c.world.cities.first);
-    await tester.tap(find.byKey(const ValueKey('city-sortie')));
     await tester.pump();
     expect(tester.takeException(), isNull);
     final confirm = find.byKey(const ValueKey('dispatch-confirm'));
@@ -240,7 +257,6 @@ void main() {
     await tester.pump();
     await _tapCity(tester, c, c.world.cities[1]);
     await _tapCity(tester, c, c.world.cities.first);
-    await tester.tap(find.byKey(const ValueKey('city-sortie')));
     await tester.pump();
     final unavailable = find.byKey(const ValueKey('dispatch-hero-rom-40'));
     await tester.ensureVisible(unavailable);

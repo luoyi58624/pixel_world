@@ -14,7 +14,7 @@ const _gold = Color(0xffd6bd7c);
 const _muted = Color(0xffa7b5a4);
 const _line = Color(0xff43513e);
 
-/// 城池选项与单页英雄详情，底部操作固定，较小窗口中只滚动内容。
+/// 城池单层详情，我方可直接选英雄出击，底部操作固定。
 class CityPanel extends StatelessWidget {
   /// 根据当前城池选择构建面板。
   const CityPanel({
@@ -42,7 +42,6 @@ class CityPanel extends StatelessWidget {
     final c = controller;
     final city = c.selectedCity!;
     final situation = c.campaign.cities[city.id]!;
-    final isMenu = c.cityPage == CityPanelPage.actions;
     return Container(
       key: const ValueKey('city-panel'),
       constraints: BoxConstraints(maxHeight: maxHeight),
@@ -73,23 +72,13 @@ class CityPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        city.label,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: _cream,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${c.world.countryName(situation.ownerCountryId)}国 · ${situation.isPlayer ? '我方' : '敌方'} · Lv.${situation.level}',
-                        style: const TextStyle(fontSize: 11, color: _muted),
-                      ),
-                    ],
+                  child: Text(
+                    '${city.label}国',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _cream,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -105,59 +94,14 @@ class CityPanel extends StatelessWidget {
             child: SingleChildScrollView(
               key: const ValueKey('city-panel-scroll'),
               padding: const EdgeInsets.all(16),
-              child: isMenu
-                  ? _options(situation)
-                  : c.cityPage == CityPanelPage.information
-                  ? _information(situation)
-                  : _dispatch(situation),
+              child: _information(situation),
             ),
           ),
-          if (!isMenu) _footer(),
+          _footer(situation.isPlayer),
         ],
       ),
     );
   }
-
-  Widget _options(CitySituation situation) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          key: const ValueKey('city-sortie'),
-          onPressed: situation.isPlayer
-              ? () => onAction(
-                  () => controller.showCityPage(CityPanelPage.dispatch),
-                )
-              : null,
-          icon: const Icon(Icons.flag_outlined, size: 18),
-          label: const Text('出击'),
-          style: _primaryStyle,
-        ),
-      ),
-      const SizedBox(height: 8),
-      SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          key: const ValueKey('city-information'),
-          onPressed: () => onAction(
-            () => controller.showCityPage(CityPanelPage.information),
-          ),
-          icon: const Icon(Icons.info_outline, size: 18),
-          label: const Text('情况'),
-          style: _secondaryStyle,
-        ),
-      ),
-      if (!situation.isPlayer)
-        const Padding(
-          padding: EdgeInsets.only(top: 10),
-          child: Text(
-            '从我方城池派遣英雄进攻此城',
-            style: TextStyle(fontSize: 11, color: _muted),
-          ),
-        ),
-    ],
-  );
 
   Widget _cityStats(CitySituation situation) => _stats([
     ('城防', '${situation.defense}'),
@@ -173,49 +117,52 @@ class CityPanel extends StatelessWidget {
         _section('城池情况'),
         const SizedBox(height: 12),
         _cityStats(situation),
-        const SizedBox(height: 12),
-        _economy(situation),
-        const SizedBox(height: 20),
-        _section(situation.isPlayer ? '所属英雄' : '守城部队'),
-        const SizedBox(height: 10),
-        if (!situation.isPlayer)
+        const SizedBox(height: 18),
+        if (situation.isPlayer) ...[
+          _heroSelection(),
+          const SizedBox(height: 20),
+          _economy(situation),
+        ] else ...[
+          _economy(situation),
+          const SizedBox(height: 20),
+          _section('守城部队'),
+          const SizedBox(height: 10),
           Text(
             '守军 ${controller.campaign.soldiersAt(controller.selectedCity!.id)} 人',
             style: const TextStyle(color: _cream, fontSize: 13),
           ),
-        for (final hero in heroes)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                _portrait(hero, 36),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    hero.name,
-                    style: const TextStyle(color: _cream, fontSize: 14),
+          for (final hero in heroes)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  _portrait(hero, 36),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      hero.name,
+                      style: const TextStyle(color: _cream, fontSize: 14),
+                    ),
                   ),
-                ),
-                Text(
-                  '${hero.type.label} · ${hero.hp}/${hero.maxHp} HP',
-                  style: const TextStyle(color: _muted, fontSize: 12),
-                ),
-              ],
+                  Text(
+                    '${hero.type.label} · ${hero.hp}/${hero.maxHp} HP',
+                    style: const TextStyle(color: _muted, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
-          ),
+        ],
       ],
     );
   }
 
-  Widget _dispatch(CitySituation situation) {
+  Widget _heroSelection() {
     final c = controller;
     final heroes = c.campaign.heroesAt(c.selectedCity!.id);
     final hero = c.selectedHero;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _cityStats(situation),
-        const SizedBox(height: 18),
         _section('选择英雄'),
         const SizedBox(height: 10),
         LayoutBuilder(
@@ -422,7 +369,7 @@ class CityPanel extends StatelessWidget {
     );
   }
 
-  Widget _footer() {
+  Widget _footer(bool isPlayer) {
     final c = controller;
     final hero = c.selectedHero;
     return Container(
@@ -432,7 +379,16 @@ class CityPanel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (c.cityPage == CityPanelPage.dispatch) ...[
+          Expanded(
+            child: OutlinedButton(
+              key: const ValueKey('city-cancel'),
+              onPressed: () => onAction(c.cancelCityAction),
+              style: _secondaryStyle,
+              child: const Text('取消'),
+            ),
+          ),
+          if (isPlayer) ...[
+            const SizedBox(width: 10),
             Expanded(
               child: FilledButton.icon(
                 key: const ValueKey('dispatch-confirm'),
@@ -444,16 +400,7 @@ class CityPanel extends StatelessWidget {
                 style: _primaryStyle,
               ),
             ),
-            const SizedBox(width: 10),
           ],
-          Expanded(
-            child: OutlinedButton(
-              key: const ValueKey('city-cancel'),
-              onPressed: () => onAction(c.cancelCityAction),
-              style: _secondaryStyle,
-              child: const Text('取消'),
-            ),
-          ),
         ],
       ),
     );

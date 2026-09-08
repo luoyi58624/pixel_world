@@ -45,34 +45,6 @@ class WorldAssets {
 
   int? _heroFrameSize;
   final _heroFrames = <(HeroAppearance, int), ui.Image>{};
-  int? _flagFrameSize;
-  final _flagFrames = <int, ui.Image>{};
-
-  /// 缓存当前地图缩放下的旗帜，平移镜头时不重复进行非整数采样。
-  ui.Image flagFrame(int countryId, int pixelSize) {
-    if (_flagFrameSize != pixelSize) {
-      for (final image in _flagFrames.values) {
-        image.dispose();
-      }
-      _flagFrames.clear();
-      _flagFrameSize = pixelSize;
-    }
-    return _flagFrames.putIfAbsent(countryId, () {
-      final recorder = ui.PictureRecorder();
-      ui.Canvas(recorder).drawImageRect(
-        flags,
-        ui.Rect.fromLTWH(countryId * 8, 0, 8, 8),
-        ui.Rect.fromLTWH(0, 0, pixelSize.toDouble(), pixelSize.toDouble()),
-        ui.Paint()
-          ..filterQuality = ui.FilterQuality.none
-          ..isAntiAlias = false,
-      );
-      final picture = recorder.endRecording();
-      final image = picture.toImageSync(pixelSize, pixelSize);
-      picture.dispose();
-      return image;
-    });
-  }
 
   /// 按当前物理尺寸缓存动画帧，平移时直接贴图，避免非整数放大的重复采样抖动。
   ui.Image heroFrame(HeroAppearance appearance, int frame, int pixelSize) {
@@ -188,7 +160,6 @@ class WorldAssets {
       ...minimaps,
       ..._heroFrames.values,
       flags,
-      ..._flagFrames.values,
     ]) {
       image.dispose();
     }

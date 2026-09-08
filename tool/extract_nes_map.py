@@ -91,6 +91,7 @@ def _cities(prg, offset):
         shape_offset = 0x3CC11 + prg[0x3CC0B + kind]
         cities.append({
             "id": len(cities), "x": record[4], "y": record[5],
+            "initialLevel": record[0],
             "name": countries[len(cities)]["name"], "initialOwnerId": len(cities),
             "sourceNameFileOffset": countries[len(cities)]["sourceFileOffsets"]["name"],
             "width": width, "height": height,

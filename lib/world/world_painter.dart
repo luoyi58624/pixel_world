@@ -6,7 +6,6 @@ import 'campaign.dart';
 import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
-import 'world_markers.dart';
 
 /// 使用地图缓存与少量动态精灵绘制世界，不为每个格子创建组件。
 class WorldPainter extends CustomPainter {
@@ -153,15 +152,6 @@ class WorldPainter extends CustomPainter {
     }
 
     canvas.restore();
-    for (final city in c.world.cities) {
-      final rect = cityFlagRect(camera, city);
-      if (!rect.overlaps(Offset.zero & size)) continue;
-      final flag = assets.flagFrame(
-        c.campaign.cities[city.id]!.ownerCountryId,
-        (rect.width * devicePixelRatio).round(),
-      );
-      canvas.drawImage(flag, _snapToPhysicalPixel(rect.topLeft), paint);
-    }
     if (!c.campaign.hasDispatched) {
       _drawHero(
         canvas,

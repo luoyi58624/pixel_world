@@ -68,6 +68,7 @@ class CityDefinition {
     : id = json['id'] as int,
       name = json['name'] as String? ?? '未命名城池',
       initialOwnerId = json['initialOwnerId'] as int? ?? json['id'] as int,
+      initialLevel = _readInitialCityLevel(json),
       x = json['x'] as int,
       y = json['y'] as int,
       width = json['width'] as int,
@@ -83,6 +84,9 @@ class CityDefinition {
 
   /// 开局时占有城池的国家编号。
   final int initialOwnerId;
+
+  /// 原版初始化记录中的等级，与初始建筑样式使用同一来源。
+  final int initialLevel;
 
   /// 城池左上角所在的列。
   final int x;
@@ -110,6 +114,16 @@ class CityDefinition {
 
   /// 建筑下方的行军目的地。
   TileCoord get entrance => TileCoord(x, y + height);
+}
+
+int _readInitialCityLevel(Map<String, dynamic> json) {
+  // 兼容已有的只含原始记录的数据，手写测试地图可以省略等级。
+  final value =
+      json['initialLevel'] ?? (json['sourceRecord'] as List?)?.firstOrNull ?? 1;
+  if (value is! int || value < 1 || value > 5) {
+    throw const FormatException('城池初始等级必须为 1 到 5');
+  }
+  return value;
 }
 
 /// 地形与城池的静态定义，渲染缓存不作为地图事实来源。

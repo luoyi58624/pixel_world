@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show Size;
+import 'dart:ui' show Offset, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
@@ -7,7 +7,6 @@ import 'package:pixel_world/world/hero_sprite.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
-import 'package:pixel_world/world/world_markers.dart';
 
 List<RomHeroDefinition> _heroes() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
@@ -82,25 +81,32 @@ void main() {
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
     campaign.advance(1);
+    expect(campaign.cities[2]!.ownerCountryId, 2);
+    expect(campaign.cities[2]!.level, 1);
+    campaign.garrisonAt(2).first.hp = 1;
+    campaign.advance(1);
     expect(campaign.cities[2]!.ownerCountryId, 0);
     expect(world.cities[2].label, '马易');
     expect(campaign.cities[1]!.ownerCountryId, 1);
     expect(hero.countryId, 0);
   });
 
-  test('点击地图上方国旗可以展开城池，也能在出击时选择敌城', () {
+  test('原悬浮国旗位置不再拦截点击，点击城堡本体仍能选城与出击', () {
     final c = WorldController(_worlds(), heroCatalog: _heroes());
     c.camera.resize(const Size(800, 600));
     final home = c.world.cities.first;
-    c.tap(cityFlagRect(c.camera, home).center);
+    c.tap(c.camera.toScreen(home.bounds.topCenter) - const Offset(0, 15));
+    expect(c.selectedCity, isNull);
+    c.tap(c.camera.toScreen(home.bounds.center));
     expect(c.selectedCity, home);
-    expect(c.cityPage, CityPanelPage.actions);
-    c.showCityPage(CityPanelPage.dispatch);
     c.prepareDispatch();
     final enemy = c.world.cities[2];
     c.camera.center = enemy.bounds.center;
     c.camera.constrain();
-    c.tap(cityFlagRect(c.camera, enemy).center);
+    c.tap(c.camera.toScreen(enemy.bounds.topCenter) - const Offset(0, 15));
+    expect(c.pendingHero, isNotNull);
+    expect(c.campaign.marches, isEmpty);
+    c.tap(c.camera.toScreen(enemy.bounds.center));
     expect(c.pendingHero, isNull);
     expect(c.campaign.marches.values.single.target, enemy);
     c.dispose();

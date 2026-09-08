@@ -8,12 +8,17 @@ import 'world_movement.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
-  /// 创建一级城池及其基础产出。
+  /// 按原始等级创建城池及其基础产出。
   CitySituation({
     required this.ownerCountryId,
     required this.defense,
     required this.baseIncome,
-  });
+    required int initialLevel,
+  }) : _level = initialLevel {
+    if (initialLevel < 1 || initialLevel > maxLevel) {
+      throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
+    }
+  }
 
   /// 当前占领国家，决定国旗；城池的固定名称不随之变化。
   int ownerCountryId;
@@ -26,7 +31,7 @@ class CitySituation {
 
   /// 一级城市每回合产出。
   final int baseIncome;
-  int _level = 1;
+  int _level;
 
   /// 当前等级，始终处于 1 到 5。
   int get level => _level;
@@ -225,6 +230,7 @@ class CampaignState {
             ownerCountryId: city.initialOwnerId,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
             baseIncome: city.id == home ? 126 : 80 + city.id * 6,
+            initialLevel: city.initialLevel,
           ),
       },
       heroes,

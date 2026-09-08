@@ -9,19 +9,6 @@ import 'rom_hero.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
-import 'world_markers.dart';
-
-/// 城池入口、情况和出击面板，英雄详情始终与选择列表处于同一页。
-enum CityPanelPage {
-  /// 点击城池后的选项。
-  actions,
-
-  /// 城池情况。
-  information,
-
-  /// 选择出征英雄。
-  dispatch,
-}
 
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
@@ -45,9 +32,6 @@ class WorldController extends ChangeNotifier {
 
   /// 当前场景的城池与部队状态。
   CampaignState get campaign => campaigns[index];
-
-  /// 城池面板当前页面。
-  CityPanelPage cityPage = CityPanelPage.actions;
 
   /// 选择面板中的英雄编号。
   String? selectedHeroId;
@@ -131,7 +115,6 @@ class WorldController extends ChangeNotifier {
     selectedCity = null;
     selectedHeroId = null;
     pendingHero = null;
-    cityPage = CityPanelPage.actions;
     cursor = null;
     route = [];
     routeStep = 0;
@@ -217,11 +200,7 @@ class WorldController extends ChangeNotifier {
   void tap(Offset local) {
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
-    final city =
-        world.cities
-            .where((city) => cityFlagRect(camera, city).contains(local))
-            .firstOrNull ??
-        world.cityAt(point);
+    final city = world.cityAt(point);
     if (!world.contains(cell) && city == null) return;
     cursor = world.contains(cell) ? cell : null;
     if (pendingHero != null) {
@@ -269,27 +248,15 @@ class WorldController extends ChangeNotifier {
     if (city != null) walkTo(world.nearestWalkable(city.entrance));
   }
 
-  /// 展开城池选项，尚未进入英雄选择。
+  /// 直接展开城池详情，我方城池同时提供英雄选择。
   void openCity(CityDefinition city) {
     if (!world.cities.contains(city) || pendingHero != null) return;
     selectedCity = city;
-    cityPage = CityPanelPage.actions;
     final heroes = campaign.heroesAt(city.id);
     selectedHeroId =
         (heroes.where(campaign.canDispatch).firstOrNull ?? heroes.firstOrNull)
             ?.id;
     message = '已选中${city.label}';
-    refreshUi();
-  }
-
-  /// 从城池选项进入情况或英雄选择。
-  void showCityPage(CityPanelPage page) {
-    if (selectedCity == null) return;
-    if (page == CityPanelPage.dispatch &&
-        !campaign.cities[selectedCity!.id]!.isPlayer) {
-      return;
-    }
-    cityPage = page;
     refreshUi();
   }
 
@@ -306,9 +273,7 @@ class WorldController extends ChangeNotifier {
   /// 确认英雄后进入地图选敌城模式，真正选定目标才扣除城内驻兵。
   void prepareDispatch() {
     final hero = selectedHero;
-    if (cityPage != CityPanelPage.dispatch ||
-        hero == null ||
-        !campaign.canDispatch(hero)) {
+    if (selectedCity == null || hero == null || !campaign.canDispatch(hero)) {
       return;
     }
     pendingHero = hero;
@@ -331,15 +296,12 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 取消选目标时回到英雄面板，取消详情时回到城池选项。
+  /// 取消选目标时回到原城池面板，面板内取消则直接关闭。
   void cancelCityAction() {
     if (pendingHero case final hero?) {
       pendingHero = null;
       selectedCity = world.cities.firstWhere((city) => city.id == hero.cityId);
-      cityPage = CityPanelPage.dispatch;
       message = '已取消选择进攻目标';
-    } else if (selectedCity != null && cityPage != CityPanelPage.actions) {
-      cityPage = CityPanelPage.actions;
     } else {
       selectedCity = null;
     }
