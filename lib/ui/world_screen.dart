@@ -126,8 +126,6 @@ class _WorldScreenState extends State<WorldScreen>
         _action(() => c.showGrid = !c.showGrid);
       } else if (key == LogicalKeyboardKey.keyM) {
         setState(() => _showMinimap = !_showMinimap);
-      } else if (key == LogicalKeyboardKey.keyH) {
-        _action(c.toggleHeroKind);
       } else if (key == LogicalKeyboardKey.escape) {
         _action(() => c.selectedCity = null);
       } else if (key == LogicalKeyboardKey.digit1 ||
@@ -155,7 +153,6 @@ class _WorldScreenState extends State<WorldScreen>
       LogicalKeyboardKey.keyF,
       LogicalKeyboardKey.keyG,
       LogicalKeyboardKey.keyM,
-      LogicalKeyboardKey.keyH,
       LogicalKeyboardKey.escape,
       LogicalKeyboardKey.digit1,
       LogicalKeyboardKey.digit2,
@@ -523,11 +520,6 @@ class _WorldScreenState extends State<WorldScreen>
             c.camera.constrain();
           }
         }, active: c.followHero),
-        _tool(
-          '${c.heroKindLabel} · H',
-          Icons.shield_outlined,
-          c.toggleHeroKind,
-        ),
       ],
     ),
   );
