@@ -165,12 +165,14 @@ void main() {
     first.position = first.destination;
     c.tick(0.9);
     expect(first.phase, MarchPhase.awaitingBattle);
-    expect(c.campaign.battles[city.id]!.rounds, 1);
+    expect(c.campaign.battles[city.id]!.rounds, 0);
     expect(c.campaign.battles[city.id]!.attacker, second.hero);
+    c.tick(4);
+    expect(c.campaign.battles[city.id]!.rounds, greaterThan(0));
     c.campaign.camp(second.hero.id);
     c.tick(1);
     expect(c.campaign.battles[city.id]!.attacker, first.hero);
-    expect(c.campaign.battles[city.id]!.rounds, 1);
+    expect(c.campaign.battles[city.id]!.rounds, 0);
   });
 
   test('观战与关闭面板不改变后台交战结果，已结束战斗保留结果', () {
@@ -178,7 +180,7 @@ void main() {
       final c = _controller();
       final unit = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
       unit.position = unit.destination;
-      c.tick(0.01);
+      c.tick(0.02);
       return c;
     }
 
@@ -188,13 +190,13 @@ void main() {
     addTearDown(hidden.dispose);
     final battle = watched.campaign.battles[1]!;
     watched.watchBattle(battle);
-    watched.tick(1);
-    hidden.tick(1);
+    watched.tick(5);
+    hidden.tick(5);
     expect(battle.rounds, greaterThan(0));
     expect(battle.attacker.hp, hidden.campaign.battles[1]!.attacker.hp);
     watched.cancelCityAction();
-    watched.tick(10);
-    hidden.tick(10);
+    watched.tick(90);
+    hidden.tick(90);
     expect(battle.outcome, hidden.campaign.battles[1]!.outcome);
     expect(watched.campaign.cities[0]!.level, hidden.campaign.cities[0]!.level);
     expect(battle.isActive, isFalse);
@@ -329,11 +331,63 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('战场可以缩放拖动，后台部队继续行军，返回和重进不重置战斗', (tester) async {
+    final c = await _load(tester, const Size(1000, 700));
+    c.campaign.upgradeCity(0);
+    final hero = c.previewHero!;
+    final march = c.campaign.dispatch(hero, c.world.cities[1])!;
+    final other = c.campaign.dispatchTo(
+      c.campaign.garrisonAt(0).first,
+      c.heroPosition + const Offset(200, 48),
+    )!;
+    march.position = march.destination;
+    c.tick(0.02);
+    final battle = c.campaign.battles[1]!;
+    final simulation = battle.simulation;
+    final mapCenter = c.camera.center;
+    c.watchBattle(battle);
+    await tester.pump();
+    final canvas = find.byKey(const ValueKey('battle-canvas'));
+    expect(canvas, findsOneWidget);
+    expect(find.byKey(const ValueKey('world-canvas')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('battle-attacker-morale')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('battle-zoom-in')));
+    await tester.pump();
+    expect(c.battleCamera.scale, greaterThan(c.battleCamera.minScale));
+    c.battleCamera.zoomTo(4, c.battleCamera.viewport.center(Offset.zero));
+    c.refreshUi();
+    await tester.pump();
+    final cameraBefore = c.battleCamera.center;
+    await tester.drag(canvas, const Offset(-80, 35));
+    await tester.pump();
+    expect(c.battleCamera.center, isNot(cameraBefore));
+    expect(c.camera.center, mapCenter);
+    final otherBefore = other.position;
+    await tester.pump(const Duration(seconds: 2));
+    expect(other.position, isNot(otherBefore));
+    final elapsed = simulation.elapsed;
+    final morale = simulation.attackerMorale.remaining;
+    await tester.tap(find.byKey(const ValueKey('battle-return')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('world-canvas')), findsOneWidget);
+    expect(c.camera.center, mapCenter);
+    c.watchBattle(battle);
+    await tester.pump();
+    expect(battle.simulation, same(simulation));
+    expect(simulation.elapsed, greaterThanOrEqualTo(elapsed));
+    expect(simulation.attackerMorale.remaining, lessThanOrEqualTo(morale));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('小窗口点击城上刀剑打开观战，面板开启时战斗持续并保留结束结果', (tester) async {
     final c = await _load(tester, const Size(600, 360));
     final unit = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
     unit.position = unit.destination;
-    c.tick(0.01);
+    c.tick(0.02);
     final battle = c.campaign.battles[1]!;
     c.camera.center = battle.city.bounds.topCenter;
     c.camera.constrain();
@@ -344,19 +398,24 @@ void main() {
     );
     await tester.tapAt(origin + c.battleMarkerBounds(battle).center);
     await tester.pump();
-    expect(find.byKey(const ValueKey('battle-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('battle-scene')), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('unit-close')).hitTestable(),
+      find.byKey(const ValueKey('battle-return')).hitTestable(),
       findsOneWidget,
     );
-    final hp = battle.defender.hp;
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 4));
     expect(battle.rounds, greaterThan(0));
-    expect(battle.defender.hp, lessThan(hp));
-    await tester.pump(const Duration(seconds: 10));
-    expect(find.text('战斗结束'), findsOneWidget);
+    expect(
+      battle.simulation.units.any(
+        (unit) => !unit.isGeneral && unit.health.hp < 25,
+      ),
+      isTrue,
+    );
+    await tester.pump(const Duration(seconds: 90));
+    expect(battle.outcome, isNotNull);
+    expect(find.text(battle.outcome!), findsOneWidget);
     expect(c.watchedBattle, same(battle));
-    await tester.tap(find.byKey(const ValueKey('unit-close')));
+    await tester.tap(find.byKey(const ValueKey('battle-return')));
     await tester.pump();
     expect(c.watchedBattle, isNull);
     expect(tester.takeException(), isNull);

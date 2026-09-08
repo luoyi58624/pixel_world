@@ -10,6 +10,7 @@ import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import '../world/world_painter.dart';
 import 'city_panel.dart';
+import 'battle_scene.dart';
 import 'unit_panel.dart';
 
 const _ink = Color(0xff141b17);
@@ -124,7 +125,7 @@ class _WorldScreenState extends State<WorldScreen>
       if (key == LogicalKeyboardKey.space) {
         c.home();
       } else if (key == LogicalKeyboardKey.keyF) {
-        _action(c.camera.overview);
+        _action(c.activeCamera.overview);
       } else if (key == LogicalKeyboardKey.keyG) {
         _action(() => c.showGrid = !c.showGrid);
       } else if (key == LogicalKeyboardKey.keyM) {
@@ -225,256 +226,272 @@ class _WorldScreenState extends State<WorldScreen>
                     final size = constraints.biggest;
                     final compact = size.width < 700;
                     if (c.camera.viewport != size) c.camera.resize(size);
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: ValueListenableBuilder(
-                            valueListenable: c.uiRevision,
-                            builder: (context, value, child) => Listener(
-                              onPointerDown: (_) {
-                                _focus.requestFocus();
-                                c.dragging = true;
-                              },
-                              onPointerUp: (event) {
-                                c.dragging = false;
-                                if (event.kind == PointerDeviceKind.mouse) {
-                                  c.hover(event.localPosition);
-                                }
-                              },
-                              onPointerCancel: (_) {
-                                c.dragging = false;
-                                c.leaveMap();
-                              },
-                              onPointerSignal: (event) {
-                                if (event is PointerScrollEvent) {
-                                  GestureBinding.instance.pointerSignalResolver
-                                      .register(event, (_) {
-                                        c.camera.zoomTo(
-                                          c.camera.scale *
-                                              math.exp(
-                                                -event.scrollDelta.dy * 0.0015,
-                                              ),
-                                          event.localPosition,
-                                        );
-                                        c.refreshUi();
-                                      });
-                                }
-                              },
-                              child: MouseRegion(
-                                cursor: c.choosingTarget
-                                    ? SystemMouseCursors.precise
-                                    : c.pointerInteractive
-                                    ? SystemMouseCursors.click
-                                    : SystemMouseCursors.basic,
-                                onEnter: (event) =>
-                                    c.hover(event.localPosition),
-                                onHover: (event) =>
-                                    c.hover(event.localPosition),
-                                onExit: (_) => c.leaveMap(),
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTapUp: (details) =>
-                                      c.tap(details.localPosition),
-                                  onSecondaryTapUp: (_) =>
-                                      _action(c.cancelCityAction),
-                                  onScaleStart: (details) {
+                    return ValueListenableBuilder(
+                      valueListenable: c.uiRevision,
+                      builder: (context, value, child) {
+                        if (c.watchedBattle != null) {
+                          return BattleScene(
+                            controller: c,
+                            assets: assets,
+                            onAction: _action,
+                          );
+                        }
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: ValueListenableBuilder(
+                                valueListenable: c.uiRevision,
+                                builder: (context, value, child) => Listener(
+                                  onPointerDown: (_) {
+                                    _focus.requestFocus();
                                     c.dragging = true;
-                                    _gestureAnchor = c.camera.toWorld(
-                                      details.localFocalPoint,
-                                    );
-                                    _gestureScale = c.camera.scale;
                                   },
-                                  onScaleUpdate: (details) {
-                                    c.followHero = false;
-                                    c.camera.transform(
-                                      _gestureAnchor,
-                                      _gestureScale * details.scale,
-                                      details.localFocalPoint,
-                                    );
+                                  onPointerUp: (event) {
+                                    c.dragging = false;
+                                    if (event.kind == PointerDeviceKind.mouse) {
+                                      c.hover(event.localPosition);
+                                    }
                                   },
-                                  onScaleEnd: (_) => c.dragging = false,
-                                  child: Semantics(
-                                    label: '世界地图，拖动或边缘滚屏，点击角色下达指令，点击城堡查看信息',
-                                    child: CustomPaint(
-                                      key: const ValueKey('world-canvas'),
-                                      painter: WorldPainter(
-                                        c,
-                                        assets,
-                                        devicePixelRatio:
-                                            MediaQuery.devicePixelRatioOf(
-                                              context,
-                                            ),
-                                      ),
-                                      child: const SizedBox.expand(),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: 18,
-                          top: 18,
-                          child: IgnorePointer(
-                            child: ValueListenableBuilder(
-                              valueListenable: c.uiRevision,
-                              builder: (context, value, child) =>
-                                  !c.choosingTarget
-                                  ? _locationBadge(c)
-                                  : const SizedBox.shrink(),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          right: 16,
-                          top: 16,
-                          child: ValueListenableBuilder(
-                            valueListenable: c.uiRevision,
-                            builder: (context, value, child) =>
-                                _mapOverlay(c, _mapTools(c)),
-                          ),
-                        ),
-                        if (_showMinimap)
-                          Positioned(
-                            right: 16,
-                            bottom: 16,
-                            child: _mapOverlay(
-                              c,
-                              _minimap(c, assets, compact ? 126 : 192),
-                            ),
-                          ),
-                        if (!compact)
-                          Positioned(
-                            left: 18,
-                            bottom: 18,
-                            child: IgnorePointer(
-                              child: _panel(
-                                child: const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 13,
-                                    vertical: 10,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.mouse_outlined,
-                                        size: 15,
-                                        color: _gold,
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        '拖动探索',
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                      SizedBox(width: 16),
-                                      Text(
-                                        '边缘滚屏  ·  点击角色下令',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xffa8b2a6),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        Positioned(
-                          left: compact ? 12 : 18,
-                          top: compact ? 12 : 88,
-                          right: compact ? 12 : null,
-                          child: ValueListenableBuilder(
-                            valueListenable: c.uiRevision,
-                            builder: (context, value, child) =>
-                                c.selectedCity == null &&
-                                    c.selectedUnitId == null &&
-                                    c.watchedBattle == null
-                                ? const SizedBox.shrink()
-                                : _mapOverlay(
-                                    c,
-                                    SizedBox(
-                                      width: compact ? null : 380,
-                                      child: c.selectedCity != null
-                                          ? CityPanel(
-                                              controller: c,
-                                              assets: assets,
-                                              maxHeight: math.max(
-                                                0,
-                                                size.height -
-                                                    (compact ? 24 : 104),
-                                              ),
-                                              onAction: _action,
-                                            )
-                                          : UnitPanel(
-                                              controller: c,
-                                              assets: assets,
-                                              maxHeight: math.max(
-                                                0,
-                                                size.height -
-                                                    (compact ? 24 : 104),
-                                              ),
-                                              onAction: _action,
-                                            ),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        Positioned(
-                          left: compact ? 12 : 180,
-                          right: compact ? 64 : 80,
-                          top: compact ? 12 : 18,
-                          child: ValueListenableBuilder(
-                            valueListenable: c.uiRevision,
-                            builder: (context, value, child) =>
-                                !c.choosingTarget
-                                ? const SizedBox.shrink()
-                                : _mapOverlay(
-                                    c,
-                                    _panel(
-                                      child: Padding(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          12,
-                                          8,
-                                          6,
-                                          8,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.my_location,
-                                              color: _gold,
-                                              size: 19,
-                                            ),
-                                            const SizedBox(width: 9),
-                                            Expanded(
-                                              child: Text(
-                                                '为${c.commandHeroName}选择目的地\n点击地图任意位置 · Esc 取消',
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: _cream,
-                                                  height: 1.6,
+                                  onPointerCancel: (_) {
+                                    c.dragging = false;
+                                    c.leaveMap();
+                                  },
+                                  onPointerSignal: (event) {
+                                    if (event is PointerScrollEvent) {
+                                      GestureBinding
+                                          .instance
+                                          .pointerSignalResolver
+                                          .register(event, (_) {
+                                            c.camera.zoomTo(
+                                              c.camera.scale *
+                                                  math.exp(
+                                                    -event.scrollDelta.dy *
+                                                        0.0015,
+                                                  ),
+                                              event.localPosition,
+                                            );
+                                            c.refreshUi();
+                                          });
+                                    }
+                                  },
+                                  child: MouseRegion(
+                                    cursor: c.choosingTarget
+                                        ? SystemMouseCursors.precise
+                                        : c.pointerInteractive
+                                        ? SystemMouseCursors.click
+                                        : SystemMouseCursors.basic,
+                                    onEnter: (event) =>
+                                        c.hover(event.localPosition),
+                                    onHover: (event) =>
+                                        c.hover(event.localPosition),
+                                    onExit: (_) => c.leaveMap(),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTapUp: (details) =>
+                                          c.tap(details.localPosition),
+                                      onSecondaryTapUp: (_) =>
+                                          _action(c.cancelCityAction),
+                                      onScaleStart: (details) {
+                                        c.dragging = true;
+                                        _gestureAnchor = c.camera.toWorld(
+                                          details.localFocalPoint,
+                                        );
+                                        _gestureScale = c.camera.scale;
+                                      },
+                                      onScaleUpdate: (details) {
+                                        c.followHero = false;
+                                        c.camera.transform(
+                                          _gestureAnchor,
+                                          _gestureScale * details.scale,
+                                          details.localFocalPoint,
+                                        );
+                                      },
+                                      onScaleEnd: (_) => c.dragging = false,
+                                      child: Semantics(
+                                        label: '世界地图，拖动或边缘滚屏，点击角色下达指令，点击城堡查看信息',
+                                        child: CustomPaint(
+                                          key: const ValueKey('world-canvas'),
+                                          painter: WorldPainter(
+                                            c,
+                                            assets,
+                                            devicePixelRatio:
+                                                MediaQuery.devicePixelRatioOf(
+                                                  context,
                                                 ),
-                                              ),
-                                            ),
-                                            TextButton(
-                                              key: const ValueKey(
-                                                'cancel-target',
-                                              ),
-                                              onPressed: () =>
-                                                  _action(c.cancelCityAction),
-                                              child: const Text('取消'),
-                                            ),
-                                          ],
+                                          ),
+                                          child: const SizedBox.expand(),
                                         ),
                                       ),
                                     ),
                                   ),
-                          ),
-                        ),
-                      ],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 18,
+                              top: 18,
+                              child: IgnorePointer(
+                                child: ValueListenableBuilder(
+                                  valueListenable: c.uiRevision,
+                                  builder: (context, value, child) =>
+                                      !c.choosingTarget
+                                      ? _locationBadge(c)
+                                      : const SizedBox.shrink(),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: 16,
+                              top: 16,
+                              child: ValueListenableBuilder(
+                                valueListenable: c.uiRevision,
+                                builder: (context, value, child) =>
+                                    _mapOverlay(c, _mapTools(c)),
+                              ),
+                            ),
+                            if (_showMinimap)
+                              Positioned(
+                                right: 16,
+                                bottom: 16,
+                                child: _mapOverlay(
+                                  c,
+                                  _minimap(c, assets, compact ? 126 : 192),
+                                ),
+                              ),
+                            if (!compact)
+                              Positioned(
+                                left: 18,
+                                bottom: 18,
+                                child: IgnorePointer(
+                                  child: _panel(
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 13,
+                                        vertical: 10,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.mouse_outlined,
+                                            size: 15,
+                                            color: _gold,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            '拖动探索',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                          SizedBox(width: 16),
+                                          Text(
+                                            '边缘滚屏  ·  点击角色下令',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xffa8b2a6),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            Positioned(
+                              left: compact ? 12 : 18,
+                              top: compact ? 12 : 88,
+                              right: compact ? 12 : null,
+                              child: ValueListenableBuilder(
+                                valueListenable: c.uiRevision,
+                                builder: (context, value, child) =>
+                                    c.selectedCity == null &&
+                                        c.selectedUnitId == null &&
+                                        c.watchedBattle == null
+                                    ? const SizedBox.shrink()
+                                    : _mapOverlay(
+                                        c,
+                                        SizedBox(
+                                          width: compact ? null : 380,
+                                          child: c.selectedCity != null
+                                              ? CityPanel(
+                                                  controller: c,
+                                                  assets: assets,
+                                                  maxHeight: math.max(
+                                                    0,
+                                                    size.height -
+                                                        (compact ? 24 : 104),
+                                                  ),
+                                                  onAction: _action,
+                                                )
+                                              : UnitPanel(
+                                                  controller: c,
+                                                  assets: assets,
+                                                  maxHeight: math.max(
+                                                    0,
+                                                    size.height -
+                                                        (compact ? 24 : 104),
+                                                  ),
+                                                  onAction: _action,
+                                                ),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            Positioned(
+                              left: compact ? 12 : 180,
+                              right: compact ? 64 : 80,
+                              top: compact ? 12 : 18,
+                              child: ValueListenableBuilder(
+                                valueListenable: c.uiRevision,
+                                builder: (context, value, child) =>
+                                    !c.choosingTarget
+                                    ? const SizedBox.shrink()
+                                    : _mapOverlay(
+                                        c,
+                                        _panel(
+                                          child: Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                              12,
+                                              8,
+                                              6,
+                                              8,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.my_location,
+                                                  color: _gold,
+                                                  size: 19,
+                                                ),
+                                                const SizedBox(width: 9),
+                                                Expanded(
+                                                  child: Text(
+                                                    '为${c.commandHeroName}选择目的地\n点击地图任意位置 · Esc 取消',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: _cream,
+                                                      height: 1.6,
+                                                    ),
+                                                  ),
+                                                ),
+                                                TextButton(
+                                                  key: const ValueKey(
+                                                    'cancel-target',
+                                                  ),
+                                                  onPressed: () => _action(
+                                                    c.cancelCityAction,
+                                                  ),
+                                                  child: const Text('取消'),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -776,7 +793,7 @@ class _WorldScreenState extends State<WorldScreen>
         AnimatedBuilder(
           animation: c,
           builder: (context, child) => Text(
-            '${c.camera.scale.toStringAsFixed(1)}×',
+            '${c.activeCamera.scale.toStringAsFixed(1)}×',
             style: const TextStyle(
               fontSize: 11,
               color: _gold,

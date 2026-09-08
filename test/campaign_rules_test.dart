@@ -157,13 +157,50 @@ void main() {
     expect(c.defeated, isFalse);
   });
 
+  test('连续迎战时保留兵损和伤势，换守将重新按生命上限补充士气', () {
+    final c = _campaign();
+    final hero = _hero(c, 40)..hp = 20;
+    hero.squad[0].hp = 0;
+    hero.squad[1].hp = 7;
+    final defender = c.garrisonAt(1).first..hp = 1;
+    for (final soldier in defender.squad) {
+      soldier.hp = 0;
+    }
+    final march = c.dispatch(hero, c.world.cities[1])!;
+    march.position = march.destination;
+    for (var i = 0; i < 1200 && c.cities[1]!.level == 2; i++) {
+      c.advance(0.05);
+    }
+    final battle = c.battles[1]!;
+    expect(battle.nextWaveIn, greaterThan(0));
+    final hp = hero.hp;
+    final soldiers = hero.squad.map((soldier) => soldier.hp).toList();
+    c.advance(1.25);
+    expect(battle.wave, 2);
+    expect(hero.hp, hp);
+    expect(hero.squad.map((soldier) => soldier.hp), soldiers);
+    expect(
+      battle.simulation.attackerMorale.maximum,
+      hero.maxHp + hero.soldiers,
+    );
+    expect(
+      battle.simulation.attackerMorale.remaining,
+      hero.maxHp + hero.soldiers,
+    );
+  });
+
   test('真实交战触发一级城失守，英雄和地图部队一并清理', () {
     final c = _campaign();
     final hero = _hero(c, 40)..hp = 1;
+    for (final soldier in hero.squad) {
+      soldier.hp = 0;
+    }
     final march = c.dispatch(hero, c.world.cities[1])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
-    c.advance(1);
+    for (var i = 0; i < 1200 && c.marches.isNotEmpty; i++) {
+      c.advance(0.05);
+    }
     expect(c.cities[0]!.isPlayer, isFalse);
     expect(c.heroes.any((hero) => hero.isPlayer), isFalse);
     expect(c.marches, isEmpty);
@@ -175,16 +212,26 @@ void main() {
     final c = _campaign();
     final defenderIds = c.garrisonAt(1).map((hero) => hero.id).toList();
     c.garrisonAt(1).first.hp = 1;
+    for (final soldier in c.garrisonAt(1).first.squad) {
+      soldier.hp = 0;
+    }
     final hero = _hero(c, 40);
     final march = c.dispatch(hero, c.world.cities[1])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
-    c.advance(1);
+    for (var i = 0; i < 1200 && c.cities[1]!.level == 2; i++) {
+      c.advance(0.05);
+    }
     expect(c.cities[1]!.level, 1);
     expect(c.cities[1]!.isPlayer, isFalse);
     expect(c.garrisonAt(1).length, defenderIds.length - 1);
     c.garrisonAt(1).first.hp = 1;
-    c.advance(1);
+    for (final soldier in c.garrisonAt(1).first.squad) {
+      soldier.hp = 0;
+    }
+    for (var i = 0; i < 1200 && !c.cities[1]!.isPlayer; i++) {
+      c.advance(0.05);
+    }
     expect(c.cities[1]!.isPlayer, isTrue);
     expect(hero.cityId, 1);
     expect(c.heroes.any((hero) => defenderIds.contains(hero.id)), isFalse);

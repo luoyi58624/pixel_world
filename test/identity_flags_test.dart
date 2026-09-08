@@ -62,10 +62,15 @@ void main() {
     final campaign = CampaignState.fromRom(world, _heroes());
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40)
       ..hp = 1;
+    for (final soldier in hero.squad) {
+      soldier.hp = 0;
+    }
     final march = campaign.dispatch(hero, world.cities[2])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
-    campaign.advance(1);
+    for (var i = 0; i < 1200 && campaign.marches.isNotEmpty; i++) {
+      campaign.advance(0.05);
+    }
     expect(campaign.cities[0]!.ownerCountryId, 2);
     expect(campaign.cities[0]!.isPlayer, isFalse);
     expect(world.countryName(campaign.cities[0]!.ownerCountryId), '马易');
@@ -76,15 +81,25 @@ void main() {
     final world = _worlds().first;
     final campaign = CampaignState.fromRom(world, _heroes());
     campaign.garrisonAt(2).first.hp = 1;
+    for (final soldier in campaign.garrisonAt(2).first.squad) {
+      soldier.hp = 0;
+    }
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40);
     final march = campaign.dispatch(hero, world.cities[2])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
-    campaign.advance(1);
+    for (var i = 0; i < 1200 && campaign.cities[2]!.level == 2; i++) {
+      campaign.advance(0.05);
+    }
     expect(campaign.cities[2]!.ownerCountryId, 2);
     expect(campaign.cities[2]!.level, 1);
     campaign.garrisonAt(2).first.hp = 1;
-    campaign.advance(1);
+    for (final soldier in campaign.garrisonAt(2).first.squad) {
+      soldier.hp = 0;
+    }
+    for (var i = 0; i < 1200 && !campaign.cities[2]!.isPlayer; i++) {
+      campaign.advance(0.05);
+    }
     expect(campaign.cities[2]!.ownerCountryId, 0);
     expect(world.cities[2].label, '马易');
     expect(campaign.cities[1]!.ownerCountryId, 1);

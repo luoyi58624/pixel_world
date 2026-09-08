@@ -5,12 +5,11 @@ import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 
 const _cream = Color(0xffece7d1);
-const _gold = Color(0xffd6bd7c);
 const _muted = Color(0xffa7b5a4);
 
-/// 角色指令与实时观战共用的非模态面板，不接管游戏时钟。
+/// 地图角色的非模态指令面板，不接管游戏时钟。
 class UnitPanel extends StatelessWidget {
-  /// 展示当前角色或正在查看的后台交战。
+  /// 展示当前角色并提供进入战场的入口。
   const UnitPanel({
     super.key,
     required this.controller,
@@ -34,11 +33,10 @@ class UnitPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final battle = c.watchedBattle;
     final hero = c.selectedMapHero;
-    if (battle == null && hero == null) return const SizedBox.shrink();
+    if (hero == null) return const SizedBox.shrink();
     return Container(
-      key: ValueKey(battle == null ? 'unit-panel' : 'battle-panel'),
+      key: const ValueKey('unit-panel'),
       constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: const Color(0xff141b17),
@@ -55,7 +53,7 @@ class UnitPanel extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    battle == null ? hero!.name : '${battle.city.label}国 · 观战',
+                    hero.name,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -75,7 +73,7 @@ class UnitPanel extends StatelessWidget {
           Flexible(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: battle == null ? _unit(hero!) : _battle(battle),
+              child: _unit(hero),
             ),
           ),
           const Divider(height: 1, color: Color(0xff43513e)),
@@ -86,7 +84,7 @@ class UnitPanel extends StatelessWidget {
               child: OutlinedButton(
                 key: const ValueKey('unit-close'),
                 onPressed: () => onAction(c.cancelCityAction),
-                child: Text(battle == null ? '取消' : '返回地图'),
+                child: const Text('取消'),
               ),
             ),
           ),
@@ -179,53 +177,6 @@ class UnitPanel extends StatelessWidget {
     );
   }
 
-  Widget _battle(CityBattle battle) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Icon(
-            battle.isActive ? Icons.bolt : Icons.flag_outlined,
-            color: _gold,
-            size: 18,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              battle.isActive ? '交战中 · 第 ${battle.rounds} 轮' : '战斗结束',
-              style: const TextStyle(color: _gold, fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _fighter(battle.attacker, '进攻 · ${battle.attacker.type.label}'),
-      const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: Text(
-            'VS',
-            style: TextStyle(color: _gold, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
-      _fighter(battle.defender, '守城 · ${battle.defender.type.label}'),
-      const SizedBox(height: 16),
-      if (battle.outcome case final outcome?) ...[
-        Text(outcome, style: const TextStyle(color: _gold, height: 1.5)),
-        const SizedBox(height: 12),
-      ],
-      for (final event in battle.events.reversed)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            event,
-            style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
-          ),
-        ),
-    ],
-  );
-
   Widget _command(
     String key,
     String label,
@@ -285,7 +236,7 @@ class UnitPanel extends StatelessWidget {
             ),
             const SizedBox(height: 5),
             Text(
-              '${hero.hp} / ${hero.maxHp} HP · 士兵 ${hero.soldiers} 人',
+              '${hero.health.label} / ${hero.maxHp} HP · 士兵 ${hero.soldiers} 人',
               style: const TextStyle(color: _cream, fontSize: 12),
             ),
           ],

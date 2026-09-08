@@ -158,7 +158,7 @@ class CityPanel extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${hero.type.label} · ${hero.hp}/${hero.maxHp} HP',
+                    '${hero.type.label} · ${hero.health.label}/${hero.maxHp} HP',
                     style: const TextStyle(color: _muted, fontSize: 12),
                   ),
                 ],
@@ -223,7 +223,7 @@ class CityPanel extends StatelessWidget {
               const Text('HP', style: TextStyle(fontSize: 11, color: _muted)),
               const Spacer(),
               Text(
-                '${hero.hp} / ${hero.maxHp}',
+                '${hero.health.label} / ${hero.maxHp}',
                 key: const ValueKey('hero-hp'),
                 style: const TextStyle(
                   fontSize: 12,

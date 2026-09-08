@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'battle_simulation.dart';
 import 'campaign.dart';
 import 'hero_sprite.dart';
 import 'rom_hero.dart';
@@ -26,6 +27,12 @@ class WorldController extends ChangeNotifier {
 
   /// 当前镜头。
   final WorldCamera camera;
+
+  /// 观战使用独立镜头，拖动战场不会改变大地图位置。
+  final WorldCamera battleCamera = WorldCamera(BattleSimulation.arenaSize);
+
+  /// 键盘和边缘滚屏操作当前正在显示的镜头。
+  WorldCamera get activeCamera => watchedBattle == null ? camera : battleCamera;
 
   /// 各场景的独立玩法状态，切换地图不重置出征记录。
   final List<CampaignState> campaigns;
@@ -194,7 +201,7 @@ class WorldController extends ChangeNotifier {
     final dt = elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     time += dt;
     if (keyboardDirection != Offset.zero) {
-      camera.pan(
+      activeCamera.pan(
         -keyboardDirection /
             keyboardDirection.distance *
             dt *
@@ -204,7 +211,7 @@ class WorldController extends ChangeNotifier {
     } else if (!dragging && _pointer != null) {
       final pan = _edgeDirection(_pointer!);
       if (pan != Offset.zero) {
-        camera.pan(-pan * dt * 420);
+        activeCamera.pan(-pan * dt * 420);
         followHero = false;
       }
     }
@@ -235,7 +242,7 @@ class WorldController extends ChangeNotifier {
         }
       }
       heroCell = cellAt(world, heroPosition);
-      if (followHero) {
+      if (followHero && watchedBattle == null) {
         camera.center = heroPosition;
         camera.constrain();
       }
@@ -268,11 +275,11 @@ class WorldController extends ChangeNotifier {
       changed = true;
     }
     if (changed) refreshUi();
-    if (followHero && campaign.marches.isNotEmpty) {
+    if (followHero && watchedBattle == null && campaign.marches.isNotEmpty) {
       camera.center = focusPosition;
       camera.constrain();
     }
-    if (_pointer != null) _updateCursor(_pointer!);
+    if (_pointer != null && watchedBattle == null) _updateCursor(_pointer!);
     notifyListeners();
   }
 
@@ -410,6 +417,11 @@ class WorldController extends ChangeNotifier {
 
   /// 取消选目标时回到原城池面板，面板内取消则直接关闭。
   void cancelCityAction() {
+    if (watchedBattle != null) {
+      leaveMap();
+      dragging = false;
+      keyboardDirection = Offset.zero;
+    }
     if (choosingTarget && _targetReturnUnitId != null) {
       selectedUnitId = _targetReturnUnitId;
       pendingHero = null;
@@ -461,7 +473,7 @@ class WorldController extends ChangeNotifier {
         .where((march) => march.phase == MarchPhase.fighting)
         .firstOrNull;
     if (battle != null && pendingHero == null && selectedCity == null) {
-      return '${battle.hero.name}正在进攻${battle.target!.label} · HP ${battle.hero.hp}/${battle.hero.maxHp}';
+      return '${battle.hero.name}正在进攻${battle.target!.label} · HP ${battle.hero.health.label}/${battle.hero.maxHp}';
     }
     final march = campaign.marches.values
         .where((march) => march.phase == MarchPhase.marching)
@@ -486,6 +498,11 @@ class WorldController extends ChangeNotifier {
     if (interactive != pointerInteractive) uiRevision.value++;
   }
 
+  /// 战场鼠标位置只驱动战场边缘滚屏，不改写大地图选框。
+  void hoverBattle(Offset local) {
+    _pointer = local;
+  }
+
   /// 离开地图、进入面板或窗口失焦时停止边缘滚屏。
   void leaveMap() {
     _pointer = null;
@@ -494,7 +511,7 @@ class WorldController extends ChangeNotifier {
   }
 
   Offset _edgeDirection(Offset point) {
-    final size = camera.viewport;
+    final size = activeCamera.viewport;
     if (!(Offset.zero & size).contains(point)) return Offset.zero;
     const edge = 28.0;
     double axis(double value, double length) => value < edge
@@ -605,6 +622,9 @@ class WorldController extends ChangeNotifier {
 
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(CityBattle battle) {
+    leaveMap();
+    dragging = false;
+    keyboardDirection = Offset.zero;
     watchedBattle = battle;
     selectedUnitId = null;
     selectedCity = null;
@@ -613,6 +633,11 @@ class WorldController extends ChangeNotifier {
 
   /// 回到初始据点。
   void home() {
+    if (watchedBattle != null) {
+      battleCamera.overview();
+      refreshUi();
+      return;
+    }
     camera.scale = math.max(3, camera.minScale);
     camera.center = world.cities.first.bounds.center;
     camera.constrain();

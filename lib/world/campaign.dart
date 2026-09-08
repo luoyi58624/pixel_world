@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'battle_simulation.dart';
 import 'hero_sprite.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
@@ -57,12 +58,14 @@ class CampaignHero {
        id = 'rom-${definition.id}',
        name = definition.name ?? '主角',
        type = definition.type,
-       maxHp = definition.maxHp,
-       hp = definition.maxHp,
+       health = BattleHealth(definition.maxHp),
        combat = definition.combat,
        politics = definition.politics,
        salary = definition.salary,
-       soldiers = definition.soldierLimit,
+       squad = List.generate(
+         definition.soldierLimit,
+         (_) => BattleHealth(BattleSimulation.soldierHp),
+       ),
        hasEgg = definition.eggCapable,
        appearance = switch (definition.type) {
          HeroType.advanced => HeroAppearance.advanced,
@@ -95,10 +98,14 @@ class CampaignHero {
   bool get isPlayer => countryId == 0;
 
   /// 生命上限。
-  final int maxHp;
+  int get maxHp => health.maxHp;
 
   /// 当前生命值。
-  int hp;
+  double get hp => health.hp;
+  set hp(num value) => health.hp = value;
+
+  /// 将领生命在地图与战场中共用。
+  final BattleHealth health;
 
   /// 战斗能力。
   final int combat;
@@ -109,8 +116,20 @@ class CampaignHero {
   /// 每回合报酬。
   final int salary;
 
-  /// 随行士兵数量，本阶段战损由英雄生命值表示。
-  final int soldiers;
+  /// 保留每个对位槽的小兵生命，阵亡后不自动补兵。
+  final List<BattleHealth> squad;
+
+  /// 当前存活的随行士兵数量。
+  int get soldiers => squad.where((soldier) => soldier.alive).length;
+
+  /// 将现有属性和生命交给战场，不创建第二份可变状态。
+  BattleArmy get battleArmy => BattleArmy(
+    id: id,
+    name: name,
+    general: health,
+    attack: combat,
+    soldiers: squad,
+  );
 
   /// 开局没有王牌库存，召唤蛋不冒充王牌道具。
   String get ace => '无';
@@ -207,7 +226,13 @@ class HeroMarch {
 /// 后台交战的实时记录，观战只读取这份状态，不另起战斗时钟。
 class CityBattle {
   /// 记录一支部队与当前守将的交战。
-  CityBattle(this.city, this.attacker, this.defender);
+  CityBattle(this.city, this.attacker, this.defender, {int seed = 1})
+    : _seed = seed,
+      simulation = BattleSimulation(
+        attacker: attacker.battleArmy,
+        defender: defender.battleArmy,
+        seed: seed,
+      );
 
   /// 战斗所在城池。
   final CityDefinition city;
@@ -218,8 +243,19 @@ class CityBattle {
   /// 当前守将，每轮从存活驻军中更新。
   CampaignHero defender;
 
-  /// 已执行的交战轮次。
-  int rounds = 0;
+  /// 当前守将这一场的独立小兵、位置与伤害状态。
+  BattleSimulation simulation;
+
+  /// 已执行的拼杀次数。
+  int get rounds => simulation.clashes;
+
+  /// 当前迎战的守将次序。
+  int wave = 1;
+
+  /// 更换守将前的短暂结果展示时间。
+  double nextWaveIn = 0;
+  bool _settled = false;
+  final int _seed;
 
   /// 战斗结果，为空表示仍在交战。
   String? outcome;
@@ -234,6 +270,19 @@ class CityBattle {
   void record(String event) {
     events.add(event);
     if (events.length > 6) events.removeAt(0);
+  }
+
+  void _nextDefender(CampaignHero hero) {
+    defender = hero;
+    wave++;
+    nextWaveIn = 0;
+    _settled = false;
+    simulation = BattleSimulation(
+      attacker: attacker.battleArmy,
+      defender: hero.battleArmy,
+      seed: _seed + wave,
+    );
+    record('${hero.name}接替守城');
   }
 }
 
@@ -320,6 +369,8 @@ class CampaignState {
   /// 已完成的经济结算次数。
   int settledTurns = 0;
   double _secondFraction = 0;
+  double _simulationFraction = 0;
+  int _battleSerial = 0;
   int _economySeconds = 0;
 
   /// 最近一条反馈。
@@ -375,7 +426,11 @@ class CampaignState {
       return '英雄不在我方城池中';
     }
     if (marches.containsKey(hero.id)) return '这位英雄已经出征';
-    if (hero.soldiers <= 0) return '没有可随行的士兵';
+    if (battles.values.any(
+      (battle) => battle.isActive && battle.defender == hero,
+    )) {
+      return '这位英雄正在守城交战';
+    }
     if (cities[hero.cityId]!.level == 1 &&
         marches.values.any((march) => march.hero.cityId == hero.cityId)) {
       return '一级城池只能同时派出一位英雄，升级后可继续出击';
@@ -460,6 +515,7 @@ class CampaignState {
     final battle = battles[march.target?.id];
     if (battle != null && battle.isActive && battle.attacker == march.hero) {
       battle.outcome = outcome;
+      battle.simulation.stop();
     }
   }
 
@@ -504,12 +560,13 @@ class CampaignState {
     );
   }
 
-  /// 按一秒边界交战、每三十秒结算经济，帧率不改变伤害或产出次数。
+  /// 固定步长推进行军和拼杀，每三十秒结算经济；观战不参与计时。
   bool advance(double elapsed) {
-    var remaining = elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
+    _simulationFraction += elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     var changed = false;
-    while (remaining > 1e-9) {
-      final dt = math.min(remaining, 1 - _secondFraction);
+    const dt = BattleSimulation.fixedStep;
+    while (_simulationFraction >= dt - 1e-9) {
+      _simulationFraction = math.max(0, _simulationFraction - dt);
       for (final march in marches.values) {
         final terrain = world.movementTerrainAt(cellAt(world, march.position));
         final previous = march.position;
@@ -542,16 +599,15 @@ class CampaignState {
             changed = true;
           }
         }
-        if (march.phase == MarchPhase.awaitingBattle) _beginBattle(march);
         changed =
             terrain != world.movementTerrainAt(cellAt(world, march.position)) ||
             changed;
       }
-      remaining -= dt;
+      changed = _resolveArrivals() || changed;
+      changed = _advanceBattles(dt) || changed;
       _secondFraction += dt;
       if (_secondFraction >= 1 - 1e-9) {
         _secondFraction = 0;
-        changed = _combatRound() || changed;
         _economySeconds++;
         if (_economySeconds == 30) {
           _economySeconds = 0;
@@ -566,9 +622,8 @@ class CampaignState {
     return changed;
   }
 
-  bool _combatRound() {
+  bool _resolveArrivals() {
     var changed = false;
-    final engagedCities = <int>{};
     for (final march in marches.values.toList()) {
       if (!marches.containsKey(march.hero.id) ||
           march.target == null ||
@@ -587,7 +642,6 @@ class CampaignState {
       if (active != null && active.isActive && active.attacker != march.hero) {
         continue;
       }
-      if (!engagedCities.add(city.id)) continue;
       final defender = garrisonAt(city.id).firstOrNull;
       if (defender == null) {
         _captureCity(city.id, march.hero.countryId);
@@ -595,43 +649,60 @@ class CampaignState {
         changed = true;
         continue;
       }
-      march.phase = MarchPhase.fighting;
-      final battle = _beginBattle(march)!;
-      battle.defender = defender;
-      battle.rounds++;
-      // 新原型的顺序交战公式，不作为 NES 原版算法。
-      final attack = math.max(
-        1,
-        march.hero.combat + march.hero.soldiers * 2 - target.level * 2,
-      );
-      defender.hp = math.max(0, defender.hp - attack);
-      battle.record('${march.hero.name}攻击${defender.name}，造成 $attack 点伤害');
-      if (defender.hp == 0) {
-        battle.record('${defender.name}战败');
-        defeatHero(defender.id, winnerCountryId: march.hero.countryId);
-        if (target.ownerCountryId == march.hero.countryId ||
-            garrisonAt(city.id).isEmpty) {
-          _captureCity(city.id, march.hero.countryId);
-          _station(march);
-        }
-      } else {
-        final homeLevel = cities[march.hero.cityId]!.level;
-        final retaliation = math.max(
-          1,
-          defender.combat +
-              defender.soldiers * 2 +
-              target.level * 4 -
-              homeLevel * 2,
-        );
-        march.hero.hp = math.max(0, march.hero.hp - retaliation);
-        battle.record('${defender.name}反击，造成 $retaliation 点伤害');
-        if (march.hero.hp == 0) {
-          defeatHero(march.hero.id, winnerCountryId: defender.countryId);
-        }
-      }
-      changed = true;
+      final wasFighting = march.phase == MarchPhase.fighting;
+      _beginBattle(march);
+      changed = !wasFighting && march.phase == MarchPhase.fighting || changed;
     }
     return changed;
+  }
+
+  bool _advanceBattles(double dt) {
+    var changed = false;
+    for (final battle in battles.values.toList()) {
+      changed = battle.simulation.advance(dt) || changed;
+      if (!battle.isActive) continue;
+      if (battle.simulation.result != null && !battle._settled) {
+        battle._settled = true;
+        _settleBattle(battle);
+        changed = true;
+      } else if (battle.nextWaveIn > 0) {
+        battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
+        if (battle.nextWaveIn == 0) {
+          final next = garrisonAt(battle.city.id).firstOrNull;
+          if (next != null) battle._nextDefender(next);
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+
+  void _settleBattle(CityBattle battle) {
+    final attacker = battle.attacker;
+    final defender = battle.defender;
+    final lostAttacker = !attacker.health.alive;
+    final lostDefender = !defender.health.alive;
+    if (lostAttacker) {
+      defeatHero(attacker.id, winnerCountryId: defender.countryId);
+    }
+    if (lostDefender) {
+      defeatHero(defender.id, winnerCountryId: attacker.countryId);
+      battle.record('${defender.name}战败');
+    }
+    if (lostAttacker) {
+      battle.outcome = lostDefender ? '双方将领阵亡' : '${attacker.name}战败';
+      battle.simulation.stop();
+      return;
+    }
+    final city = cities[battle.city.id]!;
+    if (city.ownerCountryId == attacker.countryId ||
+        garrisonAt(battle.city.id).isEmpty) {
+      _captureCity(battle.city.id, attacker.countryId);
+      final march = marches[attacker.id];
+      if (march != null) _station(march);
+    } else {
+      battle.nextWaveIn = 1.2;
+    }
   }
 
   List<String> _captureCity(int cityId, int winnerCountryId) {
@@ -669,7 +740,12 @@ class CampaignState {
       return existing.attacker == march.hero ? existing : null;
     }
     march.phase = MarchPhase.fighting;
-    return battles[city.id] = CityBattle(city, march.hero, defender);
+    return battles[city.id] = CityBattle(
+      city,
+      march.hero,
+      defender,
+      seed: (++_battleSerial * 1009) + city.id * 41 + march.hero.sourceId,
+    );
   }
 
   // 只拦截从城外进入的线段；已在城边的部队可以接收撤离指令。

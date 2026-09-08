@@ -1,0 +1,337 @@
+{
+  "sourceSha256": "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59",
+  "scope": "普通将领碰撞；隔离运行纯计算例程，仅替换 D102 随机字节源，未模拟完整 PPU/音频/输入时序。",
+  "initExamples": [
+    {
+      "heroId": 0,
+      "combat": 15,
+      "soldiers": 4,
+      "baseCollisionPower": 23,
+      "initialBar": 63,
+      "armyPool": 80
+    },
+    {
+      "heroId": 26,
+      "combat": 5,
+      "soldiers": 4,
+      "baseCollisionPower": 13,
+      "initialBar": 23,
+      "armyPool": 80
+    },
+    {
+      "heroId": 27,
+      "combat": 5,
+      "soldiers": 4,
+      "baseCollisionPower": 13,
+      "initialBar": 23,
+      "armyPool": 80
+    },
+    {
+      "heroId": 40,
+      "combat": 15,
+      "soldiers": 4,
+      "baseCollisionPower": 23,
+      "initialBar": 63,
+      "armyPool": 80
+    }
+  ],
+  "damageRanges": [
+    {
+      "power": 0,
+      "min": 1,
+      "max": 1
+    },
+    {
+      "power": 1,
+      "min": 1,
+      "max": 1
+    },
+    {
+      "power": 2,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "power": 3,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "power": 4,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "power": 5,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "power": 6,
+      "min": 3,
+      "max": 5
+    },
+    {
+      "power": 7,
+      "min": 3,
+      "max": 5
+    },
+    {
+      "power": 8,
+      "min": 3,
+      "max": 5
+    },
+    {
+      "power": 9,
+      "min": 3,
+      "max": 5
+    },
+    {
+      "power": 10,
+      "min": 4,
+      "max": 7
+    },
+    {
+      "power": 11,
+      "min": 4,
+      "max": 7
+    },
+    {
+      "power": 12,
+      "min": 4,
+      "max": 7
+    },
+    {
+      "power": 13,
+      "min": 4,
+      "max": 7
+    },
+    {
+      "power": 14,
+      "min": 5,
+      "max": 9
+    },
+    {
+      "power": 15,
+      "min": 5,
+      "max": 9
+    },
+    {
+      "power": 16,
+      "min": 5,
+      "max": 9
+    },
+    {
+      "power": 17,
+      "min": 5,
+      "max": 9
+    },
+    {
+      "power": 18,
+      "min": 6,
+      "max": 11
+    },
+    {
+      "power": 19,
+      "min": 6,
+      "max": 11
+    },
+    {
+      "power": 20,
+      "min": 6,
+      "max": 11
+    },
+    {
+      "power": 21,
+      "min": 6,
+      "max": 11
+    },
+    {
+      "power": 22,
+      "min": 7,
+      "max": 13
+    },
+    {
+      "power": 23,
+      "min": 7,
+      "max": 13
+    },
+    {
+      "power": 24,
+      "min": 7,
+      "max": 13
+    },
+    {
+      "power": 25,
+      "min": 7,
+      "max": 13
+    },
+    {
+      "power": 26,
+      "min": 8,
+      "max": 15
+    },
+    {
+      "power": 27,
+      "min": 8,
+      "max": 15
+    },
+    {
+      "power": 28,
+      "min": 8,
+      "max": 15
+    },
+    {
+      "power": 29,
+      "min": 8,
+      "max": 15
+    },
+    {
+      "power": 30,
+      "min": 9,
+      "max": 17
+    },
+    {
+      "power": 31,
+      "min": 9,
+      "max": 17
+    },
+    {
+      "power": 32,
+      "min": 9,
+      "max": 17
+    },
+    {
+      "power": 33,
+      "min": 9,
+      "max": 17
+    },
+    {
+      "power": 34,
+      "min": 10,
+      "max": 19
+    },
+    {
+      "power": 35,
+      "min": 10,
+      "max": 19
+    },
+    {
+      "power": 36,
+      "min": 10,
+      "max": 19
+    },
+    {
+      "power": 37,
+      "min": 10,
+      "max": 19
+    },
+    {
+      "power": 38,
+      "min": 11,
+      "max": 21
+    },
+    {
+      "power": 39,
+      "min": 11,
+      "max": 21
+    },
+    {
+      "power": 40,
+      "min": 11,
+      "max": 21
+    }
+  ],
+  "randomCasualties": [
+    {
+      "randomByte": 0,
+      "removedSlot": 0,
+      "armyPool": 60,
+      "soldierCount": 3
+    },
+    {
+      "randomByte": 1,
+      "removedSlot": 1,
+      "armyPool": 60,
+      "soldierCount": 3
+    },
+    {
+      "randomByte": 2,
+      "removedSlot": 2,
+      "armyPool": 60,
+      "soldierCount": 3
+    },
+    {
+      "randomByte": 3,
+      "removedSlot": 3,
+      "armyPool": 60,
+      "soldierCount": 3
+    }
+  ],
+  "overflow": {
+    "damage": 7,
+    "initialPool": 5,
+    "remainingPool": 0,
+    "initialHeroHp": 95,
+    "remainingHeroHp": 93
+  },
+  "recoilExamples": [
+    {
+      "own": 23,
+      "opponent": 23,
+      "signed8_8": -300
+    },
+    {
+      "own": 23,
+      "opponent": 13,
+      "signed8_8": -550
+    },
+    {
+      "own": 13,
+      "opponent": 23,
+      "signed8_8": -750
+    }
+  ],
+  "sourceBlocks": [
+    {
+      "cpuStart": "E1C6",
+      "fileOffset": "03E1D6",
+      "bytes": "b51a1869010a0ae900c93f9002a93f95ae60bc440218b9ac81751e951ab92f700a751a951c60"
+    },
+    {
+      "cpuStart": "E3B8",
+      "fileOffset": "03E3C8",
+      "bytes": "a98b85e1a50f20fee3851518a51c65158515a51920fee3851618a51d65168516aaa5152049e685858484a516a6152049e685878486a900850f8519a2002011e4a2012011e460f00b4a4a186901c9049002a90460"
+    },
+    {
+      "cpuStart": "E411",
+      "fileOffset": "03E421",
+      "bytes": "864a8a4901aab5154a4a6900850018690120f1d01865008500a64ab512f01138e5009512b01da000941249ff69018500bc4402b9517438e500995174b005a900995174bc4402b92f70a8b512d9b5e4b01e2002d12903187dc6daa8b9700510f12096e4bd4402aade2f70a64a4c54e4bc4402b95174d02c18bdc6da69044898aa2049cf68a8b970051019b97005290f0940997005a54a99e005a903991006a9fe99000660000115293dbd2f708500a9144c3ed3"
+    },
+    {
+      "cpuStart": "E4C4",
+      "fileOffset": "03E4D4",
+      "bytes": "a900854a850da4421016a5aef012c6ae2485100ca50f6903850f9004a9ff850fa51c4a650f690118658485849002e68538a580e5848500a581e5858501a501c9d0b044a501c910902ee583c932660ea4853013c9289009a5008580a50185816020b8e34cf4e418a58469018584a5856900858590e2b01a38a900e5848584a900e58585854cf4e4a51d0a8516a2002011e4a9008584858560"
+    },
+    {
+      "cpuStart": "E55C",
+      "fileOffset": "03E56C",
+      "bytes": "2002d129076901651785174a20f5e54a4a6907651885189012a5aff00ec6af24851008e619d004a9ff8519a901854aa51d4a6519690118658685869002e68718a58265868500a58365878501a501c9089036c9e0b032a587300dc9c8b01aa5008582a50185836018a58669018586a5876900858790e8b01a38a900e5868586a900e58785874c9be5a51c0a8515a2012011e4a9008586858760"
+    },
+    {
+      "cpuStart": "E649",
+      "fileOffset": "03E659",
+      "bytes": "860038e500b00e49ff6901291eaabc70e6bd71e660291eaabc68e6bd69e660d4fea2fe70fe3efe0cfedafda8fd76fd44fd12fde0fcaefc7cfc4afc18fce6fbb4fb82fb50fb1efb"
+    },
+    {
+      "cpuStart": "E96E",
+      "fileOffset": "03E97E",
+      "bytes": "a64abc4402b95174a8a9002029d2a64abcb5e9a202bd4c0299300488ca10f6a64abcb7e9b5ae484a4a4aaaf009a938993004c8cad0f7682907093099300460"
+    },
+    {
+      "cpuStart": "D0F1",
+      "fileOffset": "03D101",
+      "bytes": "c900f00d85002002d138e500b0fc650060a5d045d1290218f0013866d066d166d218a5d069476a6a45d165d285d160"
+    }
+  ]
+}
