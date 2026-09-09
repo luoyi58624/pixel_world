@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'support/recruitment_fixture.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
@@ -16,15 +18,18 @@ class _Pick implements math.Random {
   double nextDouble() => 0;
 }
 
-CampaignState _campaign({int gold = 500, _Pick? random}) =>
-    CampaignState.fromRom(
-      decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-      decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-      startingGold: gold,
-      aiEnabled: false,
-      economyRandom: _Pick(),
-      recruitmentRandom: random ?? _Pick(),
-    );
+CampaignState _campaign({int gold = 500, _Pick? random}) {
+  final campaign = CampaignState.fromRom(
+    decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    startingGold: gold,
+    aiEnabled: false,
+    economyRandom: _Pick(),
+    recruitmentRandom: random ?? _Pick(),
+  );
+  prepareRecruitmentCity(campaign, 0);
+  return campaign;
+}
 
 void main() {
   for (final attempt in [1, 2, 3]) {

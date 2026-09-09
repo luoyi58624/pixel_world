@@ -4,7 +4,7 @@ part of 'campaign.dart';
 extension _CountryAutonomy on CampaignState {
   bool _runCountryDecisions() {
     if (defeated) return false;
-    var changed = false;
+    var changed = _resumeSuppliedAiArmies();
     // 每轮打乱城池次序，避免共享英雄池总被编号较小的国家先抽空。
     final order =
         world.cities.where((city) => !cities[city.id]!.isPlayer).toList()
@@ -13,6 +13,7 @@ extension _CountryAutonomy on CampaignState {
       final state = cities[city.id]!;
       final countryId = state.ownerCountryId;
       if (battles[city.id]?.isActive == true) continue;
+      changed = _sendAiArmies(city, countryId) || changed;
       final pending = recruitmentOfferFor(countryId);
       if (pending != null) {
         // 热重载时兼容旧版本遗留的待签约结果，钱不够便释放锁定。
@@ -23,7 +24,16 @@ extension _CountryAutonomy on CampaignState {
       }
       if (recruitmentOfferFor(countryId) == null) {
         changed = _supplyAiCity(city.id, countryId) || changed;
-        final offer = drawHero(city.id, countryId: countryId);
+        final signingBudget = _heroPool.isEmpty
+            ? 0
+            : _heroPool.values.map(_signingFee).reduce(math.max);
+        final offer =
+            goldFor(countryId) >=
+                GameConfig.heroDrawCost +
+                    signingBudget +
+                    GameConfig.countryAiSupplyReserve
+            ? drawHero(city.id, countryId: countryId)
+            : null;
         if (offer != null) {
           changed = true;
           changed = _supplyAiCity(city.id, countryId) || changed;
@@ -37,7 +47,15 @@ extension _CountryAutonomy on CampaignState {
                 )
                 .toList()
               ..sort((a, b) => b.politics.compareTo(a.politics));
-        if (recruitmentOfferFor(countryId) == null && governors.isNotEmpty) {
+        if (recruitmentOfferFor(countryId) == null &&
+            governors.isNotEmpty &&
+            goldFor(countryId) -
+                    upgradeCostFor(
+                      city.id,
+                      governors.first,
+                      countryId: countryId,
+                    )! >=
+                GameConfig.countryAiSupplyReserve) {
           changed =
               upgradeCity(
                 city.id,
@@ -54,13 +72,17 @@ extension _CountryAutonomy on CampaignState {
 
   bool _supplyAiCity(int cityId, int countryId) {
     // 驻军共用库存，不提前把士兵分给每位将领；真正离城或迎战时才领取。
-    final reserves = maxSoldierPurchase(cityId, countryId: countryId);
+    final reserves = math.min(
+      maxSoldierPurchase(cityId, countryId: countryId),
+      math.max(0, goldFor(countryId) - GameConfig.countryAiSupplyReserve) ~/
+          GameConfig.soldierRecruitCost,
+    );
     return reserves > 0 && buySoldiers(cityId, reserves, countryId: countryId);
   }
 
   bool _sendAiArmies(CityDefinition source, int countryId) {
     var changed = false;
-    final keep = math.max(0, configFor(countryId).garrisonHeroes);
+    final keep = cities[source.id]!.requiredGarrison;
     while (garrisonAt(source.id).where((hero) => hero.health.alive).length >
         keep) {
       final candidates =
@@ -87,6 +109,32 @@ extension _CountryAutonomy on CampaignState {
       if (dispatch(hero, target, countryId: countryId) == null) break;
       _record(
         '${world.countryName(countryId)}国派出${hero.name}进攻${target.label}',
+      );
+      changed = true;
+    }
+    return changed;
+  }
+
+  // 玩家断粮后自主下令；电脑恢复资金后在下一次决策重新选择进攻目标。
+  bool _resumeSuppliedAiArmies() {
+    var changed = false;
+    for (final march in marches.values) {
+      if (march.hero.isPlayer ||
+          !march.supplyHalted ||
+          march.phase != MarchPhase.camped ||
+          goldFor(march.hero.countryId) == 0) {
+        continue;
+      }
+      final targets = world.cities
+          .where(
+            (city) => cities[city.id]!.ownerCountryId != march.hero.countryId,
+          )
+          .toList();
+      if (targets.isEmpty) continue;
+      final target = targets[_aiRandom.nextInt(targets.length)];
+      march.moveTo(
+        _contactPoint(march.position, cityBounds(target).center, target),
+        city: target,
       );
       changed = true;
     }

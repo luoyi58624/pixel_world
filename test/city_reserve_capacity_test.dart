@@ -104,6 +104,8 @@ void main() {
 
   test('预留和放弃不扩容，签约增加名额，阵亡后裁掉超额库存', () {
     final c = _campaign();
+    // 先让空兵将领离城，释放招募名额但不改变所属英雄贡献的储备容量。
+    c.dispatchTo(c.garrisonAt(0).last, const Offset(300, 40))!.camp();
     c.buySoldiers(0, 20);
     final declined = c.drawHero(0)!;
     expect(c.cities[0]!.reserveCapacity, 20);

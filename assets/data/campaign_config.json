@@ -5,98 +5,82 @@
     {
       "id": 0,
       "name": "阿尔马",
-      "initialGold": 50,
-      "garrisonHeroes": 1
+      "initialGold": 50
     },
     {
       "id": 1,
       "name": "奥尔梅",
-      "initialGold": 70,
-      "garrisonHeroes": 2
+      "initialGold": 70
     },
     {
       "id": 2,
       "name": "马易",
-      "initialGold": 60,
-      "garrisonHeroes": 1
+      "initialGold": 60
     },
     {
       "id": 3,
       "name": "鲍罗布",
-      "initialGold": 80,
-      "garrisonHeroes": 2
+      "initialGold": 80
     },
     {
       "id": 4,
       "name": "墨尔",
-      "initialGold": 45,
-      "garrisonHeroes": 1
+      "initialGold": 45
     },
     {
       "id": 5,
       "name": "托洛诺",
-      "initialGold": 55,
-      "garrisonHeroes": 1
+      "initialGold": 55
     },
     {
       "id": 6,
       "name": "列穆",
-      "initialGold": 40,
-      "garrisonHeroes": 1
+      "initialGold": 40
     },
     {
       "id": 7,
       "name": "迪麦",
-      "initialGold": 50,
-      "garrisonHeroes": 1
+      "initialGold": 50
     },
     {
       "id": 8,
       "name": "索朗",
-      "initialGold": 45,
-      "garrisonHeroes": 1
+      "initialGold": 45
     },
     {
       "id": 9,
       "name": "本塔",
-      "initialGold": 80,
-      "garrisonHeroes": 2
+      "initialGold": 80
     },
     {
       "id": 10,
       "name": "洛埃",
-      "initialGold": 65,
-      "garrisonHeroes": 1
+      "initialGold": 65
     },
     {
       "id": 11,
       "name": "贝尔",
-      "initialGold": 60,
-      "garrisonHeroes": 1
+      "initialGold": 60
     },
     {
       "id": 12,
       "name": "艾布林",
-      "initialGold": 40,
-      "garrisonHeroes": 1
+      "initialGold": 40
     },
     {
       "id": 13,
       "name": "格商尔",
-      "initialGold": 40,
-      "garrisonHeroes": 1
+      "initialGold": 40
     },
     {
       "id": 14,
       "name": "格林福",
-      "initialGold": 40,
-      "garrisonHeroes": 1
+      "initialGold": 40
     },
     {
       "id": 15,
       "name": "沃塔",
-      "initialGold": 40,
-      "garrisonHeroes": 1
+      "initialGold": 40
     }
   ],
   "worlds": [

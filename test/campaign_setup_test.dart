@@ -45,7 +45,7 @@ void main() {
       final c = CampaignState.fromRom(world, heroes(), aiEnabled: false);
       expect(c.gold, 50);
       expect(c.goldFor(1), 70);
-      expect(c.configFor(1).garrisonHeroes, 2);
+      expect(c.cities[1]!.requiredGarrison, c.cities[1]!.initialLevel - 1);
       expect(c.cities[0]!.baseIncome, 10);
       expect(c.cities[1]!.baseIncome, 20);
       for (final item in world.cities) {
@@ -66,7 +66,6 @@ void main() {
   test('修改JSON改变开局、建筑和实际月结，切图独立，重新开始仍用当前配置', () {
     final data = configJson();
     data['countries'][0]['initialGold'] = 123;
-    data['countries'][0]['garrisonHeroes'] = 3;
     city(data).addAll({
       'baseIncome': 27,
       'initialLevel': 3,
@@ -129,9 +128,7 @@ void main() {
       world,
       heroes(),
       aiEnabled: false,
-      countryConfigs: {
-        0: const CountryConfig(initialGold: 88, garrisonHeroes: 2),
-      },
+      countryConfigs: {0: const CountryConfig(initialGold: 88)},
     );
     expect(override.gold, 88);
     expect(override.goldFor(1), 70);

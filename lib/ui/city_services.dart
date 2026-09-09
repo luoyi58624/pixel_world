@@ -56,7 +56,7 @@ class CityServices extends StatelessWidget {
               Expanded(
                 child: _card(
                   key: 'city-upgrade',
-                  title: '城防',
+                  title: '城防等级',
                   value: '${city.level} 级',
                   action: (cost ?? city.baseUpgradeCost) == null
                       ? '—'
@@ -253,8 +253,11 @@ class CityServices extends StatelessWidget {
             Expanded(
               child: FilledButton(
                 key: const ValueKey('sign-recruit'),
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                onPressed: controller.campaign.gold >= offer.signingFee
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  disabledForegroundColor: _muted,
+                ),
+                onPressed: controller.campaign.canSignHero(offer)
                     ? () => onAction(() => controller.signRecruitment(offer))
                     : null,
                 child: Text(
@@ -266,7 +269,12 @@ class CityServices extends StatelessWidget {
             ),
           ],
         ),
-        if (controller.campaign.gold < offer.signingFee)
+        if (controller.campaign.recruitmentFull(offer.cityId))
+          const Text(
+            '驻城英雄已满，升级或派出英雄后可签约。',
+            style: TextStyle(color: _muted, fontSize: 11),
+          )
+        else if (controller.campaign.gold < offer.signingFee)
           const Text(
             '签约费不足，可保留结果等待下月。',
             style: TextStyle(color: _muted, fontSize: 11),

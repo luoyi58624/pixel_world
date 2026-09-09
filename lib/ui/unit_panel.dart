@@ -98,7 +98,10 @@ class UnitPanel extends StatelessWidget {
     final unit = c.selectedUnit;
     final status = switch (unit?.phase) {
       MarchPhase.marching => '行军中',
-      MarchPhase.camped => '扎营中',
+      MarchPhase.camped =>
+        unit!.supplyHalted && c.campaign.goldFor(hero.countryId) == 0
+            ? '断粮扎营'
+            : '扎营中',
       MarchPhase.awaitingBattle => '城下待战',
       MarchPhase.fighting => '交战中',
       MarchPhase.dueling => '野战中',

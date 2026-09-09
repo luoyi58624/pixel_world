@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'support/recruitment_fixture.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +69,38 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('满员招募变灰，出城启用，签约前回城再次禁用但保留抽取结果', (tester) async {
+    final c = await _load(tester, const Size(375, 812), _RandomValue());
+    final draw = find.byKey(const ValueKey('draw-hero'));
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+    final departures = <HeroMarch>[];
+    for (final hero in c.campaign.garrisonAt(0).skip(1).toList()) {
+      departures.add(c.campaign.dispatch(hero, c.world.cities[1])!);
+      c.campaign.camp(hero.id);
+    }
+    c.refreshUi();
+    await tester.pump();
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
+    await _tap(tester, 'draw-hero');
+    final sign = find.byKey(const ValueKey('sign-recruit'));
+    expect(tester.widget<FilledButton>(sign).onPressed, isNotNull);
+    final offer = c.campaign.recruitmentOffer;
+    final returning = departures.first;
+    c.campaign.moveTo(
+      returning.hero.id,
+      c.campaign.cityBounds(c.world.cities.first).center,
+    );
+    returning.position = returning.destination;
+    c.tick(0.02);
+    await tester.pump();
+    expect(c.campaign.garrisonAt(0).length, 2);
+    expect(c.campaign.recruitmentOffer, same(offer));
+    expect(tester.widget<FilledButton>(sign).onPressed, isNull);
+    expect(find.text('驻城英雄已满，升级或派出英雄后可签约。'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final size in [
     const Size(320, 720),
     const Size(375, 812),
@@ -189,7 +223,7 @@ void main() {
     for (final label in ['王牌', '召唤蛋', '最近记录', '守城部队']) {
       expect(find.text(label), findsNothing);
     }
-    expect(find.text('城防'), findsOneWidget);
+    expect(find.text('城防等级'), findsOneWidget);
     final cards = [
       'city-upgrade',
       'buy-reserves',
@@ -263,7 +297,8 @@ void main() {
     expect(c.campaign.gold, 40);
     expect(find.text('已满'), findsOneWidget);
     await tester.pump(const Duration(seconds: 60));
-    expect(find.text('1年2月 · 金币 46'), findsOneWidget);
+    // 一位将领扎营满一分钟，额外支付三金币粮草。
+    expect(find.text('1年2月 · 金币 43'), findsOneWidget);
     expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -280,6 +315,8 @@ void main() {
     c.campaign.upgradeCity(0, hero: hero);
     c.campaign.upgradeCity(0, hero: hero);
     expect(c.campaign.gold, 10);
+    c.refreshUi();
+    await tester.pump();
     // 花五金币抽英雄，余额不足十人时自动显示五人。
     await _tap(tester, 'draw-hero');
     expect(c.campaign.gold, 5);
@@ -305,6 +342,9 @@ void main() {
 
   testWidgets('放弃后可继续抽满三次，关面板不重置，下月自动恢复', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
+    prepareRecruitmentCity(c.campaign, 0);
+    c.refreshUi();
+    await tester.pump();
     for (var attempt = 0; attempt < 3; attempt++) {
       await _tap(tester, 'draw-hero');
       await _tap(tester, 'decline-recruit');
@@ -392,18 +432,8 @@ void main() {
     final march = c.campaign.dispatch(hero, target, countryId: hero.countryId)!;
     c.openUnit(hero.id);
     await tester.pump();
-    expect(
-      tester
-          .widget<OutlinedButton>(find.byKey(const ValueKey('unit-move')))
-          .onPressed,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<OutlinedButton>(find.byKey(const ValueKey('unit-camp')))
-          .onPressed,
-      isNull,
-    );
+    expect(find.byKey(const ValueKey('unit-move')), findsNothing);
+    expect(find.byKey(const ValueKey('unit-camp')), findsNothing);
     march.position = march.destination;
     c.tick(0.02);
     final battle = c.campaign.battles[target.id]!;
@@ -430,6 +460,7 @@ void main() {
         type == HeroType.normal ? const Size(375, 812) : const Size(1280, 720),
         random,
       );
+      prepareRecruitmentCity(c.campaign, 0);
       if (!c.campaign.recruitPool.any((hero) => hero.type == type)) {
         final available = c.campaign.heroes.firstWhere(
           (hero) => hero.type == type,

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'support/recruitment_fixture.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
@@ -31,7 +33,7 @@ final _configuredCountries = CampaignSetup.decode(
 
 Map<int, CountryConfig> _quietCountries() => {
   for (var id = 0; id < 16; id++)
-    id: CountryConfig(initialGold: id == 0 ? 50 : 0, garrisonHeroes: 99),
+    id: CountryConfig(initialGold: id == 0 ? 50 : 0),
 };
 
 CampaignState _campaign({
@@ -96,13 +98,11 @@ void main() {
         city.unitIds.toSet(),
       );
     }
-    final overrides = {
-      1: const CountryConfig(initialGold: 123, garrisonHeroes: 3),
-    };
+    final overrides = {1: const CountryConfig(initialGold: 123)};
     final custom = _campaign(countries: overrides);
     overrides.clear();
     expect(custom.goldFor(1), 123);
-    expect(custom.configFor(1).garrisonHeroes, 3);
+    expect(custom.cities[1]!.requiredGarrison, 1);
     expect(custom.gold, 50);
   });
 
@@ -130,6 +130,8 @@ void main() {
 
   test('每城每月最多三次，放弃和易主不返次数，不同城市独立计算', () {
     final c = _campaign(gold: 100);
+    prepareRecruitmentCity(c, 0);
+    prepareRecruitmentCity(c, 1);
     for (var i = 0; i < 3; i++) {
       final offer = c.drawHero(0)!;
       expect(c.remainingHeroDraws(0), 2 - i);
@@ -157,6 +159,8 @@ void main() {
 
   test('玩家预留不被其他国家抽到，NPC抽取后立即签约且不能重复领取', () {
     final c = _campaign(gold: 100);
+    prepareRecruitmentCity(c, 0);
+    prepareRecruitmentCity(c, 1);
     final player = c.drawHero(0)!;
     final foreign = c.drawHero(1, countryId: 1)!;
     expect(player.hero.id, isNot(foreign.hero.id));
@@ -183,8 +187,11 @@ void main() {
 
   test('唯一候选被玩家锁定后所有国家都抽不到，放弃后可被NPC立即签走', () {
     final c = _campaign(gold: 10000);
+    prepareRecruitmentCity(c, 0);
+    prepareRecruitmentCity(c, 1);
     while (c.recruitPool.length > 1) {
-      c.signHero(c.drawHero(0)!);
+      final hero = c.signHero(c.drawHero(0)!)!;
+      c.dispatchTo(hero, const Offset(8, 8))!.camp();
       c.advance(60);
     }
     final reserved = c.drawHero(0)!;
@@ -212,6 +219,8 @@ void main() {
 
   test('NPC先备足抽取和可能的签约费用，钱不够不锁人、不扣钱、不占月次数', () {
     final c = _campaign(gold: 14);
+    prepareRecruitmentCity(c, 0);
+    prepareRecruitmentCity(c, 1);
     expect(c.recruitPool.any((hero) => hero.type == HeroType.advanced), isTrue);
     final before = c.recruitPool.map((hero) => hero.id).toList();
     expect(c.drawHero(1, countryId: 1), isNull);
@@ -229,6 +238,8 @@ void main() {
     for (final type in [HeroType.advanced, HeroType.normal]) {
       final pick = _Pick();
       final c = _campaign(gold: 15, recruit: pick);
+      prepareRecruitmentCity(c, 0);
+      prepareRecruitmentCity(c, 1);
       pick.value = c.recruitPool.indexWhere((hero) => hero.type == type);
       expect(pick.value, greaterThanOrEqualTo(0));
       final offer = c.drawHero(1, countryId: 1)!;
@@ -249,6 +260,8 @@ void main() {
 
   test('签约跨月保留原结果，实际签约月份停止抽取，下一月恢复', () {
     final c = _campaign(gold: 4);
+    prepareRecruitmentCity(c, 0);
+    prepareRecruitmentCity(c, 1);
     expect(c.drawHero(0), isNull);
     expect(c.remainingHeroDraws(0), 3);
     c.advance(60);
@@ -266,7 +279,7 @@ void main() {
 
   test('决策按固定时钟启动，派最强者随机攻打其他国家，每城留足人数', () {
     final countries = _quietCountries()
-      ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 2);
+      ..[1] = const CountryConfig(initialGold: 1);
     final c = _campaign(ai: true, countries: countries, stocks: {1: 4});
     final initial = c.garrisonAt(1).toList()..sort(_strength);
     c.advance(GameConfig.countryAiInitialDelay - 0.01);
@@ -285,9 +298,14 @@ void main() {
 
   test('新招将领配兵后由最强者出击，经营升级和兵员都真实扣款', () {
     final countries = _quietCountries()
-      ..[1] = const CountryConfig(initialGold: 150, garrisonHeroes: 3);
+      ..[1] = const CountryConfig(initialGold: 150);
     final pick = _Pick();
-    final c = _campaign(ai: true, countries: countries, recruit: pick);
+    final c = _campaign(
+      ai: true,
+      countries: countries,
+      recruit: pick,
+      stocks: {1: 8},
+    );
     final previous = c.garrisonAt(1).toList()..sort(_strength);
     final weakest = c.recruitPool.toList()
       ..sort((a, b) => a.combat.compareTo(b.combat));
@@ -299,8 +317,8 @@ void main() {
     expect(newHero.countryId, 1);
     expect(newHero.soldiers, 0);
     final ranked = [...previous, newHero]..sort(_strength);
-    expect(c.marches.values.single.hero, same(ranked.first));
-    expect(c.garrisonAt(1).length, 3);
+    expect(c.marches.values.map((march) => march.hero), contains(ranked.first));
+    expect(c.garrisonAt(1).length, 1);
     expect(c.cities[1]!.level, 3);
     expect(c.remainingHeroDraws(1), 0);
     expect(c.goldFor(1), lessThan(150 - GameConfig.heroDrawCost));
@@ -313,7 +331,7 @@ void main() {
 
   test('部队未配足兵或留守不足时不出征，电脑经营不会偷用玩家金币', () {
     final countries = _quietCountries()
-      ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 1);
+      ..[1] = const CountryConfig(initialGold: 0);
     final c = _campaign(ai: true, countries: countries);
     for (final hero in c.garrisonAt(1)) {
       for (final soldier in hero.squad) {
@@ -331,8 +349,7 @@ void main() {
     final c = _campaign(
       ai: true,
       stocks: {1: 4},
-      countries: _quietCountries()
-        ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 1),
+      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
     );
     c.cities[4]!.ownerCountryId = 1;
     final stationed = c.garrisonAt(1);
@@ -350,8 +367,7 @@ void main() {
         ai: true,
         stocks: {1: 4},
         random: math.Random(seed),
-        countries: _quietCountries()
-          ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 2),
+        countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
       );
       c.advance(8);
       choices.add(c.marches.values.single.target!.id);
@@ -414,11 +430,10 @@ void main() {
     expect(c.battles[2]!.defender.countryId, 2);
   });
 
-  test('一级城按留守配置派兵，留守为零允许全部将领出征', () {
+  test('一级开局留守为零，允许全部将领出征', () {
     final c = _campaign(
       ai: true,
-      countries: _quietCountries()
-        ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 0),
+      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
     );
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;

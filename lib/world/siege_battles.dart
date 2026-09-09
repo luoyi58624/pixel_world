@@ -132,6 +132,15 @@ extension _CitySieges on CampaignState {
       return;
     }
     _captureCity(battle.city.id, battle.attacker.countryId);
-    _station(march);
+    if (march.supplyHalted || goldFor(march.hero.countryId) == 0) {
+      _endBattle(march, '${march.hero.name}攻下${battle.city.label}，断粮扎营');
+      final source = march.hero.cityId;
+      march.hero.cityId = battle.city.id;
+      march.hero.hp = march.hero.maxHp;
+      cities[source]!._trimReserves();
+      _campForSupply(march);
+    } else {
+      _station(march);
+    }
   }
 }

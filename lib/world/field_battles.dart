@@ -165,6 +165,10 @@ extension _FieldEncounters on CampaignState {
   void _resumeFieldArmy(CampaignHero hero, {required bool wasCamped}) {
     final march = marches[hero.id];
     if (march == null || !hero.health.alive) return;
+    if (march.supplyHalted || goldFor(hero.countryId) == 0) {
+      _campForSupply(march);
+      return;
+    }
     if (wasCamped) {
       march.camp();
       return;

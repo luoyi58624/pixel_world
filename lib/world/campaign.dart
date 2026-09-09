@@ -16,6 +16,7 @@ import 'field_terrain.dart';
 part 'country_ai.dart';
 part 'field_battles.dart';
 part 'siege_battles.dart';
+part 'field_supplies.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -24,7 +25,7 @@ class CitySituation {
     required this._ownerCountryId,
     required this.defense,
     required this.baseIncome,
-    required int initialLevel,
+    required this.initialLevel,
     int initialReserveSoldiers = GameConfig.initialCityReserves,
     this._countOwnedHeroes,
   }) : _level = initialLevel {
@@ -66,6 +67,17 @@ class CitySituation {
 
   /// 当前等级，始终处于 1 到 5。
   int get level => _level;
+
+  /// 开局配置等级，升级、降级和易主均不改变电脑留守基准。
+  final int initialLevel;
+
+  /// 自动出征后本城至少保留的将领数，一级城允许全部出征。
+  int get requiredGarrison => math.max(0, initialLevel - 1);
+
+  /// 驻军达到此人数后禁止招募，回城和开局超员均不受限制。
+  int get recruitCapacity =>
+      GameConfig.cityRecruitCapacityBase +
+      (level - 1) * GameConfig.cityRecruitCapacityPerLevel;
 
   /// 月收入随等级线性增长。
   int get income => baseIncome + (level - 1) * GameConfig.cityIncomePerLevel;
@@ -185,6 +197,9 @@ class CampaignHero {
   /// 出征或当前守城战携带的小兵，空闲驻城时兵员归入城市。
   final List<BattleHealth> squad;
 
+  // 未满一金币的粮草累计保留在英雄身上，进城或改令不能抹去已用粮草。
+  double _supplyDue = 0;
+
   /// 当前存活的随行士兵数量。
   int get soldiers => squad.where((soldier) => soldier.alive).length;
 
@@ -251,6 +266,10 @@ class HeroMarch {
   /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
 
+  /// 断粮而停止行军，交战时表示本场结束后必须扎营。
+  bool get supplyHalted => _supplyHalted;
+  bool _supplyHalted = false;
+
   // 抵达城下后持有顺序号；暂时转入野战不丢失原来的等候顺序。
   ({int cityId, int order})? _siegeArrival;
 
@@ -260,6 +279,7 @@ class HeroMarch {
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(Offset point, {CityDefinition? city}) {
+    _supplyHalted = false;
     if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
     target = city;
@@ -480,7 +500,7 @@ class CampaignState {
   final Map<int, RecruitmentOffer> _recruitmentOffers = {};
   double _aiUntilDecision = GameConfig.countryAiInitialDelay;
 
-  /// 读取国家的资金和留守策略。
+  /// 读取国家的初始资金配置。
   CountryConfig configFor(int countryId) =>
       countryConfigs[countryId] ?? const CountryConfig();
 
@@ -896,6 +916,7 @@ class CampaignState {
   String? recruitmentBlockReason(int cityId, {int countryId = 0}) {
     if (defeated) return '游戏已结束';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
+    if (recruitmentFull(cityId)) return '驻城英雄已满，升级或派出英雄后可招募';
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
     if (cities[cityId]!._recruitmentSignedMonth == settledMonths) {
       return '本城本月已签约，下月可再次招募';
@@ -948,15 +969,26 @@ class CampaignState {
     return offer;
   }
 
-  /// 按预留费用从所属国库签约，旧按钮和其他国家不能领取该英雄。
+  /// 检查签约归属、驻军名额和费用，供界面与实际签约共用。
+  bool canSignHero(RecruitmentOffer offer, {int countryId = 0}) =>
+      !defeated &&
+      offer.countryId == countryId &&
+      identical(_recruitmentOffers[countryId], offer) &&
+      cities[offer.cityId]?.ownerCountryId == countryId &&
+      !recruitmentFull(offer.cityId) &&
+      cities[offer.cityId]!._recruitmentSignedMonth != settledMonths &&
+      goldFor(countryId) >= offer.signingFee &&
+      !heroes.any((hero) => hero.sourceId == offer.hero.id);
+
+  /// 招募只受当前驻军人数限制，在外将领不占名额。
+  bool recruitmentFull(int cityId) =>
+      cities[cityId] == null ||
+      garrisonAt(cityId).where((hero) => hero.health.alive).length >=
+          cities[cityId]!.recruitCapacity;
+
+  /// 签约时重新验证容量，抽取后回城超员仍保留锁定结果，允许稍后处理。
   CampaignHero? signHero(RecruitmentOffer offer, {int countryId = 0}) {
-    if (defeated ||
-        offer.countryId != countryId ||
-        !identical(_recruitmentOffers[countryId], offer) ||
-        cities[offer.cityId]?.ownerCountryId != countryId ||
-        cities[offer.cityId]!._recruitmentSignedMonth == settledMonths ||
-        goldFor(countryId) < offer.signingFee ||
-        heroes.any((hero) => hero.sourceId == offer.hero.id)) {
+    if (!canSignHero(offer, countryId: countryId)) {
       return null;
     }
     _countryGold[countryId] = goldFor(countryId) - offer.signingFee;
@@ -1056,6 +1088,7 @@ class CampaignState {
       return '英雄不在本国城池中';
     }
     if (marches.containsKey(hero.id)) return '这位英雄已经出征';
+    if (goldFor(countryId) == 0) return '金币不足，无法支付出征粮草';
     if (battles.values.any(
       (battle) => battle.isActive && battle.defender == hero,
     )) {
@@ -1172,7 +1205,7 @@ class CampaignState {
 
   /// 为已出征的我方英雄重新指定目的地。
   bool moveTo(String heroId, Offset point) {
-    if (defeated) return false;
+    if (defeated || gold == 0) return false;
     final march = marches[heroId];
     if (march?.phase == MarchPhase.dueling) return false;
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
@@ -1399,6 +1432,7 @@ class CampaignState {
     const dt = BattleSimulation.fixedStep;
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
+      changed = _advanceSupplies(dt) || changed;
       final previousPositions = {
         for (final march in marches.values) march.hero.id: march.position,
       };
@@ -1459,6 +1493,7 @@ class CampaignState {
           changed = _runCountryDecisions() || changed;
         }
       }
+      changed = _haltUnfundedArmies() || changed;
     }
     return changed;
   }
@@ -1532,7 +1567,13 @@ class CampaignState {
         !garrisonAt(battle.city.id).any((hero) => hero.health.alive)) {
       _finishOccupation(battle);
     } else {
-      battle.nextWaveIn = 1.2;
+      final march = marches[attacker.id];
+      if (march != null && march.supplyHalted) {
+        _endBattle(march, '${attacker.name}粮草耗尽，停止进攻');
+        _campForSupply(march);
+      } else {
+        battle.nextWaveIn = 1.2;
+      }
     }
   }
 

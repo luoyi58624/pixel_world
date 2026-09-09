@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'support/recruitment_fixture.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
@@ -151,6 +153,7 @@ void main() {
     }
     final first = _campaign(economy: math.Random(6));
     final second = _campaign(economy: math.Random(6));
+    prepareRecruitmentCity(first, 0);
     final offer = first.drawHero(0)!;
     first.declineHero(offer);
     first.advance(60);
@@ -211,6 +214,7 @@ void main() {
   test('池中没有在场英雄和主角，普通将领抽取扣5但签约免费且不赠兵', () {
     final random = _RandomValue();
     final c = _campaign(recruitment: random);
+    prepareRecruitmentCity(c, 0);
     final active = c.heroes.map((hero) => hero.sourceId).toSet();
     expect(
       c.recruitPool.any(
@@ -237,6 +241,7 @@ void main() {
   test('高级将领额外扣10签约，放弃不退抽取费并归还池子', () {
     final random = _RandomValue();
     final c = _campaign(recruitment: random);
+    prepareRecruitmentCity(c, 0);
     _choose(c, random, HeroType.advanced);
     final offer = c.drawHero(0)!;
     expect(offer.signingFee, 10);
@@ -259,6 +264,7 @@ void main() {
   test('签约费不足时保留结果等待月结，不能绕过费用生成英雄', () {
     final random = _RandomValue();
     final c = _campaign(gold: 5, recruitment: random);
+    prepareRecruitmentCity(c, 0);
     _choose(c, random, HeroType.advanced);
     final offer = c.drawHero(0)!;
     expect(c.gold, 0);
@@ -290,9 +296,11 @@ void main() {
 
   test('抽取城池易主退回待签约英雄，旧签约按钮失效，主角不能回池', () {
     final c = _campaign();
+    prepareRecruitmentCity(c, 0);
     c.cities[2]!.ownerCountryId = 0;
     _hero(c, 40).cityId = 2;
     final offer = c.drawHero(0)!;
+    prepareRecruitmentCity(c, 0, level: 1);
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
     expect(c.recruitmentOffer, isNull);
     expect(c.recruitPool.any((hero) => hero.id == offer.hero.id), isTrue);
@@ -308,8 +316,11 @@ void main() {
     expect(poor.drawHero(0), isNull);
     expect(poor.gold, 4);
     final c = _campaign(gold: 10000);
+    prepareRecruitmentCity(c, 0);
     while (c.recruitPool.isNotEmpty) {
-      c.signHero(c.drawHero(0)!);
+      final hero = c.signHero(c.drawHero(0)!)!;
+      // 招募池测试将新将领送到野外，释放下一次招募的驻城名额。
+      c.dispatchTo(hero, const Offset(8, 8))!.camp();
       c.advance(60);
     }
     final before = c.gold;

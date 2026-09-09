@@ -97,6 +97,7 @@ class WorldController extends ChangeNotifier {
   /// 角色可以接收行军指令，已经在外的部队允许中途改道。
   bool get canMoveSelected =>
       !campaign.defeated &&
+      campaign.gold > 0 &&
       selectedMapHero?.isPlayer == true &&
       selectedUnit != null &&
       selectedUnit!.phase != MarchPhase.dueling;

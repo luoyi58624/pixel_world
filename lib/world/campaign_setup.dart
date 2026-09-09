@@ -27,7 +27,7 @@ class CampaignSetup {
   /// 未附带玩法配置的简化地图使用规则默认值。
   static const empty = CampaignSetup._({}, {}, {});
 
-  /// 各国的初始国库和 AI 留守策略，多座城共用国家国库。
+  /// 各国的初始国库，多座城共用国家国库。
   final Map<int, CountryConfig> countries;
 
   /// 使用地图编号与城池编号共同定位，避免三张地图串用等级。
@@ -51,12 +51,11 @@ class CampaignSetup {
     for (var i = 0; i < countryRows.length; i++) {
       final path = 'countries[$i]';
       final row = _object(countryRows[i], path);
-      _keys(row, {'id', 'name', 'initialGold', 'garrisonHeroes'}, path);
+      _keys(row, {'id', 'name', 'initialGold'}, path);
       final id = _integer(row, 'id', path, max: 15);
       if (countries.containsKey(id)) throw FormatException('$path：国家编号 $id 重复');
       countries[id] = CountryConfig(
         initialGold: _integer(row, 'initialGold', path),
-        garrisonHeroes: _integer(row, 'garrisonHeroes', path),
       );
     }
     final worldRows = _list(root['worlds'], 'worlds');

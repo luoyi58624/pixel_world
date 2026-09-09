@@ -27,6 +27,21 @@ abstract final class GameConfig {
   /// 每城每月最多抽三次，放弃消耗次数，签约成功后当月停止招募。
   static const heroDrawsPerCityPerMonth = 3;
 
+  /// 一级城的招募人数门槛，只统计驻城英雄，不限制进城与开局名单。
+  static const cityRecruitCapacityBase = 2;
+
+  /// 每次升级增加的招募名额。
+  static const cityRecruitCapacityPerLevel = 1;
+
+  /// 每位在外将领支付一金币粮草所需的行军或交战秒数。
+  static const fieldSupplySecondsPerGold = 10.0;
+
+  /// 扎营的粮草消耗倍率，一半消耗即二十秒一金币。
+  static const campSupplyRate = 0.5;
+
+  /// 电脑经营至少保留一金币，避免征兵花光国库而无法出征。
+  static const countryAiSupplyReserve = 1;
+
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;
 
@@ -152,18 +167,12 @@ abstract final class GameConfig {
   static const cityDamageChancePerVictory = 0.5;
 }
 
-/// 从玩法 JSON 读取的国家开局经济与自动出征策略。
+/// 从玩法 JSON 读取的国家开局经济。
 class CountryConfig {
-  /// 配置该国初始资金和每座城至少留下的将领人数。
-  const CountryConfig({
-    this.initialGold = GameConfig.initialGold,
-    this.garrisonHeroes = 1,
-  }) : assert(initialGold >= 0),
-       assert(garrisonHeroes >= 0);
+  /// 配置该国初始资金，留守人数由各城初始等级决定。
+  const CountryConfig({this.initialGold = GameConfig.initialGold})
+    : assert(initialGold >= 0);
 
   /// 国家初始金币，多座城共用同一个国库。
   final int initialGold;
-
-  /// 自动出征后每座城至少保留的存活将领数。
-  final int garrisonHeroes;
 }
