@@ -115,7 +115,6 @@ class CampaignHero {
            hp: slot < initialSoldiers ? BattleSimulation.soldierHp : 0,
          ),
        ),
-       hasEgg = definition.eggCapable,
        appearance = switch (definition.type) {
          HeroType.advanced => HeroAppearance.advanced,
          HeroType.normal => HeroAppearance.normal,
@@ -186,12 +185,6 @@ class CampaignHero {
     attack: combat,
     soldiers: squad,
   );
-
-  /// 开局没有王牌库存，召唤蛋不冒充王牌道具。
-  String get ace => '无';
-
-  /// 是否具备召唤蛋能力，召唤战斗尚未接入。
-  final bool hasEgg;
 }
 
 /// 部队从行军进入排队待战或交战。
@@ -756,6 +749,12 @@ class CampaignState {
     );
   }
 
+  /// 当前一次点击能征募的人数，不超过配置批量、容量和可支付人数。
+  int soldierPurchaseBatch(int cityId, {int countryId = 0}) => math.min(
+    GameConfig.soldierRecruitBatchSize,
+    maxSoldierPurchase(cityId, countryId: countryId),
+  );
+
   /// 购买城池储备兵员，一次操作统一验证并扣款，不接受超额或负数。
   bool buySoldiers(int cityId, int count, {int countryId = 0}) {
     if (count <= 0 ||
@@ -1057,7 +1056,7 @@ class CampaignState {
     return dispatchTo(hero, cityBounds(target).center, countryId: countryId);
   }
 
-  /// 确认任意地图位置后派兵，选城则在抵达后进驻或自动交战。
+  /// 确认有效目的地后自动从本城储备补兵并离城，选点取消和无效指令不扣兵。
   HeroMarch? dispatchTo(CampaignHero hero, Offset point, {int countryId = 0}) {
     if (!canDispatch(hero, countryId: countryId) || !_containsPoint(point)) {
       return null;
@@ -1065,6 +1064,7 @@ class CampaignState {
     final target = cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
     if (target == source) return null;
+    reinforceHero(hero, countryId: countryId);
     final start = _departurePoint(source, point);
     final end = target == null ? point : _contactPoint(start, point, target);
     final march = HeroMarch(

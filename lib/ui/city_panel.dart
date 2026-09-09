@@ -2,8 +2,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../game_config.dart';
-
 import '../world/campaign.dart';
 import '../world/rom_hero.dart';
 import '../world/world_assets.dart';
@@ -75,13 +73,30 @@ class CityPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    '${city.label}国',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: _cream,
-                    ),
+                  child: Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        '${city.label}国',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: _cream,
+                        ),
+                      ),
+                      Text(
+                        '金币 ${c.campaign.goldFor(situation.ownerCountryId)}',
+                        key: const ValueKey('city-treasury'),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: _gold,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [ui.FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -106,75 +121,33 @@ class CityPanel extends StatelessWidget {
     );
   }
 
-  Widget _cityStats(CitySituation situation) => _stats([
-    ('城防', '${situation.defense}'),
-    ('月收入', '${situation.income}'),
-    ('驻守士兵', '${controller.campaign.soldiersAt(controller.selectedCity!.id)}'),
-  ], columns: 3);
-
   Widget _information(CitySituation situation) {
-    final heroes = controller.campaign.garrisonAt(controller.selectedCity!.id);
+    final c = controller;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (controller.campaign.battles[controller.selectedCity!.id]
-            case final battle? when battle.isActive) ...[
+        if (c.campaign.battles[c.selectedCity!.id] case final battle?
+            when battle.isActive) ...[
           SizedBox(
             width: double.infinity,
             child: FilledButton.tonalIcon(
               key: const ValueKey('city-watch-battle'),
-              onPressed: () => onAction(() => controller.watchBattle(battle)),
+              onPressed: () => onAction(() => c.watchBattle(battle)),
               icon: const Icon(Icons.bolt, size: 18),
               label: const Text('正在交战 · 进入观战'),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
         _section('城池情况'),
-        const SizedBox(height: 12),
-        _cityStats(situation),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
+        CityServices(controller: c, assets: assets, onAction: onAction),
         if (situation.isPlayer) ...[
+          const SizedBox(height: 18),
           _heroSelection(),
-          const SizedBox(height: 20),
-          CityServices(
-            key: ValueKey('city-services-${controller.selectedCity!.id}'),
-            controller: controller,
-            assets: assets,
-            onAction: onAction,
-          ),
-          const SizedBox(height: 20),
-          _economy(situation),
-        ] else ...[
-          _economy(situation),
-          const SizedBox(height: 20),
-          _section('守城部队'),
-          const SizedBox(height: 10),
-          Text(
-            '守军 ${controller.campaign.soldiersAt(controller.selectedCity!.id)} 人',
-            style: const TextStyle(color: _cream, fontSize: 13),
-          ),
-          for (final hero in heroes)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  _portrait(hero, 36),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      hero.name,
-                      style: const TextStyle(color: _cream, fontSize: 14),
-                    ),
-                  ),
-                  Text(
-                    '${hero.type.label} · ${hero.health.label}/${hero.maxHp} HP',
-                    style: const TextStyle(color: _muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
         ],
+        const SizedBox(height: 18),
+        _economy(situation),
       ],
     );
   }
@@ -255,14 +228,16 @@ class CityPanel extends StatelessWidget {
             ('战斗', '${hero.combat}'),
             ('内政', '${hero.politics}'),
             ('月俸', '${hero.salary}'),
-          ], columns: 3),
-          const SizedBox(height: 10),
-          _stats([('士兵', '${hero.soldiers} 人'), ('王牌', hero.ace)], columns: 2),
-          const SizedBox(height: 10),
-          Text(
-            '召唤蛋：${hero.hasEgg ? '可使用' : '不可使用'}',
-            style: const TextStyle(fontSize: 11, color: _muted),
-          ),
+            ('士兵', '${hero.soldiers} / ${hero.squad.length}'),
+          ], columns: 4),
+          if (c.campaign.reinforcementCount(hero) > 0) ...[
+            const SizedBox(height: 8),
+            Text(
+              '出战自动补充 ${c.campaign.reinforcementCount(hero)} 人',
+              key: const ValueKey('hero-auto-reinforcement'),
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+          ],
           if (!c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -282,7 +257,7 @@ class CityPanel extends StatelessWidget {
       key: ValueKey('dispatch-hero-${hero.id}'),
       onPressed: () => onAction(() => controller.selectHero(hero.id)),
       style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         backgroundColor: selected
             ? const Color(0xff303b2b)
             : const Color(0xff0d150f),
@@ -292,8 +267,8 @@ class CityPanel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _portrait(hero, 24),
-          const SizedBox(width: 7),
+          _portrait(hero, 20),
+          const SizedBox(width: 5),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,7 +276,7 @@ class CityPanel extends StatelessWidget {
                 Text(
                   hero.name,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -328,96 +303,34 @@ class CityPanel extends StatelessWidget {
   Widget _economy(CitySituation situation) {
     final c = controller;
     final cityId = c.selectedCity!.id;
-    final hero = c.selectedHero;
-    final baseCost = situation.baseUpgradeCost;
-    final cost = c.campaign.upgradeCostFor(cityId, hero);
-    final upgradeProblem = c.campaign.upgradeBlockReason(cityId, hero);
     final report = c.campaign.lastSettlementFor(situation.ownerCountryId);
     return Column(
+      key: const ValueKey('city-economy'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _section('经济情况'),
+        Row(
+          children: [
+            _section('经济情况'),
+            const Spacer(),
+            Text(
+              c.campaign.dateLabel,
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
         _stats([
+          ('月收入', '${situation.income}'),
           ('本城月俸', '${c.campaign.salaryAt(cityId)}'),
-          ('正常收成净收入', '${situation.income - c.campaign.salaryAt(cityId)}'),
-        ], columns: 2),
-        const SizedBox(height: 10),
-        Text(
-          '国家金币 ${c.campaign.goldFor(situation.ownerCountryId)} · ${c.campaign.dateLabel}',
-          key: const ValueKey('city-treasury'),
-          style: const TextStyle(fontSize: 12, color: _cream),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '每 ${GameConfig.secondsPerMonth.toInt()} 秒进入下一月，按国家结算收成与月俸。',
-          style: const TextStyle(fontSize: 11, color: _muted),
-        ),
+          ('正常净收入', '${situation.income - c.campaign.salaryAt(cityId)}'),
+        ], columns: 3),
         if (report != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            '${report.year}年${report.month}月 · ${report.harvest.label}\n城池收入 ${report.baseIncome}，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -${report.salary}\n国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange} 金币',
-            key: const ValueKey('city-monthly-report'),
-            style: const TextStyle(fontSize: 11, height: 1.5, color: _cream),
-          ),
-        ],
-        if (situation.isPlayer) ...[
           const SizedBox(height: 10),
-          if (cost != null && hero != null) ...[
-            Text(
-              '${hero.name}主持 · 基础 $baseCost − 内政 ${hero.politics} · 实付 $cost 金币',
-              key: const ValueKey('city-upgrade-quote'),
-              style: const TextStyle(fontSize: 11, color: _cream),
-            ),
-            const SizedBox(height: 8),
-          ],
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              key: const ValueKey('city-upgrade'),
-              onPressed: upgradeProblem == null
-                  ? () => onAction(c.upgradeSelectedCity)
-                  : null,
-              icon: const Icon(Icons.upgrade, size: 18),
-              label: Text(
-                baseCost == null
-                    ? '已满级 · ${GameConfig.maxCityLevel} 级城市'
-                    : cost == null
-                    ? '选择将领升级至 ${situation.level + 1} 级'
-                    : '升级至 ${situation.level + 1} 级 · $cost 金币',
-              ),
-              style: _primaryStyle,
-            ),
+          Text(
+            '${report.year}年${report.month}月 · ${report.harvest.label}\n城池收入 ${report.baseIncome}，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 −${report.salary}\n国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange} 金币',
+            key: const ValueKey('city-monthly-report'),
+            style: const TextStyle(fontSize: 11, height: 1.5, color: _muted),
           ),
-          if (baseCost != null)
-            Text(
-              '升级后月收入 ${situation.income + GameConfig.cityIncomePerLevel} · 储备上限 ${situation.reserveCapacity + GameConfig.cityReserveCapacityPerLevel}',
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-          if (upgradeProblem != null && baseCost != null)
-            Text(
-              upgradeProblem,
-              key: const ValueKey('city-upgrade-blocked'),
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-        ],
-        const SizedBox(height: 10),
-        const Text(
-          '守将战败时城池降一级；一级城守城失败即失守，未出战英雄一并消失。进攻失败不降低出发城等级。',
-          style: TextStyle(fontSize: 11, height: 1.5, color: _muted),
-        ),
-        if (c.campaign.journal.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _section('最近记录'),
-          const SizedBox(height: 6),
-          for (final event in c.campaign.journal.reversed.take(3))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                event,
-                style: const TextStyle(fontSize: 11, color: _muted),
-              ),
-            ),
         ],
       ],
     );
@@ -478,40 +391,51 @@ class CityPanel extends StatelessWidget {
 
   Widget _stats(List<(String, String)> entries, {required int columns}) =>
       LayoutBuilder(
-        builder: (context, constraints) => Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final entry in entries)
-              Container(
-                key: ValueKey('city-stat-${entry.$1}'),
-                width: (constraints.maxWidth - (columns - 1) * 8) / columns,
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xff1e291e),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      entry.$1,
-                      style: const TextStyle(fontSize: 10, color: _muted),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      entry.$2,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: _cream,
-                        fontWeight: FontWeight.w500,
+        builder: (context, constraints) {
+          final count = columns;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in entries)
+                Container(
+                  key: ValueKey('city-stat-${entry.$1}'),
+                  width: (constraints.maxWidth - (count - 1) * 8) / count,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff1e291e),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.$1,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1.4,
+                          color: _muted,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 5),
+                      Text(
+                        entry.$2,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: _cream,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          );
+        },
       );
 
   ButtonStyle get _primaryStyle => FilledButton.styleFrom(

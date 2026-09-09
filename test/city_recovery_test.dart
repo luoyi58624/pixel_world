@@ -44,6 +44,9 @@ void main() {
         c.cityBounds(home).centerRight + const Offset(100, 0),
         countryId: country,
       )!;
+      expect(hero.soldiers, 4);
+      expect(c.cities[home.id]!.reserveSoldiers, reserves - 1);
+      hero.squad.last.hp = 0; // 模拟出城后损失，回城本身只治疗英雄。
       // NPC 与玩家使用同一到达处理，直接把最后一段路线落到本国城池边缘。
       march.moveTo(march.position, city: home);
       c.advance(0.02);
@@ -52,7 +55,7 @@ void main() {
       expect(hero.hp, hero.maxHp);
       expect(hero.squad.first.hp, 5);
       expect(hero.soldiers, 3);
-      expect(c.cities[home.id]!.reserveSoldiers, reserves);
+      expect(c.cities[home.id]!.reserveSoldiers, reserves - 1);
     });
   }
 
@@ -87,6 +90,7 @@ void main() {
     final hero = c.garrisonAt(0).first..hp = 7;
     hero.squad.first.hp = 0;
     final march = c.dispatch(hero, target)!;
+    hero.squad.first.hp = 0; // 自动补兵发生在离城，单独验证入城不刷新随行兵。
     march.position = march.destination;
     c.advance(0.02);
     expect(stock.ownerCountryId, 0);

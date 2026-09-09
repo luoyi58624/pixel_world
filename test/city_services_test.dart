@@ -56,40 +56,119 @@ Future<void> _tap(WidgetTester tester, String key) async {
   final finder = find.byKey(ValueKey(key));
   await tester.ensureVisible(finder);
   await tester.pump();
-  await tester.tap(finder);
+  if (key == 'draw-hero') {
+    await tester.tapAt(tester.getTopLeft(finder) + const Offset(14, 18));
+  } else {
+    await tester.tap(finder);
+  }
   await tester.pump();
 }
 
 void main() {
-  testWidgets('同一城池面板征兵并补充选中英雄，年月在面板打开时继续推进', (tester) async {
+  testWidgets('金币紧邻国名，整块征兵并在出击时自动补兵，面板不暂停月份', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
-    expect(c.campaign.gold, 50);
-    expect(find.text('1年1月 · 金币 50'), findsOneWidget);
     final hero = c.selectedHero!;
     hero.squad[0].hp = 0;
     hero.squad[1].hp = 0;
     c.refreshUi();
     await tester.pump();
-    expect(c.campaign.cities[0]!.reserveSoldiers, 10);
-    await _tap(tester, 'reinforce-hero');
-    expect(hero.soldiers, 4);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 8);
-    expect(c.campaign.gold, 50);
-    await _tap(tester, 'reserve-plus');
-    expect(find.text('征兵 2 人 · 2 金币'), findsOneWidget);
-    await _tap(tester, 'buy-reserves');
-    expect(c.campaign.cities[0]!.reserveSoldiers, 10);
-    expect(c.campaign.gold, 48);
+    final treasury = find.byKey(const ValueKey('city-treasury'));
+    expect(find.text('金币 50'), findsOneWidget);
+    expect(
+      tester.getCenter(treasury).dy,
+      closeTo(tester.getCenter(find.text('阿尔马国')).dy, 2),
+    );
+    expect(
+      tester.getTopLeft(treasury).dx,
+      greaterThan(tester.getBottomRight(find.text('阿尔马国')).dx),
+    );
+    for (final key in ['reinforce-hero', 'reserve-plus', 'reserve-minus']) {
+      expect(find.byKey(ValueKey(key)), findsNothing);
+    }
+    for (final label in ['王牌', '召唤蛋', '最近记录', '守城部队']) {
+      expect(find.text(label), findsNothing);
+    }
+    expect(find.text('城防'), findsOneWidget);
+    final cards = [
+      'city-upgrade',
+      'buy-reserves',
+      'draw-hero',
+    ].map((key) => tester.getRect(find.byKey(ValueKey(key)))).toList();
+    expect(cards[0].top, cards[1].top);
+    expect(cards[1].top, cards[2].top);
+    expect(cards[0].right, lessThan(cards[1].left));
+    expect(cards[1].right, lessThan(cards[2].left));
+    expect(
+      cards[0].height,
+      closeTo(
+        tester.getSize(find.byKey(const ValueKey('city-stat-战斗'))).height,
+        0.01,
+      ),
+    );
+    expect(find.text('回收池'), findsNothing);
+    expect(find.textContaining('内政 −'), findsNothing);
+    expect(find.text('招募英雄'), findsOneWidget);
     expect(
       tester
-          .widget<OutlinedButton>(find.byKey(const ValueKey('reinforce-hero')))
+          .widget<OutlinedButton>(find.byKey(const ValueKey('buy-reserves')))
           .onPressed,
       isNull,
     );
+    expect(hero.soldiers, 2);
+    await _tap(tester, 'dispatch-confirm');
+    expect(hero.soldiers, 2);
+    c.confirmTarget(c.world.cities[1]);
+    expect(hero.soldiers, 4);
+    expect(c.campaign.cities[0]!.reserveSoldiers, 8);
+    expect(c.campaign.gold, 50);
+    c.campaign.camp(hero.id);
+    c.openCity(c.world.cities[0]);
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('buy-reserves')),
+        matching: find.text('2金币'),
+      ),
+      findsOneWidget,
+    );
+    final card = find.byKey(const ValueKey('buy-reserves'));
+    await tester.ensureVisible(card);
+    await tester.tapAt(tester.getTopLeft(card) + const Offset(14, 18));
+    await tester.pump();
+    expect(c.campaign.cities[0]!.reserveSoldiers, 10);
+    expect(c.campaign.gold, 48);
     await tester.pump(const Duration(seconds: 60));
     expect(find.text('1年2月 · 金币 54'), findsOneWidget);
-    expect(find.byKey(const ValueKey('city-panel')), findsOneWidget);
     expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('征兵方块按当前金币显示能招募的人数', (tester) async {
+    final c = await _load(tester, const Size(375, 812), _RandomValue());
+    final hero = c.selectedHero!;
+    c.campaign.upgradeCity(0, hero: hero);
+    c.campaign.upgradeCity(0, hero: hero);
+    expect(c.campaign.gold, 10);
+    // 花五金币抽英雄，余额不足十人时自动显示五人。
+    await _tap(tester, 'draw-hero');
+    expect(c.campaign.gold, 5);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('buy-reserves')),
+        matching: find.text('5金币'),
+      ),
+      findsOneWidget,
+    );
+    await _tap(tester, 'buy-reserves');
+    expect(c.campaign.cities[0]!.reserveSoldiers, 15);
+    expect(c.campaign.gold, 0);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const ValueKey('buy-reserves')))
+          .onPressed,
+      isNull,
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -99,16 +178,36 @@ void main() {
     await _tap(tester, 'draw-hero');
     await _tap(tester, 'decline-recruit');
     final draw = find.byKey(const ValueKey('draw-hero'));
-    expect(tester.widget<FilledButton>(draw).onPressed, isNull);
-    expect(find.textContaining('本月可抽 0 次'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('city-recruit-quota')))
+          .style!
+          .color,
+      const Color(0xffa7b5a4),
+    );
+    expect(
+      find.descendant(of: draw, matching: find.text('5金币')),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('关闭城池信息'));
     await tester.pump();
     c.openCity(c.world.cities.first);
     await tester.pump();
-    expect(tester.widget<FilledButton>(draw).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
     await tester.pump(const Duration(seconds: 60));
-    expect(tester.widget<FilledButton>(draw).onPressed, isNotNull);
-    expect(find.textContaining('本月可抽 1 次'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('city-recruit-quota')))
+          .style!
+          .color,
+      const Color(0xffd6bd7c),
+    );
+    expect(
+      find.descendant(of: draw, matching: find.text('5金币')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -134,6 +233,13 @@ void main() {
       isTrue,
     );
     expect(c.campaign.garrisonAt(0), isNotEmpty);
+    // 自动经营已经验证；观战入口单独安排交战，避免其他随机行军抢先触发野战。
+    c.campaigns[0] = CampaignState.fromRom(
+      c.world,
+      painter.assets.heroCatalog,
+      aiEnabled: false,
+      defenderRandom: _RandomValue(),
+    );
     // 让一支仍可出征的非玩家部队抵达敌国，使用真实后台交战入口。
     final hero = c.campaign.heroes.firstWhere(
       (hero) =>

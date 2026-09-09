@@ -78,13 +78,16 @@ abstract final class GameConfig {
   /// 征募一个储备兵员的价格。
   static const soldierRecruitCost = 1;
 
+  /// 城池面板每次点击最多征募的人数，实际数量受储备容量和金币限制。
+  static const soldierRecruitBatchSize = 10;
+
   /// 每名英雄最多随行四兵，当前战场提供四个固定站位。
   static const heroSoldierLimit = 4;
 
   /// 原始驻城英雄的初始随行兵数。
   static const initialHeroSoldiers = 4;
 
-  /// 新签约英雄的初始随行兵数，默认需要从城池储备配兵。
+  /// 新签约英雄的初始随行兵数，正式离城时自动从城池储备补齐。
   static const recruitedHeroSoldiers = 0;
 
   /// 每次抽取英雄的费用，放弃签约不退还抽取费。

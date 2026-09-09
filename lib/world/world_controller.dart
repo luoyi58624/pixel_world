@@ -549,19 +549,11 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 购买当前城池的储备兵员，面板操作不暂停时间。
-  void buyCitySoldiers(int count) {
+  /// 按点击时的金币和剩余容量征募一批兵员，面板操作不暂停时间。
+  void buyCitySoldiers() {
     final city = selectedCity;
-    if (city != null && campaign.buySoldiers(city.id, count)) {
-      message = campaign.lastEvent;
-      refreshUi();
-    }
-  }
-
-  /// 从城池储备给当前选中的驻军补兵。
-  void reinforceSelectedHero() {
-    final hero = selectedHero;
-    if (hero != null && campaign.reinforceHero(hero) > 0) {
+    if (city != null &&
+        campaign.buySoldiers(city.id, campaign.soldierPurchaseBatch(city.id))) {
       message = campaign.lastEvent;
       refreshUi();
     }

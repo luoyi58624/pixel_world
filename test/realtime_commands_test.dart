@@ -285,7 +285,9 @@ void main() {
     expect(find.byKey(const ValueKey('unit-panel')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('unit-info')));
     await tester.pump();
-    expect(find.text('王牌'), findsOneWidget);
+    expect(find.text('王牌'), findsNothing);
+    expect(find.text('召唤蛋'), findsNothing);
+    expect(find.text('内政'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('unit-move')));
     await tester.pump();
     expect(c.choosingTarget, isTrue);

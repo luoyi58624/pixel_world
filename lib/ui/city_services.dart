@@ -4,6 +4,7 @@ import '../game_config.dart';
 import '../world/campaign.dart';
 import '../world/hero_sprite.dart';
 import '../world/rom_hero.dart';
+import '../world/recruitment.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 
@@ -11,9 +12,9 @@ const _cream = Color(0xffece7d1);
 const _gold = Color(0xffd6bd7c);
 const _muted = Color(0xffa7b5a4);
 
-/// 城池内的兵营与随机招募，签约结果直接放在当前面板。
-class CityServices extends StatefulWidget {
-  /// 当前城池变化时使用不同的 key，让购买数量独立重置。
+/// 城防、征兵和英雄招募使用整块点击，抽取结果直接在招募方块下展示。
+class CityServices extends StatelessWidget {
+  /// 敌城使用同一份摘要，只允许查看。
   const CityServices({
     super.key,
     required this.controller,
@@ -29,226 +30,267 @@ class CityServices extends StatefulWidget {
 
   /// 操作后返回游戏键盘焦点。
   final void Function(VoidCallback) onAction;
-  @override
-  State<CityServices> createState() => _CityServicesState();
-}
-
-class _CityServicesState extends State<CityServices> {
-  int _quantity = 1;
 
   @override
   Widget build(BuildContext context) {
-    final c = widget.controller;
+    final c = controller;
     final campaign = c.campaign;
     final cityId = c.selectedCity!.id;
     final city = campaign.cities[cityId]!;
-    final maximum = campaign.maxSoldierPurchase(cityId);
-    final quantity = maximum == 0 ? 0 : _quantity.clamp(1, maximum);
     final hero = c.selectedHero;
-    final reinforcement = hero == null ? 0 : campaign.reinforcementCount(hero);
+    final cost = campaign.upgradeCostFor(cityId, hero);
+    final upgradeProblem = campaign.upgradeBlockReason(cityId, hero);
+    final quantity = campaign.soldierPurchaseBatch(cityId);
     final offer = campaign.recruitmentOffer;
-    final localOffer = offer?.cityId == cityId ? offer : null;
+    final localOffer = city.isPlayer && offer?.cityId == cityId ? offer : null;
     final blocked = campaign.recruitmentBlockReason(cityId);
+    final draws = campaign.remainingHeroDraws(cityId);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _title('兵营'),
-        const SizedBox(height: 10),
-        Text(
-          '储备兵员 ${city.reserveSoldiers} / ${city.reserveCapacity}',
-          key: const ValueKey('city-reserves'),
-          style: const TextStyle(color: _cream, fontSize: 13),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          '每位英雄最多带 ${GameConfig.heroSoldierLimit} 人，配兵消耗城池储备。',
-          style: TextStyle(color: _muted, fontSize: 11),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            IconButton(
-              key: const ValueKey('reserve-minus'),
-              onPressed: quantity > 1
-                  ? () => setState(() => _quantity = quantity - 1)
-                  : null,
-              icon: const Icon(Icons.remove, size: 18),
-            ),
-            Text(
-              '$quantity 人',
-              key: const ValueKey('reserve-quantity'),
-              style: const TextStyle(color: _cream),
-            ),
-            IconButton(
-              key: const ValueKey('reserve-plus'),
-              onPressed: quantity < maximum
-                  ? () => setState(() => _quantity = quantity + 1)
-                  : null,
-              icon: const Icon(Icons.add, size: 18),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: maximum > 0
-                  ? () => setState(() => _quantity = maximum)
-                  : null,
-              child: const Text('最大'),
-            ),
-          ],
-        ),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.tonal(
-            key: const ValueKey('buy-reserves'),
-            onPressed: quantity > 0
-                ? () => widget.onAction(() => c.buyCitySoldiers(quantity))
-                : null,
-            child: Text(
-              '征兵 $quantity 人 · ${quantity * GameConfig.soldierRecruitCost} 金币',
-            ),
-          ),
-        ),
-        if (maximum == 0)
-          Text(
-            city.reserveSoldiers >= city.reserveCapacity
-                ? '储备已满，升级城池可扩容'
-                : '金币不足',
-            style: const TextStyle(color: _muted, fontSize: 11),
-          ),
-        if (hero != null)
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              key: const ValueKey('reinforce-hero'),
-              onPressed: reinforcement > 0
-                  ? () => widget.onAction(c.reinforceSelectedHero)
-                  : null,
-              child: Text(
-                reinforcement > 0
-                    ? '为${hero.name}补充 $reinforcement 人'
-                    : '${hero.name} · ${hero.soldiers}/${hero.squad.length} 士兵',
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _card(
+                  key: 'city-upgrade',
+                  title: '城防',
+                  value: '${city.level} 级',
+                  action: (cost ?? city.baseUpgradeCost) == null
+                      ? '—'
+                      : '${cost ?? city.baseUpgradeCost}金币',
+                  actionKey: cost == null ? null : 'city-upgrade-quote',
+                  hint:
+                      city.isPlayer &&
+                          upgradeProblem != null &&
+                          city.baseUpgradeCost != null
+                      ? upgradeProblem.contains('金币')
+                            ? '金币不足'
+                            : '请选择空闲将领'
+                      : null,
+                  onTap: city.isPlayer && upgradeProblem == null
+                      ? () => onAction(c.upgradeSelectedCity)
+                      : null,
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _card(
+                  key: 'buy-reserves',
+                  title: '驻守士兵',
+                  value: '${city.reserveSoldiers} 人',
+                  valueKey: 'city-reserves',
+                  action: city.isPlayer
+                      ? '${quantity * GameConfig.soldierRecruitCost}金币'
+                      : '—',
+                  onTap: city.isPlayer && quantity > 0
+                      ? () => onAction(c.buyCitySoldiers)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _card(
+                  key: 'draw-hero',
+                  title: '招募英雄',
+                  value: '${campaign.recruitPool.length} 人',
+                  valueKey: 'city-recruit-pool',
+                  action: '${GameConfig.heroDrawCost}金币',
+                  actionKey: 'city-recruit-quota',
+                  hint: city.isPlayer && localOffer == null && draws > 0
+                      ? blocked
+                      : null,
+                  onTap: city.isPlayer && localOffer == null && blocked == null
+                      ? () => onAction(c.drawCityHero)
+                      : null,
+                ),
+              ),
+            ],
           ),
-        const SizedBox(height: 20),
-        _title('英雄商店'),
-        const SizedBox(height: 10),
-        Text(
-          '回收池 ${campaign.recruitPool.length} 位英雄 · 本月可抽 ${campaign.remainingHeroDraws(cityId)} 次',
-          key: const ValueKey('city-recruit-quota'),
-          style: const TextStyle(color: _muted, fontSize: 11),
         ),
-        const SizedBox(height: 8),
-        if (localOffer == null) ...[
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonalIcon(
-              key: const ValueKey('draw-hero'),
-              onPressed: blocked == null
-                  ? () => widget.onAction(c.drawCityHero)
-                  : null,
-              icon: const Icon(Icons.casino_outlined, size: 18),
-              label: Text('抽取英雄 · ${GameConfig.heroDrawCost} 金币'),
-            ),
-          ),
-          if (blocked != null)
-            Text(blocked, style: const TextStyle(color: _muted, fontSize: 11)),
-          if (offer != null)
-            TextButton(
-              onPressed: () => widget.onAction(
+        if (city.isPlayer && offer != null && localOffer == null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => onAction(
                 () => c.openCity(
                   c.world.cities.firstWhere((city) => city.id == offer.cityId),
                 ),
               ),
               child: const Text('前往处理待签约英雄'),
             ),
-          Text(
-            '普通将领免费签约，高级将领另付 ${GameConfig.advancedSigningFee} 金币。',
-            style: const TextStyle(color: _muted, fontSize: 11),
           ),
-        ] else ...[
-          Row(
-            children: [
-              CustomPaint(
-                size: const Size(40, 40),
-                painter: _OfferPortrait(widget.assets, localOffer.hero.type),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      localOffer.hero.name!,
-                      key: const ValueKey('recruit-offer-name'),
-                      style: const TextStyle(
-                        color: _cream,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      localOffer.hero.type.label,
-                      style: const TextStyle(color: _gold, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+        if (localOffer != null) ...[
           const SizedBox(height: 10),
-          Text(
-            'HP ${localOffer.hero.maxHp} · 战斗 ${localOffer.hero.combat} · 内政 ${localOffer.hero.politics} · 月俸 ${CampaignHero.salaryFor(localOffer.hero)}',
-            style: const TextStyle(color: _cream, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '签约后进驻本城，需从储备配兵。放弃不退抽取费。',
-            style: TextStyle(color: _muted, fontSize: 11),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('decline-recruit'),
-                  onPressed: () =>
-                      widget.onAction(() => c.declineRecruitment(localOffer)),
-                  child: const Text('放弃'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  key: const ValueKey('sign-recruit'),
-                  onPressed: campaign.gold >= localOffer.signingFee
-                      ? () =>
-                            widget.onAction(() => c.signRecruitment(localOffer))
-                      : null,
-                  child: Text(
-                    localOffer.signingFee == 0
-                        ? '免费签约'
-                        : '签约 · ${localOffer.signingFee} 金币',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (campaign.gold < localOffer.signingFee)
-            const Text(
-              '签约费不足，可保留结果等待下月。',
-              style: TextStyle(color: _muted, fontSize: 11),
-            ),
+          _offer(localOffer),
         ],
       ],
     );
   }
 
-  Widget _title(String title) => Text(
-    title,
-    style: const TextStyle(
-      color: _gold,
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
+  Widget _card({
+    required String key,
+    required String title,
+    required String value,
+    required String action,
+    String? valueKey,
+    String? actionKey,
+    String? hint,
+    VoidCallback? onTap,
+  }) => Tooltip(
+    message: hint ?? '',
+    child: OutlinedButton(
+      key: ValueKey(key),
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.topLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        backgroundColor: const Color(0xff1e291e),
+        foregroundColor: _gold,
+        disabledForegroundColor: _muted,
+        side: BorderSide(
+          color: onTap == null
+              ? const Color(0xff2b3628)
+              : _gold.withValues(alpha: 0.35),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(color: _muted, fontSize: 10, height: 1.4),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      key: valueKey == null ? null : ValueKey(valueKey),
+                      style: const TextStyle(
+                        color: _cream,
+                        fontSize: 12,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (action.isNotEmpty) ...[
+                const SizedBox(width: 3),
+                Text(
+                  action,
+                  key: actionKey == null ? null : ValueKey(actionKey),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.4,
+                    color: onTap == null ? _muted : _gold,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _offer(RecruitmentOffer offer) => Container(
+    key: const ValueKey('city-recruit-offer'),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xff20291c),
+      border: Border.all(color: const Color(0xff70663e)),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CustomPaint(
+              size: const Size(40, 40),
+              painter: _OfferPortrait(assets, offer.hero.type),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    offer.hero.name!,
+                    key: const ValueKey('recruit-offer-name'),
+                    style: const TextStyle(
+                      color: _cream,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    offer.hero.type.label,
+                    style: const TextStyle(color: _gold, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'HP ${offer.hero.maxHp} · 战斗 ${offer.hero.combat} · 内政 ${offer.hero.politics} · 月俸 ${CampaignHero.salaryFor(offer.hero)}',
+          style: const TextStyle(color: _cream, fontSize: 12, height: 1.5),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '出战时自动补兵，放弃不退抽取费。',
+          style: TextStyle(color: _muted, fontSize: 11),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                key: const ValueKey('decline-recruit'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+                onPressed: () =>
+                    onAction(() => controller.declineRecruitment(offer)),
+                child: const Text('放弃'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                key: const ValueKey('sign-recruit'),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                onPressed: controller.campaign.gold >= offer.signingFee
+                    ? () => onAction(() => controller.signRecruitment(offer))
+                    : null,
+                child: Text(
+                  offer.signingFee == 0
+                      ? '免费签约'
+                      : '签约 · ${offer.signingFee} 金币',
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (controller.campaign.gold < offer.signingFee)
+          const Text(
+            '签约费不足，可保留结果等待下月。',
+            style: TextStyle(color: _muted, fontSize: 11),
+          ),
+      ],
     ),
   );
 }

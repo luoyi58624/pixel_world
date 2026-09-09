@@ -170,13 +170,13 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('敌方城池也只展示当前驻军，外出将领不残留在守城名单', (tester) async {
+  testWidgets('敌方城池只展示摘要和经济，移除经济下方的守军名单', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     final city = c.world.cities[1];
     final heroes = c.campaign.garrisonAt(city.id).toList();
     await _tapCity(tester, c, city);
     for (final hero in heroes) {
-      expect(find.text(hero.name), findsOneWidget);
+      expect(find.text(hero.name), findsNothing);
     }
     for (final hero in heroes) {
       expect(
@@ -187,7 +187,8 @@ void main() {
       await tester.pump();
       expect(find.text(hero.name), findsNothing);
     }
-    expect(find.text('守军 0 人'), findsOneWidget);
+    expect(find.text('守城部队'), findsNothing);
+    expect(find.byKey(const ValueKey('city-economy')), findsOneWidget);
     expect(c.campaign.garrisonAt(city.id), isEmpty);
     expect(c.campaign.heroesAt(city.id), heroes);
     expect(tester.takeException(), isNull);
@@ -224,7 +225,7 @@ void main() {
     await tester.pump();
     final upgrade = find.byKey(const ValueKey('city-upgrade'));
     await tester.ensureVisible(upgrade);
-    await tester.tap(upgrade);
+    await tester.tapAt(tester.getTopLeft(upgrade) + const Offset(14, 18));
     await tester.pump();
     expect(c.campaign.cities[0]!.level, 2);
     expect(c.campaign.gold, 5);
@@ -235,7 +236,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(tester.widget<FilledButton>(upgrade).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(upgrade).onPressed, isNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -245,27 +246,23 @@ void main() {
     await _tapCity(tester, c, c.world.cities.first);
     final quote = find.byKey(const ValueKey('city-upgrade-quote'));
     final upgrade = find.byKey(const ValueKey('city-upgrade'));
-    expect(tester.widget<Text>(quote).data, contains('内政 15 · 实付 15 金币'));
+    expect(tester.widget<Text>(quote).data, contains('15金币'));
     final choice = find.byKey(const ValueKey('dispatch-hero-rom-2'));
     await tester.ensureVisible(choice);
     await tester.tap(choice);
     await tester.pump();
-    expect(tester.widget<Text>(quote).data, contains('威拉斯主持'));
-    expect(tester.widget<Text>(quote).data, contains('内政 3 · 实付 27 金币'));
+    expect(tester.widget<Text>(quote).data, contains('27金币'));
     await tester.ensureVisible(upgrade);
     await tester.tap(upgrade);
     await tester.pump();
     expect(c.campaign.gold, 273);
-    expect(
-      tester.widget<Text>(quote).data,
-      contains('基础 40 − 内政 3 · 实付 37 金币'),
-    );
+    expect(tester.widget<Text>(quote).data, contains('37金币'));
     c.campaign.dispatch(c.selectedHero!, c.world.cities[1]);
     c.refreshUi();
     await tester.pump();
     expect(quote, findsNothing);
-    expect(tester.widget<FilledButton>(upgrade).onPressed, isNull);
-    expect(find.byKey(const ValueKey('city-upgrade-blocked')), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(upgrade).onPressed, isNull);
+    expect(find.textContaining('基础 40'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -383,7 +380,7 @@ void main() {
     expect(find.text('月收入'), findsOneWidget);
     expect(find.text('驻守士兵'), findsOneWidget);
     expect(find.text('士兵'), findsOneWidget);
-    expect(find.text('王牌'), findsOneWidget);
+    expect(find.text('王牌'), findsNothing);
     final cancel = find.byKey(const ValueKey('city-cancel'));
     final sortie = find.byKey(const ValueKey('dispatch-confirm'));
     expect(tester.getCenter(cancel).dx, lessThan(tester.getCenter(sortie).dx));
@@ -410,11 +407,19 @@ void main() {
 
   testWidgets('敌城点击直接显示详情，标题只留国名，取消直接关闭', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
+    expect(c.campaign.buySoldiers(1, 2, countryId: 1), isTrue);
     await _tapCity(tester, c, c.world.cities[1]);
     expect(find.text('奥尔梅国'), findsOneWidget);
+    expect(find.text('金币 298'), findsOneWidget);
+    for (final key in ['city-upgrade', 'buy-reserves', 'draw-hero']) {
+      expect(
+        tester.widget<OutlinedButton>(find.byKey(ValueKey(key))).onPressed,
+        isNull,
+      );
+    }
     expect(find.text('城池情况'), findsOneWidget);
     expect(find.text('经济情况'), findsOneWidget);
-    expect(find.text('守城部队'), findsOneWidget);
+    expect(find.text('守城部队'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('city-stat-月收入')),
