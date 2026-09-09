@@ -42,6 +42,7 @@ class _BattleSceneState extends State<BattleScene> {
   String? _selectedId;
   Offset _anchor = Offset.zero;
   double _scale = 1;
+  bool _gestureScaled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -114,17 +115,10 @@ class _BattleSceneState extends State<BattleScene> {
                         Positioned.fill(
                           child: Listener(
                             onPointerDown: (_) {
-                              c.dragging = true;
-                            },
-                            onPointerUp: (event) {
-                              c.dragging = false;
-                              if (event.kind == PointerDeviceKind.mouse) {
-                                c.hoverBattle(event.localPosition);
-                              }
+                              camera.beginDrag();
                             },
                             onPointerCancel: (_) {
-                              c.dragging = false;
-                              c.leaveMap();
+                              camera.cancelMotion();
                             },
                             onPointerSignal: (event) {
                               if (event is PointerScrollEvent) {
@@ -143,11 +137,6 @@ class _BattleSceneState extends State<BattleScene> {
                             },
                             child: MouseRegion(
                               cursor: SystemMouseCursors.grab,
-                              onEnter: (event) =>
-                                  c.hoverBattle(event.localPosition),
-                              onHover: (event) =>
-                                  c.hoverBattle(event.localPosition),
-                              onExit: (_) => c.leaveMap(),
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapUp: (details) {
@@ -189,20 +178,30 @@ class _BattleSceneState extends State<BattleScene> {
                                   );
                                 },
                                 onScaleStart: (details) {
-                                  c.dragging = true;
+                                  camera.beginDrag();
+                                  _gestureScaled = details.pointerCount > 1;
                                   _anchor = camera.toWorld(
                                     details.localFocalPoint,
                                   );
                                   _scale = camera.scale;
                                 },
                                 onScaleUpdate: (details) {
+                                  _gestureScaled =
+                                      _gestureScaled ||
+                                      details.pointerCount > 1 ||
+                                      (details.scale - 1).abs() > 0.01;
                                   camera.transform(
                                     _anchor,
                                     _scale * details.scale,
                                     details.localFocalPoint,
                                   );
                                 },
-                                onScaleEnd: (_) => c.dragging = false,
+                                onScaleEnd: (details) => camera.endDrag(
+                                  details.velocity.pixelsPerSecond,
+                                  allowInertia:
+                                      !_gestureScaled &&
+                                      details.pointerCount == 0,
+                                ),
                                 child: CustomPaint(
                                   key: const ValueKey('battle-canvas'),
                                   painter: BattlePainter(
@@ -353,7 +352,7 @@ class _BattleSceneState extends State<BattleScene> {
                     color: const Color(0xff0c120e),
                     child: Text(
                       selected == null
-                          ? '拖拽 / 边缘滚屏移动战场 · 滚轮缩放 · 点击单位查看情况'
+                          ? '拖拽移动战场 · 松手短暂惯性 · 滚轮缩放 · 点击单位查看情况'
                           : '${selected.name}'
                                 '${selected.isGeneral ? '  ${selected.health.label}/${selected.health.maxHp} HP' : ''}'
                                 ' · 距墙 ${battleNumber(sim.distanceToWall(selected.side))} 点',

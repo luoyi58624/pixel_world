@@ -204,36 +204,26 @@ void main() {
     expect(watched.watchedBattle, same(battle));
   });
 
-  test('镜头边缘滚屏保留镜头约束，拖动、离开地图与回到中间都会停止自动滚屏', () {
+  test('鼠标停在地图四边或角落不再移动镜头，后台时间照常推进', () {
     final c = _controller();
     addTearDown(c.dispose);
     c.camera.resize(const Size(800, 600));
     c.camera.center = c.world.pixelSize.center(Offset.zero);
     final before = c.camera.center;
-    c.hover(const Offset(799, 300));
-    c.tick(0.5);
-    expect(c.camera.center.dx, greaterThan(before.dx));
-    final edge = c.camera.center;
-    c.dragging = true;
-    c.tick(0.5);
-    expect(c.camera.center, edge);
-    c.dragging = false;
+    for (final point in [
+      const Offset(1, 1),
+      const Offset(799, 599),
+      const Offset(400, 1),
+      const Offset(1, 300),
+    ]) {
+      c.hover(point);
+      c.tick(0.5);
+      expect(c.camera.center, before);
+    }
     c.leaveMap();
-    c.tick(0.5);
-    expect(c.camera.center, edge);
-    c.hover(const Offset(400, 300));
-    c.tick(0.5);
-    expect(c.camera.center, edge);
-    c.hover(const Offset(799, 599));
-    c.tick(50);
-    expect(
-      c.camera.visibleWorld.right,
-      lessThanOrEqualTo(c.world.pixelSize.width + 0.001),
-    );
-    expect(
-      c.camera.visibleWorld.bottom,
-      lessThanOrEqualTo(c.world.pixelSize.height + 0.001),
-    );
+    c.tick(30);
+    expect(c.camera.center, before);
+    expect(c.campaign.settledTurns, greaterThan(0));
   });
 
   test('选点期间英雄战败会清除过期命令，不会出现幽灵部队', () {
@@ -296,7 +286,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('边缘滚屏不穿透角色面板，按住拖动时不自动滚屏且拖动仍可用', (tester) async {
+  testWidgets('边缘悬停与面板悬停均不移动镜头，按住拖拽仍可平移', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     final origin = tester.getTopLeft(
       find.byKey(const ValueKey('world-canvas')),
@@ -309,7 +299,7 @@ void main() {
     await tester.pump();
     final before = c.camera.center;
     await tester.pump(const Duration(milliseconds: 200));
-    expect(c.camera.center.dx, greaterThan(before.dx));
+    expect(c.camera.center, before);
     await mouse.moveTo(origin + const Offset(22, 200));
     await tester.pump();
     final blocked = c.camera.center;
@@ -327,6 +317,68 @@ void main() {
     expect(c.camera.center.dx, greaterThan(pressed.dx));
     await mouse.up();
     await mouse.removePointer();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('地图与战场的鼠标拖拽都有短惯性，再次按住可立即截停', (tester) async {
+    final c = await _load(tester, const Size(1000, 700));
+    final march = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
+    march.position = march.destination;
+    c.tick(0.02);
+    final battle = c.campaign.battles[1]!;
+    for (final watching in [false, true]) {
+      if (watching) c.watchBattle(battle);
+      await tester.pump();
+      final camera = c.activeCamera;
+      camera.zoomTo(watching ? 6 : 3, camera.viewport.center(Offset.zero));
+      camera.center = camera.worldSize.center(Offset.zero);
+      c.refreshUi();
+      await tester.pump();
+      final canvas = find.byKey(
+        ValueKey(watching ? 'battle-canvas' : 'world-canvas'),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getTopLeft(canvas) + const Offset(1, 20),
+      );
+      final hoverCenter = camera.center;
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(camera.center, hoverCenter);
+      await mouse.removePointer();
+      await tester.fling(
+        canvas,
+        const Offset(-100, 0),
+        1000,
+        deviceKind: PointerDeviceKind.mouse,
+      );
+      expect(camera.coasting, isTrue);
+      final released = camera.center;
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(camera.center.dx, greaterThan(released.dx));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(camera.coasting, isFalse);
+      expect((camera.center - released).distance * camera.scale, lessThan(50));
+      await tester.fling(
+        canvas,
+        const Offset(100, 0),
+        1000,
+        deviceKind: PointerDeviceKind.mouse,
+      );
+      expect(camera.coasting, isTrue);
+      final press = await tester.startGesture(
+        tester.getCenter(canvas),
+        kind: PointerDeviceKind.mouse,
+      );
+      final held = camera.center;
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(camera.center, held);
+      await press.up();
+      await press.removePointer();
+    }
+    c.cancelCityAction();
+    expect(c.camera.coasting, isFalse);
+    expect(c.battleCamera.coasting, isFalse);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

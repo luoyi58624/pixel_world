@@ -31,7 +31,7 @@ class WorldController extends ChangeNotifier {
   /// 观战使用独立镜头，拖动战场不会改变大地图位置。
   final WorldCamera battleCamera = WorldCamera(BattleSimulation.arenaSize);
 
-  /// 键盘和边缘滚屏操作当前正在显示的镜头。
+  /// 键盘、拖拽及惯性操作当前正在显示的镜头。
   WorldCamera get activeCamera => watchedBattle == null ? camera : battleCamera;
 
   /// 各场景的独立玩法状态，切换地图不重置出征记录。
@@ -84,9 +84,6 @@ class WorldController extends ChangeNotifier {
 
   String? _targetReturnUnitId;
   Offset? _pointer;
-
-  /// 拖动地图时暂时停止边缘滚屏，避免两种输入相互抢镜头。
-  bool dragging = false;
 
   /// 鼠标所在位置是否可打开角色、城池或交战面板。
   bool get pointerInteractive {
@@ -170,6 +167,8 @@ class WorldController extends ChangeNotifier {
 
   /// 切换地图并重置探索位置。
   void switchWorld(int value) {
+    camera.cancelMotion();
+    battleCamera.cancelMotion();
     index = value;
     selectedCity = null;
     selectedHeroId = null;
@@ -179,7 +178,6 @@ class WorldController extends ChangeNotifier {
     watchedBattle = null;
     _targetReturnUnitId = null;
     _pointer = null;
-    dragging = false;
     cursor = null;
     route = [];
     routeStep = 0;
@@ -191,7 +189,7 @@ class WorldController extends ChangeNotifier {
     camera.scale = 3;
     camera.center = world.cities.first.bounds.center;
     camera.constrain();
-    message = '点击角色下达指令，拖拽或靠近画面边缘移动镜头';
+    message = '点击角色下达指令，拖拽移动镜头';
     refreshUi();
   }
 
@@ -208,12 +206,8 @@ class WorldController extends ChangeNotifier {
             (fastPan ? 900 : 420),
       );
       followHero = false;
-    } else if (!dragging && _pointer != null) {
-      final pan = _edgeDirection(_pointer!);
-      if (pan != Offset.zero) {
-        activeCamera.pan(-pan * dt * 420);
-        followHero = false;
-      }
+    } else {
+      activeCamera.advanceInertia(dt);
     }
     if (walking && !campaign.hasDispatched) {
       final oldTerrain = movementTerrain;
@@ -419,7 +413,8 @@ class WorldController extends ChangeNotifier {
   void cancelCityAction() {
     if (watchedBattle != null) {
       leaveMap();
-      dragging = false;
+      battleCamera.cancelMotion();
+      camera.cancelMotion();
       keyboardDirection = Offset.zero;
     }
     if (choosingTarget && _targetReturnUnitId != null) {
@@ -490,7 +485,7 @@ class WorldController extends ChangeNotifier {
         : message;
   }
 
-  /// 更新悬停选框。
+  /// 更新地图指针位置和可交互光标。
   void hover(Offset local) {
     final interactive = pointerInteractive;
     _pointer = local;
@@ -498,32 +493,11 @@ class WorldController extends ChangeNotifier {
     if (interactive != pointerInteractive) uiRevision.value++;
   }
 
-  /// 战场鼠标位置只驱动战场边缘滚屏，不改写大地图选框。
-  void hoverBattle(Offset local) {
-    _pointer = local;
-  }
-
-  /// 离开地图、进入面板或窗口失焦时停止边缘滚屏。
+  /// 离开地图或进入面板时清除地图指针状态。
   void leaveMap() {
     _pointer = null;
     cursor = null;
     notifyListeners();
-  }
-
-  Offset _edgeDirection(Offset point) {
-    final size = activeCamera.viewport;
-    if (!(Offset.zero & size).contains(point)) return Offset.zero;
-    const edge = 28.0;
-    double axis(double value, double length) => value < edge
-        ? -(1 - value / edge)
-        : value > length - edge
-        ? 1 - (length - value) / edge
-        : 0;
-    final direction = Offset(
-      axis(point.dx, size.width),
-      axis(point.dy, size.height),
-    );
-    return direction.distance > 1 ? direction / direction.distance : direction;
   }
 
   void _updateCursor(Offset local) {
@@ -623,7 +597,8 @@ class WorldController extends ChangeNotifier {
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(CityBattle battle) {
     leaveMap();
-    dragging = false;
+    camera.cancelMotion();
+    battleCamera.cancelMotion();
     keyboardDirection = Offset.zero;
     watchedBattle = battle;
     selectedUnitId = null;
@@ -633,6 +608,7 @@ class WorldController extends ChangeNotifier {
 
   /// 回到初始据点。
   void home() {
+    activeCamera.cancelMotion();
     if (watchedBattle != null) {
       battleCamera.overview();
       refreshUi();

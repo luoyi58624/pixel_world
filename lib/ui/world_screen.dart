@@ -39,6 +39,7 @@ class _WorldScreenState extends State<WorldScreen>
   bool _showMinimap = true;
   Offset _gestureAnchor = Offset.zero;
   double _gestureScale = 1;
+  bool _gestureScaled = false;
 
   @override
   void initState() {
@@ -83,11 +84,13 @@ class _WorldScreenState extends State<WorldScreen>
   void _clearKeys() {
     _pressed.clear();
     _controller?.keyboardDirection = Offset.zero;
-    _controller?.dragging = false;
+    _controller?.camera.cancelMotion();
+    _controller?.battleCamera.cancelMotion();
     _controller?.leaveMap();
   }
 
   void _action(VoidCallback action) {
+    _controller?.activeCamera.cancelMotion();
     action();
     _controller?.refreshUi();
     _focus.requestFocus();
@@ -244,16 +247,15 @@ class _WorldScreenState extends State<WorldScreen>
                                 builder: (context, value, child) => Listener(
                                   onPointerDown: (_) {
                                     _focus.requestFocus();
-                                    c.dragging = true;
+                                    c.camera.beginDrag();
                                   },
                                   onPointerUp: (event) {
-                                    c.dragging = false;
                                     if (event.kind == PointerDeviceKind.mouse) {
                                       c.hover(event.localPosition);
                                     }
                                   },
                                   onPointerCancel: (_) {
-                                    c.dragging = false;
+                                    c.camera.cancelMotion();
                                     c.leaveMap();
                                   },
                                   onPointerSignal: (event) {
@@ -292,13 +294,20 @@ class _WorldScreenState extends State<WorldScreen>
                                       onSecondaryTapUp: (_) =>
                                           _action(c.cancelCityAction),
                                       onScaleStart: (details) {
-                                        c.dragging = true;
+                                        c.camera.beginDrag();
+                                        c.followHero = false;
+                                        _gestureScaled =
+                                            details.pointerCount > 1;
                                         _gestureAnchor = c.camera.toWorld(
                                           details.localFocalPoint,
                                         );
                                         _gestureScale = c.camera.scale;
                                       },
                                       onScaleUpdate: (details) {
+                                        _gestureScaled =
+                                            _gestureScaled ||
+                                            details.pointerCount > 1 ||
+                                            (details.scale - 1).abs() > 0.01;
                                         c.followHero = false;
                                         c.camera.transform(
                                           _gestureAnchor,
@@ -306,9 +315,14 @@ class _WorldScreenState extends State<WorldScreen>
                                           details.localFocalPoint,
                                         );
                                       },
-                                      onScaleEnd: (_) => c.dragging = false,
+                                      onScaleEnd: (details) => c.camera.endDrag(
+                                        details.velocity.pixelsPerSecond,
+                                        allowInertia:
+                                            !_gestureScaled &&
+                                            details.pointerCount == 0,
+                                      ),
                                       child: Semantics(
-                                        label: '世界地图，拖动或边缘滚屏，点击角色下达指令，点击城堡查看信息',
+                                        label: '世界地图，拖拽移动，松手短暂惯性，点击角色下达指令，点击城堡查看信息',
                                         child: CustomPaint(
                                           key: const ValueKey('world-canvas'),
                                           painter: WorldPainter(
@@ -384,7 +398,7 @@ class _WorldScreenState extends State<WorldScreen>
                                           ),
                                           SizedBox(width: 16),
                                           Text(
-                                            '边缘滚屏  ·  点击角色下令',
+                                            '松手轻滑  ·  点击角色下令',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Color(0xffa8b2a6),
@@ -504,7 +518,7 @@ class _WorldScreenState extends State<WorldScreen>
     );
   }
 
-  // 面板和小地图遮住边缘时，鼠标不能继续驱动底层大地图滚屏。
+  // 面板遮挡地图时清除底层角色与城池的指针命中状态。
   Widget _mapOverlay(WorldController c, Widget child) => MouseRegion(
     onEnter: (_) => c.leaveMap(),
     onHover: (_) => c.leaveMap(),
@@ -751,6 +765,7 @@ class _WorldScreenState extends State<WorldScreen>
       );
 
   void _moveMinimap(WorldController c, Offset point, double width) {
+    c.camera.cancelMotion();
     c.camera.center = Offset(
       point.dx / width * c.world.pixelSize.width,
       point.dy / (width * 60 / 64) * c.world.pixelSize.height,
@@ -830,7 +845,7 @@ class _WorldScreenState extends State<WorldScreen>
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
         content: const Text(
-          '拖动 / 双指手势　移动与缩放地图\n鼠标靠近画面边缘　自动滚屏\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　移动、扎营、情况\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n山地速度 60%，涉水速度 50%\n点击城池　直接查看情况与守军\n我方城池　同页选英雄，右下角出击\n经济区域　升级城池，最高五级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n英雄战败　所属城池降一级\n一级城战败　失守并清除未出战英雄\n每 30 秒　结算产出与英雄报酬\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　移动、扎营、情况\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n山地速度 60%，涉水速度 50%\n点击城池　直接查看情况与守军\n我方城池　同页选英雄，右下角出击\n经济区域　升级城池，最高五级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n英雄战败　所属城池降一级\n一级城战败　失守并清除未出战英雄\n每 30 秒　结算产出与英雄报酬\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
           style: TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [
