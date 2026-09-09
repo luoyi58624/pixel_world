@@ -51,7 +51,13 @@ extension _FieldSupplies on CampaignState {
   }
 
   void _campForSupply(HeroMarch march) {
-    march.camp();
+    if (march.returningFromRetreat) {
+      // 断粮保留返程的当前路段与剩余拐点，恢复资金后继续原路返回。
+      march.phase = MarchPhase.camped;
+      march._walkAnimation.reset();
+    } else {
+      march.camp();
+    }
     march._supplyHalted = true;
     _record('${march.hero.name}粮草耗尽，原地扎营');
   }

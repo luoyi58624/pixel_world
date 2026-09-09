@@ -192,6 +192,7 @@ extension _CountryAutonomy on CampaignState {
     for (final march in marches.values.toList()) {
       final countryId = march.hero.countryId;
       if (march.hero.isPlayer ||
+          march.returningFromRetreat ||
           !march.hero.health.alive ||
           goldFor(countryId) == 0 ||
           march.phase == MarchPhase.fighting ||

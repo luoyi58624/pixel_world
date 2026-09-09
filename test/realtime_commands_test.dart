@@ -12,6 +12,8 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
+import 'support/fixed_siege_random.dart';
+
 WorldController _controller() {
   final c = WorldController(
     aiEnabled: false,
@@ -26,6 +28,7 @@ WorldController _controller() {
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
     aiEnabled: false,
     startingGold: 300,
+    retreatRandom: const FixedSiegeRandom(.9),
   );
   return c;
 }
@@ -214,7 +217,12 @@ void main() {
     expect(unit.phase, MarchPhase.fighting);
     final battle = c.campaign.battles[city.id]!;
     expect(battle.isActive, isTrue);
-    c.campaign.moveTo(unit.hero.id, start - const Offset(32, 0));
+    expect(
+      c.campaign.moveTo(unit.hero.id, start - const Offset(32, 0)),
+      isFalse,
+    );
+    expect(c.campaign.retreatHero(unit.hero.id), isTrue);
+    c.tick(1.8);
     c.tick(0.3);
     expect(unit.position.dx, lessThan(city.bounds.left));
     expect(unit.phase, MarchPhase.marching);
@@ -239,7 +247,9 @@ void main() {
     expect(c.campaign.battles[city.id]!.attacker, second.hero);
     c.tick(4);
     expect(c.campaign.battles[city.id]!.rounds, greaterThan(0));
-    c.campaign.camp(second.hero.id);
+    expect(c.campaign.camp(second.hero.id), isFalse);
+    expect(c.campaign.retreatHero(second.hero.id), isTrue);
+    c.tick(1.8);
     c.tick(1);
     expect(c.campaign.battles[city.id]!.attacker, first.hero);
     expect(c.campaign.battles[city.id]!.rounds, 0);

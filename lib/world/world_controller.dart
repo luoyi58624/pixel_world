@@ -100,7 +100,8 @@ class WorldController extends ChangeNotifier {
       campaign.gold > 0 &&
       selectedMapHero?.isPlayer == true &&
       selectedUnit != null &&
-      selectedUnit!.phase != MarchPhase.dueling;
+      !selectedUnit!.returningFromRetreat &&
+      campaign.activeBattleForHero(selectedUnitId!) == null;
 
   String? _targetReturnUnitId;
   Offset? _pointer;
@@ -305,7 +306,8 @@ class WorldController extends ChangeNotifier {
     }
     if (movingHeroId != null &&
         (!campaign.marches.containsKey(movingHeroId) ||
-            campaign.marches[movingHeroId]?.phase == MarchPhase.dueling)) {
+            campaign.activeBattleForHero(movingHeroId!) != null ||
+            campaign.marches[movingHeroId]?.returningFromRetreat == true)) {
       movingHeroId = null;
       _targetReturnUnitId = null;
       message = '该英雄已结束行军，请重新选择';
@@ -738,9 +740,16 @@ class WorldController extends ChangeNotifier {
   /// 仅让当前角色原地扎营，地图时间与其他单位保持运行。
   void campSelected() {
     if (selectedUnitId == null || selectedMapHero?.isPlayer != true) return;
-    if (selectedUnit?.phase == MarchPhase.dueling) return;
-    if (selectedUnit != null) campaign.camp(selectedUnitId!);
+    if (selectedUnit == null || !campaign.camp(selectedUnitId!)) return;
     message = '${selectedMapHero?.name ?? '英雄'}已原地扎营';
+    refreshUi();
+  }
+
+  /// 发起一次有阵亡风险的撤退，后台播完退场后自动返回地图。
+  void retreatHero(String heroId) {
+    final result = campaign.retreatHero(heroId);
+    if (result == null) return;
+    message = campaign.lastEvent;
     refreshUi();
   }
 

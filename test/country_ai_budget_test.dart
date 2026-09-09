@@ -91,6 +91,7 @@ CampaignState _campaign({
     economyRandom: economy ?? _Poor(),
     recruitmentRandom: math.Random(3),
     aiRandom: math.Random(7),
+    retreatRandom: math.Random(31),
   );
   var initialTroops = 0;
   for (final id in [1, if (secondCity) 3]) {
@@ -126,6 +127,7 @@ void main() {
         heroes,
         economyRandom: math.Random(17),
         aiRandom: math.Random(7),
+        retreatRandom: math.Random(31),
         recruitmentRandom: math.Random(11),
         siegeRandom: math.Random(23),
       );

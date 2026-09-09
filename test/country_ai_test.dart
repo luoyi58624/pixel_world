@@ -57,6 +57,7 @@ CampaignState _campaign({
     economyRandom: _Pick(),
     recruitmentRandom: recruit ?? _Pick(),
     aiRandom: random ?? math.Random(7),
+    retreatRandom: math.Random(31),
   );
   for (final entry in stocks.entries) {
     _setStock(c, entry.key, entry.value);
@@ -453,6 +454,7 @@ void main() {
         world,
         _catalog(),
         aiRandom: math.Random(21),
+        retreatRandom: math.Random(31),
         recruitmentRandom: math.Random(17),
         economyRandom: math.Random(12),
       );

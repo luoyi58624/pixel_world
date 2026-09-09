@@ -19,6 +19,7 @@ part 'field_battles.dart';
 part 'siege_battles.dart';
 part 'field_supplies.dart';
 part 'country_troops.dart';
+part 'battle_retreat.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -236,12 +237,29 @@ class HeroMarch {
     this.target,
     required this.position,
     required this.destination,
-  }) : direction = destination == position
+  }) : departureCityId = hero.cityId,
+       _outboundRoute = [position],
+       direction = destination == position
            ? HeroDirection.south
            : HeroDirection.fromVector(destination - position);
 
   /// 带队英雄。
   final CampaignHero hero;
+
+  /// 本次离城的出发城，撤退不会被途中改令改成新的起点。
+  final int departureCityId;
+  final List<Offset> _outboundRoute;
+  final List<Offset> _returnRoute = [];
+  bool _returningFromRetreat = false;
+
+  /// 撤退后沿来路返城，返程结束前不接受新的进攻指令。
+  bool get returningFromRetreat => _returningFromRetreat;
+
+  void _rememberPosition() {
+    if (!_returningFromRetreat && _outboundRoute.last != position) {
+      _outboundRoute.add(position);
+    }
+  }
 
   /// 目标城池；自由行军时为空。
   CityDefinition? target;
@@ -275,6 +293,7 @@ class HeroMarch {
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(Offset point, {CityDefinition? city}) {
+    _rememberPosition();
     _supplyHalted = false;
     if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
@@ -290,6 +309,7 @@ class HeroMarch {
 
   /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
   void camp() {
+    _rememberPosition();
     _walkAnimation.reset();
     _siegeArrival = null;
     target = null;
@@ -335,6 +355,7 @@ abstract class WorldBattle {
   /// 最近一次战斗结果，为空表示交战中。
   String? outcome;
   bool _settled = false;
+  int _lastAiRetreatClash = 0;
 
   /// 战斗记录，用于显示过程与结果。
   final List<String> events = [];
@@ -425,6 +446,7 @@ class CityBattle extends WorldBattle {
     wave++;
     nextWaveIn = 0;
     _settled = false;
+    _lastAiRetreatClash = 0;
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
@@ -474,6 +496,7 @@ class CampaignState {
     this._recruitmentRandom,
     this._aiRandom,
     this._siegeRandom,
+    this._retreatRandom,
     this.aiEnabled,
     this.countryConfigs,
   ) : _protagonist = heroes
@@ -488,6 +511,9 @@ class CampaignState {
   final Map<int, RomHeroDefinition> _heroPool = {};
   final math.Random _aiRandom;
   final math.Random _siegeRandom;
+  final math.Random _retreatRandom;
+  // 成功脱战的双方在拉开接触距离前不重复开打，其他敌军仍可拦截。
+  final Set<(String, String)> _retreatSeparations = {};
   int _siegeArrivalSerial = 0;
 
   /// 是否运行非玩家国家的自动经营；测试可以单独关闭以隔离原有规则。
@@ -516,6 +542,7 @@ class CampaignState {
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
     math.Random? siegeRandom,
+    math.Random? retreatRandom,
   }) {
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
@@ -570,6 +597,7 @@ class CampaignState {
       recruitmentRandom ?? math.Random(),
       aiRandom ?? math.Random(),
       siegeRandom ?? math.Random(),
+      retreatRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
     );
@@ -1299,7 +1327,10 @@ class CampaignState {
   bool moveTo(String heroId, Offset point) {
     if (defeated || gold == 0) return false;
     final march = marches[heroId];
-    if (march?.phase == MarchPhase.dueling) return false;
+    if (activeBattleForHero(heroId) != null ||
+        march?.returningFromRetreat == true) {
+      return false;
+    }
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
       return false;
     }
@@ -1326,7 +1357,10 @@ class CampaignState {
   bool camp(String heroId) {
     if (defeated) return false;
     final march = marches[heroId];
-    if (march?.phase == MarchPhase.dueling) return false;
+    if (activeBattleForHero(heroId) != null ||
+        march?.returningFromRetreat == true) {
+      return false;
+    }
     if (march == null || !march.hero.isPlayer) return false;
     _endBattle(march, '${march.hero.name}已停止进攻');
     if (_disbandAfterBattle.contains(heroId)) {
@@ -1374,6 +1408,15 @@ class CampaignState {
         continue;
       }
       final target = march.target!;
+      if (march.returningFromRetreat && march.phase == MarchPhase.camped) {
+        // 断粮返程仍保留目标城，城堡变化只能更新终点，不能把远处营地吸到城边。
+        march.destination = _contactPoint(
+          march.position,
+          cityBounds(target).center,
+          target,
+        );
+        continue;
+      }
       if (march.phase == MarchPhase.marching) {
         final point = _contactPoint(
           march.position,
@@ -1526,6 +1569,7 @@ class CampaignState {
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
       changed = _advanceSupplies(dt) || changed;
+      changed = _advanceRetreatReturns() || changed;
       final previousPositions = {
         for (final march in marches.values) march.hero.id: march.position,
       };
@@ -1533,8 +1577,14 @@ class CampaignState {
         final terrain = world.movementTerrainAt(cellAt(world, march.position));
         final previous = march.position;
         changed = march.tick(world, dt) || changed;
+        if (march.returningFromRetreat &&
+            march.phase == MarchPhase.camped &&
+            march.target == null &&
+            !march.supplyHalted) {
+          _nextRetreatLeg(march);
+        }
         // 检查实际走过的线段，避免低帧率或远距离指令穿过敌城而不交战。
-        if (previous != march.position) {
+        if (previous != march.position && !march.returningFromRetreat) {
           CityDefinition? encountered;
           var nearest = 2.0;
           for (final city in world.cities) {
@@ -1597,12 +1647,20 @@ class CampaignState {
       if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
       if (!battle.isActive) continue;
+      if (!closingOnly && aiEnabled) changed = _tryAiRetreat(battle) || changed;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;
-        if (battle is FieldBattle) {
+        if (battle.simulation.retreat?.succeeded == true) {
+          _settleSuccessfulRetreat(battle);
+        } else if (battle is FieldBattle) {
           _settleFieldBattle(battle);
         } else {
           _settleBattle(battle as CityBattle);
+        }
+        if (battle.simulation.retreat?.succeeded == false) {
+          battle.outcome = battle.simulation.retreatMessage;
+          battle.record(battle.outcome!);
+          _record(battle.outcome!);
         }
         _disbandFinishedArmies(battle);
         if (battle is CityBattle && !battle.isActive) {

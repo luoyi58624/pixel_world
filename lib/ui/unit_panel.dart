@@ -4,6 +4,7 @@ import '../world/campaign.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import 'hero_dismiss_button.dart';
+import 'hero_retreat_button.dart';
 
 const _cream = Color(0xffece7d1);
 const _muted = Color(0xffa7b5a4);
@@ -83,12 +84,19 @@ class UnitPanel extends StatelessWidget {
             child: SizedBox(
               width: double.infinity,
               child: hero.isPlayer
-                  ? HeroDismissButton(
-                      key: const ValueKey('unit-dismiss'),
-                      controller: c,
-                      hero: hero,
-                      onAction: onAction,
-                    )
+                  ? c.campaign.activeBattleForHero(hero.id) != null
+                        ? HeroRetreatButton(
+                            key: const ValueKey('unit-retreat'),
+                            controller: c,
+                            heroId: hero.id,
+                            onAction: onAction,
+                          )
+                        : HeroDismissButton(
+                            key: const ValueKey('unit-dismiss'),
+                            controller: c,
+                            hero: hero,
+                            onAction: onAction,
+                          )
                   : OutlinedButton(
                       key: const ValueKey('unit-close'),
                       onPressed: () => onAction(c.cancelCityAction),
@@ -105,7 +113,7 @@ class UnitPanel extends StatelessWidget {
     final c = controller;
     final unit = c.selectedUnit;
     final status = switch (unit?.phase) {
-      MarchPhase.marching => '行军中',
+      MarchPhase.marching => unit!.returningFromRetreat ? '撤退返程中' : '行军中',
       MarchPhase.camped =>
         unit!.supplyHalted && c.campaign.goldFor(hero.countryId) == 0
             ? '断粮扎营'
@@ -154,6 +162,8 @@ class UnitPanel extends StatelessWidget {
                   Icons.terrain_outlined,
                   hero.isPlayer &&
                           unit != null &&
+                          !unit.returningFromRetreat &&
+                          battle == null &&
                           unit.phase != MarchPhase.camped &&
                           unit.phase != MarchPhase.dueling
                       ? c.campSelected

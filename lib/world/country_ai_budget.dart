@@ -58,6 +58,27 @@ extension _CountryCashPlanning on CampaignState {
       if (march.hero.countryId != countryId || !march.hero.health.alive) {
         continue;
       }
+      if (march.returningFromRetreat) {
+        // 撤退要走回所有拐点，不能按直线距离预支返城后省下的粮草。
+        var from = march.position;
+        var travel = march.phase == MarchPhase.dueling
+            ? GameConfig.countryAiBattleBudgetSeconds
+            : 0.0;
+        for (final point in [
+          march.destination,
+          ...march._returnRoute.reversed,
+        ]) {
+          travel += estimateMarchSeconds(world, from, point);
+          from = point;
+        }
+        duration = math.max(duration, travel);
+        supplies.add((
+          rate: 1 / GameConfig.fieldSupplySecondsPerGold,
+          until: travel,
+        ));
+        outstanding += march.hero._supplyDue;
+        continue;
+      }
       final redirected = identical(march, redirecting);
       final target = redirected ? destination : march.target;
       final camped = !redirected && march.phase == MarchPhase.camped;

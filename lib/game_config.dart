@@ -81,6 +81,24 @@ abstract final class GameConfig {
   /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
   static const foreignCityYieldFactor = 0.5;
 
+  /// 出征及野战将领撤退的失败概率，失败沿用整队阵亡结算。
+  static const retreatFailureChance = 0.6;
+
+  /// 撤退成功时转身跑出战场及结果停留的秒数。
+  static const retreatExitSeconds = 1.2;
+
+  /// 成功撤离后短暂停留，再返回地图沿来路回城。
+  static const retreatResultSeconds = 0.6;
+
+  /// 高级电脑将领至少观察的碰撞轮数，避免刚列阵就逃跑。
+  static const aiRetreatMinimumClashes = 2;
+
+  /// 预计自身可承受轮数低于敌方此比例时才考虑撤退。
+  static const aiRetreatSurvivalRatio = 0.6;
+
+  /// 生命低于此比例或兵数落后时，允许电脑在明显劣势下冒险撤退。
+  static const aiRetreatHealthRatio = 0.5;
+
   /// 丰收时每座城额外增加的收入。
   static const abundantBonusPerCity = 5;
 

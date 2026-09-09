@@ -19,6 +19,7 @@ CampaignState _campaign([int map = 0]) => CampaignState.fromRom(
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: 10000,
   siegeRandom: const FixedSiegeRandom(),
+  retreatRandom: const FixedSiegeRandom(.9),
 );
 
 void main() {
@@ -117,13 +118,19 @@ void main() {
     march.position = march.destination;
     c.advance(0.02);
     final battle = c.battles[1]!;
-    final simulation = battle.simulation;
     for (var i = 0; i < 1200 && battle.nextWaveIn == 0; i++) {
       c.advance(1 / 60);
     }
     expect(c.cities[1]!.level, 4);
     expect(c.cityBounds(city).size, const ui.Size(48, 64));
-    c.camp(hero.id);
+    for (var i = 0; i < 120 && !battle.simulation.canRetreat; i++) {
+      c.advance(1 / 60);
+    }
+    final simulation = battle.simulation;
+    expect(c.retreatHero(hero.id), isTrue);
+    for (var i = 0; i < 180 && battle.isActive; i++) {
+      c.advance(1 / 60);
+    }
     expect(c.cities[1]!.level, 3);
     expect(c.cityBounds(city).size, const ui.Size(48, 48));
     final contact = CityContact.forAppearance(city.appearanceAt(3));

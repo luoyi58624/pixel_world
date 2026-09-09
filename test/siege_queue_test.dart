@@ -42,6 +42,7 @@ CampaignState _campaign({WorldDefinition? world}) => CampaignState.fromRom(
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   aiEnabled: false,
   siegeRandom: const FixedSiegeRandom(),
+  retreatRandom: const FixedSiegeRandom(.9),
   startingGold: 1000,
 );
 
@@ -80,7 +81,17 @@ void _kill(CampaignHero hero) {
 }
 
 void _withdraw(CampaignState c, HeroMarch march) {
-  expect(c.camp(march.hero.id), isTrue);
+  final battle = c.activeBattleForHero(march.hero.id);
+  if (battle == null) return;
+  // 排队期间可能已经产生胜败，结果过场不能再用撤退改判。
+  _until(c, () => !battle.isActive || battle.simulation.canRetreat);
+  if (battle.isActive) {
+    expect(
+      c.retreatHero(march.hero.id, countryId: march.hero.countryId),
+      isTrue,
+    );
+    _until(c, () => !battle.isActive);
+  }
   // 撤退者远离测试城下，避免参与接下来的野战。
   march.position = const Offset(100, 100);
   march.camp();

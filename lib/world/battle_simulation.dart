@@ -92,7 +92,18 @@ enum BattleResult { attackerWon, defenderWon, draw }
 enum BattleMotion { preparing, charging, recoiling, halted }
 
 /// 开场、拼杀、阵亡、胜方走场和结果停留均由后台时钟推进。
-enum BattleStage { introduction, fighting, falling, victory, ending, complete }
+enum BattleStage {
+  introduction,
+  fighting,
+  falling,
+  victory,
+  retreating,
+  ending,
+  complete,
+}
+
+/// 本场唯一一次撤退判定，动画与战役结算共用，不重复掷骰。
+typedef BattleRetreat = ({BattleSide side, bool succeeded});
 
 /// 一支纵队共用横坐标，减员后不挪动其他槽位。
 class BattleFormation {
@@ -145,6 +156,8 @@ class BattleUnit {
   });
   final BattleFormation _formation;
   final NesBattleKernel _kernel;
+  double _retreatOffset = 0;
+  bool _retreating = false;
   int get _index =>
       (side == BattleSide.attacker ? 0 : 5) + (slot < 0 ? 4 : slot);
 
@@ -170,11 +183,13 @@ class BattleUnit {
   bool get isGeneral => slot < 0;
 
   /// 是否仍需绘制，包含弹地退场中的角色。
-  bool get visible => _kernel.ram[0x570 + _index] != 0;
+  bool get visible =>
+      _kernel.ram[0x570 + _index] != 0 &&
+      (!_retreating || position.dx >= -24 && position.dx <= 280);
 
   /// 身体中心，阵亡角色可飞出地板范围。
   Offset get position => Offset(
-    _kernel.ram[0x5c0 + _index] + 8.0,
+    _kernel.ram[0x5c0 + _index] + 8.0 + _retreatOffset,
     _kernel.ram[0x5d0 + _index] - 7.0,
   );
 
@@ -183,6 +198,7 @@ class BattleUnit {
 
   /// 近身时举剑，远离时按横坐标的第 3 位切换步态。
   int animationFrame(double time) {
+    if (_retreating) return (position.dx.floor() >> 3) & 1;
     if (!health.alive) return (_kernel.ram[0x600 + _index] >> 1) & 1;
     return _kernel.ram[0x0e] & 128 == 0
         ? 2
@@ -190,7 +206,8 @@ class BattleUnit {
   }
 
   /// 左军镜像朝右。
-  bool get facingRight => side == BattleSide.defender;
+  bool get facingRight =>
+      _retreating ? side == BattleSide.attacker : side == BattleSide.defender;
 
   /// 当前是否行走。
   bool get moving => health.alive && _formation.moving;
@@ -347,6 +364,56 @@ class BattleSimulation {
   int _endingTicks = 0;
   int _endingCompleteAt = 0;
   final _syncedHp = <BattleSide, double>{};
+  BattleRetreat? _retreat;
+  double _retreatElapsed = 0;
+
+  /// 已锁定的撤退结果，普通拼杀时为空。
+  BattleRetreat? get retreat => _retreat;
+
+  /// 仅列阵或仍在拼杀时可以撤退，阵亡和结果过场不可改判。
+  bool get canRetreat =>
+      !finished &&
+      _retreat == null &&
+      (forming || stage == BattleStage.fighting) &&
+      attacker.general.alive &&
+      defender.general.alive;
+
+  /// 锁定结果；成功保留伤势并转身离场，失败使用原版阵亡与胜方过场。
+  bool beginRetreat(BattleSide side, {required bool succeeded}) {
+    if (!canRetreat) return false;
+    _retreat = (side: side, succeeded: succeeded);
+    if (succeeded) {
+      stage = BattleStage.retreating;
+      _pendingResult = side == BattleSide.attacker
+          ? BattleResult.defenderWon
+          : BattleResult.attackerWon;
+      for (final formation in formations.values) {
+        formation.moving = false;
+        formation.motion = BattleMotion.halted;
+      }
+      for (final unit in units) {
+        unit._retreating = unit.side == side && unit.health.alive;
+      }
+    } else {
+      final army = side == BattleSide.attacker ? attacker : defender;
+      army.general.hp = 0;
+      _kernel.setHeroHp(_side(side), 0);
+      _syncHealth();
+      _ticks = math.max(_ticks, GameConfig.battleFormationFrames);
+      stage = BattleStage.falling;
+    }
+    return true;
+  }
+
+  /// 撤退状态文案，不把成功逃脱的将领描述为阵亡。
+  String? get retreatMessage {
+    final attempt = _retreat;
+    if (attempt == null) return null;
+    final name = attempt.side == BattleSide.attacker
+        ? attacker.name
+        : defender.name;
+    return attempt.succeeded ? '$name撤退成功' : '$name撤退失败，阵亡';
+  }
 
   /// 是否结束或撤离。
   bool get finished => result != null || stopped;
@@ -356,7 +423,8 @@ class BattleSimulation {
 
   /// 结果已经揭晓，但须等原版收尾时长结束才交给战役结算。
   BattleResult? get announcedResult =>
-      stage == BattleStage.ending || stage == BattleStage.complete
+      _retreat?.succeeded != true &&
+          (stage == BattleStage.ending || stage == BattleStage.complete)
       ? _pendingResult
       : null;
 
@@ -413,6 +481,16 @@ class BattleSimulation {
       _accumulator = math.max(0, _accumulator - fixedStep);
       elapsed += fixedStep;
       _ticks++;
+      if (_retreat?.succeeded == true) {
+        final previousStage = stage;
+        _advanceRetreat();
+        changed = changed || _ticks % 6 == 0 || previousStage != stage;
+        if (finished) {
+          _accumulator = 0;
+          break;
+        }
+        continue;
+      }
       if (_ticks <= GameConfig.battleFormationFrames) continue;
       if (forming) {
         stage = BattleStage.fighting;
@@ -492,6 +570,29 @@ class BattleSimulation {
     for (final formation in formations.values) {
       formation.moving = false;
       formation.motion = BattleMotion.halted;
+    }
+  }
+
+  void _advanceRetreat() {
+    _retreatElapsed += fixedStep;
+    final progress = (_retreatElapsed / GameConfig.retreatExitSeconds).clamp(
+      0.0,
+      1.0,
+    );
+    final distance = 280 * progress * progress * (3 - 2 * progress);
+    final side = _retreat!.side;
+    final formation = formations[side]!;
+    formation.moving = progress < 1;
+    formation.motion = progress < 1
+        ? BattleMotion.charging
+        : BattleMotion.halted;
+    for (final unit in units.where((unit) => unit._retreating)) {
+      unit._retreatOffset = side == BattleSide.attacker ? distance : -distance;
+    }
+    if (progress == 1) stage = BattleStage.ending;
+    if (_retreatElapsed + 1e-9 >=
+        GameConfig.retreatExitSeconds + GameConfig.retreatResultSeconds) {
+      _complete();
     }
   }
 

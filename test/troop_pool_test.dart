@@ -53,6 +53,7 @@ CampaignState _campaign({
     decodeRomHeroes(jsonEncode(json)),
     aiEnabled: false,
     siegeRandom: const FixedSiegeRandom(),
+    retreatRandom: const FixedSiegeRandom(.9),
     startingGold: 10000,
   );
   if (homeStock > 0) expect(c.buySoldiers(0, homeStock), isTrue);
@@ -201,7 +202,9 @@ void main() {
     final battle = c.battles[1]!;
     final guard = battle.defender;
     final oldArmy = battle.simulation.defender.soldiers;
-    c.camp(march.hero.id);
+    expect(c.camp(march.hero.id), isFalse);
+    expect(c.retreatHero(march.hero.id), isTrue);
+    _until(c, () => !battle.isActive);
     expect(battle.isActive, isFalse);
     expect(guard.soldiers, 0);
     expect(c.soldiersAt(1), 10);

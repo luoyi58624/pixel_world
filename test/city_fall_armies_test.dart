@@ -149,7 +149,7 @@ void main() {
     expect(c.marches.keys, isNot(contains(b.id)));
   });
 
-  test('失城后主动撤离也算结束交战，不能借重新移动保住部队', () {
+  test('失城后不能借移动或撤退保住部队，打完后按原规则消失', () {
     final c = campaign();
     final hero = c.garrisonAt(0).first;
     final march = c.dispatch(hero, c.world.cities[1])!;
@@ -157,6 +157,9 @@ void main() {
     c.advance(0.02);
     capture(c, 0);
     expect(c.moveTo(hero.id, field(c)), isFalse);
+    expect(c.retreatHero(hero.id), isNull);
+    expect(c.heroes, contains(hero));
+    finish(c, c.battles[1]!);
     expect(c.heroes, isNot(contains(hero)));
     expect(c.marches, isNot(contains(hero.id)));
     expect(c.battles[1]!.isActive, isFalse);

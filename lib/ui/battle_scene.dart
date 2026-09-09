@@ -8,6 +8,7 @@ import '../world/battle_simulation.dart';
 import '../world/campaign.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
+import 'hero_retreat_button.dart';
 
 const _ink = Color(0xff111916);
 const _cream = Color(0xffece7d1);
@@ -49,6 +50,11 @@ class _BattleSceneState extends State<BattleScene> {
     final c = widget.controller;
     final battle = c.watchedBattle!;
     final sim = battle.simulation;
+    final retreatHero = battle.attacker.isPlayer
+        ? battle.attacker
+        : battle is FieldBattle && battle.defender.isPlayer
+        ? battle.defender
+        : null;
     return LayoutBuilder(
       builder: (context, constraints) {
         final tight = constraints.maxHeight < 390 || constraints.maxWidth < 620;
@@ -60,6 +66,7 @@ class _BattleSceneState extends State<BattleScene> {
             : (battle is FieldBattle ? '右军受压' : '攻方受压');
         final status =
             battle.outcome ??
+            sim.retreatMessage ??
             (battle is CityBattle && battle.nextWaveIn > 0
                 ? '${battle.defender.name}战败 · 下一位守将即将入场'
                 : sim.endingMessage != null
@@ -276,6 +283,40 @@ class _BattleSceneState extends State<BattleScene> {
                     '$status。${battle.defender.name} HP ${battle.defender.hp}，${battle.attacker.name} HP ${battle.attacker.hp}',
                 child: const SizedBox.shrink(),
               ),
+              if (sim.retreatMessage != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: SizedBox(
+                    height: 48,
+                    child: Center(
+                      child: Text(
+                        sim.retreatMessage!,
+                        key: const ValueKey('battle-retreat-result'),
+                        style: const TextStyle(color: _gold, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              if (retreatHero != null && sim.retreat == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: HeroRetreatButton(
+                      key: const ValueKey('battle-retreat'),
+                      controller: c,
+                      heroId: retreatHero.id,
+                      onAction: widget.onAction,
+                    ),
+                  ),
+                ),
               if (!tight)
                 _overlay(
                   Container(

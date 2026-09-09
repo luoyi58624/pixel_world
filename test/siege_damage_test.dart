@@ -7,6 +7,8 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/fixed_siege_random.dart';
+
 class _Rolls implements math.Random {
   _Rolls(this.values);
   final List<double> values;
@@ -52,6 +54,7 @@ CampaignState _campaign(_Rolls rolls) => CampaignState.fromRom(
   aiEnabled: false,
   startingGold: 10000,
   siegeRandom: rolls,
+  retreatRandom: const FixedSiegeRandom(.9),
 );
 
 CityBattle _start(CampaignState c) {
@@ -141,11 +144,12 @@ void main() {
     final battle = _start(c);
     _win(c, battle);
     _until(c, () => battle.wave == 2);
-    c.camp(battle.attacker.id);
+    expect(c.retreatHero(battle.attacker.id), isTrue);
+    _until(c, () => !battle.isActive);
     expect(battle.isActive, isFalse);
     expect(c.cities[1]!.level, 2);
     expect(rolls.calls, 1);
-    c.camp(battle.attacker.id);
+    expect(c.retreatHero(battle.attacker.id), isNull);
     c.advance(2);
     expect(rolls.calls, 1);
   });
@@ -174,7 +178,8 @@ void main() {
     expect(c.cities[1]!.level, 4);
     expect(battle.simulation.defenderAttackBonus, 8);
     expect(battle.initialCityLevel, 3);
-    c.camp(battle.attacker.id);
+    expect(c.retreatHero(battle.attacker.id), isTrue);
+    _until(c, () => !battle.isActive);
     expect(c.cities[1]!.level, 3);
     expect(rolls.calls, 1);
   });

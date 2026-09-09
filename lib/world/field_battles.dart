@@ -50,6 +50,13 @@ class FieldBattle extends WorldBattle {
 
 extension _FieldEncounters on CampaignState {
   bool _resolveFieldEncounters(Map<String, Offset> previous) {
+    _retreatSeparations.removeWhere((pair) {
+      final a = marches[pair.$1], b = marches[pair.$2];
+      return a == null ||
+          b == null ||
+          (a.position - b.position).distance >
+              GameConfig.fieldEncounterDistance + 4;
+    });
     final available =
         marches.values
             .where(
@@ -68,6 +75,9 @@ extension _FieldEncounters on CampaignState {
         final a = available[i];
         final b = available[j];
         if (a.hero.countryId == b.hero.countryId) continue;
+        if (_retreatSeparations.contains(_retreatPair(a.hero.id, b.hero.id))) {
+          continue;
+        }
         final from = previous[a.hero.id]! - previous[b.hero.id]!;
         final relativeMove = (a.position - b.position) - from;
         final radius = GameConfig.fieldEncounterDistance;
@@ -165,6 +175,14 @@ extension _FieldEncounters on CampaignState {
   void _resumeFieldArmy(CampaignHero hero, {required bool wasCamped}) {
     final march = marches[hero.id];
     if (march == null || !hero.health.alive) return;
+    if (march.returningFromRetreat) {
+      if (goldFor(hero.countryId) == 0) {
+        _campForSupply(march);
+      } else {
+        march._resumeToward(march.destination, city: march.target);
+      }
+      return;
+    }
     if (march.supplyHalted || goldFor(hero.countryId) == 0) {
       _campForSupply(march);
       return;
