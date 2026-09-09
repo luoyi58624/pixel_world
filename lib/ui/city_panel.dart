@@ -147,6 +147,11 @@ class CityPanel extends StatelessWidget {
         CityServices(controller: c, assets: assets, onAction: onAction),
         const SizedBox(height: CityPanelStyle.sectionGap),
         _heroSelection(),
+        if (situation.isPlayer &&
+            c.campaign.weaponCatalog.weapons.isNotEmpty) ...[
+          const SizedBox(height: CityPanelStyle.sectionGap),
+          WeaponLibrary(controller: c, onAction: onAction),
+        ],
         const SizedBox(height: CityPanelStyle.sectionGap),
         _economy(situation),
       ],
@@ -233,7 +238,6 @@ class CityPanel extends StatelessWidget {
             ('内政', '${hero.politics}'),
             ('月俸', '${hero.salary}'),
           ], columns: 3),
-          WeaponLoadout(controller: c, hero: hero, onAction: onAction),
           if (hero.isPlayer && !c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),

@@ -53,7 +53,7 @@ class _BattleSceneState extends State<BattleScene> {
     final sim = battle.simulation;
     final playerHero = battle.attacker.isPlayer
         ? battle.attacker
-        : battle.defender.isPlayer
+        : battle is FieldBattle && battle.defender.isPlayer
         ? battle.defender
         : null;
     _hasWeaponBar = _hasWeaponBar || playerHero?.weaponIds.isNotEmpty == true;

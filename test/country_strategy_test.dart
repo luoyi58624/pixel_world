@@ -109,7 +109,7 @@ void main() {
     expect(c.goldFor(1), 935);
   });
 
-  test('侦测来敌后优先升级、招将、补兵和武器，本国停止新的攻势', () {
+  test('侦测来敌后优先升级、招将、补兵，守军不购买武器且停止新的攻势', () {
     final c = weaponStrategyCampaign(ai: true, gold: 300, recruitment: true);
     final attacker = weaponHero(c, 40);
     final march = c.dispatch(attacker, c.world.cities[1])!;
@@ -117,6 +117,8 @@ void main() {
         c.cityBounds(c.world.cities[1]).center + const Offset(260, 0);
     c.advance(8);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
+    expect(c.weaponStorageUsed(1), 0);
+    expect(c.garrisonAt(1).every((hero) => hero.weaponIds.isEmpty), isTrue);
     expect(c.cities[1]!.level, 3);
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     c.advance(5);
@@ -134,9 +136,14 @@ void main() {
     );
     final hero = weaponHero(c, 0);
     for (var i = 0; i < 3; i++) {
-      c.equipWeapon(hero, 9, countryId: 1);
+      c.buyWeapon(9, countryId: 1);
     }
-    final march = c.dispatch(hero, c.world.cities[2], countryId: 1)!;
+    final march = c.dispatch(
+      hero,
+      c.world.cities[2],
+      countryId: 1,
+      weaponSlots: {0: 9, 1: 9, 2: 9},
+    )!;
     march.position = march.destination;
     c.advance(.02);
     final battle = c.battles[2]!;

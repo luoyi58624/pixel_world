@@ -177,7 +177,6 @@ extension _CountryStrategy on CampaignState {
         changed = _upgradeAiCity(city.id, countryId) || changed;
         changed = _hireAiHero(city.id, countryId) || changed;
         changed = _supplyAiCity(city.id, countryId) || changed;
-        changed = _armAiDefenders(city.id, countryId) || changed;
       }
       return changed;
     }
@@ -341,17 +340,28 @@ extension _CountryStrategy on CampaignState {
         )) {
       return false;
     }
-    for (final hero in raid) {
-      _returnWeapons(hero);
-    }
-    for (final hero in raid) {
-      for (final weaponId in loadouts[hero.id]!) {
-        if (!equipWeapon(hero, weaponId, countryId: countryId)) return false;
-      }
-    }
     var changed = false;
     for (final hero in raid) {
-      if (dispatch(hero, target, countryId: countryId) != null) {
+      final selection = <int, int>{};
+      final needed = <int, int>{};
+      // 保留将领原装备，只补空槽；全队预算已通过才为出征队伍购买。
+      final gear = loadouts[hero.id]!;
+      for (var slot = hero._weaponIds.length; slot < gear.length; slot++) {
+        final id = gear[slot];
+        needed.update(id, (n) => n + 1, ifAbsent: () => 1);
+        if (weaponStockFor(countryId, id) < needed[id]! &&
+            !buyWeapon(id, countryId: countryId)) {
+          return changed;
+        }
+        selection[slot] = id;
+      }
+      if (dispatch(
+            hero,
+            target,
+            countryId: countryId,
+            weaponSlots: selection,
+          ) !=
+          null) {
         plan._committed.add(hero.id);
         changed = true;
       }
@@ -393,55 +403,19 @@ extension _CountryStrategy on CampaignState {
         upgradeCity(cityId, hero: governors.first, countryId: countryId);
   }
 
-  bool _armAiDefenders(int cityId, int countryId) {
-    final choices =
-        weaponCatalog.weapons.values
-            .where(
-              (w) =>
-                  w.selfDamage == 0 &&
-                  (weaponUnlocked(countryId, w) ||
-                      weaponStockFor(countryId, w.id) > 0),
-            )
-            .toList()
-          ..sort((a, b) => b.damage.compareTo(a.damage));
-    var changed = false;
-    final guards = garrisonAt(cityId)..sort(_compareAiStrength);
-    for (final hero in guards.take(2)) {
-      if (hero._weaponIds.length >= weaponCatalog.carryLimit) continue;
-      final weapon = choices
-          .where(
-            (w) =>
-                weaponEquipCost(countryId, w.id) <=
-                    _planAiBudget(countryId).spendableGold &&
-                weaponEquipBlockReason(hero, w.id, countryId: countryId) ==
-                    null,
-          )
-          .firstOrNull;
-      if (weapon != null) {
-        changed = equipWeapon(hero, weapon.id, countryId: countryId) || changed;
-      }
-    }
-    return changed;
-  }
-
   Map<String, List<int>> _raidWeapons(
     List<CampaignHero> raid,
     int countryId,
     int count,
   ) {
     final stock = Map<int, int>.of(_weaponStock[countryId] ?? {});
-    for (final hero in raid) {
-      for (final id in hero._weaponIds) {
-        stock.update(id, (n) => n + 1, ifAbsent: () => 1);
-      }
-    }
     final choices =
         weaponCatalog.weapons.values.where((w) => w.selfDamage == 0).toList()
           ..sort((a, b) => b.damage.compareTo(a.damage));
     final result = <String, List<int>>{};
     for (final hero in raid) {
-      final ids = <int>[];
-      for (var slot = 0; slot < count; slot++) {
+      final ids = List<int>.of(hero._weaponIds);
+      for (var slot = ids.length; slot < count; slot++) {
         final weapon = choices
             .where(
               (w) => (stock[w.id] ?? 0) > 0 || weaponUnlocked(countryId, w),
@@ -464,14 +438,9 @@ extension _CountryStrategy on CampaignState {
     int countryId,
   ) {
     final stock = Map<int, int>.of(_weaponStock[countryId] ?? {});
-    for (final hero in raid) {
-      for (final id in hero._weaponIds) {
-        stock.update(id, (n) => n + 1, ifAbsent: () => 1);
-      }
-    }
     var cost = 0;
     for (final hero in raid) {
-      for (final id in loadouts[hero.id]!) {
+      for (final id in loadouts[hero.id]!.skip(hero._weaponIds.length)) {
         if ((stock[id] ?? 0) > 0) {
           stock[id] = stock[id]! - 1;
         } else {
@@ -497,7 +466,6 @@ extension _CountryStrategy on CampaignState {
     var reserve = reserveSoldiersFor(cities[target.id]!.ownerCountryId);
     var guardIndex = 0;
     var losses = 0;
-    final spentEnemyWeapons = <String>{};
     for (var index = 0; index < raid.length; index++) {
       final hero = raid[index];
       var ownHp = hero.hp;
@@ -515,12 +483,6 @@ extension _CountryStrategy on CampaignState {
         var enemyTotal =
             guard.maxHp +
             defendingSoldiers * BattleSimulation.soldierHp.toDouble();
-        if (spentEnemyWeapons.add(guard.id)) {
-          ownTotal -= guard._weaponIds.fold<int>(
-            0,
-            (sum, id) => sum + (weaponCatalog.weapons[id]?.damage ?? 0),
-          );
-        }
         if (ownTotal <= 0) {
           losses++;
           reserve += defendingSoldiers;
@@ -583,6 +545,7 @@ extension _CountryStrategy on CampaignState {
     battle._nextAiWeaponDecision =
         sim.elapsed + GameConfig.aiWeaponDecisionSeconds;
     for (final hero in [battle.defender, battle.attacker]) {
+      if (battle is CityBattle && hero == battle.defender) continue;
       if (hero.isPlayer || hero._weaponIds.isEmpty) continue;
       final other = hero == battle.attacker ? battle.defender : battle.attacker;
       final side = hero == battle.attacker

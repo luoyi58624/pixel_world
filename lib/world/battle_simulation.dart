@@ -380,9 +380,13 @@ class BattleSimulation {
       attacker.general.alive &&
       defender.general.alive;
 
+  /// 城战仅右侧进攻军可使用；野战双方均为在外出征部队。
+  bool canUseWeaponFor(BattleSide side) =>
+      canUseWeapon && (fieldTerrain != null || side == BattleSide.attacker);
+
   /// 锁定一个武器动作，保留原版直接伤害及死枪反噬。
   bool useWeapon(BattleSide side, WeaponDefinition weapon) {
-    if (!canUseWeapon) return false;
+    if (!canUseWeaponFor(side)) return false;
     _weaponStrike = WeaponStrike(
       weapon,
       attackingSide: side == BattleSide.attacker,

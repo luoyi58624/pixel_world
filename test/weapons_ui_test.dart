@@ -45,44 +45,82 @@ Future<void> _tap(WidgetTester tester, String key) async {
 
 void main() {
   for (final size in [const Size(375, 812), const Size(1280, 720)]) {
-    testWidgets('城内军械库原地展开、同规格三槽配装、战斗中使用且不暂停其他部队 $size', (tester) async {
+    testWidgets('国家库一行三格、无限堆叠；选择三件出征，取消无扣除，战斗不暂停 $size', (tester) async {
       final c = await _load(tester, size);
       final hero = c.selectedHero!;
+      expect(find.byKey(const ValueKey('hero-weapons')), findsNothing);
+      expect(find.byKey(const ValueKey('warehouse-empty-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('warehouse-empty-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('warehouse-empty-3')), findsNothing);
       await _tap(tester, 'weapon-shop-toggle');
       expect(find.text('事件武器'), findsNWidgets(3));
       expect(
         tester
-            .widget<OutlinedButton>(
-              find.byKey(const ValueKey('equip-weapon-1')),
-            )
+            .widget<OutlinedButton>(find.byKey(const ValueKey('buy-weapon-1')))
             .onPressed,
         isNull,
       );
-      for (var i = 0; i < 3; i++) {
-        await _tap(tester, 'equip-weapon-0');
+      for (var i = 0; i < 7; i++) {
+        await _tap(tester, 'buy-weapon-0');
       }
-      expect(c.campaign.gold, 41);
-      expect(hero.weaponIds, [0, 0, 0]);
+      await _tap(tester, 'buy-weapon-9');
+      expect(c.campaign.gold, 24);
+      expect(c.campaign.weaponInventoryFor(0), {0: 7, 9: 1});
+      expect(hero.weaponIds, isEmpty);
+      await _tap(tester, 'weapon-shop-toggle');
+      final slotRects = [
+        'warehouse-weapon-0',
+        'warehouse-weapon-9',
+        'warehouse-empty-2',
+      ].map((key) => tester.getRect(find.byKey(ValueKey(key)))).toList();
+      expect(slotRects[0].height, 52);
+      expect(slotRects[1].height, slotRects[0].height);
+      expect(slotRects[1].width, closeTo(slotRects[2].width, .01));
+      expect(slotRects.map((r) => r.top).toSet().length, 1);
+      for (var i = 0; i < 3; i++) {
+        await _tap(tester, 'warehouse-weapon-0');
+      }
+      expect(c.selectedWeaponCount, 3);
       expect(
         tester
             .widget<OutlinedButton>(
-              find.byKey(const ValueKey('equip-weapon-0')),
+              find.byKey(const ValueKey('warehouse-weapon-9')),
             )
             .onPressed,
         isNull,
       );
-      final slots = [
-        for (var i = 0; i < 3; i++)
-          tester.getRect(find.byKey(ValueKey('weapon-slot-$i'))),
-      ];
-      expect(slots[0].height, slots[1].height);
-      expect(slots[1].width, closeTo(slots[2].width, .01));
-      await _tap(tester, 'weapon-slot-1');
-      expect(c.campaign.weaponStockFor(0, 0), 1);
-      await _tap(tester, 'equip-weapon-0');
-      expect(c.campaign.gold, 41);
+      await _tap(tester, 'deselect-weapon-0');
+      expect(c.selectedWeaponCount, 2);
+      await _tap(tester, 'warehouse-weapon-9');
+      expect(c.selectedWeaponCount, 3);
+      c.closeCity();
+      expect(c.selectedWeaponCount, 0);
+      expect(c.campaign.weaponInventoryFor(0), {0: 7, 9: 1});
+      c.openCity(c.world.cities[0]);
+      c.selectHero(hero.id);
+      c.selectWeapon(0);
+      c.prepareDispatch();
+      expect(c.selectedWeaponCount, 0);
       c.cancelCityAction();
-      final march = c.campaign.dispatch(hero, c.world.cities[1])!;
+      expect(c.selectedWeaponCount, 0);
+      expect(c.campaign.weaponStockFor(0, 0), 7);
+      // 取消后再次出征不会继承上次的武器选择。
+      c.prepareDispatch();
+      c.cancelCityAction();
+      for (var i = 0; i < 3; i++) {
+        c.selectWeapon(0);
+      }
+      c.prepareDispatch();
+      c.confirmTarget(c.world.cities[1]);
+      expect(c.selectedWeaponCount, 0);
+      expect(hero.weaponIds, [0, 0, 0]);
+      expect(c.campaign.weaponStockFor(0, 0), 4);
+      final march = c.campaign.marches[hero.id]!;
+      c.openUnit(hero.id);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('hero-weapons')), findsOneWidget);
+      expect(find.byKey(const ValueKey('weapon-slot-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('weapon-library')), findsNothing);
       march.position = march.destination;
       c.tick(.02);
       final battle = c.campaign.battles[1]!;
@@ -107,7 +145,6 @@ void main() {
       final pool = battle.defender.squad.fold<double>(0, (n, s) => n + s.hp);
       await _tap(tester, 'battle-weapon-0');
       expect(hero.weaponIds.length, 2);
-      expect(battle.simulation.weaponStrike, isNotNull);
       c.tick(.6);
       await tester.pump();
       expect(walking.position, isNot(before));
@@ -115,28 +152,53 @@ void main() {
         battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
         pool - 20,
       );
-      expect(c.campaign.gold, 41);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
 
-  testWidgets('敌将配装只读，不能通过军械库操作其他国家', (tester) async {
+  testWidgets('新类型扩展第二行，友城共享库存；关闭、切将、切图都清空选择，敌城不提供武器库', (tester) async {
     final c = await _load(tester, const Size(375, 812));
     final enemy = c.campaign.garrisonAt(1).first;
-    c.campaign.equipWeapon(enemy, 0, countryId: 1);
+    c.campaign.cities[2]!.ownerCountryId = 0;
+    for (final id in [0, 9, 1, 10]) {
+      expect(c.campaign.buyWeapon(id), isTrue);
+    }
+    c.selectWeapon(0);
+    expect(c.selectedWeaponCount, 1);
+    final other = c.campaign
+        .garrisonAt(0)
+        .where((h) => h != c.selectedHero)
+        .first;
+    c.selectHero(other.id);
+    expect(c.selectedWeaponCount, 0);
+    c.selectWeapon(0);
+    c.openCity(c.world.cities[2]);
+    expect(c.selectedWeaponCount, 0);
+    await tester.pump();
+    final first = tester.getRect(
+      find.byKey(const ValueKey('warehouse-weapon-0')),
+    );
+    final fourth = tester.getRect(
+      find.byKey(const ValueKey('warehouse-weapon-10')),
+    );
+    expect(fourth.top, closeTo(first.top + 60, .01));
+    expect(find.byKey(const ValueKey('warehouse-empty-5')), findsOneWidget);
+    expect(find.byKey(const ValueKey('warehouse-empty-6')), findsNothing);
+    c.openCity(c.world.cities[0]);
+    c.selectWeapon(0);
     c.openCity(c.world.cities[1]);
     c.selectHero(enemy.id);
+    expect(c.selectedWeaponCount, 0);
     await tester.pump();
-    expect(find.byKey(const ValueKey('weapon-shop-toggle')), findsNothing);
-    expect(
-      tester
-          .widget<OutlinedButton>(find.byKey(const ValueKey('weapon-slot-0')))
-          .onPressed,
-      isNull,
-    );
-    expect(c.campaign.equipWeapon(enemy, 0), isFalse);
-    expect(enemy.weaponIds, [0]);
+    expect(find.byKey(const ValueKey('weapon-library')), findsNothing);
+    expect(find.byKey(const ValueKey('hero-weapons')), findsNothing);
+    c.selectWeapon(0);
+    expect(c.selectedWeaponCount, 0);
+    c.openCity(c.world.cities[0]);
+    c.selectWeapon(0);
+    c.switchWorld(1);
+    expect(c.selectedWeaponCount, 0);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -78,10 +78,7 @@ class WeaponCatalog {
       for (final item in (country.value as Map<String, dynamic>).entries) {
         final weaponId = int.tryParse(item.key);
         final amount = item.value;
-        if (!weapons.containsKey(weaponId) ||
-            amount is! int ||
-            amount < 0 ||
-            amount > 999) {
+        if (!weapons.containsKey(weaponId) || amount is! int || amount < 0) {
           throw const FormatException('初始武器库存无效');
         }
         values[weaponId!] = amount;

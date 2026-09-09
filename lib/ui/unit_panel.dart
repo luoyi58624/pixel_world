@@ -143,7 +143,7 @@ class UnitPanel extends StatelessWidget {
             _stat('士兵', '${hero.soldiers} 人'),
           ],
         ),
-        WeaponLoadout(controller: c, hero: hero, onAction: onAction),
+        WeaponLoadout(controller: c, hero: hero),
         if (hero.isPlayer) ...[
           const SizedBox(height: 16),
           Row(

@@ -198,7 +198,7 @@ class CampaignHero {
   final List<BattleHealth> squad;
   final List<int> _weaponIds = [];
 
-  /// 随身一次性武器，最多三件；外出时不与国家库存重复计数。
+  /// 将领出征携带的武器，回城归库，守城禁用，最多三件。
   List<int> get weaponIds => List.unmodifiable(_weaponIds);
 
   // 未满一金币的粮草累计保留在英雄身上，进城或改令不能抹去已用粮草。
@@ -1328,24 +1328,37 @@ class CampaignState {
     return true;
   }
 
-  /// 提交合法目标，取消选目标不会创建这条记录。
+  /// 提交合法目标；weaponSlots 指定英雄槽位对应的库存武器编号，确认前不扣兵器。
   HeroMarch? dispatch(
     CampaignHero hero,
     CityDefinition target, {
     int countryId = 0,
+    Map<int, int> weaponSlots = const {},
   }) {
     if (!world.cities.contains(target)) return null;
-    return dispatchTo(hero, cityBounds(target).center, countryId: countryId);
+    return dispatchTo(
+      hero,
+      cityBounds(target).center,
+      countryId: countryId,
+      weaponSlots: weaponSlots,
+    );
   }
 
-  /// 确认有效目的地后自动从本城储备补兵并离城，选点取消和无效指令不扣兵。
-  HeroMarch? dispatchTo(CampaignHero hero, Offset point, {int countryId = 0}) {
+  /// 确认有效目的地后补兵并按 weaponSlots 取用国家武器，无效指令不扣资源。
+  HeroMarch? dispatchTo(
+    CampaignHero hero,
+    Offset point, {
+    int countryId = 0,
+    Map<int, int> weaponSlots = const {},
+  }) {
     if (!canDispatch(hero, countryId: countryId) || !_containsPoint(point)) {
       return null;
     }
     final target = cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
     if (target == source) return null;
+    if (!_validWeaponSelection(hero, weaponSlots)) return null;
+    _loadDispatchWeapons(hero, weaponSlots);
     reinforceHero(hero, countryId: countryId);
     final start = _departurePoint(source, point);
     final end = target == null ? point : _contactPoint(start, point, target);
