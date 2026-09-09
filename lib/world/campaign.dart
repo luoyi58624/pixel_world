@@ -11,7 +11,7 @@ import 'world_movement.dart';
 class CitySituation {
   /// 按原始等级创建城池及其基础产出。
   CitySituation({
-    required this.ownerCountryId,
+    required this._ownerCountryId,
     required this.defense,
     required this.baseIncome,
     required int initialLevel,
@@ -21,8 +21,15 @@ class CitySituation {
     }
   }
 
-  /// 当前占领国家，决定国旗；城池的固定名称不随之变化。
-  int ownerCountryId;
+  /// 当前占领国家；易主时统一重置为一级，同一国家重复进驻不会降级。
+  int get ownerCountryId => _ownerCountryId;
+  set ownerCountryId(int value) {
+    if (value == _ownerCountryId) return;
+    _ownerCountryId = value;
+    _level = 1;
+  }
+
+  int _ownerCountryId;
 
   /// 编号 0 是玩家国家。
   bool get isPlayer => ownerCountryId == 0;
@@ -370,6 +377,27 @@ class CampaignState {
   /// 城池玩法状态。
   final Map<int, CitySituation> cities;
 
+  /// 建筑外观、点击及部队接触共用当前等级范围，左下基座保持在原地图位置。
+  Rect cityBounds(CityDefinition city) {
+    final appearance = city.appearanceAt(cities[city.id]!.level);
+    final width = appearance.width * 16.0;
+    final height = appearance.height * 16.0;
+    return Rect.fromLTWH(
+      city.bounds.left.clamp(0.0, math.max(0.0, world.pixelSize.width - width)),
+      (city.bounds.bottom - height).clamp(
+        0.0,
+        math.max(0.0, world.pixelSize.height - height),
+      ),
+      width,
+      height,
+    );
+  }
+
+  /// 按当前建筑大小命中城池，不使用开局时的旧尺寸。
+  CityDefinition? cityAt(Offset point) => world.cities
+      .where((city) => cityBounds(city).contains(point))
+      .firstOrNull;
+
   /// 仍存在的英雄，战败或失城移除时不保留幽灵驻军。
   final List<CampaignHero> heroes;
 
@@ -500,6 +528,7 @@ class CampaignState {
     }
     _gold -= cost;
     city._level++;
+    _refreshCityApproaches(cityId);
     _record('${_cityName(cityId)}升至 ${city.level} 级，每回合产出 ${city.income}');
     return true;
   }
@@ -507,13 +536,13 @@ class CampaignState {
   /// 提交合法目标，取消选目标不会创建这条记录。
   HeroMarch? dispatch(CampaignHero hero, CityDefinition target) {
     if (!world.cities.contains(target)) return null;
-    return dispatchTo(hero, target.bounds.center);
+    return dispatchTo(hero, cityBounds(target).center);
   }
 
   /// 确认任意地图位置后派兵，选城则在抵达后进驻或自动交战。
   HeroMarch? dispatchTo(CampaignHero hero, Offset point) {
     if (!canDispatch(hero) || !_containsPoint(point)) return null;
-    final target = world.cityAt(point);
+    final target = cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
     if (target == source) return null;
     final start = _departurePoint(source, point);
@@ -537,7 +566,7 @@ class CampaignState {
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
       return false;
     }
-    final city = world.cityAt(point);
+    final city = cityAt(point);
     if (city != null &&
         city == march.target &&
         (march.phase == MarchPhase.fighting ||
@@ -570,7 +599,7 @@ class CampaignState {
 
   // 地图人物本体为 16×16，中心距城池边缘八像素时即贴城。
   Offset _departurePoint(CityDefinition source, Offset toward) {
-    final rect = source.bounds.inflate(8);
+    final rect = cityBounds(source).inflate(8);
     final delta = toward - rect.center;
     if (delta.distance < 1e-9) return rect.centerRight;
     final factor = math.min(
@@ -587,9 +616,50 @@ class CampaignState {
   }
 
   Offset _contactPoint(Offset from, Offset aim, CityDefinition city) {
-    final rect = city.bounds.inflate(8);
+    final rect = cityBounds(city).inflate(8);
     final fraction = _entryFraction(from, aim, rect);
-    return fraction == null ? from : from + (aim - from) * fraction;
+    return fraction == null
+        ? _nearestEdge(from, rect)
+        : from + (aim - from) * fraction;
+  }
+
+  Offset _nearestEdge(Offset from, Rect rect) {
+    final point = Offset(
+      from.dx.clamp(rect.left, rect.right),
+      from.dy.clamp(rect.top, rect.bottom),
+    );
+    final edges = [
+      Offset(rect.left, point.dy),
+      Offset(rect.right, point.dy),
+      Offset(point.dx, rect.top),
+      Offset(point.dx, rect.bottom),
+    ];
+    edges.sort(
+      (a, b) =>
+          (a - from).distanceSquared.compareTo((b - from).distanceSquared),
+    );
+    return edges.first;
+  }
+
+  // 建筑变化时更新在途目标；已经交战的部队只调整贴城位置，不重开战斗。
+  void _refreshCityApproaches(int cityId) {
+    for (final march in marches.values.where(
+      (march) => march.target?.id == cityId,
+    )) {
+      final target = march.target!;
+      if (march.phase == MarchPhase.marching) {
+        final point = _contactPoint(
+          march.position,
+          cityBounds(target).center,
+          target,
+        );
+        march.moveTo(point, city: target);
+      } else {
+        final rect = cityBounds(target).inflate(8);
+        march.position = _nearestEdge(march.position, rect);
+        march.destination = march.position;
+      }
+    }
   }
 
   void _endBattle(HeroMarch march, String outcome) {
@@ -647,6 +717,7 @@ class CampaignState {
     if (defendedCityId != null) {
       if (city.level > 1) {
         city._level--;
+        _refreshCityApproaches(hero.cityId);
       } else {
         captured = true;
         removed.addAll(_captureCity(hero.cityId, winnerCountryId));
@@ -692,7 +763,7 @@ class CampaignState {
             final fraction = _entryFraction(
               previous,
               march.position,
-              city.bounds.inflate(8),
+              cityBounds(city).inflate(8),
             );
             if (fraction != null && fraction < nearest) {
               nearest = fraction;
@@ -835,6 +906,7 @@ class CampaignState {
         .toList();
     heroes.removeWhere((hero) => removed.contains(hero.id));
     cities[cityId]!.ownerCountryId = winnerCountryId;
+    _refreshCityApproaches(cityId);
     return removed;
   }
 

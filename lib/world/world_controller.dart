@@ -95,7 +95,7 @@ class WorldController extends ChangeNotifier {
     if (local == null) return false;
     final point = camera.toWorld(local);
     return _heroAt(point) != null ||
-        world.cityAt(point) != null ||
+        campaign.cityAt(point) != null ||
         _battleAt(local) != null;
   }
 
@@ -193,7 +193,7 @@ class WorldController extends ChangeNotifier {
     walkDistance = 0;
     camera.worldSize = world.pixelSize;
     camera.scale = 3;
-    camera.center = world.cities.first.bounds.center;
+    camera.center = campaign.cityBounds(world.cities.first).center;
     camera.constrain();
     message = '点击角色下达指令，拖拽移动镜头';
     refreshUi();
@@ -329,7 +329,7 @@ class WorldController extends ChangeNotifier {
     if (campaign.defeated) return;
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
-    final city = world.cityAt(point);
+    final city = campaign.cityAt(point);
     if (choosingTarget) {
       if (!world.contains(cell)) return;
       confirmPosition(city == null ? cell.center : point);
@@ -434,7 +434,7 @@ class WorldController extends ChangeNotifier {
   /// 提交目标后从出发城门生成部队，不影响其他英雄的行军。
   void confirmTarget(CityDefinition target) {
     if (!world.cities.contains(target)) return;
-    confirmPosition(target.bounds.center);
+    confirmPosition(campaign.cityBounds(target).center);
   }
 
   /// 将光标所指位置提交给指定英雄，不影响其他部队当前命令。
@@ -452,7 +452,7 @@ class WorldController extends ChangeNotifier {
     selectedCity = null;
     route = [];
     routeStep = 0;
-    final city = world.cityAt(point);
+    final city = campaign.cityAt(point);
     message =
         '${hero.name}率 ${hero.soldiers} 名士兵前往 '
         '${city?.label ?? '(${(point.dx / 16).floor()}, ${(point.dy / 16).floor()})'}';
@@ -589,7 +589,9 @@ class WorldController extends ChangeNotifier {
 
   /// 战斗标记的位置和点击区域共用屏幕坐标，不受地图缩放影响。
   Rect battleMarkerBounds(CityBattle battle) => Rect.fromCenter(
-    center: camera.toScreen(battle.city.bounds.topCenter) - const Offset(0, 22),
+    center:
+        camera.toScreen(campaign.cityBounds(battle.city).topCenter) -
+        const Offset(0, 22),
     width: 40,
     height: 36,
   );
@@ -667,7 +669,7 @@ class WorldController extends ChangeNotifier {
       return;
     }
     camera.scale = math.max(3, camera.minScale);
-    camera.center = world.cities.first.bounds.center;
+    camera.center = campaign.cityBounds(world.cities.first).center;
     camera.constrain();
     followHero = false;
     refreshUi();

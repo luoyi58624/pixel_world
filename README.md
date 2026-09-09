@@ -52,6 +52,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `lib/world/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。
 - `lib/world/world_controller.dart`：探索、选中、行军及场景切换状态。
 - `lib/world/world_assets.dart`：按图块数据生成地图绘制缓存。
+- `lib/world/city_appearance.dart`：原 ROM 五级城堡模板，按当前等级切换形状与尺寸。
 - `lib/world/world_painter.dart`：静态地图与动态精灵绘制。
 - `lib/ui/world_screen.dart`：输入、工具栏、小地图和城池面板。
 - `lib/ui/city_panel.dart`：城池选项、情况和单页英雄选择；底部按钮固定，小窗口内滚动详情。
@@ -62,7 +63,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `lib/world/battle_simulation.dart`：固定纵队、整队伤害、随机减员、士气蓄力、战线与撞墙溢出结算。
 - `lib/world/battle_painter.dart`：缓存原版精灵，绘制冲锋、挥砍、受击、撞墙回弹和倒地；只给英雄画血条。
 
-地图的事实来源是 JSON 与图块集。启动时将静态地形和建筑拼接成图像缓存，每帧只更新角色、水面、战斗标记及镜头，不为每个格子创建 Widget。地图不再显示鼠标方格、选城框、路线及目的地标记，选点仍使用系统准星光标。像素绘制关闭纹理平滑。人物和镜头保留连续坐标，合成到屏幕位置后才按设备物理像素对齐；地图与水面共用对齐原点，避免斜走、镜头跟随及 175% 屏幕缩放时产生额外抖动。英雄帧按外观、阵营、动作和当前物理尺寸缓存，移动时只平移缓存图像，改变尺寸时释放旧缓存。
+地图的事实来源是 JSON 与图块集。启动时只拼接静态基础地形，城堡按当前等级绘制，五套建筑小图共用缓存；升级、降级或易主不必重建整张地图，也不会残留旧建筑。每帧只补绘可见城堡、角色、水面与战斗标记，不为每个格子创建 Widget。小地图以基础地形叠加当前国旗，避免旧城堡轮廓残留。地图不显示鼠标方格、选城框、路线及目的地标记，选点使用系统准星光标。人物和镜头保留连续坐标，最终显示时按设备物理像素对齐，并关闭纹理平滑，避免斜走和非整数缩放造成额外抖动。英雄帧按外观、阵营、动作和当前物理尺寸缓存，改变尺寸时释放旧缓存。
 
 ## 素材来源与原型范围
 
@@ -87,6 +88,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 `CampaignState.fromRom` 将原版英雄、城池和国家标识与新规则结合。玩家控制阿尔马国；一级城基础产出和初始满编 4 人仍是新游戏配置。原 ROM 的驻城士兵开局为 0，兵力和王牌是动态状态；此原型不给英雄编造王牌名称，开局显示无王牌。
 
 城市初始等级从 ROM 初始化记录读取，和初始建筑样式使用同一来源。例如奥尔梅在三张地图中分别为二、三、四级，阿尔马均为一级。当前等级仍最高五级，每回合产出为基础产出乘等级。国库初始 300 金币，升级花费为当前等级乘 200；满级或余额不足时不扣款。每 30 秒结算我方产出，并扣除存活我方英雄的报酬，余额最低为零。城池面板的经济区域显示收支、下级产出、升级按钮和近期记录。
+
+城池易主统一重置为一级，产出、升级费用和建筑外观同步恢复；同国部队重复进驻不会重置等级。一级、二级为不同的 2×3 模板，三级扩展为 3×3，四级、五级使用不同的 3×4 模板。建筑沿原地图左下地基扩建，点击、出城、接触点和交战标记共用实际尺寸；已在途的目标点随建筑变化更新，守城降级时不重开当前战斗。原始地图数据和 ROM 文件不参与运行时修改。
 
 一级城市只允许同时派出一位英雄，升级后可派出其他可用英雄。进攻战败只移除出征英雄及其部队，不改变出发城的等级、归属、产出和驻军。只有守城英雄战败才降低实际被攻打的城池等级；若战败前已经是一级，该城易主且未出战的败方英雄全部移除，其他城池和已在外的英雄保留。升级不生成新英雄，胜利英雄进驻新城并保留当前 HP。
 
@@ -130,5 +133,6 @@ flutter test test/city_dispatch_test.dart
 flutter test test/campaign_rules_test.dart
 flutter test test/identity_flags_test.dart
 flutter test test/game_over_test.dart
+flutter test test/city_growth_test.dart
 flutter test test/battle_simulation_test.dart test/battle_art_test.dart test/city_contact_test.dart test/realtime_commands_test.dart
 ```

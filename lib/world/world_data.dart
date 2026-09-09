@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:ui';
 
+import 'city_appearance.dart';
+
 /// 行军地形只改变速度，地图内的格子均可通行。
 enum MovementTerrain {
   /// 草地、树林、道路、桥梁和建筑区域使用正常速度。
@@ -74,7 +76,29 @@ class CityDefinition {
       width = json['width'] as int,
       height = json['height'] as int,
       shape = List<int>.unmodifiable((json['shape'] as List).cast<int>()),
-      unitIds = List<int>.unmodifiable((json['unitIds'] as List).cast<int>());
+      unitIds = List<int>.unmodifiable((json['unitIds'] as List).cast<int>()) {
+    _initialAppearance = CityAppearance(width, height, shape);
+    final original = cityAppearances[initialLevel]!;
+    _usesLevelAppearance =
+        original.width == width &&
+        original.height == height &&
+        original.tiles.length == shape.length &&
+        List.generate(
+          shape.length,
+          (i) => shape[i] == original.tiles[i],
+        ).every((same) => same);
+  }
+
+  late final CityAppearance _initialAppearance;
+  late final bool _usesLevelAppearance;
+
+  /// 原版城池随等级切换模板，手工定义的特殊建筑保留其自定义形状。
+  CityAppearance appearanceAt(int level) {
+    if (!cityAppearances.containsKey(level)) {
+      throw RangeError.range(level, 1, 5, 'level');
+    }
+    return _usesLevelAppearance ? cityAppearances[level]! : _initialAppearance;
+  }
 
   /// 当前地图内的城池编号。
   final int id;

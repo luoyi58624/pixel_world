@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 
 import 'hero_sprite.dart';
+import 'city_appearance.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
 
@@ -53,11 +54,46 @@ class WorldAssets {
   /// 水面动画图块集。
   final ui.Image water;
 
-  /// 一次拼接生成的地图缓存，避免每帧重复提交静态图块。
+  /// 只缓存基础地形，城堡按玩法等级单独绘制，避免留下旧建筑残影。
   final List<ui.Image> scenes;
 
   /// 小地图缩略图。
   final List<ui.Image> minimaps;
+
+  final _cityImages = <CityAppearance, ui.Image>{};
+
+  /// 缓存对应等级的原版建筑，所有同级城池复用同一张小图。
+  ui.Image cityImage(CityDefinition city, int level) {
+    final appearance = city.appearanceAt(level);
+    return _cityImages.putIfAbsent(appearance, () {
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      final paint = ui.Paint()
+        ..filterQuality = ui.FilterQuality.none
+        ..isAntiAlias = false;
+      for (var n = 0; n < appearance.tiles.length; n++) {
+        final tile = appearance.tiles[n];
+        canvas.drawImageRect(
+          terrain,
+          ui.Rect.fromLTWH((tile % 16) * 16, (tile ~/ 16) * 16, 16, 16),
+          ui.Rect.fromLTWH(
+            n % appearance.width * 16,
+            n ~/ appearance.width * 16,
+            16,
+            16,
+          ),
+          paint,
+        );
+      }
+      final picture = recorder.endRecording();
+      final image = picture.toImageSync(
+        appearance.width * 16,
+        appearance.height * 16,
+      );
+      picture.dispose();
+      return image;
+    });
+  }
 
   int? _heroFrameSize;
   final _heroFrames = <(HeroAppearance, bool, int), ui.Image>{};
@@ -156,8 +192,8 @@ class WorldAssets {
     for (final world in worlds) {
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
-      for (var n = 0; n < world.displayTiles.length; n++) {
-        final tile = world.displayTiles[n];
+      for (var n = 0; n < world.terrain.length; n++) {
+        final tile = world.terrain[n];
         canvas.drawImageRect(
           textures[0],
           ui.Rect.fromLTWH((tile % 16) * 16, (tile ~/ 16) * 16, 16, 16),
@@ -220,6 +256,7 @@ class WorldAssets {
       ...scenes,
       ...minimaps,
       ..._heroFrames.values,
+      ..._cityImages.values,
       flags,
     }) {
       image.dispose();

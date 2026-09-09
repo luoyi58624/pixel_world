@@ -56,7 +56,7 @@ class WorldPainter extends CustomPainter {
     final waterSource = Rect.fromLTWH(waterFrame * 16, 0, 16, 16);
     for (var y = top; y < bottom; y++) {
       for (var x = left; x < right; x++) {
-        if (c.world.displayTiles[y * c.world.width + x] == 32) {
+        if (c.world.terrain[y * c.world.width + x] == 32) {
           canvas.drawImageRect(
             assets.water,
             waterSource,
@@ -65,6 +65,16 @@ class WorldPainter extends CustomPainter {
           );
         }
       }
+    }
+
+    for (final city in c.world.cities) {
+      final bounds = c.campaign.cityBounds(city);
+      if (!visible.overlaps(bounds)) continue;
+      canvas.drawImage(
+        assets.cityImage(city, c.campaign.cities[city.id]!.level),
+        bounds.topLeft,
+        paint,
+      );
     }
 
     if (c.showGrid) {
@@ -288,7 +298,7 @@ class MinimapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = controller;
-    final image = assets.minimaps[c.index];
+    final image = assets.scenes[c.index];
     canvas.drawImageRect(
       image,
       Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
@@ -313,7 +323,7 @@ class MinimapPainter extends CustomPainter {
         ..style = PaintingStyle.stroke,
     );
     for (final city in c.world.cities) {
-      final point = city.bounds.center;
+      final point = c.campaign.cityBounds(city).center;
       canvas.drawImageRect(
         assets.flags,
         Rect.fromLTWH(c.campaign.cities[city.id]!.ownerCountryId * 8, 0, 8, 8),
