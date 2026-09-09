@@ -70,17 +70,16 @@ void main() {
     hero.squad[1].hp = 0;
     c.refreshUi();
     await tester.pump();
-    for (var i = 0; i < 3; i++) {
-      await _tap(tester, 'reserve-plus');
-    }
-    expect(find.text('征兵 4 人 · 4 金币'), findsOneWidget);
-    await _tap(tester, 'buy-reserves');
-    expect(c.campaign.cities[0]!.reserveSoldiers, 4);
-    expect(c.campaign.gold, 46);
+    expect(c.campaign.cities[0]!.reserveSoldiers, 10);
     await _tap(tester, 'reinforce-hero');
     expect(hero.soldiers, 4);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 2);
-    expect(c.campaign.gold, 46);
+    expect(c.campaign.cities[0]!.reserveSoldiers, 8);
+    expect(c.campaign.gold, 50);
+    await _tap(tester, 'reserve-plus');
+    expect(find.text('征兵 2 人 · 2 金币'), findsOneWidget);
+    await _tap(tester, 'buy-reserves');
+    expect(c.campaign.cities[0]!.reserveSoldiers, 10);
+    expect(c.campaign.gold, 48);
     expect(
       tester
           .widget<OutlinedButton>(find.byKey(const ValueKey('reinforce-hero')))
@@ -88,7 +87,7 @@ void main() {
       isNull,
     );
     await tester.pump(const Duration(seconds: 60));
-    expect(find.text('1年2月 · 金币 52'), findsOneWidget);
+    expect(find.text('1年2月 · 金币 54'), findsOneWidget);
     expect(find.byKey(const ValueKey('city-panel')), findsOneWidget);
     expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
     expect(tester.takeException(), isNull);

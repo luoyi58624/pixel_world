@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -24,6 +25,10 @@ List<WorldDefinition> _worlds() =>
 List<RomHeroDefinition> _catalog() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 
+final _configuredCountries = CampaignSetup.decode(
+  File('assets/data/campaign_config.json').readAsStringSync(),
+).countries;
+
 Map<int, CountryConfig> _quietCountries() => {
   for (var id = 0; id < 16; id++)
     id: CountryConfig(initialGold: id == 0 ? 50 : 0, garrisonHeroes: 99),
@@ -40,7 +45,11 @@ CampaignState _campaign({
   _catalog(),
   aiEnabled: ai,
   startingGold: gold,
-  countryConfigs: countries ?? GameConfig.countries,
+  countryConfigs:
+      countries ??
+      CampaignSetup.decode(
+        File('assets/data/campaign_config.json').readAsStringSync(),
+      ).countries,
   economyRandom: _Pick(),
   recruitmentRandom: recruit ?? _Pick(),
   aiRandom: random ?? math.Random(7),
@@ -336,7 +345,7 @@ void main() {
       expect(a.marches[id]!.target?.id, b.marches[id]!.target?.id);
       expect(a.marches[id]!.position, b.marches[id]!.position);
     }
-    for (final id in GameConfig.countries.keys) {
+    for (final id in _configuredCountries.keys) {
       expect(a.goldFor(id), b.goldFor(id));
     }
     expect(a.heroes.map((hero) => hero.id).toSet().length, a.heroes.length);
@@ -404,7 +413,7 @@ void main() {
         c.advance(1);
         final active = c.heroes.map((hero) => hero.id).toSet();
         final reserved = <int>{};
-        for (final id in GameConfig.countries.keys) {
+        for (final id in _configuredCountries.keys) {
           expect(c.goldFor(id), greaterThanOrEqualTo(0));
           final offer = c.recruitmentOfferFor(id);
           if (id != 0) expect(offer, isNull);
@@ -431,12 +440,12 @@ void main() {
         c.heroes.firstWhere((hero) => hero.type == HeroType.protagonist).hp = 0;
         c.advance(0);
       }
-      final funds = [for (final id in GameConfig.countries.keys) c.goldFor(id)];
+      final funds = [for (final id in _configuredCountries.keys) c.goldFor(id)];
       final positions = [for (final march in c.marches.values) march.position];
       final month = c.settledMonths;
       c.advance(180);
       expect([
-        for (final id in GameConfig.countries.keys) c.goldFor(id),
+        for (final id in _configuredCountries.keys) c.goldFor(id),
       ], funds);
       expect([for (final march in c.marches.values) march.position], positions);
       expect(c.settledMonths, month);

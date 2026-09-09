@@ -21,10 +21,12 @@ class WorldController extends ChangeNotifier {
     this.worlds, {
     List<RomHeroDefinition> heroCatalog = const [],
     int? startingGold,
-    Map<int, CountryConfig> countryConfigs = GameConfig.countries,
+    Map<int, CountryConfig>? countryConfigs,
     bool aiEnabled = GameConfig.countryAiEnabled,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
-       _countryConfigs = Map.unmodifiable(countryConfigs),
+       _countryConfigs = countryConfigs == null
+           ? null
+           : Map.unmodifiable(countryConfigs),
        _aiEnabled = aiEnabled,
        camera = WorldCamera(worlds.first.pixelSize),
        campaigns = worlds
@@ -56,7 +58,7 @@ class WorldController extends ChangeNotifier {
   /// 各场景的独立玩法状态，切换地图不重置出征记录。
   final List<CampaignState> campaigns;
   final List<RomHeroDefinition> _heroCatalog;
-  final Map<int, CountryConfig> _countryConfigs;
+  final Map<int, CountryConfig>? _countryConfigs;
   final bool _aiEnabled;
   bool _gameOverShown = false;
 

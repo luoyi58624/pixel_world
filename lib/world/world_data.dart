@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'city_appearance.dart';
+import 'campaign_setup.dart';
 import '../game_config.dart';
 
 /// 行军地形只改变速度，地图内的格子均可通行。
@@ -161,6 +162,7 @@ class WorldDefinition {
     Map<String, dynamic> json,
     this.paletteIds, {
     this.countries = const [],
+    this.setup = CampaignSetup.empty,
   }) : id = json['id'] as int,
        width = json['width'] as int,
        height = json['height'] as int,
@@ -209,6 +211,9 @@ class WorldDefinition {
   /// 城名与国旗目录，由三张地图共享静态定义。
   final List<CountryDefinition> countries;
 
+  /// 与地图关联的玩法配置，覆盖等级时仍保留原 ROM 建筑记录。
+  final CampaignSetup setup;
+
   /// 查询当前占领国家的名称；简化测试地图可只提供城名。
   String countryName(int ownerId) =>
       countries.where((country) => country.id == ownerId).firstOrNull?.name ??
@@ -256,7 +261,10 @@ class WorldDefinition {
 }
 
 /// 从独立资源解析地图包，运行游戏时无需加载 ROM。
-List<WorldDefinition> decodeWorlds(String source) {
+List<WorldDefinition> decodeWorlds(
+  String source, {
+  CampaignSetup setup = CampaignSetup.empty,
+}) {
   final json = jsonDecode(source) as Map<String, dynamic>;
   final palettes = List<int>.unmodifiable(
     (json['paletteIds'] as List).cast<int>(),
@@ -266,15 +274,28 @@ List<WorldDefinition> decodeWorlds(String source) {
       (item) => CountryDefinition.fromJson(item as Map<String, dynamic>),
     ),
   );
-  return List<WorldDefinition>.unmodifiable(
+  final worlds = List<WorldDefinition>.unmodifiable(
     (json['worlds'] as List).map(
       (item) => WorldDefinition.fromJson(
         item as Map<String, dynamic>,
         palettes,
         countries: countries,
+        setup: setup,
       ),
     ),
   );
+  setup.validateReferences(
+    {
+      for (final world in worlds)
+        world.id: world.cities.map((city) => city.id).toSet(),
+    },
+    {
+      ...countries.map((country) => country.id),
+      for (final world in worlds)
+        ...world.cities.map((city) => city.initialOwnerId),
+    },
+  );
+  return worlds;
 }
 
 /// 返回几何距离最短的直线路线，途中地形影响速度而不改变路线。

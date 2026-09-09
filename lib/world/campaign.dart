@@ -17,26 +17,38 @@ part 'field_battles.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
-  /// 按原始等级创建城池及其基础产出。
+  /// 按玩法配置创建开局等级、基础产出和储备兵员。
   CitySituation({
     required this._ownerCountryId,
     required this.defense,
     required this.baseIncome,
     required int initialLevel,
+    int initialReserveSoldiers = GameConfig.initialCityReserves,
   }) : _level = initialLevel {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
     }
-    _reserveSoldiers = GameConfig.initialCityReserves.clamp(0, reserveCapacity);
+    if (initialReserveSoldiers < 0 ||
+        initialReserveSoldiers > reserveCapacity) {
+      throw ArgumentError.value(
+        initialReserveSoldiers,
+        'initialReserveSoldiers',
+        '储备兵员超过当前等级容量',
+      );
+    }
+    _reserveSoldiers = initialReserveSoldiers;
   }
 
-  /// 当前占领国家；易主时统一重置为一级，同一国家重复进驻不会降级。
+  /// 易主时重置一级和十名储备兵，同国重复进驻不刷新等级或储备。
   int get ownerCountryId => _ownerCountryId;
   set ownerCountryId(int value) {
     if (value == _ownerCountryId) return;
     _ownerCountryId = value;
     _level = 1;
-    _reserveSoldiers = 0;
+    _reserveSoldiers = GameConfig.capturedCityReserves.clamp(
+      0,
+      reserveCapacity,
+    );
   }
 
   int _ownerCountryId;
@@ -427,13 +439,14 @@ class CampaignState {
     WorldDefinition world,
     List<RomHeroDefinition> catalog, {
     int? startingGold,
-    Map<int, CountryConfig> countryConfigs = GameConfig.countries,
+    Map<int, CountryConfig>? countryConfigs,
     bool aiEnabled = GameConfig.countryAiEnabled,
     math.Random? economyRandom,
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
   }) {
     final home = world.cities.first.id;
+    final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
     final placement = <int, int>{};
     for (final city in world.cities) {
       for (final id in city.unitIds) {
@@ -463,8 +476,18 @@ class CampaignState {
           city.id: CitySituation(
             ownerCountryId: city.initialOwnerId,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
-            baseIncome: GameConfig.cityBaseIncome,
-            initialLevel: math.min(city.initialLevel, GameConfig.maxCityLevel),
+            baseIncome:
+                world.setup.cities[(world.id, city.id)]?.baseIncome ??
+                GameConfig.cityBaseIncome,
+            initialLevel:
+                world.setup.cities[(world.id, city.id)]?.initialLevel ??
+                city.initialLevel,
+            initialReserveSoldiers:
+                world
+                    .setup
+                    .cities[(world.id, city.id)]
+                    ?.initialReserveSoldiers ??
+                GameConfig.initialCityReserves,
           ),
       },
       heroes,
@@ -477,7 +500,7 @@ class CampaignState {
           id: math.max(
             0,
             startingGold ??
-                countryConfigs[id]?.initialGold ??
+                resolvedCountries[id]?.initialGold ??
                 GameConfig.initialGold,
           ),
       },
@@ -486,7 +509,7 @@ class CampaignState {
       recruitmentRandom ?? math.Random(),
       aiRandom ?? math.Random(),
       aiEnabled,
-      Map.unmodifiable(countryConfigs),
+      Map.unmodifiable(resolvedCountries),
     );
     for (final hero in catalog) {
       if (hero.type != HeroType.protagonist &&
@@ -1493,6 +1516,7 @@ class CampaignState {
     _endBattle(march, '${march.hero.name}已进驻${march.target!.label}');
     marches.remove(march.hero.id);
     march.hero.cityId = march.target!.id;
+    march.hero.hp = march.hero.maxHp;
     _record('${march.hero.name}已进驻${march.target!.label}');
   }
 

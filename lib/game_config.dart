@@ -12,26 +12,6 @@ abstract final class GameConfig {
   /// 未单独配置的国家使用的初始金币。
   static const initialGold = 50;
 
-  /// 各国开局资金与每城留守人数；资金为新游戏平衡配置，不是 ROM 提取值。
-  static const countries = <int, CountryConfig>{
-    0: CountryConfig(initialGold: 50, garrisonHeroes: 1), // 阿尔马（玩家）
-    1: CountryConfig(initialGold: 70, garrisonHeroes: 2), // 奥尔梅
-    2: CountryConfig(initialGold: 60, garrisonHeroes: 1), // 马易
-    3: CountryConfig(initialGold: 80, garrisonHeroes: 2), // 鲍罗布
-    4: CountryConfig(initialGold: 45, garrisonHeroes: 1), // 墨尔
-    5: CountryConfig(initialGold: 55, garrisonHeroes: 1), // 托洛诺
-    6: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 列穆
-    7: CountryConfig(initialGold: 50, garrisonHeroes: 1), // 迪麦
-    8: CountryConfig(initialGold: 45, garrisonHeroes: 1), // 索朗
-    9: CountryConfig(initialGold: 80, garrisonHeroes: 2), // 本塔
-    10: CountryConfig(initialGold: 65, garrisonHeroes: 1), // 洛埃
-    11: CountryConfig(initialGold: 60, garrisonHeroes: 1), // 贝尔
-    12: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 艾布林
-    13: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 格商尔
-    14: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 格林福
-    15: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 沃塔
-  };
-
   /// 其他国家是否自动经营和出征，玩家国家仍由玩家操作。
   static const countryAiEnabled = true;
 
@@ -89,8 +69,11 @@ abstract final class GameConfig {
   /// 每提升一级增加的储备容量。
   static const cityReserveCapacityPerLevel = 5;
 
-  /// 每座城开局的储备兵员，与英雄随行兵分开。
+  /// 未加载玩法 JSON 的简化地图默认储备兵员，正式开局按每座城的配置读取。
   static const initialCityReserves = 0;
+
+  /// 城池易主后重置的储备兵员，同国重复进驻不刷新。
+  static const capturedCityReserves = 10;
 
   /// 征募一个储备兵员的价格。
   static const soldierRecruitCost = 1;
@@ -117,10 +100,10 @@ abstract final class GameConfig {
   static const recycleDefeatedHeroes = true;
 
   /// 守城方从二级起，每级增加的整队基础攻击力。
-  static const cityDefenseAttackPerLevel = 2;
+  static const cityDefenseAttackPerLevel = 4;
 
-  /// 原版一级城已有两点战斗修正，二级合计四点；设为零可恢复旧城防平衡。
-  static const cityDefenseBaseAttack = 2;
+  /// 新游戏一级城市的守方攻击加成，之后每级再增加四点。
+  static const cityDefenseBaseAttack = 4;
 
   /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
   static const fieldEncounterDistance = 16.0;
@@ -156,7 +139,7 @@ abstract final class GameConfig {
   static const battleAutoChargePulseFrames = 5;
 }
 
-/// 国家的开局经济与自动出征策略，城池等级和初始英雄仍由地图数据提供。
+/// 从玩法 JSON 读取的国家开局经济与自动出征策略。
 class CountryConfig {
   /// 配置该国初始资金和每座城至少留下的将领人数。
   const CountryConfig({

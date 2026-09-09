@@ -189,7 +189,7 @@ void main() {
     expect(c.reinforceHero(hero), 0);
   });
 
-  test('储备每级多5人，降级截断超额储备，易主清空', () {
+  test('储备每级多5人，降级截断超额储备，易主刷新10人', () {
     final c = _campaign(gold: 10000);
     for (var level = 1; level <= 5; level++) {
       if (level > 1) c.upgradeCity(0, hero: c.garrisonAt(0).first);
@@ -199,7 +199,7 @@ void main() {
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
     expect(c.cities[0]!.reserveSoldiers, 25);
     c.cities[0]!.ownerCountryId = 2;
-    expect(c.cities[0]!.reserveSoldiers, 0);
+    expect(c.cities[0]!.reserveSoldiers, 10);
     expect(c.cities[0]!.reserveCapacity, 10);
   });
 

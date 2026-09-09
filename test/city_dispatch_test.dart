@@ -418,7 +418,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('city-stat-月收入')),
-        matching: find.text('15'),
+        matching: find.text('25'),
       ),
       findsOneWidget,
     );

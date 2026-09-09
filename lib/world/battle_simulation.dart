@@ -287,7 +287,7 @@ class BattleSimulation {
   int _combat(BattleArmy army) =>
       (army.attack * heroAttackFactor).floor().clamp(0, 63);
 
-  /// 按原版 E0C1 读取等级修正，默认一级两点，之后每级再加两点。
+  /// 城防作为战斗输入修正，当前平衡为一级四点、之后每级再加四点。
   int get defenderAttackBonus => fieldTerrain == null
       ? GameConfig.cityDefenseBaseAttack +
             (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel

@@ -7,6 +7,7 @@ import 'city_appearance.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
 import 'field_terrain.dart';
+import 'campaign_setup.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
 class WorldAssets {
@@ -138,6 +139,12 @@ class WorldAssets {
   static Future<WorldAssets> load() async {
     final worlds = decodeWorlds(
       await rootBundle.loadString('assets/maps/worlds.json'),
+      setup: CampaignSetup.decode(
+        await rootBundle.loadString(
+          'assets/data/campaign_config.json',
+          cache: false,
+        ),
+      ),
     );
     final heroCatalog = decodeRomHeroes(
       await rootBundle.loadString('assets/data/rom_heroes.json'),
