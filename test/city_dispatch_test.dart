@@ -23,7 +23,11 @@ void _prepare(WorldController c, String heroId) {
   c.prepareDispatch();
 }
 
-Future<WorldController> _load(WidgetTester tester, Size size) async {
+Future<WorldController> _load(
+  WidgetTester tester,
+  Size size, {
+  int startingGold = 300,
+}) async {
   // 每个 widget 测试使用独立时钟，不能复用上个测试时钟下缓存的资源 Future。
   rootBundle.evict('assets/maps/worlds.json');
   rootBundle.evict('assets/data/rom_heroes.json');
@@ -59,7 +63,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
   c.campaigns[0] = CampaignState.fromRom(
     c.world,
     painter.assets.heroCatalog,
-    startingGold: 300,
+    startingGold: startingGold,
   );
   return c;
 }
@@ -104,7 +108,7 @@ void main() {
   });
 
   testWidgets('经济面板升级后立即更新产出和国库，金币不足时禁用升级', (tester) async {
-    final c = await _load(tester, const Size(375, 812));
+    final c = await _load(tester, const Size(375, 812), startingGold: 20);
     await _tapCity(tester, c, c.world.cities.first);
     await tester.pump();
     final upgrade = find.byKey(const ValueKey('city-upgrade'));
@@ -112,7 +116,7 @@ void main() {
     await tester.tap(upgrade);
     await tester.pump();
     expect(c.campaign.cities[0]!.level, 2);
-    expect(c.campaign.gold, 100);
+    expect(c.campaign.gold, 5);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('city-stat-月收入')),
@@ -121,6 +125,36 @@ void main() {
       findsOneWidget,
     );
     expect(tester.widget<FilledButton>(upgrade).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('更换将领即时更新升级优惠，离城后的旧选择不能升级', (tester) async {
+    final c = await _load(tester, const Size(375, 812));
+    await _tapCity(tester, c, c.world.cities.first);
+    final quote = find.byKey(const ValueKey('city-upgrade-quote'));
+    final upgrade = find.byKey(const ValueKey('city-upgrade'));
+    expect(tester.widget<Text>(quote).data, contains('内政 15 · 实付 15 金币'));
+    final choice = find.byKey(const ValueKey('dispatch-hero-rom-2'));
+    await tester.ensureVisible(choice);
+    await tester.tap(choice);
+    await tester.pump();
+    expect(tester.widget<Text>(quote).data, contains('威拉斯主持'));
+    expect(tester.widget<Text>(quote).data, contains('内政 3 · 实付 27 金币'));
+    await tester.ensureVisible(upgrade);
+    await tester.tap(upgrade);
+    await tester.pump();
+    expect(c.campaign.gold, 273);
+    expect(
+      tester.widget<Text>(quote).data,
+      contains('基础 40 − 内政 3 · 实付 37 金币'),
+    );
+    c.campaign.dispatch(c.selectedHero!, c.world.cities[1]);
+    c.refreshUi();
+    await tester.pump();
+    expect(quote, findsNothing);
+    expect(tester.widget<FilledButton>(upgrade).onPressed, isNull);
+    expect(find.byKey(const ValueKey('city-upgrade-blocked')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -186,7 +220,13 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
-    expect(c.campaign.upgradeCity(c.world.cities.first.id), isTrue);
+    expect(
+      c.campaign.upgradeCity(
+        c.world.cities.first.id,
+        hero: c.campaign.garrisonAt(c.world.cities.first.id).first,
+      ),
+      isTrue,
+    );
     _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
     c.tick(1);
@@ -210,7 +250,10 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
-    c.campaign.upgradeCity(c.world.cities.first.id);
+    c.campaign.upgradeCity(
+      c.world.cities.first.id,
+      hero: c.campaign.garrisonAt(c.world.cities.first.id).first,
+    );
     _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
     c.tick(0.5);

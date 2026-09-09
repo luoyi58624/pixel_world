@@ -29,10 +29,10 @@ void main() {
     city.ownerCountryId = 0;
     expect(city.level, 1);
     expect(city.income, 86);
-    expect(city.upgradeCost, 200);
+    expect(city.baseUpgradeCost, 30);
     final c = _campaign();
-    c.upgradeCity(0);
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
     c.cities[0]!.ownerCountryId = 0;
     expect(c.cities[0]!.level, 3);
     c.cities[0]!.ownerCountryId = 2;
@@ -59,8 +59,8 @@ void main() {
   test('升级扩建后点击和出城使用新范围，友军进驻不重置等级', () {
     final c = _campaign();
     final home = c.world.cities.first;
-    c.upgradeCity(0);
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
     final expanded = c.cityBounds(home);
     expect(expanded.size, const ui.Size(48, 48));
     expect(expanded.bottomLeft, home.bounds.bottomLeft);
@@ -85,12 +85,14 @@ void main() {
     final c = _campaign();
     final city = c.world.cities[1];
     c.cities[1]!.ownerCountryId = 0;
+    final governor = c.heroes.firstWhere((hero) => hero.sourceId == 0)
+      ..cityId = 1;
     final small = c.cityBounds(city);
     final hero = c.heroes.firstWhere((hero) => hero.sourceId == 40);
     final march = c.dispatch(hero, city)!;
     march.position = small.centerRight + const ui.Offset(30, 0);
-    c.upgradeCity(1);
-    c.upgradeCity(1);
+    c.upgradeCity(1, hero: governor);
+    c.upgradeCity(1, hero: governor);
     expect(march.destination.dx, c.cityBounds(city).right + 8);
     c.advance(1);
     expect(c.marches.containsKey(hero.id), isFalse);
@@ -154,7 +156,9 @@ void main() {
 
       final frames = <List<int>>[];
       for (var level = 1; level <= 5; level++) {
-        if (level > 1) c.campaign.upgradeCity(0);
+        if (level > 1) {
+          c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
+        }
         final image = assets.cityImage(city, level);
         expect(image.width, cityAppearances[level]!.width * 16);
         expect(image.height, cityAppearances[level]!.height * 16);

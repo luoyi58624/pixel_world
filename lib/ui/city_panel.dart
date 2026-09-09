@@ -327,7 +327,10 @@ class CityPanel extends StatelessWidget {
   Widget _economy(CitySituation situation) {
     final c = controller;
     final cityId = c.selectedCity!.id;
-    final cost = situation.upgradeCost;
+    final hero = c.selectedHero;
+    final baseCost = situation.baseUpgradeCost;
+    final cost = c.campaign.upgradeCostFor(cityId, hero);
+    final upgradeProblem = c.campaign.upgradeBlockReason(cityId, hero);
     final report = c.campaign.lastSettlementFor(situation.ownerCountryId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,31 +362,42 @@ class CityPanel extends StatelessWidget {
         ],
         if (situation.isPlayer) ...[
           const SizedBox(height: 10),
+          if (cost != null && hero != null) ...[
+            Text(
+              '${hero.name}主持 · 基础 $baseCost − 内政 ${hero.politics} · 实付 $cost 金币',
+              key: const ValueKey('city-upgrade-quote'),
+              style: const TextStyle(fontSize: 11, color: _cream),
+            ),
+            const SizedBox(height: 8),
+          ],
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               key: const ValueKey('city-upgrade'),
-              onPressed: cost != null && c.campaign.gold >= cost
+              onPressed: upgradeProblem == null
                   ? () => onAction(c.upgradeSelectedCity)
                   : null,
               icon: const Icon(Icons.upgrade, size: 18),
               label: Text(
-                cost == null
+                baseCost == null
                     ? '已满级 · ${GameConfig.maxCityLevel} 级城市'
+                    : cost == null
+                    ? '选择将领升级至 ${situation.level + 1} 级'
                     : '升级至 ${situation.level + 1} 级 · $cost 金币',
               ),
               style: _primaryStyle,
             ),
           ),
-          if (cost != null)
+          if (baseCost != null)
             Text(
               '升级后月收入 ${situation.income + GameConfig.cityIncomePerLevel} · 储备上限 ${situation.reserveCapacity + GameConfig.cityReserveCapacityPerLevel}',
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
-          if (cost != null && c.campaign.gold < cost)
-            const Text(
-              '金币不足，等待下一次结算',
-              style: TextStyle(fontSize: 11, color: _muted),
+          if (upgradeProblem != null && baseCost != null)
+            Text(
+              upgradeProblem,
+              key: const ValueKey('city-upgrade-blocked'),
+              style: const TextStyle(fontSize: 11, color: _muted),
             ),
         ],
         const SizedBox(height: 10),

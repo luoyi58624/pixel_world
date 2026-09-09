@@ -91,7 +91,7 @@ void main() {
   test('选点和取消不打断原行军，两个英雄的命令互不影响', () {
     final c = _controller();
     addTearDown(c.dispose);
-    c.campaign.upgradeCity(0);
+    c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
     final heroes = c.campaign.garrisonAt(0);
     final first = c.campaign.dispatchTo(
       heroes[0],
@@ -162,7 +162,7 @@ void main() {
   test('同城先到者先交战，插入顺序靠前的后到者不会抢占或产生双倍伤害', () {
     final c = _controller();
     addTearDown(c.dispose);
-    c.campaign.upgradeCity(0);
+    c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
     final heroes = c.campaign.garrisonAt(0);
     final city = c.world.cities[1];
     final first = c.campaign.dispatch(heroes[0], city)!;
@@ -396,7 +396,7 @@ void main() {
 
   testWidgets('战场可以缩放拖动，后台部队继续行军，返回和重进不重置战斗', (tester) async {
     final c = await _load(tester, const Size(1000, 700));
-    c.campaign.upgradeCity(0);
+    c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
     final hero = c.previewHero!;
     final march = c.campaign.dispatch(hero, c.world.cities[1])!;
     final other = c.campaign.dispatchTo(

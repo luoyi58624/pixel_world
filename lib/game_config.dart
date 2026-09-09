@@ -42,8 +42,11 @@ abstract final class GameConfig {
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;
 
-  /// 升级费用为当前等级乘此数，保留已有升级价格。
-  static const cityUpgradeCostPerLevel = 200;
+  /// 一级升二级的基础费用，实际支付再扣主持将领的内政。
+  static const cityUpgradeBaseCost = 30;
+
+  /// 城池每高一级，升级基础费用增加的金币。
+  static const cityUpgradeCostPerLevel = 10;
 
   /// 一级城的储备兵员容量。
   static const cityBaseReserveCapacity = 10;

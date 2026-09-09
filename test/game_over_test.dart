@@ -67,7 +67,7 @@ void main() {
     for (final level in [1, 2, 3]) {
       final c = _campaign();
       while (c.cities[0]!.level < level) {
-        c.upgradeCity(0);
+        c.upgradeCity(0, hero: c.garrisonAt(0).first);
       }
       final attacker = _hero(c, 0);
       _makeVulnerable(attacker);
@@ -101,7 +101,7 @@ void main() {
 
   test('主角死亡即结束，即使仍有多座城、驻军和其他行军部队', () {
     final c = _campaign();
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
     c.cities[2]!.ownerCountryId = 0;
     final other = c.dispatchTo(_hero(c, 0), const Offset(16, 900))!;
     final protagonist = _hero(c, 40);
@@ -123,7 +123,7 @@ void main() {
     expect(c.battles[1]!.simulation.elapsed, battleTime);
     expect(c.moveTo(other.hero.id, const Offset(200, 200)), isFalse);
     expect(c.camp(other.hero.id), isFalse);
-    expect(c.upgradeCity(0), isFalse);
+    expect(c.upgradeCity(0, hero: c.garrisonAt(0).first), isFalse);
     expect(c.dispatch(_hero(c, 2), c.world.cities[1]), isNull);
   });
 
@@ -153,7 +153,7 @@ void main() {
 
   test('主角守城阵亡仍按守城规则降级，随后结束本局', () {
     final c = _campaign();
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: c.garrisonAt(0).first);
     final result = c.defeatHero(
       'rom-40',
       winnerCountryId: 1,

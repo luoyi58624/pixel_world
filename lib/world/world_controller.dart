@@ -411,7 +411,14 @@ class WorldController extends ChangeNotifier {
     selectedCity = city;
     final heroes = campaign.heroesAt(city.id);
     selectedHeroId =
-        (heroes.where(campaign.canDispatch).firstOrNull ?? heroes.firstOrNull)
+        (heroes
+                    .where(
+                      (hero) =>
+                          campaign.canDispatch(hero) ||
+                          campaign.upgradeCostFor(city.id, hero) != null,
+                    )
+                    .firstOrNull ??
+                heroes.firstOrNull)
             ?.id;
     message = '已选中${city.label}';
     refreshUi();
@@ -503,16 +510,14 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 升级当前城池，失败时说明满级或金币不足，不改变余额。
+  /// 让当前选中的驻城将领主持升级，使用该将领内政计算费用。
   void upgradeSelectedCity() {
     final city = selectedCity;
     if (city == null) return;
-    if (campaign.upgradeCity(city.id)) {
+    if (campaign.upgradeCity(city.id, hero: selectedHero)) {
       message = campaign.lastEvent;
     } else {
-      message = campaign.cities[city.id]!.level == CitySituation.maxLevel
-          ? '城池已达到最高五级'
-          : '金币不足，暂时无法升级';
+      message = campaign.upgradeBlockReason(city.id, selectedHero)!;
     }
     refreshUi();
   }

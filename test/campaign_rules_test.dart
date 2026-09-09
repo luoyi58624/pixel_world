@@ -83,19 +83,19 @@ void main() {
     final c = _campaign(gold: 10000);
     for (var level = 2; level <= 5; level++) {
       final before = c.gold;
-      expect(c.upgradeCity(0), isTrue);
+      expect(c.upgradeCity(0, hero: _hero(c, 40)), isTrue);
       expect(c.cities[0]!.level, level);
       expect(c.cities[0]!.income, 10 + 5 * (level - 1));
-      expect(before - c.gold, 200 * (level - 1));
+      expect(before - c.gold, 15 + 10 * (level - 2));
     }
     final balance = c.gold;
-    expect(c.upgradeCity(0), isFalse);
-    expect(c.upgradeCity(1), isFalse);
+    expect(c.upgradeCity(0, hero: _hero(c, 40)), isFalse);
+    expect(c.upgradeCity(1, hero: _hero(c, 40)), isFalse);
     expect(c.gold, balance);
-    expect(c.cities[0]!.upgradeCost, isNull);
-    final poor = _campaign(gold: 199);
-    expect(poor.upgradeCity(0), isFalse);
-    expect(poor.gold, 199);
+    expect(c.cities[0]!.baseUpgradeCost, isNull);
+    final poor = _campaign(gold: 14);
+    expect(poor.upgradeCity(0, hero: _hero(poor, 40)), isFalse);
+    expect(poor.gold, 14);
     expect(poor.cities[0]!.level, 1);
   });
 
@@ -111,17 +111,17 @@ void main() {
       expect(c.gold, 312);
     }
     final c = _campaign();
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: _hero(c, 40));
     c.advance(59.9);
-    expect(c.gold, 100);
+    expect(c.gold, 285);
     c.advance(0.1);
-    expect(c.gold, 111);
+    expect(c.gold, 296);
   });
 
   test('守将阵亡降一级且立即减产，同一战败不能重复降级', () {
     final c = _campaign(gold: 2000);
-    c.upgradeCity(0);
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: _hero(c, 40));
+    c.upgradeCity(0, hero: _hero(c, 40));
     final result = c.defeatHero(
       'rom-0',
       winnerCountryId: 1,
@@ -172,7 +172,7 @@ void main() {
 
   test('升级允许继续出征，最后一城失守保留在外主角记录但本局立即结束', () {
     final c = _campaign();
-    c.upgradeCity(0);
+    c.upgradeCity(0, hero: _hero(c, 40));
     c.dispatch(_hero(c, 40), c.world.cities[1]);
     expect(c.canDispatch(_hero(c, 0)), isTrue);
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);

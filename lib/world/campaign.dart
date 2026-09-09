@@ -53,9 +53,11 @@ class CitySituation {
   /// 月收入随等级线性增长。
   int get income => baseIncome + (level - 1) * GameConfig.cityIncomePerLevel;
 
-  /// 升级所需金币，满级后为空。
-  int? get upgradeCost =>
-      level < maxLevel ? level * GameConfig.cityUpgradeCostPerLevel : null;
+  /// 扣除将领内政前的升级基础费，满级后为空。
+  int? get baseUpgradeCost => level < maxLevel
+      ? GameConfig.cityUpgradeBaseCost +
+            (level - 1) * GameConfig.cityUpgradeCostPerLevel
+      : null;
 
   /// 城池最高等级。
   static const maxLevel = GameConfig.maxCityLevel;
@@ -793,18 +795,54 @@ class CampaignState {
   /// 是否允许出击。
   bool canDispatch(CampaignHero hero) => dispatchBlockReason(hero) == null;
 
-  /// 升级我方城池，满级或余额不足时不扣款。
-  bool upgradeCity(int cityId) {
-    if (defeated) return false;
+  String? _upgradeParticipantProblem(int cityId, CampaignHero? hero) {
+    if (defeated) return '游戏已结束，请重新开始';
     final city = cities[cityId];
-    final cost = city?.upgradeCost;
-    if (city == null || !city.isPlayer || cost == null || gold < cost) {
-      return false;
+    if (city == null || !city.isPlayer) return '只能升级我方城池';
+    if (city.baseUpgradeCost == null) return '城池已达到最高等级';
+    if (hero == null || !heroes.contains(hero) || !hero.health.alive) {
+      return '请先选择一位城内将领';
     }
+    if (!hero.isPlayer || hero.cityId != cityId) return '请选择本城的我方将领';
+    if (marches.containsKey(hero.id)) return '出征或扎营中的将领不能主持升级';
+    if (battles.values.any(
+      (battle) =>
+          battle.isActive &&
+          (battle.attacker == hero || battle.defender == hero),
+    )) {
+      return '正在交战的将领不能主持升级';
+    }
+    return null;
+  }
+
+  /// 根据指定驻城将领计算实际升级费；参与者不合法或城池满级时不报价。
+  int? upgradeCostFor(int cityId, CampaignHero? hero) {
+    if (_upgradeParticipantProblem(cityId, hero) != null) return null;
+    return math.max(
+      0,
+      cities[cityId]!.baseUpgradeCost! - math.max(0, hero!.politics),
+    );
+  }
+
+  /// 返回当前不能升级的原因，和实际扣款共用参与者及余额校验。
+  String? upgradeBlockReason(int cityId, CampaignHero? hero) {
+    final problem = _upgradeParticipantProblem(cityId, hero);
+    if (problem != null) return problem;
+    final cost = upgradeCostFor(cityId, hero)!;
+    return gold < cost ? '金币不足，需要 $cost 金币' : null;
+  }
+
+  /// 由指定驻城将领主持升级，费用减去其内政，最低为零；将领不被消耗。
+  bool upgradeCity(int cityId, {required CampaignHero? hero}) {
+    if (upgradeBlockReason(cityId, hero) != null) return false;
+    final city = cities[cityId]!;
+    final cost = upgradeCostFor(cityId, hero)!;
     _countryGold[0] = gold - cost;
     city._level++;
     _refreshCityApproaches(cityId);
-    _record('${_cityName(cityId)}升至 ${city.level} 级，每月收入 ${city.income}');
+    _record(
+      '${hero!.name}主持${_cityName(cityId)}升至 ${city.level} 级，花费 $cost 金币，每月收入 ${city.income}',
+    );
     return true;
   }
 

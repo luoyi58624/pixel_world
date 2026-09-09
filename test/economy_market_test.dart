@@ -93,8 +93,9 @@ void main() {
     for (final entry in {0: 0, 50: -20, 75: 10}.entries) {
       final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
       c.cities[1]!.ownerCountryId = 0;
-      c.upgradeCity(1);
-      c.upgradeCity(1);
+      final governor = _hero(c, 0)..cityId = 1;
+      c.upgradeCity(1, hero: governor);
+      c.upgradeCity(1, hero: governor);
       final before = c.gold;
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
@@ -190,7 +191,7 @@ void main() {
   test('储备每级多5人，降级截断超额储备，易主清空', () {
     final c = _campaign(gold: 10000);
     for (var level = 1; level <= 5; level++) {
-      if (level > 1) c.upgradeCity(0);
+      if (level > 1) c.upgradeCity(0, hero: c.garrisonAt(0).first);
       expect(c.cities[0]!.reserveCapacity, 10 + 5 * (level - 1));
     }
     expect(c.buySoldiers(0, 30), isTrue);
