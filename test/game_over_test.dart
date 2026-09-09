@@ -128,13 +128,14 @@ void main() {
     expect(c.dispatch(_hero(c, 2), c.world.cities[1]), isNull);
   });
 
-  test('最后一城守城失败立刻结束，主角在野外存活也不能继续行军', () {
+  test('最后一城失守清除在外行军主角，不能继续移动', () {
     final c = _campaign();
     final protagonist = _hero(c, 40);
     final march = c.dispatchTo(protagonist, const Offset(16, 900))!;
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
-    expect(protagonist.health.alive, isTrue);
-    expect(c.defeatReason, CampaignDefeatReason.noCities);
+    expect(protagonist.health.alive, isFalse);
+    expect(c.marches.containsKey(protagonist.id), isFalse);
+    expect(c.defeatReason, CampaignDefeatReason.protagonistFallen);
     final position = march.position;
     c.advance(30);
     expect(march.position, position);

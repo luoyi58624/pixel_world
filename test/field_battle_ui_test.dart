@@ -81,14 +81,8 @@ void main() {
       expect(c.watchedBattle, same(battle));
       expect(find.text('${terrain.label}野战 · 观战'), findsOneWidget);
       expect(find.byKey(const ValueKey('battle-defense-bonus')), findsNothing);
-      expect(
-        find.byKey(const ValueKey('battle-attacker-terrain')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('battle-defender-terrain')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('battle-canvas')), findsOneWidget);
+      expect(battle.simulation.fieldTerrain, terrain);
       final snapshot = battle.simulation;
       final before = snapshot.elapsed;
       await tester.pump(const Duration(milliseconds: 300));

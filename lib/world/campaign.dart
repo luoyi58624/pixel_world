@@ -530,6 +530,9 @@ class CampaignState {
   /// 已出征部队。
   final Map<String, HeroMarch> marches = {};
 
+  // 出发城失守是不可撤回的标记，交战结束后即使已进驻另一城也要清除。
+  final Set<String> _disbandAfterBattle = {};
+
   /// 各城最近一场交战，结束后保留结果直到下次交战。
   final Map<int, CityBattle> battles = {};
 
@@ -640,7 +643,14 @@ class CampaignState {
 
   CampaignDefeatReason? _detectDefeat() {
     if (_protagonist != null && !_protagonist.health.alive) {
-      return CampaignDefeatReason.protagonistFallen;
+      // 原版先播完阵亡和胜方过场；战役结算后再覆盖游戏结束界面。
+      final showingDefeat = allBattles.any(
+        (battle) =>
+            (battle.attacker == _protagonist ||
+                battle.defender == _protagonist) &&
+            !battle.simulation.finished,
+      );
+      if (!showingDefeat) return CampaignDefeatReason.protagonistFallen;
     }
     if (!cities.values.any((city) => city.isPlayer)) {
       return CampaignDefeatReason.noCities;
@@ -661,6 +671,7 @@ class CampaignState {
     }
     _simulationFraction = 0;
     for (final battle in allBattles) {
+      if (_hasDisbandingArmy(battle)) continue;
       battle.outcome ??= '游戏结束 · ${reason.label}';
       if (battle is CityBattle) battle.nextWaveIn = 0;
       battle.simulation.stop();
@@ -747,7 +758,7 @@ class CampaignState {
       if (remaining == 0) break;
       if (!hero.squad[slot].alive) {
         // 新兵使用新生命对象，避免让旧战斗记录中的阵亡士兵复活。
-        hero.squad[slot] = BattleHealth(GameConfig.soldierHp);
+        hero.squad[slot] = BattleHealth(BattleSimulation.soldierHp);
         remaining--;
       }
     }
@@ -855,6 +866,7 @@ class CampaignState {
   }
 
   void _recycleHero(CampaignHero hero) {
+    _disbandAfterBattle.remove(hero.id);
     final definition = _catalog[hero.sourceId];
     if (GameConfig.recycleDefeatedHeroes &&
         hero.type != HeroType.protagonist &&
@@ -1046,6 +1058,10 @@ class CampaignState {
       return true;
     }
     _endBattle(march, '${march.hero.name}已撤离');
+    if (_disbandAfterBattle.contains(heroId)) {
+      _disbandHero(march.hero);
+      return false;
+    }
     march.moveTo(
       city == null ? point : _contactPoint(march.position, point, city),
       city: city,
@@ -1060,6 +1076,10 @@ class CampaignState {
     if (march?.phase == MarchPhase.dueling) return false;
     if (march == null || !march.hero.isPlayer) return false;
     _endBattle(march, '${march.hero.name}已停止进攻');
+    if (_disbandAfterBattle.contains(heroId)) {
+      _disbandHero(march.hero);
+      return false;
+    }
     march.camp();
     _record('${march.hero.name}已原地扎营');
     return true;
@@ -1220,8 +1240,11 @@ class CampaignState {
 
   /// 固定步长推进行军和拼杀，满一个月结算各国经济；观战不参与计时。
   bool advance(double elapsed) {
-    if (_finishDefeat()) return true;
-    if (defeated) return false;
+    final justDefeated = _finishDefeat();
+    if (defeated) {
+      // 世界结束后不经营或行军，只让失城时已经开打的部队完成交战再消失。
+      return _advanceBattles(elapsed, closingOnly: true) || justDefeated;
+    }
     _simulationFraction += elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     var changed = false;
     for (final offer in _recruitmentOffers.values.toList()) {
@@ -1330,9 +1353,10 @@ class CampaignState {
     return changed;
   }
 
-  bool _advanceBattles(double dt) {
+  bool _advanceBattles(double dt, {bool closingOnly = false}) {
     var changed = false;
     for (final battle in allBattles.toList()) {
+      if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
       if (!battle.isActive) continue;
       if (battle.simulation.result != null && !battle._settled) {
@@ -1342,8 +1366,9 @@ class CampaignState {
         } else {
           _settleBattle(battle as CityBattle);
         }
+        _disbandFinishedArmies(battle);
         changed = true;
-        if (_finishDefeat() || defeated) break;
+        if (!closingOnly && (_finishDefeat() || defeated)) break;
       } else if (battle is CityBattle && battle.nextWaveIn > 0) {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
@@ -1391,6 +1416,14 @@ class CampaignState {
   }
 
   List<String> _captureCity(int cityId, int winnerCountryId) {
+    final departed = heroes
+        .where(
+          (hero) =>
+              hero.cityId == cityId &&
+              hero.countryId != winnerCountryId &&
+              marches.containsKey(hero.id),
+        )
+        .toList();
     final removedHeroes = heroes
         .where(
           (hero) =>
@@ -1402,7 +1435,17 @@ class CampaignState {
     final removed = removedHeroes.map((hero) => hero.id).toList();
     heroes.removeWhere((hero) => removed.contains(hero.id));
     for (final hero in removedHeroes) {
+      hero.hp = 0;
       _recycleHero(hero);
+    }
+    for (final hero in departed) {
+      final battle = activeBattleForHero(hero.id);
+      if (battle != null && !battle.simulation.finished) {
+        _disbandAfterBattle.add(hero.id);
+      } else {
+        _disbandHero(hero);
+        removed.add(hero.id);
+      }
     }
     cities[cityId]!.ownerCountryId = winnerCountryId;
     for (final offer in _recruitmentOffers.values.toList()) {
@@ -1412,6 +1455,42 @@ class CampaignState {
     }
     _refreshCityApproaches(cityId);
     return removed;
+  }
+
+  bool _hasDisbandingArmy(WorldBattle battle) =>
+      _disbandAfterBattle.contains(battle.attacker.id) ||
+      _disbandAfterBattle.contains(battle.defender.id);
+
+  void _disbandFinishedArmies(WorldBattle battle) {
+    final marked = [
+      battle.attacker,
+      battle.defender,
+    ].where((hero) => _disbandAfterBattle.contains(hero.id)).toList();
+    if (marked.isEmpty) return;
+    for (final hero in marked) {
+      _disbandHero(hero, endBattle: false);
+    }
+    if (battle is CityBattle) battle.nextWaveIn = 0;
+    battle.outcome =
+        '${battle.outcome ?? '交战结束'} · 出发城失守，${marked.map((hero) => hero.name).join('、')}部队已消失';
+    battle.simulation.stop();
+  }
+
+  void _disbandHero(CampaignHero hero, {bool endBattle = true}) {
+    if (endBattle) {
+      // 换守将的间隙已经结束上一场拼杀，不能让失城部队继续进入下一轮。
+      final battle = activeBattleForHero(hero.id);
+      if (battle != null) {
+        battle.outcome = '${hero.name}的出发城已失守，部队消失';
+        if (battle is CityBattle) battle.nextWaveIn = 0;
+        battle.simulation.stop();
+      }
+    }
+    hero.hp = 0;
+    marches.remove(hero.id);
+    heroes.remove(hero);
+    _recycleHero(hero);
+    _record('${hero.name}的出发城已失守，部队消失');
   }
 
   void _station(HeroMarch march) {

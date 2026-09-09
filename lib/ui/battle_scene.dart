@@ -43,6 +43,13 @@ class _BattleSceneState extends State<BattleScene> {
   Offset _anchor = Offset.zero;
   double _scale = 1;
   bool _gestureScaled = false;
+  BattleSimulation? _heldSimulation;
+
+  void _holdCharge(bool held) {
+    _heldSimulation?.chargeHeld = false;
+    _heldSimulation = held ? widget.controller.watchedBattle?.simulation : null;
+    _heldSimulation?.chargeHeld = true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +65,6 @@ class _BattleSceneState extends State<BattleScene> {
             : sim.pushedSide == BattleSide.defender
             ? (battle is FieldBattle ? '左军受压' : '守军受压')
             : (battle is FieldBattle ? '右军受压' : '攻方受压');
-        final overflow = sim.lastClash?.overflowPercent ?? 0;
         final status =
             battle.outcome ??
             (battle is CityBattle && battle.nextWaveIn > 0
@@ -66,8 +72,7 @@ class _BattleSceneState extends State<BattleScene> {
                 : sim.forming
                 ? '双方列阵'
                 : '${battle is CityBattle ? '第 ${battle.wave} 位守将' : '野外决战'} · 拼杀 ${sim.clashes}'
-                      '${sim.clashes == 0 ? '' : ' · $pressure'}'
-                      '${overflow > 0 ? (battle is FieldBattle ? ' · 边界受压' : ' · 撞墙') : ''}');
+                      '${sim.clashes == 0 ? '' : ' · $pressure'}');
         return ColoredBox(
           key: const ValueKey('battle-scene'),
           color: _ink,
@@ -220,37 +225,6 @@ class _BattleSceneState extends State<BattleScene> {
                         ),
                         Positioned(
                           top: 8,
-                          left: 12,
-                          right: 58,
-                          child: IgnorePointer(
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xe5111916),
-                                  border: Border.all(
-                                    color: const Color(0xff566047),
-                                  ),
-                                ),
-                                child: Text(
-                                  status,
-                                  style: TextStyle(
-                                    color: _gold,
-                                    fontSize: tight ? 11 : 13,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
                           right: 8,
                           child: _overlay(
                             Container(
@@ -298,49 +272,47 @@ class _BattleSceneState extends State<BattleScene> {
                   },
                 ),
               ),
-              _overlay(
-                Container(
-                  padding: EdgeInsets.fromLTRB(
-                    12,
-                    tight ? 6 : 10,
-                    12,
-                    tight ? 6 : 10,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: _ink,
-                    border: Border(top: BorderSide(color: Color(0xff43513e))),
-                  ),
-                  child: Row(
+              Semantics(
+                label:
+                    '$status。${battle.defender.name} HP ${battle.defender.hp}，${battle.attacker.name} HP ${battle.attacker.hp}',
+                child: const SizedBox.shrink(),
+              ),
+              if (battle.attacker.isPlayer && !sim.finished)
+                _overlay(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Expanded(
-                        child: _army(
-                          battle.defender,
-                          BattleSide.defender,
-                          tight,
-                        ),
+                      Checkbox(
+                        value: sim.autoCharge,
+                        onChanged: (value) => widget.onAction(() {
+                          sim.autoCharge = value ?? true;
+                          sim.chargeHeld = false;
+                        }),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'VS',
-                          style: TextStyle(
-                            fontSize: tight ? 14 : 20,
-                            color: _gold,
-                            fontWeight: FontWeight.bold,
+                      const Text(
+                        '自动蓄力',
+                        style: TextStyle(color: _cream, fontSize: 12),
+                      ),
+                      const SizedBox(width: 16),
+                      Listener(
+                        key: const ValueKey('battle-hold-charge'),
+                        onPointerDown: (_) => _holdCharge(true),
+                        onPointerUp: (_) => _holdCharge(false),
+                        onPointerCancel: (_) => _holdCharge(false),
+                        child: const Tooltip(
+                          message: '按住消耗红条，在反弹阶段加强回冲',
+                          child: Padding(
+                            padding: EdgeInsets.all(10),
+                            child: Text(
+                              '按住蓄力',
+                              style: TextStyle(color: _gold, fontSize: 12),
+                            ),
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _army(
-                          battle.attacker,
-                          BattleSide.attacker,
-                          tight,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
               if (!tight)
                 _overlay(
                   Container(
@@ -355,7 +327,7 @@ class _BattleSceneState extends State<BattleScene> {
                           ? '拖拽移动战场 · 松手短暂惯性 · 滚轮缩放 · 点击单位查看情况'
                           : '${selected.name}'
                                 '${selected.isGeneral ? '  ${selected.health.label}/${selected.health.maxHp} HP' : ''}'
-                                ' · 距墙 ${battleNumber(sim.distanceToWall(selected.side))} 点',
+                                ' · 距边界 ${battleNumber(sim.distanceToWall(selected.side))} 像素',
                       key: const ValueKey('battle-unit-information'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -370,97 +342,6 @@ class _BattleSceneState extends State<BattleScene> {
           ),
         );
       },
-    );
-  }
-
-  Widget _army(CampaignHero hero, BattleSide side, bool tight) {
-    final sim = widget.controller.watchedBattle!.simulation;
-    final morale = sim.morale(side);
-    final color = side == BattleSide.attacker
-        ? const Color(0xffe1ac58)
-        : const Color(0xff979bff);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            SizedBox(
-              width: tight ? 28 : 40,
-              height: tight ? 28 : 40,
-              child: CustomPaint(
-                painter: _CommanderPortrait(widget.assets, hero),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${hero.name} · ${widget.controller.world.countryName(hero.countryId)}国 · ${sim.fieldTerrain != null ? (side == BattleSide.attacker ? '右军' : '左军') : (side == BattleSide.attacker ? '进攻' : '守城')}',
-                    style: TextStyle(color: _cream, fontSize: tight ? 11 : 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${hero.health.label} / ${hero.maxHp} HP  ·  士兵 ${hero.soldiers}',
-                    key: ValueKey('battle-${side.name}-health'),
-                    style: TextStyle(color: color, fontSize: tight ? 10 : 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        LinearProgressIndicator(
-          value: hero.hp / hero.maxHp,
-          minHeight: tight ? 3 : 5,
-          color: color,
-          backgroundColor: const Color(0xff30392c),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '士气 ${morale.remaining}/${morale.maximum}',
-                key: ValueKey('battle-${side.name}-morale'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: _gold, fontSize: tight ? 9 : 11),
-              ),
-            ),
-            Text(
-              '蓄力 ${morale.accumulated} · +${morale.bonus}%',
-              style: TextStyle(color: color, fontSize: tight ? 9 : 11),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        LinearProgressIndicator(
-          value: morale.remaining / morale.maximum,
-          minHeight: tight ? 2 : 3,
-          color: _gold,
-          backgroundColor: const Color(0xff30392c),
-        ),
-        if (sim.fieldTerrain != null) ...[
-          const SizedBox(height: 5),
-          Text(
-            '${sim.fieldTerrain!.label} · 将领攻击 -${((1 - sim.heroAttackFactor) * 100).round()}%',
-            key: ValueKey('battle-${side.name}-terrain'),
-            style: TextStyle(color: _gold, fontSize: tight ? 9 : 11),
-          ),
-        ] else if (side == BattleSide.defender) ...[
-          const SizedBox(height: 5),
-          Text(
-            '城防加成 · 攻击 +${sim.defenderAttackBonus} · 初始士气 +${sim.defenderMoraleBonus}',
-            key: const ValueKey('battle-defense-bonus'),
-            style: TextStyle(color: _gold, fontSize: tight ? 9 : 11),
-          ),
-        ],
-      ],
     );
   }
 
@@ -487,25 +368,8 @@ class _BattleSceneState extends State<BattleScene> {
 
   @override
   void dispose() {
+    _holdCharge(false);
     _art.dispose();
     super.dispose();
   }
-}
-
-class _CommanderPortrait extends CustomPainter {
-  _CommanderPortrait(this.assets, this.hero);
-  final WorldAssets assets;
-  final CampaignHero hero;
-
-  @override
-  void paint(Canvas canvas, Size size) => canvas.drawImageRect(
-    assets.heroImage(hero.appearance, friendly: hero.isPlayer),
-    const Rect.fromLTWH(0, 0, 16, 16),
-    Offset.zero & size,
-    Paint()..filterQuality = FilterQuality.none,
-  );
-
-  @override
-  bool shouldRepaint(covariant _CommanderPortrait oldDelegate) =>
-      hero != oldDelegate.hero || assets != oldDelegate.assets;
 }

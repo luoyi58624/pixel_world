@@ -68,8 +68,8 @@ def battle_frames(prg, kind):
             parts.append((prg[indices + entry], prg[attributes + entry], q % 2 * 8, q // 2 * 8))
         if source_frame == 6:
             start, end = prg[0x163EC + kind:0x163EE + kind]
-            # E9BA 的侧面武器只取该角色追加部件表的前一半。
-            for i in range((end - start) // 2):
+            # 普通人物执行 EA56 和 EA64 两次 LSR，只有四分之一是当前方向的武器。
+            for i in range((end - start) // 4):
                 entry = start + i
                 x, y = prg[0x1649D + entry * 2:0x1649F + entry * 2]
                 parts.append((prg[0x16405 + entry], prg[0x16451 + entry],

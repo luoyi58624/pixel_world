@@ -414,14 +414,11 @@ void main() {
     await tester.pump();
     final canvas = find.byKey(const ValueKey('battle-canvas'));
     expect(canvas, findsOneWidget);
-    // 两名将领的血条加两军士气条；不再逐兵展示血条和血量格。
-    expect(find.byType(LinearProgressIndicator), findsNWidgets(4));
+    // 原版 HP 和红条由战场同一画布绘制，不再叠加现代进度条。
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('1 · 20'), findsNothing);
     expect(find.byKey(const ValueKey('world-canvas')), findsNothing);
-    expect(
-      find.byKey(const ValueKey('battle-attacker-morale')),
-      findsOneWidget,
-    );
+    expect(simulation.attackerMorale.maximum, inInclusiveRange(0, 63));
     await tester.tap(find.byKey(const ValueKey('battle-zoom-in')));
     await tester.pump();
     expect(c.battleCamera.scale, greaterThan(c.battleCamera.minScale));
@@ -447,11 +444,19 @@ void main() {
     expect(battle.simulation, same(simulation));
     expect(simulation.elapsed, greaterThanOrEqualTo(elapsed));
     expect(simulation.attackerMorale.remaining, lessThanOrEqualTo(morale));
+    final hold = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('battle-hold-charge'))),
+    );
+    expect(simulation.chargeHeld, isTrue);
+    c.cancelCityAction();
+    await tester.pump();
+    expect(simulation.chargeHeld, isFalse);
+    await hold.up();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('小窗口点击城上刀剑打开观战，面板开启时战斗持续并保留结束结果', (tester) async {
+  testWidgets('小窗口进入观战，整场结束后自动回到地图并保留后台结果', (tester) async {
     final c = await _load(tester, const Size(600, 360));
     final unit = c.campaign.dispatch(
       c.campaign.heroes.firstWhere((hero) => hero.sourceId == 0),
@@ -484,10 +489,9 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 90));
     expect(battle.outcome, isNotNull);
-    expect(find.text(battle.outcome!), findsOneWidget);
-    expect(c.watchedBattle, same(battle));
-    await tester.tap(find.byKey(const ValueKey('battle-return')));
-    await tester.pump();
+    expect(battle.simulation.result, isNotNull);
+    expect(find.byKey(const ValueKey('battle-canvas')), findsNothing);
+    expect(find.byKey(const ValueKey('world-canvas')), findsOneWidget);
     expect(c.watchedBattle, isNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

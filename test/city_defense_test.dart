@@ -33,18 +33,18 @@ void main() {
         seed: 1,
         defenderCityLevel: level,
       );
-      expect(sim.baseDamage(BattleSide.attacker), 13);
-      expect(sim.baseDamage(BattleSide.defender), 13 + (level - 1) * 2);
-      expect(sim.attackerMorale.maximum, 63);
-      expect(sim.defenderMorale.maximum, 63 + (level - 1) * 5);
+      expect(sim.basePower(BattleSide.attacker), 16);
+      expect(sim.basePower(BattleSide.defender), 18 + (level - 1) * 2);
+      expect(sim.attackerMorale.maximum, 43);
+      expect(sim.defenderMorale.maximum, (51 + (level - 1) * 8).clamp(0, 63));
       expect(sim.defenderMorale.remaining, sim.defenderMorale.maximum);
       expect(defender.attack, 10);
       expect(defender.general.hp, 20);
-      expect(defender.soldiers[1].hp, 7);
+      expect(defender.soldiers[1].hp, 20);
     }
   });
 
-  test('双方士气均封顶100，加成后超过上限也不按受伤后的血量计算', () {
+  test('原版红条由战斗属性决定，上限63，受伤不影响初始值', () {
     for (final hp in [95, 99, 1000]) {
       final sim = BattleSimulation(
         attacker: _army('a', hp: hp),
@@ -52,9 +52,9 @@ void main() {
         seed: 2,
         defenderCityLevel: 5,
       );
-      expect(sim.attackerMorale.maximum, (hp + 4).clamp(0, 100));
-      expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 100);
+      expect(sim.attackerMorale.maximum, 43);
+      expect(sim.defenderMorale.maximum, 63);
+      expect(sim.defenderMorale.remaining, 63);
       expect(sim.defender.general.hp, 20);
     }
   });
@@ -66,19 +66,16 @@ void main() {
       seed: 3,
       defenderCityLevel: 5,
     );
-    sim.attackerMorale.remaining = 0;
-    sim.defenderMorale.remaining = 0;
-    sim.attackerMorale.accumulated = 15;
-    sim.defenderMorale.accumulated = 20;
     for (var i = 0; i < 1000 && sim.clashes == 0; i++) {
       sim.advance(1 / 60);
     }
-    expect(sim.clashes, 1);
-    expect(sim.lastClash!.attackerDamage, 19);
-    expect(sim.lastClash!.defenderDamage, closeTo((19 + 8) * 1.05, 1e-9));
+    expect(sim.basePower(BattleSide.attacker), 23);
+    expect(sim.basePower(BattleSide.defender), 33);
+    expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
+    expect(sim.lastClash!.defenderDamage, inInclusiveRange(9, 17));
     expect(
-      sim.attacker.soldiers.fold<double>(0, (hp, soldier) => hp + soldier.hp),
-      closeTo(80 - 27 * 1.05, 1e-9),
+      sim.attacker.soldiers.fold<double>(0, (sum, s) => sum + s.hp),
+      80 - sim.lastClash!.defenderDamage,
     );
   });
 
@@ -94,8 +91,8 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 2);
-    expect(battle.simulation.defenderMoraleBonus, 5);
+    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(battle.simulation.defenderMoraleBonus, inInclusiveRange(0, 8));
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
     }
@@ -103,11 +100,11 @@ void main() {
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
-    expect(battle.simulation.defenderAttackBonus, 0);
-    expect(battle.simulation.defenderMoraleBonus, 0);
+    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderMoraleBonus, inInclusiveRange(0, 8));
     expect(
       battle.simulation.defenderMorale.remaining,
-      (battle.defender.maxHp + battle.defender.soldiers).clamp(0, 100),
+      ((battle.defender.combat + 3) * 4 - 1).clamp(0, 63),
     );
     expect(battle.simulation.defender.attack, battle.defender.combat);
   });
@@ -129,12 +126,12 @@ void main() {
     final remaining = sim.defenderMorale.remaining;
     expect(sim.defenderCityLevel, 3);
     expect(
-      sim.baseDamage(BattleSide.defender),
-      governor.combat + governor.soldiers + 4,
+      sim.basePower(BattleSide.defender),
+      governor.combat + governor.soldiers * 2 + 6,
     );
     expect(
-      sim.baseDamage(BattleSide.attacker),
-      battle.attacker.combat + battle.attacker.soldiers,
+      sim.basePower(BattleSide.attacker),
+      battle.attacker.combat + battle.attacker.soldiers * 2,
     );
     final idle = c.garrisonAt(0).firstWhere((hero) => hero != governor);
     expect(c.upgradeCity(0, hero: idle), isTrue);
@@ -154,7 +151,7 @@ void main() {
     expect(c.world.cities[1].initialLevel, 2);
     final sim = c.battles[1]!.simulation;
     expect(sim.defenderCityLevel, 1);
-    expect(sim.defenderAttackBonus, 0);
-    expect(sim.defenderMoraleBonus, 0);
+    expect(sim.defenderAttackBonus, 2);
+    expect(sim.defenderMoraleBonus, inInclusiveRange(0, 8));
   });
 }

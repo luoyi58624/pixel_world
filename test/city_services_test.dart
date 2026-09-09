@@ -168,15 +168,10 @@ void main() {
     c.watchBattle(battle);
     await tester.pump();
     expect(find.byKey(const ValueKey('battle-scene')), findsOneWidget);
+    expect(find.byKey(const ValueKey('battle-canvas')), findsOneWidget);
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('battle-defense-bonus')))
-          .data,
-      '城防加成 · 攻击 +${battle.simulation.defenderAttackBonus} · 初始士气 +${battle.simulation.defenderMoraleBonus}',
-    );
-    expect(
-      find.textContaining('${c.world.countryName(hero.countryId)}国 · 进攻'),
-      findsOneWidget,
+      battle.simulation.defenderCityLevel,
+      c.campaign.cities[target.id]!.level,
     );
     final elapsed = battle.simulation.elapsed;
     await tester.pump(const Duration(seconds: 1));

@@ -142,7 +142,7 @@ void main() {
     expect(c.cities[0]!.level, 2);
   });
 
-  test('一级城只派一位，守城战败失城，其他城池及在外主角不受清除影响', () {
+  test('一级城失守清除本城在外主角，其他城市英雄不受清除影响', () {
     final c = _campaign();
     final away = _hero(c, 0)..cityId = 2;
     c.cities[2]!.ownerCountryId = 0;
@@ -158,7 +158,7 @@ void main() {
       defendedCityId: 0,
     )!;
     expect(result.captured, isTrue);
-    expect(result.removedHeroIds, ['rom-2']);
+    expect(result.removedHeroIds, ['rom-2', 'rom-40']);
     expect(c.cities[0]!.level, 1);
     expect(c.cities[0]!.isPlayer, isFalse);
     expect(c.heroes, contains(away));
@@ -166,12 +166,12 @@ void main() {
       c.heroes.where((hero) => !hero.isPlayer).map((hero) => hero.id),
       enemyIds,
     );
-    expect(c.marches.containsKey('rom-40'), isTrue);
-    expect(c.defeated, isFalse);
+    expect(c.marches.containsKey('rom-40'), isFalse);
+    expect(c.defeated, isTrue);
     expect(c.hasDispatched, isTrue);
   });
 
-  test('升级允许继续出征，最后一城失守保留在外主角记录但本局立即结束', () {
+  test('升级允许继续出征，最后一城失守清除行军主角并结束本局', () {
     final c = _campaign();
     c.upgradeCity(0, hero: _hero(c, 40));
     c.dispatch(_hero(c, 40), c.world.cities[1]);
@@ -180,12 +180,12 @@ void main() {
     expect(c.cities[0]!.level, 1);
     c.defeatHero('rom-2', winnerCountryId: 1, defendedCityId: 0);
     expect(c.cities[0]!.isPlayer, isFalse);
-    expect(c.marches.containsKey('rom-40'), isTrue);
-    expect(_hero(c, 40).health.alive, isTrue);
-    expect(c.defeatReason, CampaignDefeatReason.noCities);
+    expect(c.marches.containsKey('rom-40'), isFalse);
+    expect(c.heroes.any((hero) => hero.sourceId == 40), isFalse);
+    expect(c.defeatReason, CampaignDefeatReason.protagonistFallen);
   });
 
-  test('连续迎战时保留兵损和伤势，换守将重新按生命上限补充士气', () {
+  test('连续迎战保留兵数和将领伤势，换守将按战斗属性重新初始化红条', () {
     final c = _campaign();
     final hero = _hero(c, 40)..hp = 20;
     hero.squad[0].hp = 0;
@@ -206,14 +206,17 @@ void main() {
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(hero.hp, hp);
-    expect(hero.squad.map((soldier) => soldier.hp), soldiers);
+    expect(
+      hero.squad.map((soldier) => soldier.hp),
+      soldiers.map((hp) => hp > 0 ? 20.0 : 0.0),
+    );
     expect(
       battle.simulation.attackerMorale.maximum,
-      (hero.maxHp + hero.soldiers).clamp(0, 100),
+      ((hero.combat + 1) * 4 - 1).clamp(0, 63),
     );
     expect(
       battle.simulation.attackerMorale.remaining,
-      (hero.maxHp + hero.soldiers).clamp(0, 100),
+      ((hero.combat + 1) * 4 - 1).clamp(0, 63),
     );
   });
 

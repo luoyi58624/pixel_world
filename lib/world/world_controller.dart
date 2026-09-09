@@ -48,7 +48,7 @@ class WorldController extends ChangeNotifier {
   final WorldCamera camera;
 
   /// 观战使用独立镜头，拖动战场不会改变大地图位置。
-  final WorldCamera battleCamera = WorldCamera(BattleSimulation.arenaSize);
+  final WorldCamera battleCamera = WorldCamera(BattleSimulation.sceneSize);
 
   /// 键盘、拖拽及惯性操作当前正在显示的镜头。
   WorldCamera get activeCamera => watchedBattle == null ? camera : battleCamera;
@@ -224,8 +224,9 @@ class WorldController extends ChangeNotifier {
   /// 更新动画与键盘镜头移动。
   void tick(double elapsed) {
     if (campaign.defeated) {
-      campaign.advance(0);
+      final changed = campaign.advance(elapsed);
       _showDefeat();
+      if (changed) refreshUi();
       return;
     }
     // 所有面板共用这一时钟；保留真实帧间隔，低帧率不让行军额外变慢。
@@ -288,6 +289,15 @@ class WorldController extends ChangeNotifier {
     if (changed) {
       if (campaign.lastEvent.isNotEmpty) message = campaign.lastEvent;
     }
+    if (watchedBattle != null && !watchedBattle!.isActive) {
+      // 整场交战结束才退出；连续守将的短暂换人仍属于同一场攻城。
+      final outcome = watchedBattle!.outcome;
+      watchedBattle!.simulation.chargeHeld = false;
+      watchedBattle = null;
+      battleCamera.cancelMotion();
+      if (outcome != null) message = outcome;
+      changed = true;
+    }
     if (pendingHero != null && !campaign.canDispatch(pendingHero!)) {
       pendingHero = null;
       _targetReturnUnitId = null;
@@ -319,6 +329,8 @@ class WorldController extends ChangeNotifier {
   void _showDefeat() {
     if (_gameOverShown) return;
     _gameOverShown = true;
+    watchedBattle?.simulation.chargeHeld = false;
+    watchedBattle = null;
     camera.cancelMotion();
     battleCamera.cancelMotion();
     keyboardDirection = Offset.zero;

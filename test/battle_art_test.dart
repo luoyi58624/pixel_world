@@ -38,8 +38,9 @@ void main() {
         return bytes;
       }
 
-      final baseline = await render();
       final sim = battle.simulation;
+      sim.advance(2.8);
+      final baseline = await render();
       final soldier = sim.units.firstWhere((unit) => !unit.isGeneral);
       soldier.health.hp = 1;
       sim.hits.add((
@@ -85,6 +86,12 @@ void main() {
     );
     expect(layout['levelStages'], [5, 4, 4, 4, 3]);
     expect(data['frameOrder'], ['side_a', 'side_b', 'clash']);
+    // 原版 E9B9 的普通人物近身姿势只有四块身体和一块武器，不能多拼另一方向。
+    for (final sprite in (data['sprites'] as Map).values) {
+      expect(sprite['frames'][2].length, 5);
+      expect(sprite['frames'][2].last['x'], -8);
+      expect(sprite['frames'][2].last['y'], 1);
+    }
   });
 
   testWidgets('我方高级和普通将领只替换蓝色主色，透明边界与全部六帧细节不变', (tester) async {
@@ -124,12 +131,22 @@ void main() {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final art = BattleArt(assets);
-      expect(assets.battleSprites.length, 8);
-      for (final image in assets.battleSprites.values) {
+      expect(assets.battleSprites.length, 9);
+      for (final image
+          in assets.battleSprites.entries
+              .where((e) => e.key != 'hero_names')
+              .map((e) => e.value)) {
         expect(
           Size(image.width.toDouble(), image.height.toDouble()),
           const Size(96, 32),
         );
+        final pixels = (await image.toByteData())!;
+        // 第三帧右侧空白区曾被误拼入另一方向的剑，正确提取后必须透明。
+        for (var y = 0; y < 32; y++) {
+          for (var x = 88; x < 96; x++) {
+            expect(pixels.getUint8((y * 96 + x) * 4 + 3), 0);
+          }
+        }
       }
       for (final image in assets.battleScenes.values) {
         expect(

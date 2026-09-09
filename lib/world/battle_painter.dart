@@ -18,6 +18,7 @@ class BattleArt {
   final WorldAssets assets;
   final _frames = <(HeroAppearance?, bool, int), ui.Image>{};
   int? _size;
+  final _labels = <(String, double, double), TextPainter>{};
 
   /// 原版一级城用金色城墙，二至四级用青色城墙，五级用灰色城墙。
   ui.Image background(int cityLevel) =>
@@ -67,6 +68,9 @@ class BattleArt {
     for (final image in _frames.values) {
       image.dispose();
     }
+    for (final text in _labels.values) {
+      text.dispose();
+    }
   }
 }
 
@@ -104,10 +108,7 @@ class BattlePainter extends CustomPainter {
     final camera = controller.battleCamera;
     canvas.save();
     canvas.clipRect(Offset.zero & size);
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xff080d0c),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
     canvas.save();
     final origin = camera.toScreen(Offset.zero);
     canvas.translate(
@@ -118,149 +119,289 @@ class BattlePainter extends CustomPainter {
     canvas.drawImage(
       battle is FieldBattle
           ? assets.fieldScenes[battle.terrain]!
-          : art.background(
-              controller.campaign.cities[(battle as CityBattle).city.id]!.level,
-            ),
+          : art.background(sim.defenderCityLevel),
       Offset.zero,
       Paint()..filterQuality = FilterQuality.none,
     );
     canvas.restore();
-    final units = sim.units.toList()
+
+    // HUD 与角色共用原生画布，阵亡角色可以像录像中一样经过面板上方。
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    canvas.scale(camera.scale);
+    _hud(canvas, battle);
+    canvas.restore();
+    final units = sim.units.where((unit) => unit.visible).toList()
       ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
     for (final unit in units) {
-      final dead = unit.diedAt == null ? 0.0 : sim.elapsed - unit.diedAt!;
-      if (!unit.health.alive && dead > 0.65) continue;
-      var point = unit.renderPosition(sim.elapsed);
-      if (!unit.health.alive) {
-        point += Offset(
-          (unit.facingRight ? -1 : 1) * dead * 22,
-          -math.sin(dead / 0.65 * math.pi) * 8 + dead * 8,
-        );
-        point = Offset(point.dx.clamp(8.0, 248.0), point.dy);
-      }
+      final point = unit.renderPosition(sim.elapsed);
       final center = camera.toScreen(point);
       final side = math.max(1, (16 * camera.scale * devicePixelRatio).round());
-      final frame = unit.animationFrame(sim.elapsed);
-      final appearance = unit.side == BattleSide.attacker
-          ? battle.attacker.appearance
-          : battle.defender.appearance;
-      final friendly =
-          (unit.side == BattleSide.attacker ? battle.attacker : battle.defender)
-              .isPlayer;
+      final hero = unit.side == BattleSide.attacker
+          ? battle.attacker
+          : battle.defender;
       final image = art.sprite(
-        unit.isGeneral ? appearance : null,
-        friendly,
-        frame,
+        unit.isGeneral ? hero.appearance : null,
+        hero.isPlayer,
+        unit.animationFrame(sim.elapsed),
         side,
       );
-      final alpha = unit.health.alive ? 1.0 : (1 - dead / 0.65).clamp(0.0, 1.0);
-      if (unit.health.alive) {
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: center + Offset(0, 7 * camera.scale),
-            width: 12 * camera.scale,
-            height: 3 * camera.scale,
-          ),
-          Paint()..color = const Color(0x70000000),
-        );
-      }
       canvas.save();
       canvas.translate(
         (center.dx * devicePixelRatio).round() / devicePixelRatio,
         (center.dy * devicePixelRatio).round() / devicePixelRatio,
       );
-      if (!unit.health.alive) {
-        canvas.rotate((unit.facingRight ? -1 : 1) * dead * 1.4);
-      }
       final imageSize = side * 2 / devicePixelRatio;
       canvas.translate(-imageSize / 2, -imageSize / 2);
-      // 原版战斗图集统一朝左，左侧队伍整体镜像后朝向右侧。
       if (unit.facingRight) {
         canvas.translate(imageSize, 0);
         canvas.scale(-1, 1);
       }
-      final spritePaint = Paint()
-        ..filterQuality = FilterQuality.none
-        ..color = Colors.white.withValues(alpha: alpha);
       canvas.drawImageRect(
         image,
         Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
         Rect.fromLTWH(0, 0, imageSize, imageSize),
-        spritePaint,
+        Paint()..filterQuality = FilterQuality.none,
       );
       canvas.restore();
-      if (!unit.health.alive) continue;
-      if (unit.id == selectedUnitId) {
-        canvas.drawRect(
-          Rect.fromCenter(
-            center: center,
-            width: 20 * camera.scale,
-            height: 20 * camera.scale,
-          ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = const Color(0xffffe29a),
-        );
-      }
-      if (!unit.isGeneral) continue;
-      final bar = Rect.fromCenter(
-        center: center - Offset(0, 11 * camera.scale),
-        width: 18 * camera.scale,
-        height: math.max(2, 1.5 * camera.scale),
-      );
-      canvas.drawRect(
-        bar.inflate(1),
-        Paint()
-          ..color = battle is CityBattle && sim.atWall(unit)
-              ? const Color(0xfff17153)
-              : const Color(0xee050806),
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(
-          bar.left,
-          bar.top,
-          bar.width * unit.health.hp / unit.health.maxHp,
-          bar.height,
-        ),
-        Paint()
-          ..color = unit.side == BattleSide.attacker
-              ? const Color(0xffe5b963)
-              : const Color(0xff939dff),
-      );
     }
-    for (final formation in sim.formations.values) {
-      if (battle is FieldBattle) continue;
-      final age = sim.elapsed - formation.wallHitAt;
-      if (age < 0 || age > 0.28) continue;
-      final inward = formation.side == BattleSide.defender ? 1.0 : -1.0;
-      final wallX = inward > 0 ? 2.0 : 254.0;
-      final paint = Paint()
-        ..isAntiAlias = false
-        ..color = const Color(0xffffd36b).withValues(alpha: 1 - age / 0.28);
-      for (final unit in sim.units.where(
-        (unit) => unit.side == formation.side && unit.health.alive,
-      )) {
-        for (var i = 0; i < 3; i++) {
-          final point = camera.toScreen(
-            Offset(
-              wallX + inward * age * (18 + i * 14),
-              unit.position.dy - 5 + i * 5 - age * 12,
-            ),
-          );
-          canvas.drawRect(
-            Rect.fromLTWH(
-              (point.dx * devicePixelRatio).round() / devicePixelRatio,
-              (point.dy * devicePixelRatio).round() / devicePixelRatio,
-              camera.scale,
-              camera.scale,
-            ),
-            paint,
-          );
+    canvas.restore();
+  }
+
+  void _frame(Canvas canvas, Rect rect) {
+    canvas.drawRect(rect, Paint()..color = Colors.black);
+    final paint = Paint()
+      ..color = const Color(0xfffffeff)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..isAntiAlias = false;
+    canvas.drawRect(rect.deflate(0.5), paint);
+    canvas.drawRect(rect.deflate(2.5), paint);
+  }
+
+  void _text(
+    Canvas canvas,
+    String text,
+    Offset point,
+    double size, {
+    double width = 200,
+  }) {
+    final painter = art._labels.putIfAbsent(
+      (text, size, width),
+      () => TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: const Color(0xfffffeff),
+            fontSize: size,
+            height: 1,
+            fontFamily: 'Microsoft YaHei',
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout(maxWidth: width),
+    );
+    painter.paint(canvas, point);
+  }
+
+  void _digits(Canvas canvas, String text, Offset point) {
+    const glyphs = {
+      '0': [
+        '011110',
+        '110011',
+        '110011',
+        '110011',
+        '110011',
+        '110011',
+        '011110',
+      ],
+      '1': [
+        '001100',
+        '011100',
+        '001100',
+        '001100',
+        '001100',
+        '001100',
+        '111111',
+      ],
+      '2': [
+        '011110',
+        '110011',
+        '000011',
+        '000110',
+        '011000',
+        '110000',
+        '111111',
+      ],
+      '3': [
+        '111110',
+        '000011',
+        '000011',
+        '011110',
+        '000011',
+        '000011',
+        '111110',
+      ],
+      '4': [
+        '000110',
+        '001110',
+        '011110',
+        '110110',
+        '111111',
+        '000110',
+        '000110',
+      ],
+      '5': [
+        '111111',
+        '110000',
+        '110000',
+        '111110',
+        '000011',
+        '000011',
+        '111110',
+      ],
+      '6': [
+        '011110',
+        '110000',
+        '110000',
+        '111110',
+        '110011',
+        '110011',
+        '011110',
+      ],
+      '7': [
+        '111111',
+        '000011',
+        '000110',
+        '001100',
+        '001100',
+        '001100',
+        '001100',
+      ],
+      '8': [
+        '011110',
+        '110011',
+        '110011',
+        '011110',
+        '110011',
+        '110011',
+        '011110',
+      ],
+      '9': [
+        '011110',
+        '110011',
+        '110011',
+        '011111',
+        '000011',
+        '000011',
+        '011110',
+      ],
+      'H': [
+        '100001',
+        '100001',
+        '100001',
+        '111111',
+        '100001',
+        '100001',
+        '100001',
+      ],
+      'P': [
+        '111110',
+        '100001',
+        '100001',
+        '111110',
+        '100000',
+        '100000',
+        '100000',
+      ],
+    };
+    final paint = Paint()
+      ..color = const Color(0xfffffeff)
+      ..isAntiAlias = false;
+    for (var c = 0; c < text.length; c++) {
+      final rows = glyphs[text[c]];
+      if (rows == null) continue;
+      for (var y = 0; y < 7; y++) {
+        for (var x = 0; x < 6; x++) {
+          if (rows[y][x] == '1') {
+            canvas.drawRect(
+              Rect.fromLTWH(point.dx + c * 8 + x, point.dy + y, 1, 1),
+              paint,
+            );
+          }
         }
       }
     }
-    canvas.restore();
+  }
+
+  void _hud(Canvas canvas, WorldBattle battle) {
+    final sim = battle.simulation;
+    if (sim.forming) {
+      _frame(canvas, const Rect.fromLTWH(18, 148, 220, 44));
+      _text(
+        canvas,
+        '${controller.world.countryName(battle.defender.countryId)}国',
+        const Offset(30, 154),
+        14,
+        width: 90,
+      );
+      _text(
+        canvas,
+        '${controller.world.countryName(battle.attacker.countryId)}国',
+        const Offset(142, 154),
+        14,
+        width: 90,
+      );
+      _text(
+        canvas,
+        '${battle.defender.name}部队',
+        const Offset(30, 172),
+        12,
+        width: 90,
+      );
+      _text(
+        canvas,
+        '${battle.attacker.name}部队',
+        const Offset(142, 172),
+        12,
+        width: 90,
+      );
+      return;
+    }
+    for (final side in BattleSide.values) {
+      final x = side == BattleSide.defender ? 18.0 : 146.0;
+      final hero = side == BattleSide.defender
+          ? battle.defender
+          : battle.attacker;
+      _frame(canvas, Rect.fromLTWH(x, 148, 92, 56));
+      if (hero.sourceId >= 0 && hero.sourceId < 40 && hero.sourceId != 9) {
+        canvas.drawImageRect(
+          assets.battleSprites['hero_names']!,
+          Rect.fromLTWH(0, hero.sourceId * 16, 48, 16),
+          Rect.fromLTWH(x + 14, 153, 48, 16),
+          Paint()..filterQuality = FilterQuality.none,
+        );
+      } else {
+        _text(canvas, hero.name, Offset(x + 14, 153), 16, width: 66);
+      }
+      _digits(canvas, 'HP', Offset(x + 14, 178));
+      final hp = hero.health.hp.round().toString();
+      _digits(canvas, hp, Offset(x + 78 - hp.length * 8, 178));
+      canvas.drawRect(
+        Rect.fromLTWH(x + 14, 193, sim.morale(side).remaining.toDouble(), 8),
+        Paint()
+          ..color = const Color(0xffb53120)
+          ..isAntiAlias = false,
+      );
+    }
+    if (sim.result != null) {
+      _frame(canvas, const Rect.fromLTWH(62, 78, 132, 30));
+      final message = sim.result == BattleResult.draw
+          ? '双方战败'
+          : '${sim.result == BattleResult.attackerWon ? battle.attacker.name : battle.defender.name}获胜';
+      _text(canvas, message, const Offset(70, 86), 14, width: 116);
+    }
   }
 
   @override

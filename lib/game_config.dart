@@ -116,20 +116,11 @@ abstract final class GameConfig {
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
-  /// 小兵满血值。
-  static const soldierHp = 20;
-
-  /// 小兵对整队伤害的贡献。
-  static const soldierAttack = 1;
-
   /// 守城方从二级起，每级增加的整队基础攻击力。
   static const cityDefenseAttackPerLevel = 2;
 
-  /// 守城方从二级起，每级增加的初始士气。
-  static const cityDefenseMoralePerLevel = 5;
-
-  /// 双方士气的最高值，英雄、小兵和城防贡献合计后封顶。
-  static const moraleLimit = 100;
+  /// 原版一级城已有两点战斗修正，二级合计四点；设为零可恢复旧城防平衡。
+  static const cityDefenseBaseAttack = 2;
 
   /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
   static const fieldEncounterDistance = 16.0;
@@ -158,47 +149,11 @@ abstract final class GameConfig {
   /// 河流行军倍率。
   static const waterSpeedFactor = 0.4;
 
-  /// 基础冲锋速度。
-  static const baseChargeSpeed = 110.0;
+  /// 原版进入提示 20 帧及介绍等待 143 帧。
+  static const battleFormationFrames = 163;
 
-  /// 最近一次每消耗一点士气增加的冲锋速度。
-  static const chargeSpeedPerMorale = 6.0;
-
-  /// 冲锋加速度，单位为原生像素每秒平方，避免开步瞬间冲到最高速。
-  static const chargeAcceleration = 200.0;
-
-  /// 开场列阵时间，期间世界时钟与士气照常推进。
-  static const battleFormationTime = 1.2;
-
-  /// 碰撞出剑的短暂停顿，只停队形，不暂停整个游戏。
-  static const battleImpactHold = 0.1;
-
-  /// 击退的最高初速度，长距离退步相应延长时间，不瞬间飞到墙边。
-  static const battleRecoilPeakSpeed = 180.0;
-
-  /// 短距离受击也保留能看清的退步动作。
-  static const battleRecoilMinimumTime = 0.28;
-
-  /// 收势最后这段时间举剑，衔接下一次冲锋。
-  static const chargeRaiseTime = 0.14;
-
-  /// 士气投入间隔，单位秒。
-  static const moraleInterval = 0.5;
-
-  /// 每次消耗剩余士气的最低整数百分比。
-  static const moraleMinPercent = 5;
-
-  /// 每次消耗剩余士气的最高整数百分比。
-  static const moraleMaxPercent = 10;
-
-  /// 整个战场对应的后退距离点数。
-  static const battlefieldPoints = 50.0;
-
-  /// 碰撞后至少整备这些秒再冲锋，冷却在退步终点完成，不在贴脸时等待。
-  static const clashInterval = 1.6;
-
-  /// 退步终点的准备时间。
-  static const chargePreparationTime = 0.35;
+  /// 自动观战时每五帧在反弹阶段代按一次 A。
+  static const battleAutoChargePulseFrames = 5;
 }
 
 /// 国家的开局经济与自动出征策略，城池等级和初始英雄仍由地图数据提供。
