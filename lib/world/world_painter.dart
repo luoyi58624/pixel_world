@@ -128,7 +128,7 @@ class WorldPainter extends CustomPainter {
         }
       }
     }
-    for (final battle in c.campaign.battles.values) {
+    for (final battle in c.campaign.allBattles) {
       if (battle.isActive) _drawBattle(canvas, battle);
     }
     canvas.restore();
@@ -174,7 +174,7 @@ class WorldPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawBattle(Canvas canvas, CityBattle battle) {
+  void _drawBattle(Canvas canvas, WorldBattle battle) {
     final center = controller.battleMarkerBounds(battle).center;
     canvas.save();
     canvas.translate(

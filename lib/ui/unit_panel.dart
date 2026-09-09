@@ -101,9 +101,10 @@ class UnitPanel extends StatelessWidget {
       MarchPhase.camped => '扎营中',
       MarchPhase.awaitingBattle => '城下待战',
       MarchPhase.fighting => '交战中',
+      MarchPhase.dueling => '野战中',
       null => '驻守中',
     };
-    final battle = c.campaign.battles[unit?.target?.id];
+    final battle = c.campaign.activeBattleForHero(hero.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -128,7 +129,10 @@ class UnitPanel extends StatelessWidget {
                 'unit-camp',
                 '扎营',
                 Icons.terrain_outlined,
-                hero.isPlayer && unit != null && unit.phase != MarchPhase.camped
+                hero.isPlayer &&
+                        unit != null &&
+                        unit.phase != MarchPhase.camped &&
+                        unit.phase != MarchPhase.dueling
                     ? c.campSelected
                     : null,
               ),
@@ -156,6 +160,7 @@ class UnitPanel extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.tonal(
+              key: const ValueKey('unit-watch-battle'),
               onPressed: () => onAction(() => c.watchBattle(battle!)),
               child: const Text('进入观战'),
             ),

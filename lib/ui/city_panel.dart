@@ -321,6 +321,7 @@ class CityPanel extends StatelessWidget {
         MarchPhase.marching => '出征中',
         MarchPhase.awaitingBattle => '城下待战',
         MarchPhase.fighting => '交战中',
+        MarchPhase.dueling => '野战中',
         null => '驻守中',
       };
 

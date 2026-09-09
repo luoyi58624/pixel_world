@@ -10,8 +10,10 @@ import 'world_data.dart';
 import 'world_movement.dart';
 import 'economy.dart';
 import 'recruitment.dart';
+import 'field_terrain.dart';
 
 part 'country_ai.dart';
+part 'field_battles.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -192,6 +194,9 @@ enum MarchPhase {
 
   /// 正与守城英雄交战。
   fighting,
+
+  /// 与野外遭遇的敌军决战，结束前不能改道或扎营。
+  dueling,
 }
 
 /// 一支已确认出发的部队，地图移动与战斗保留同一英雄身份。
@@ -264,60 +269,83 @@ class HeroMarch {
   }
 }
 
-/// 后台交战的实时记录，观战只读取这份状态，不另起战斗时钟。
-class CityBattle {
+/// 城池战和野战共用的后台记录，观战不创建额外时钟。
+abstract class WorldBattle {
+  /// 引用真实将领及其生命对象。
+  WorldBattle(this.attacker, this.defender, {required this.simulation});
+
+  /// 右侧参战将领，野战中不享有先手优势。
+  final CampaignHero attacker;
+
+  /// 左侧参战将领，城池战可在战败后更换。
+  CampaignHero defender;
+
+  /// 当前双方的共享战斗状态。
+  BattleSimulation simulation;
+
+  /// 最近一次战斗结果，为空表示交战中。
+  String? outcome;
+  bool _settled = false;
+
+  /// 战斗记录，用于显示过程与结果。
+  final List<String> events = [];
+
+  /// 当前已发生的碰撞次数。
+  int get rounds => simulation.clashes;
+
+  /// 是否仍在后台交战。
+  bool get isActive => outcome == null;
+
+  /// 观战标题中的地点。
+  String get locationLabel;
+
+  /// 地图战斗标记的世界位置。
+  Offset markerPosition(CampaignState campaign);
+
+  /// 保留有限条战斗记录。
+  void record(String event) {
+    events.add(event);
+    if (events.length > 6) events.removeAt(0);
+  }
+}
+
+/// 一支进攻部队与城池守军的连续交战。
+class CityBattle extends WorldBattle {
   /// 按当前城池等级记录一支部队与当前守将的交战。
   CityBattle(
     this.city,
-    this.attacker,
-    this.defender, {
+    CampaignHero attacker,
+    CampaignHero defender, {
     required int cityLevel,
     int seed = 1,
   }) : _seed = seed,
-       simulation = BattleSimulation(
-         attacker: attacker.battleArmy,
-         defender: defender.battleArmy,
-         defenderCityLevel: cityLevel,
-         seed: seed,
+       super(
+         attacker,
+         defender,
+         simulation: BattleSimulation(
+           attacker: attacker.battleArmy,
+           defender: defender.battleArmy,
+           defenderCityLevel: cityLevel,
+           seed: seed,
+         ),
        );
 
   /// 战斗所在城池。
   final CityDefinition city;
 
-  /// 进攻英雄，战败后仍保留本场结果供查看。
-  final CampaignHero attacker;
+  @override
+  String get locationLabel => '${city.label}国';
 
-  /// 当前守将，每轮从存活驻军中更新。
-  CampaignHero defender;
-
-  /// 当前守将这一场的独立小兵、位置与伤害状态。
-  BattleSimulation simulation;
-
-  /// 已执行的拼杀次数。
-  int get rounds => simulation.clashes;
+  @override
+  Offset markerPosition(CampaignState campaign) =>
+      campaign.cityBounds(city).topCenter;
 
   /// 当前迎战的守将次序。
   int wave = 1;
 
   /// 更换守将前的短暂结果展示时间。
   double nextWaveIn = 0;
-  bool _settled = false;
   final int _seed;
-
-  /// 战斗结果，为空表示仍在交战。
-  String? outcome;
-
-  /// 最近的伤害与战败记录。
-  final List<String> events = [];
-
-  /// 是否仍在后台交战。
-  bool get isActive => outcome == null;
-
-  /// 添加有限数量的战斗记录。
-  void record(String event) {
-    events.add(event);
-    if (events.length > 6) events.removeAt(0);
-  }
 
   void _nextDefender(CampaignHero hero, int cityLevel) {
     defender = hero;
@@ -505,6 +533,24 @@ class CampaignState {
   /// 各城最近一场交战，结束后保留结果直到下次交战。
   final Map<int, CityBattle> battles = {};
 
+  /// 野战记录，进行中的场次全部保留，结束后限制历史数量。
+  final Map<int, FieldBattle> fieldBattles = {};
+
+  /// 地图和观战共用的全部战斗。
+  Iterable<WorldBattle> get allBattles sync* {
+    yield* battles.values;
+    yield* fieldBattles.values;
+  }
+
+  /// 查找将领正在参与的战斗，避免一人同时参与多场。
+  WorldBattle? activeBattleForHero(String heroId) => allBattles
+      .where(
+        (battle) =>
+            battle.isActive &&
+            (battle.attacker.id == heroId || battle.defender.id == heroId),
+      )
+      .firstOrNull;
+
   /// 派兵后即使部队全灭，也不重新生成探索人物。
   bool hasDispatched = false;
   final Map<int, int> _countryGold;
@@ -614,9 +660,9 @@ class CampaignState {
       _releaseOffer(countryId);
     }
     _simulationFraction = 0;
-    for (final battle in battles.values) {
+    for (final battle in allBattles) {
       battle.outcome ??= '游戏结束 · ${reason.label}';
-      battle.nextWaveIn = 0;
+      if (battle is CityBattle) battle.nextWaveIn = 0;
       battle.simulation.stop();
     }
     _record('游戏结束 · ${reason.label}');
@@ -988,6 +1034,7 @@ class CampaignState {
   bool moveTo(String heroId, Offset point) {
     if (defeated) return false;
     final march = marches[heroId];
+    if (march?.phase == MarchPhase.dueling) return false;
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
       return false;
     }
@@ -1010,6 +1057,7 @@ class CampaignState {
   bool camp(String heroId) {
     if (defeated) return false;
     final march = marches[heroId];
+    if (march?.phase == MarchPhase.dueling) return false;
     if (march == null || !march.hero.isPlayer) return false;
     _endBattle(march, '${march.hero.name}已停止进攻');
     march.camp();
@@ -1071,6 +1119,7 @@ class CampaignState {
     for (final march in marches.values.where(
       (march) => march.target?.id == cityId,
     )) {
+      if (march.phase == MarchPhase.dueling) continue;
       final target = march.target!;
       if (march.phase == MarchPhase.marching) {
         final point = _contactPoint(
@@ -1185,6 +1234,9 @@ class CampaignState {
     const dt = BattleSimulation.fixedStep;
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
+      final previousPositions = {
+        for (final march in marches.values) march.hero.id: march.position,
+      };
       for (final march in marches.values) {
         final terrain = world.movementTerrainAt(cellAt(world, march.position));
         final previous = march.position;
@@ -1221,6 +1273,7 @@ class CampaignState {
             terrain != world.movementTerrainAt(cellAt(world, march.position)) ||
             changed;
       }
+      changed = _resolveFieldEncounters(previousPositions) || changed;
       changed = _resolveArrivals() || changed;
       if (_finishDefeat() || defeated) return true;
       changed = _advanceBattles(dt) || changed;
@@ -1279,15 +1332,19 @@ class CampaignState {
 
   bool _advanceBattles(double dt) {
     var changed = false;
-    for (final battle in battles.values.toList()) {
+    for (final battle in allBattles.toList()) {
       changed = battle.simulation.advance(dt) || changed;
       if (!battle.isActive) continue;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;
-        _settleBattle(battle);
+        if (battle is FieldBattle) {
+          _settleFieldBattle(battle);
+        } else {
+          _settleBattle(battle as CityBattle);
+        }
         changed = true;
         if (_finishDefeat() || defeated) break;
-      } else if (battle.nextWaveIn > 0) {
+      } else if (battle is CityBattle && battle.nextWaveIn > 0) {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
           final next = garrisonAt(battle.city.id).firstOrNull;

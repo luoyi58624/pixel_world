@@ -7,6 +7,7 @@ import 'battle_simulation.dart';
 import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
+import 'campaign.dart';
 
 /// 直接使用原 ROM 战斗图集，并缓存当前缩放下的动作帧。
 class BattleArt {
@@ -115,7 +116,11 @@ class BattlePainter extends CustomPainter {
     );
     canvas.scale(camera.scale);
     canvas.drawImage(
-      art.background(controller.campaign.cities[battle.city.id]!.level),
+      battle is FieldBattle
+          ? assets.fieldScenes[battle.terrain]!
+          : art.background(
+              controller.campaign.cities[(battle as CityBattle).city.id]!.level,
+            ),
       Offset.zero,
       Paint()..filterQuality = FilterQuality.none,
     );
@@ -207,7 +212,7 @@ class BattlePainter extends CustomPainter {
       canvas.drawRect(
         bar.inflate(1),
         Paint()
-          ..color = sim.atWall(unit)
+          ..color = battle is CityBattle && sim.atWall(unit)
               ? const Color(0xfff17153)
               : const Color(0xee050806),
       );
@@ -225,6 +230,7 @@ class BattlePainter extends CustomPainter {
       );
     }
     for (final formation in sim.formations.values) {
+      if (battle is FieldBattle) continue;
       final age = sim.elapsed - formation.wallHitAt;
       if (age < 0 || age > 0.28) continue;
       final inward = formation.side == BattleSide.defender ? 1.0 : -1.0;

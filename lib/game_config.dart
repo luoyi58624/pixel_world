@@ -131,6 +131,21 @@ abstract final class GameConfig {
   /// 双方士气的最高值，英雄、小兵和城防贡献合计后封顶。
   static const moraleLimit = 100;
 
+  /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
+  static const fieldEncounterDistance = 16.0;
+
+  /// 山地野战中双方将领攻击保留的比例。
+  static const mountainHeroAttackFactor = 0.5;
+
+  /// 河流野战中双方将领攻击保留的比例。
+  static const riverHeroAttackFactor = 0.7;
+
+  /// 草地野战中双方将领攻击保留的比例。
+  static const grassHeroAttackFactor = 0.9;
+
+  /// 地图保留最近结束的野战记录数，进行中的战斗不受此限制。
+  static const fieldBattleHistoryLimit = 16;
+
   /// 地图基础行军速度，单位为原生像素每秒。
   static const baseMarchSpeed = 22.0;
 

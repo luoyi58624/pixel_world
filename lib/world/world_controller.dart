@@ -79,7 +79,7 @@ class WorldController extends ChangeNotifier {
   bool showUnitDetails = false;
 
   /// 正在查看的实时交战记录，结束后仍保留结果。
-  CityBattle? watchedBattle;
+  WorldBattle? watchedBattle;
 
   /// 是否处于选点模式，此时地图点击只用于提交目标。
   bool get choosingTarget => pendingHero != null || movingHeroId != null;
@@ -104,6 +104,7 @@ class WorldController extends ChangeNotifier {
   bool get canMoveSelected =>
       !campaign.defeated &&
       selectedMapHero?.isPlayer == true &&
+      selectedUnit?.phase != MarchPhase.dueling &&
       (selectedUnit != null ||
           (selectedMapHero != null && campaign.canDispatch(selectedMapHero!)));
 
@@ -292,7 +293,9 @@ class WorldController extends ChangeNotifier {
       _targetReturnUnitId = null;
       changed = true;
     }
-    if (movingHeroId != null && !campaign.marches.containsKey(movingHeroId)) {
+    if (movingHeroId != null &&
+        (!campaign.marches.containsKey(movingHeroId) ||
+            campaign.marches[movingHeroId]?.phase == MarchPhase.dueling)) {
       movingHeroId = null;
       _targetReturnUnitId = null;
       message = '该英雄已结束行军，请重新选择';
@@ -593,6 +596,15 @@ class WorldController extends ChangeNotifier {
   /// 地图底部的行军说明，只在界面状态变化时重建。
   String get statusMessage {
     if (campaign.defeated) return '游戏结束 · ${campaign.defeatReason!.label}';
+    final field = campaign.fieldBattles.values
+        .where((battle) => battle.isActive)
+        .firstOrNull;
+    if (field != null &&
+        !choosingTarget &&
+        selectedCity == null &&
+        selectedUnitId == null) {
+      return '${field.attacker.name}与${field.defender.name}正在${field.locationLabel} · 点击刀剑观战';
+    }
     final battle = campaign.marches.values
         .where((march) => march.phase == MarchPhase.fighting)
         .firstOrNull;
@@ -667,15 +679,14 @@ class WorldController extends ChangeNotifier {
   }
 
   /// 战斗标记的位置和点击区域共用屏幕坐标，不受地图缩放影响。
-  Rect battleMarkerBounds(CityBattle battle) => Rect.fromCenter(
+  Rect battleMarkerBounds(WorldBattle battle) => Rect.fromCenter(
     center:
-        camera.toScreen(campaign.cityBounds(battle.city).topCenter) -
-        const Offset(0, 22),
+        camera.toScreen(battle.markerPosition(campaign)) - const Offset(0, 22),
     width: 40,
     height: 36,
   );
 
-  CityBattle? _battleAt(Offset local) => campaign.battles.values
+  WorldBattle? _battleAt(Offset local) => campaign.allBattles
       .where(
         (battle) =>
             battle.isActive && battleMarkerBounds(battle).contains(local),
@@ -715,6 +726,7 @@ class WorldController extends ChangeNotifier {
   /// 仅让当前角色原地扎营，地图时间与其他单位保持运行。
   void campSelected() {
     if (selectedUnitId == null || selectedMapHero?.isPlayer != true) return;
+    if (selectedUnit?.phase == MarchPhase.dueling) return;
     if (selectedUnit != null) campaign.camp(selectedUnitId!);
     message = '${selectedMapHero?.name ?? '英雄'}已原地扎营';
     refreshUi();
@@ -727,7 +739,7 @@ class WorldController extends ChangeNotifier {
   }
 
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
-  void watchBattle(CityBattle battle) {
+  void watchBattle(WorldBattle battle) {
     if (campaign.defeated) return;
     leaveMap();
     camera.cancelMotion();

@@ -6,6 +6,7 @@ import 'hero_sprite.dart';
 import 'city_appearance.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
+import 'field_terrain.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
 class WorldAssets {
@@ -21,6 +22,7 @@ class WorldAssets {
     this.friendlyHeroes,
     this.battleSprites,
     this.battleScenes,
+    this.fieldScenes,
   );
 
   /// 三个场景的独立地图定义。
@@ -46,6 +48,9 @@ class WorldAssets {
 
   /// 原 ROM 城内背景，编号 3、4、5 对应不同城池等级。
   final Map<int, ui.Image> battleScenes;
+
+  /// 新制作的草地、河流和山地野战背景，加载时缓存成256×144像素。
+  final Map<FieldTerrain, ui.Image> fieldScenes;
 
   /// 按实际阵营读取地图或面板人物，避免我方仍使用敌方蓝色。
   ui.Image heroImage(HeroAppearance appearance, {bool friendly = false}) =>
@@ -210,6 +215,11 @@ class WorldAssets {
       scenes.add(await picture.toImage(world.width * 16, world.height * 16));
       picture.dispose();
     }
+    final fieldImages = await Future.wait(
+      FieldTerrain.values.map(
+        (terrain) => _fieldImage('battle/field_${terrain.name}'),
+      ),
+    );
     return WorldAssets._(
       worlds,
       textures[0],
@@ -233,6 +243,10 @@ class WorldAssets {
           battleNames[n]: textures[11 + n],
       },
       {3: textures[19], 4: textures[20], 5: textures[21]},
+      {
+        for (var i = 0; i < FieldTerrain.values.length; i++)
+          FieldTerrain.values[i]: fieldImages[i],
+      },
     );
   }
 
@@ -244,6 +258,24 @@ class WorldAssets {
     return frame.image;
   }
 
+  static Future<ui.Image> _fieldImage(String name) async {
+    final source = await _image(name);
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder).drawImageRect(
+      source,
+      ui.Rect.fromLTWH(0, 0, source.width.toDouble(), source.height.toDouble()),
+      const ui.Rect.fromLTWH(0, 0, 256, 144),
+      ui.Paint()
+        ..filterQuality = ui.FilterQuality.none
+        ..isAntiAlias = false,
+    );
+    final picture = recorder.endRecording();
+    final result = picture.toImageSync(256, 144);
+    picture.dispose();
+    source.dispose();
+    return result;
+  }
+
   /// 释放本界面持有的图形资源。
   void dispose() {
     for (final image in <ui.Image>{
@@ -252,6 +284,7 @@ class WorldAssets {
       ...friendlyHeroes.values,
       ...battleSprites.values,
       ...battleScenes.values,
+      ...fieldScenes.values,
       water,
       ...scenes,
       ...minimaps,

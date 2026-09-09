@@ -113,7 +113,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 主角阵亡（包括失城后被移除），或玩家已无任何城池，任一条件成立就结束当前地图的本局战役，不要求先出征，也不要求在外英雄全部阵亡。结束面板显示原因，停止行军、交战和经济结算，屏蔽旧指令与切图快捷键。“重新开始”恢复当前地图的初始城池、主角、驻军及国库；其他地图的独立记录不被覆盖。
 
-抵达敌城后在后台交战，同一城池同时只处理一支进攻部队，其他部队等待。点击城上刀剑或观战入口进入城内战场：按用户 2026-09-09 视频制作双方纵队、砖地城墙、窗帘和前景栏杆；小兵为独立像素角色，具有行走、挥砍、受击和倒地表现。拖拽与滚轮操作独立战场镜头，松手有短暂高阻尼惯性，鼠标靠近边缘不再滚屏，返回地图保留原镜头及正在发生的战斗。角色面板、选点、观战和经济共用时钟，已出征的其他部队继续行军。
+敌对将领在行军或扎营途中相遇会触发一对一野战，野战不获得城防加成。双方将领攻击在山地减50%、河流减30%、草地减10%，小兵攻击不变；胜者保留伤势继续原指令，败方出发城不降级。野战同样可从地图刀剑和角色面板观战，草地、河流、山地使用独立背景。规则和素材提示词见 [野外决战说明](docs/field_battles.md)。抵达敌城后在后台交战，同一城池同时只处理一支进攻部队，其他部队等待。点击城上刀剑或观战入口进入城内战场：按用户 2026-09-09 视频制作双方纵队、砖地城墙、窗帘和前景栏杆；小兵为独立像素角色，具有行走、挥砍、受击和倒地表现。拖拽与滚轮操作独立战场镜头，松手有短暂高阻尼惯性，鼠标靠近边缘不再滚屏，返回地图保留原镜头及正在发生的战斗。角色面板、选点、观战和经济共用时钟，已出征的其他部队继续行军。
 
 出城位置沿目标方向取城池边缘，不再固定为南侧城门。以 16×16 人物本体接触城堡为准，从任一侧贴城即停步并触发进驻或交战；途中碰到其他敌城同样生效。
 
@@ -148,7 +148,7 @@ python tool/extract_nes_battle_art.py "你的 ROM 路径"
 flutter analyze
 flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
 flutter test test/city_dispatch_test.dart
-flutter test test/campaign_rules_test.dart test/city_defense_test.dart
+flutter test test/campaign_rules_test.dart test/city_defense_test.dart test/field_battle_test.dart test/field_battle_ui_test.dart
 flutter test test/identity_flags_test.dart
 flutter test test/game_over_test.dart
 flutter test test/city_growth_test.dart

@@ -56,18 +56,18 @@ class _BattleSceneState extends State<BattleScene> {
         final pressure = sim.pushedSide == null
             ? '势均力敌'
             : sim.pushedSide == BattleSide.defender
-            ? '守军受压'
-            : '攻方受压';
+            ? (battle is FieldBattle ? '左军受压' : '守军受压')
+            : (battle is FieldBattle ? '右军受压' : '攻方受压');
         final overflow = sim.lastClash?.overflowPercent ?? 0;
         final status =
             battle.outcome ??
-            (battle.nextWaveIn > 0
+            (battle is CityBattle && battle.nextWaveIn > 0
                 ? '${battle.defender.name}战败 · 下一位守将即将入场'
                 : sim.forming
                 ? '双方列阵'
-                : '第 ${battle.wave} 位守将 · 拼杀 ${sim.clashes}'
+                : '${battle is CityBattle ? '第 ${battle.wave} 位守将' : '野外决战'} · 拼杀 ${sim.clashes}'
                       '${sim.clashes == 0 ? '' : ' · $pressure'}'
-                      '${overflow > 0 ? ' · 撞墙' : ''}');
+                      '${overflow > 0 ? (battle is FieldBattle ? ' · 边界受压' : ' · 撞墙') : ''}');
         return ColoredBox(
           key: const ValueKey('battle-scene'),
           color: _ink,
@@ -81,7 +81,7 @@ class _BattleSceneState extends State<BattleScene> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${battle.city.label}国 · 观战',
+                        '${battle.locationLabel} · 观战',
                         style: TextStyle(
                           color: _cream,
                           fontSize: tight ? 13 : 16,
@@ -398,7 +398,7 @@ class _BattleSceneState extends State<BattleScene> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${hero.name} · ${widget.controller.world.countryName(hero.countryId)}国 · ${side == BattleSide.attacker ? '进攻' : '守城'}',
+                    '${hero.name} · ${widget.controller.world.countryName(hero.countryId)}国 · ${sim.fieldTerrain != null ? (side == BattleSide.attacker ? '右军' : '左军') : (side == BattleSide.attacker ? '进攻' : '守城')}',
                     style: TextStyle(color: _cream, fontSize: tight ? 11 : 14),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -445,7 +445,14 @@ class _BattleSceneState extends State<BattleScene> {
           color: _gold,
           backgroundColor: const Color(0xff30392c),
         ),
-        if (side == BattleSide.defender) ...[
+        if (sim.fieldTerrain != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            '${sim.fieldTerrain!.label} · 将领攻击 -${((1 - sim.heroAttackFactor) * 100).round()}%',
+            key: ValueKey('battle-${side.name}-terrain'),
+            style: TextStyle(color: _gold, fontSize: tight ? 9 : 11),
+          ),
+        ] else if (side == BattleSide.defender) ...[
           const SizedBox(height: 5),
           Text(
             '城防加成 · 攻击 +${sim.defenderAttackBonus} · 初始士气 +${sim.defenderMoraleBonus}',

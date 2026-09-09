@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../game_config.dart';
+import 'field_terrain.dart';
 
 /// 跨战斗保留的生命值，退出观战、撤离和换守将都不重置。
 class BattleHealth {
@@ -257,7 +258,7 @@ class BattleUnit {
   final BattleHealth health;
 
   /// 单次伤害，小兵固定为 1。
-  final int attack;
+  final num attack;
 
   /// 是否是将领。
   bool get isGeneral => slot < 0;
@@ -344,6 +345,7 @@ class BattleSimulation {
     required this.defender,
     required int seed,
     this.defenderCityLevel = 1,
+    this.fieldTerrain,
   }) : assert(
          defenderCityLevel >= 1 && defenderCityLevel <= GameConfig.maxCityLevel,
        ),
@@ -351,7 +353,9 @@ class BattleSimulation {
        attackerMorale = BattleMorale(attacker),
        defenderMorale = BattleMorale(
          defender,
-         bonus: (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel,
+         bonus: fieldTerrain == null
+             ? (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel
+             : 0,
        ) {
     _addArmy(defender, BattleSide.defender);
     _addArmy(attacker, BattleSide.attacker);
@@ -396,16 +400,24 @@ class BattleSimulation {
   /// 守城队伍。
   final BattleArmy defender;
 
+  /// 野战环境，为空时表示城池战。
+  final FieldTerrain? fieldTerrain;
+
+  /// 当前地形对双方将领的统一倍率，小兵保持原攻击。
+  double get heroAttackFactor => fieldTerrain?.heroAttackFactor ?? 1;
+
   /// 本位守将上场时的城池等级，中途升级不重填士气或更改本场加成。
   final int defenderCityLevel;
 
   /// 城防对整队基础伤害的额外贡献，只计算一次，不乘小兵人数。
-  int get defenderAttackBonus =>
-      (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel;
+  int get defenderAttackBonus => fieldTerrain == null
+      ? (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel
+      : 0;
 
   /// 城防提供的初始士气，最终士气仍受统一上限约束。
-  int get defenderMoraleBonus =>
-      (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel;
+  int get defenderMoraleBonus => fieldTerrain == null
+      ? (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel
+      : 0;
 
   /// 进攻方本场士气。
   final BattleMorale attackerMorale;
@@ -459,9 +471,12 @@ class BattleSimulation {
       (survivors(side) * soldierAttack +
               (side == BattleSide.defender ? defenderAttackBonus : 0) +
               math.max(
-                0,
-                side == BattleSide.attacker ? attacker.attack : defender.attack,
-              ))
+                    0,
+                    side == BattleSide.attacker
+                        ? attacker.attack
+                        : defender.attack,
+                  ) *
+                  heroAttackFactor)
           .toDouble();
 
   /// 根据最近半秒消耗的士气提高冲锋速度。
@@ -544,7 +559,7 @@ class BattleSimulation {
         side: side,
         slot: -1,
         health: army.general,
-        attack: math.max(0, army.attack),
+        attack: math.max(0, army.attack) * heroAttackFactor,
         formation: formations[side]!,
       ),
     );
@@ -553,7 +568,8 @@ class BattleSimulation {
       units.add(
         BattleUnit._(
           id: '${army.id}-soldier-$slot',
-          name: '${left ? '守军' : '攻方'}士兵${slot + 1}',
+          name:
+              '${fieldTerrain != null ? (left ? '左军' : '右军') : (left ? '守军' : '攻方')}士兵${slot + 1}',
           side: side,
           slot: slot,
           health: army.soldiers[slot],
