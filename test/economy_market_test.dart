@@ -62,14 +62,14 @@ void main() {
     expect(c.gold, 50);
     c.advance(0.01);
     expect(c.dateLabel, '1年2月');
-    expect(c.gold, 56);
+    expect(c.gold, 54);
     expect(c.lastSettlementFor(0)!.month, 1);
     final foreign = c.lastSettlementFor(1)!;
     expect(c.goldFor(1), 50 + foreign.baseIncome - foreign.salary);
     c.advance(660);
     expect(c.dateLabel, '2年1月');
     expect(c.settledMonths, 12);
-    expect(c.gold, 122);
+    expect(c.gold, 98);
   });
 
   test('概率边界严格为正常50份、欠收25份、丰收25份', () {
@@ -106,15 +106,15 @@ void main() {
       expect(report.cityCount, 2);
       expect(report.baseIncome, 30);
       expect(report.adjustment, entry.value);
-      expect(report.salary, 4);
-      expect(c.gold, before + 30 + entry.value - 4);
+      expect(report.salary, 6);
+      expect(c.gold, before + 30 + entry.value - 6);
     }
   });
 
-  test('月俸缩减到原来的五分之一向上取整，主角任何情况下都是零', () {
+  test('月俸读取玩法JSON，主角任何情况下都是零', () {
     final c = _campaign();
-    expect(_hero(c, 0).salary, 2);
-    expect(_hero(c, 2).salary, 2);
+    expect(_hero(c, 0).salary, 3);
+    expect(_hero(c, 2).salary, 3);
     expect(_hero(c, 40).salary, 0);
     final definition = RomHeroDefinition.fromJson({
       'id': 40,
@@ -123,7 +123,8 @@ void main() {
       'maxHp': 99,
       'combat': 15,
       'politics': 15,
-      'salary': 99,
+      'salary': 0,
+      'romSalary': 99,
       'eggCapable': true,
       'soldierLimit': 4,
     });
@@ -131,7 +132,7 @@ void main() {
     final poor = _campaign(gold: 1, economy: _RandomValue(50));
     poor.advance(60);
     expect(poor.gold, 0);
-    expect(poor.lastSettlementFor(0)!.netIncome, -4);
+    expect(poor.lastSettlementFor(0)!.netIncome, -6);
     expect(poor.lastSettlementFor(0)!.actualChange, -1);
     expect(poor.defeated, isFalse);
   });

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../world/campaign.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
+import 'hero_dismiss_button.dart';
 
 const _cream = Color(0xffece7d1);
 const _muted = Color(0xffa7b5a4);
@@ -81,11 +82,18 @@ class UnitPanel extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
-                key: const ValueKey('unit-close'),
-                onPressed: () => onAction(c.cancelCityAction),
-                child: const Text('取消'),
-              ),
+              child: hero.isPlayer
+                  ? HeroDismissButton(
+                      key: const ValueKey('unit-dismiss'),
+                      controller: c,
+                      hero: hero,
+                      onAction: onAction,
+                    )
+                  : OutlinedButton(
+                      key: const ValueKey('unit-close'),
+                      onPressed: () => onAction(c.cancelCityAction),
+                      child: const Text('取消'),
+                    ),
             ),
           ),
         ],

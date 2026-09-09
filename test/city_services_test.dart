@@ -69,6 +69,57 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  for (final size in [const Size(320, 720), const Size(1280, 720)]) {
+    testWidgets('解雇在 $size 使用错误色并返款，城内选择与野外面板同步清理', (tester) async {
+      final c = await _load(tester, size, _RandomValue());
+      Finder button(String key) => find.descendant(
+        of: find.byKey(ValueKey(key)),
+        matching: find.byType(OutlinedButton),
+      );
+      final main = c.campaign.garrisonAt(0).first;
+      expect(main.sourceId, 40);
+      expect(
+        tester.widget<OutlinedButton>(button('city-dismiss')).onPressed,
+        isNull,
+      );
+      await _tap(tester, 'dispatch-hero-rom-0');
+      final dismiss = button('city-dismiss');
+      final error = Theme.of(tester.element(dismiss)).colorScheme.error;
+      final style = tester.widget<OutlinedButton>(dismiss).style!;
+      expect(style.foregroundColor!.resolve({}), error);
+      expect(find.text('解雇 · +25金币'), findsOneWidget);
+      final before = c.campaign.gold;
+      final soldierCount = c.campaign.soldiersAt(0);
+      await tester.tap(dismiss);
+      await tester.pump();
+      expect(c.campaign.gold, before + 25);
+      expect(c.campaign.soldiersAt(0), soldierCount);
+      expect(c.selectedHeroId, main.id);
+      expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
+      expect(c.campaign.recruitPool.any((hero) => hero.id == 0), isTrue);
+      final hero = c.campaign.garrisonAt(0).last;
+      c.campaign.dispatch(hero, c.world.cities[1]);
+      c.openUnit(hero.id);
+      await tester.pump();
+      final fieldBefore = c.campaign.gold;
+      final reward = c.campaign.dismissalGold(hero);
+      await tester.tap(button('unit-dismiss'));
+      await tester.pump();
+      expect(c.campaign.gold, fieldBefore + reward);
+      expect(c.selectedUnitId, isNull);
+      expect(find.byKey(const ValueKey('unit-panel')), findsNothing);
+      expect(c.campaign.marches.containsKey(hero.id), isFalse);
+      final enemy = c.campaign.garrisonAt(1).first;
+      c.campaign.dispatch(enemy, c.world.cities[2], countryId: 1);
+      c.openUnit(enemy.id);
+      await tester.pump();
+      expect(find.byKey(const ValueKey('unit-dismiss')), findsNothing);
+      expect(find.byKey(const ValueKey('unit-close')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('满员招募变灰，出城启用，签约前回城再次禁用但保留抽取结果', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     final draw = find.byKey(const ValueKey('draw-hero'));
@@ -298,7 +349,7 @@ void main() {
     expect(find.text('已满'), findsOneWidget);
     await tester.pump(const Duration(seconds: 60));
     // 一位将领扎营满一分钟，额外支付三金币粮草。
-    expect(find.text('1年2月 · 金币 43'), findsOneWidget);
+    expect(find.text('1年2月 · 金币 41'), findsOneWidget);
     expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

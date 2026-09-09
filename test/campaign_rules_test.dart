@@ -47,25 +47,32 @@ void main() {
   });
 
   test('读取 41 位正式英雄，主角姓名与固定汉化姓名区分', () {
-    final heroes = _catalog();
+    final catalog = _catalog();
+    final heroes = {for (final hero in catalog) hero.id: hero};
+    expect(catalog.first.id, 40);
     expect(heroes.length, 41);
-    expect(heroes[0].name, '泽拉斯');
-    expect(
-      [heroes[0].maxHp, heroes[0].combat, heroes[0].politics, heroes[0].salary],
-      [95, 15, 15, 8],
-    );
-    expect(heroes[2].name, '威拉斯');
-    expect(
-      [heroes[2].maxHp, heroes[2].politics, heroes[2].salary],
-      [94, 3, 10],
-    );
-    expect(heroes[40].name, isNull);
+    expect(heroes[0]!.name, '泽拉斯');
     expect(
       [
-        heroes[40].maxHp,
-        heroes[40].combat,
-        heroes[40].politics,
-        heroes[40].salary,
+        heroes[0]!.maxHp,
+        heroes[0]!.combat,
+        heroes[0]!.politics,
+        heroes[0]!.romSalary,
+      ],
+      [95, 15, 15, 8],
+    );
+    expect(heroes[2]!.name, '威拉斯');
+    expect(
+      [heroes[2]!.maxHp, heroes[2]!.politics, heroes[2]!.romSalary],
+      [94, 3, 10],
+    );
+    expect(heroes[40]!.name, isNull);
+    expect(
+      [
+        heroes[40]!.maxHp,
+        heroes[40]!.combat,
+        heroes[40]!.politics,
+        heroes[40]!.salary,
       ],
       [99, 15, 15, 0],
     );
@@ -104,20 +111,20 @@ void main() {
   test('每60秒按现有等级月结并扣缩减后的月俸，结果与帧长一致', () {
     for (final frames in [1, 60, 1200]) {
       final c = _campaign();
-      expect(c.salaryCost, 4);
-      expect(c.netIncome, 6);
+      expect(c.salaryCost, 6);
+      expect(c.netIncome, 4);
       for (var n = 0; n < frames; n++) {
         c.advance(120 / frames);
       }
       expect(c.settledTurns, 2);
-      expect(c.gold, 312);
+      expect(c.gold, 308);
     }
     final c = _campaign();
     c.upgradeCity(0, hero: _hero(c, 40));
     c.advance(59.9);
     expect(c.gold, 285);
     c.advance(0.1);
-    expect(c.gold, 296);
+    expect(c.gold, 294);
   });
 
   test('单场已结束的守城战败命中降级判定，同一事件不能重复结算', () {

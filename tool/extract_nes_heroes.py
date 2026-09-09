@@ -101,6 +101,31 @@ def extract(original):
     }
 
 
+def game_catalog(extracted, existing=None):
+    """生成游戏目录时保留用户调整的月俸和顺序，原版报酬另外保存。"""
+    old_rows = (existing or {}).get("heroes", [])
+    old = {hero["id"]: hero for hero in old_rows}
+    order = {hero["id"]: index for index, hero in enumerate(old_rows)}
+    rows = sorted(extracted["heroes"], key=lambda hero: (
+        hero["id"] != 40, order.get(hero["id"], len(order) + hero["id"])))
+    result = dict(extracted)
+    result["heroes"] = []
+    for rank, hero in enumerate(rows):
+        previous = old.get(hero["id"], {})
+        salary = (previous["salary"] if "romSalary" in previous else
+                  0 if rank == 0 else 3 if rank <= 5 else 2 if rank <= 10 else 1 if rank <= 15 else 0)
+        if type(salary) is not int or salary < 0 or hero["id"] == 40 and salary != 0:
+            raise ValueError(f'英雄 {hero["id"]} 的月俸配置无效，停止覆盖目录')
+        entry = dict(hero)
+        entry["romSalary"] = hero["salary"]
+        entry["salary"] = salary
+        result["heroes"].append(entry)
+    result["notes"] = dict(extracted["notes"],
+        salary="salary 是可直接调整的月俸金币，romSalary 是原版报酬；主角免费。",
+        order="主角排在第一位，其余按本文件 heroes 数组顺序展示，守城时从末位出战。")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("rom", type=Path)
@@ -112,7 +137,10 @@ def main():
     docs_dir = args.project / "docs"
     data_dir.mkdir(parents=True, exist_ok=True)
     docs_dir.mkdir(parents=True, exist_ok=True)
-    (data_dir / "rom_heroes.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    hero_path = data_dir / "rom_heroes.json"
+    existing = json.loads(hero_path.read_text(encoding="utf-8")) if hero_path.exists() else None
+    game = game_catalog(result, existing)
+    hero_path.write_text(json.dumps(game, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     with (docs_dir / "nes_heroes.csv").open("w", encoding="utf-8-sig", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(["编号", "姓名", "类型", "HP", "战斗", "内政", "报酬", "可持蛋", "HP文件偏移"])

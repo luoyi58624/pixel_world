@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -101,10 +100,10 @@ void main() {
       '主角',
       '泽拉斯',
       '亚彭龙',
-      '波塞伊',
       '威拉斯',
+      '波塞伊',
     ]);
-    expect(heroes.take(5).map((hero) => hero.sourceId), [40, 0, 1, 3, 2]);
+    expect(heroes.take(5).map((hero) => hero.sourceId), [40, 0, 1, 2, 3]);
     expect(
       heroes.skip(1).take(10).every((hero) => hero.type == HeroType.advanced),
       isTrue,
@@ -113,10 +112,10 @@ void main() {
       heroes.skip(11).every((hero) => hero.type == HeroType.normal),
       isTrue,
     );
-    expect(GameConfig.heroRosterOrder.toSet(), {
+    expect(catalog.map((hero) => hero.id).toSet(), {
       for (var id = 0; id <= 40; id++) id,
     });
-    expect(GameConfig.heroRosterOrder.length, 41);
+    expect(catalog.length, 41);
   });
 
   test('驻军从高到低展示、迎战从末位向前，不受加入列表的先后影响', () {

@@ -410,7 +410,7 @@ void main() {
     c.dispose();
   });
 
-  testWidgets('点击我方城池直接选英雄，取消在左出击在右，选目标可无损返回', (tester) async {
+  testWidgets('点击我方城池直接选英雄，解雇在左出击在右，选目标可无损返回', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     await _tapCity(tester, c, c.world.cities.first);
     expect(find.byKey(const ValueKey('city-sortie')), findsNothing);
@@ -420,7 +420,7 @@ void main() {
     expect(find.text('士兵数量'), findsOneWidget);
     expect(find.text('士兵'), findsNothing);
     expect(find.text('王牌'), findsNothing);
-    final cancel = find.byKey(const ValueKey('city-cancel'));
+    final cancel = find.byKey(const ValueKey('city-dismiss'));
     final sortie = find.byKey(const ValueKey('dispatch-confirm'));
     expect(tester.getCenter(cancel).dx, lessThan(tester.getCenter(sortie).dx));
     await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
@@ -485,7 +485,7 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     final confirm = find.byKey(const ValueKey('dispatch-confirm'));
-    final cancel = find.byKey(const ValueKey('city-cancel'));
+    final cancel = find.byKey(const ValueKey('city-dismiss'));
     expect(confirm.hitTestable(), findsOneWidget);
     expect(cancel.hitTestable(), findsOneWidget);
     await tester.tap(confirm);

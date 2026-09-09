@@ -66,8 +66,11 @@ abstract final class GameConfig {
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;
 
-  /// 原版报酬除以此数后向上取整，原值为零时仍为零。
-  static const heroSalaryDivisor = 5;
+  /// 解雇高级将领的基础返还金币，实际金额再加该将领内政。
+  static const advancedDismissalGold = 10;
+
+  /// 解雇普通将领的基础返还金币，实际金额再加该将领内政。
+  static const normalDismissalGold = 5;
 
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;
@@ -92,19 +95,6 @@ abstract final class GameConfig {
 
   /// 每名英雄最多随行四兵，当前战场提供四个固定站位。
   static const heroSoldierLimit = 4;
-
-  /// 驻军按优先级从高到低展示，值为 ROM 编号；主角优先，迎战从末位开始。
-  static const heroRosterOrder = [
-    40, // 主角
-    0, // 泽拉斯
-    1, // 亚彭龙
-    3, // 波塞伊
-    2, // 威拉斯
-    4, 5, 6, 7, 8, 9,
-    10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-    30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
-  ];
 
   /// 驻城英雄不预占兵员，确认出征或守城开战时才从城内调拨。
   static const initialHeroSoldiers = 0;

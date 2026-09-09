@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../game_config.dart';
 import 'city_panel_style.dart';
-import '../world/campaign.dart';
 import '../world/hero_sprite.dart';
 import '../world/rom_hero.dart';
 import '../world/recruitment.dart';
@@ -229,7 +228,7 @@ class CityServices extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'HP ${offer.hero.maxHp} · 战斗 ${offer.hero.combat} · 内政 ${offer.hero.politics} · 月俸 ${CampaignHero.salaryFor(offer.hero)}',
+          'HP ${offer.hero.maxHp} · 战斗 ${offer.hero.combat} · 内政 ${offer.hero.politics} · 月俸 ${controller.campaign.salaryFor(offer.hero)}',
           style: const TextStyle(color: _cream, fontSize: 12, height: 1.5),
         ),
         const SizedBox(height: 6),

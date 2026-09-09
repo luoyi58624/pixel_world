@@ -16,16 +16,16 @@ List<WorldDefinition> _worlds() =>
 void main() {
   test('希列洛及其之前的十名英雄是高级将领，后续普通，主角单列', () {
     final heroes = _heroes();
-    expect(heroes[9].name, '希列洛');
+    expect(heroes[10].name, '希列洛');
     expect(
-      heroes.take(10).every((hero) => hero.type == HeroType.advanced),
+      heroes.skip(1).take(10).every((hero) => hero.type == HeroType.advanced),
       isTrue,
     );
     expect(
-      heroes.skip(10).take(30).every((hero) => hero.type == HeroType.normal),
+      heroes.skip(11).take(30).every((hero) => hero.type == HeroType.normal),
       isTrue,
     );
-    expect(heroes[40].type, HeroType.protagonist);
+    expect(heroes.first.type, HeroType.protagonist);
     for (final definition in heroes) {
       final hero = CampaignHero.fromRom(definition, cityId: 0, countryId: 0);
       expect(hero.type, definition.type);
@@ -80,26 +80,15 @@ void main() {
   test('占领后改挂玩家国旗，保留原城名，其他国家旗帜不变', () {
     final world = _worlds().first;
     final campaign = CampaignState.fromRom(world, _heroes(), aiEnabled: false);
-    campaign.garrisonAt(2).first.hp = 1;
-    for (final soldier in campaign.garrisonAt(2).first.squad) {
-      soldier.hp = 0;
-    }
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40);
     final march = campaign.dispatch(hero, world.cities[2])!;
     march.position = march.destination;
-    march.phase = MarchPhase.awaitingBattle;
-    for (var i = 0; i < 1200 && campaign.cities[2]!.level == 2; i++) {
-      campaign.advance(0.05);
+    for (var i = 0; i < 7200 && !campaign.cities[2]!.isPlayer; i++) {
+      final battle = campaign.battles[2];
+      if (battle != null && battle.isActive) battle.defender.hp = 0;
+      campaign.advance(1 / 60);
     }
-    expect(campaign.cities[2]!.ownerCountryId, 2);
     expect(campaign.cities[2]!.level, 1);
-    campaign.garrisonAt(2).first.hp = 1;
-    for (final soldier in campaign.garrisonAt(2).first.squad) {
-      soldier.hp = 0;
-    }
-    for (var i = 0; i < 1200 && !campaign.cities[2]!.isPlayer; i++) {
-      campaign.advance(0.05);
-    }
     expect(campaign.cities[2]!.ownerCountryId, 0);
     expect(world.cities[2].label, '马易');
     expect(campaign.cities[1]!.ownerCountryId, 1);

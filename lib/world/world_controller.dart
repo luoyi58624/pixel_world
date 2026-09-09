@@ -588,6 +588,28 @@ class WorldController extends ChangeNotifier {
     }
   }
 
+  /// 解雇当前本国将领并清理选点，城池面板继续展示其余驻军。
+  void dismissHero(CampaignHero hero) {
+    if (campaign.dismissHero(hero) == null) {
+      message = campaign.dismissalBlockReason(hero) ?? '无法解雇该将领';
+      refreshUi();
+      return;
+    }
+    if (pendingHero == hero || movingHeroId == hero.id) {
+      pendingHero = null;
+      movingHeroId = null;
+      _targetReturnUnitId = null;
+    }
+    if (selectedUnitId == hero.id) selectedUnitId = null;
+    if (selectedHeroId == hero.id) {
+      selectedHeroId = selectedCity == null
+          ? null
+          : campaign.garrisonAt(selectedCity!.id).firstOrNull?.id;
+    }
+    message = campaign.lastEvent;
+    refreshUi();
+  }
+
   /// 镜头跟随选中的或最近派出的部队，没有在外部队时回到据点。
   Offset get focusPosition =>
       selectedUnit?.position ??

@@ -118,13 +118,14 @@ class CampaignHero {
     required this.countryId,
     int initialSoldiers = GameConfig.initialHeroSoldiers,
   }) : sourceId = definition.id,
+       rosterOrder = definition.rosterOrder,
        id = 'rom-${definition.id}',
        name = definition.name ?? '主角',
        type = definition.type,
        health = BattleHealth(definition.maxHp),
        combat = definition.combat,
        politics = definition.politics,
-       salary = salaryFor(definition),
+       salary = definition.type == HeroType.protagonist ? 0 : definition.salary,
        squad = List.generate(
          math.min(definition.soldierLimit, GameConfig.heroSoldierLimit),
          (slot) => BattleHealth(
@@ -141,11 +142,17 @@ class CampaignHero {
   /// 本场景内唯一标识。
   final String id;
 
-  /// 按独立配置排列驻军，主角优先；原 ROM 编号仅用于身份和资源关联。
-  static int compareRosterOrder(CampaignHero a, CampaignHero b) => GameConfig
-      .heroRosterOrder
-      .indexOf(a.sourceId)
-      .compareTo(GameConfig.heroRosterOrder.indexOf(b.sourceId));
+  /// 主角优先，其余按英雄 JSON 的文件顺序排列，身份编号只用于资源关联。
+  static int compareRosterOrder(CampaignHero a, CampaignHero b) {
+    if (a.type != b.type) {
+      if (a.type == HeroType.protagonist) return -1;
+      if (b.type == HeroType.protagonist) return 1;
+    }
+    return a.rosterOrder.compareTo(b.rosterOrder);
+  }
+
+  /// 初次加载的英雄文件顺序，招募与进驻后仍使用同一优先级。
+  final int rosterOrder;
 
   /// 原 ROM 英雄编号。
   final int sourceId;
@@ -184,15 +191,8 @@ class CampaignHero {
   /// 内政能力。
   final int politics;
 
-  /// 适配新金币体系后的月报酬，原 ROM 属性单独保存在目录中。
+  /// 开局或签约时读取的 JSON 月俸，原 ROM 报酬单独保存在提取目录中。
   final int salary;
-
-  /// 把原版报酬换算成当前月俸，主角始终免费。
-  static int salaryFor(RomHeroDefinition definition) =>
-      definition.type == HeroType.protagonist
-      ? 0
-      : (definition.salary + GameConfig.heroSalaryDivisor - 1) ~/
-            GameConfig.heroSalaryDivisor;
 
   /// 出征或当前守城战携带的小兵，空闲驻城时兵员归入城市。
   final List<BattleHealth> squad;
@@ -672,6 +672,49 @@ class CampaignState {
   List<RomHeroDefinition> get recruitPool =>
       List.unmodifiable(_heroPool.values);
 
+  /// 招募预览和签约共用本局 JSON 月俸，主角不收取报酬。
+  int salaryFor(RomHeroDefinition hero) =>
+      hero.type == HeroType.protagonist ? 0 : hero.salary;
+
+  /// 解雇返还价按类型基础金额加内政计算，主角没有解雇价。
+  int dismissalGold(CampaignHero hero) => switch (hero.type) {
+    HeroType.protagonist => 0,
+    HeroType.advanced => GameConfig.advancedDismissalGold + hero.politics,
+    HeroType.normal => GameConfig.normalDismissalGold + hero.politics,
+  };
+
+  /// 解雇只适用于本国存活将领，正在拼杀或等待收尾者必须先结束战斗。
+  String? dismissalBlockReason(CampaignHero? hero, {int countryId = 0}) {
+    if (defeated) return '游戏已结束';
+    if (hero == null) return '请选择将领';
+    if (!heroes.contains(hero) || !hero.health.alive) return '这位将领已离队';
+    if (hero.countryId != countryId) return '只能解雇本国将领';
+    if (hero.type == HeroType.protagonist) return '主角不可解雇';
+    if (activeBattleForHero(hero.id) != null ||
+        _disbandAfterBattle.contains(hero.id)) {
+      return '交战结束后才能解雇';
+    }
+    if (cities[hero.cityId]?.ownerCountryId != countryId) return '所属城池已失守';
+    return null;
+  }
+
+  /// 将领离队后回到共享池并返还金币，重复或过期操作不产生收益。
+  int? dismissHero(CampaignHero hero, {int countryId = 0}) {
+    if (dismissalBlockReason(hero, countryId: countryId) != null) return null;
+    final reward = dismissalGold(hero);
+    // 城内配兵先归还，野外随军直接离队；都不凭空生成新的兵员。
+    if (!marches.containsKey(hero.id)) _returnSoldiers(hero);
+    marches.remove(hero.id);
+    heroes.remove(hero);
+    hero.hp = 0;
+    _clearSquad(hero);
+    cities[hero.cityId]!._trimReserves();
+    _recycleHero(hero, dismissed: true);
+    _countryGold[countryId] = goldFor(countryId) + reward;
+    _record('已解雇${hero.name}，获得 $reward 金币');
+    return reward;
+  }
+
   /// 尚未处理的签约结果。
   RecruitmentOffer? get recruitmentOffer => recruitmentOfferFor(0);
 
@@ -1028,10 +1071,10 @@ class CampaignState {
     }
   }
 
-  void _recycleHero(CampaignHero hero) {
+  void _recycleHero(CampaignHero hero, {bool dismissed = false}) {
     _disbandAfterBattle.remove(hero.id);
     final definition = _catalog[hero.sourceId];
-    if (GameConfig.recycleDefeatedHeroes &&
+    if ((dismissed || GameConfig.recycleDefeatedHeroes) &&
         hero.type != HeroType.protagonist &&
         definition != null &&
         !heroes.any((active) => active.sourceId == hero.sourceId)) {

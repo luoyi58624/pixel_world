@@ -9,6 +9,7 @@ import '../world/world_controller.dart';
 import 'country_flag.dart';
 import 'city_services.dart';
 import 'city_panel_style.dart';
+import 'hero_dismiss_button.dart';
 
 const _ink = Color(0xff141b17);
 const _cream = CityPanelStyle.ink;
@@ -337,12 +338,19 @@ class CityPanel extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              key: const ValueKey('city-cancel'),
-              onPressed: () => onAction(c.cancelCityAction),
-              style: _secondaryStyle,
-              child: const Text('取消'),
-            ),
+            child: isPlayer
+                ? HeroDismissButton(
+                    key: const ValueKey('city-dismiss'),
+                    controller: c,
+                    hero: hero,
+                    onAction: onAction,
+                  )
+                : OutlinedButton(
+                    key: const ValueKey('city-cancel'),
+                    onPressed: () => onAction(c.cancelCityAction),
+                    style: _secondaryStyle,
+                    child: const Text('取消'),
+                  ),
           ),
           if (isPlayer) ...[
             const SizedBox(width: 10),
