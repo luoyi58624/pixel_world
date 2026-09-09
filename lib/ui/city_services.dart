@@ -79,9 +79,11 @@ class CityServices extends StatelessWidget {
                 child: _card(
                   key: 'buy-reserves',
                   title: '驻守士兵',
-                  value: '${city.reserveSoldiers} 人',
+                  value: '${city.reserveSoldiers}/${city.reserveCapacity}',
                   valueKey: 'city-reserves',
-                  action: city.isPlayer
+                  action: city.reserveSoldiers >= city.reserveCapacity
+                      ? '已满'
+                      : city.isPlayer
                       ? '${quantity * GameConfig.soldierRecruitCost}金币'
                       : '—',
                   onTap: city.isPlayer && quantity > 0
@@ -94,7 +96,7 @@ class CityServices extends StatelessWidget {
                 child: _card(
                   key: 'draw-hero',
                   title: '招募英雄',
-                  value: '${campaign.recruitPool.length} 人',
+                  value: '${campaign.recruitPool.length}位',
                   valueKey: 'city-recruit-pool',
                   action: '${GameConfig.heroDrawCost}金币',
                   actionKey: 'city-recruit-quota',
@@ -146,7 +148,7 @@ class CityServices extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         alignment: Alignment.topLeft,
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-        minimumSize: Size.zero,
+        minimumSize: const Size(0, 52),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         backgroundColor: const Color(0xff1e291e),
         foregroundColor: _gold,
@@ -178,9 +180,9 @@ class CityServices extends StatelessWidget {
                       key: valueKey == null ? null : ValueKey(valueKey),
                       style: const TextStyle(
                         color: _cream,
-                        fontSize: 12,
+                        fontSize: 10,
                         height: 1.4,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -195,6 +197,7 @@ class CityServices extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     height: 1.4,
+                    fontWeight: FontWeight.w400,
                     color: onTap == null ? _muted : _gold,
                   ),
                 ),

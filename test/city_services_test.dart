@@ -108,6 +108,27 @@ void main() {
     expect(find.text('回收池'), findsNothing);
     expect(find.textContaining('内政 −'), findsNothing);
     expect(find.text('招募英雄'), findsOneWidget);
+    expect(find.text('已满'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('city-reserves'))).data,
+      '10/10',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('city-recruit-pool'))).data,
+      endsWith('位'),
+    );
+    for (final key in ['city-upgrade', 'buy-reserves', 'draw-hero']) {
+      final texts = tester
+          .widgetList<Text>(
+            find.descendant(
+              of: find.byKey(ValueKey(key)),
+              matching: find.byType(Text),
+            ),
+          )
+          .toList();
+      expect(texts[1].style!.fontSize, texts[2].style!.fontSize);
+      expect(texts[1].style!.fontWeight, texts[2].style!.fontWeight);
+    }
     expect(
       tester
           .widget<OutlinedButton>(find.byKey(const ValueKey('buy-reserves')))
@@ -173,10 +194,18 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('放弃后本月抽取按钮禁用，关面板不重置，下月自动恢复', (tester) async {
+  testWidgets('放弃后可继续抽满三次，关面板不重置，下月自动恢复', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
-    await _tap(tester, 'draw-hero');
-    await _tap(tester, 'decline-recruit');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await _tap(tester, 'draw-hero');
+      await _tap(tester, 'decline-recruit');
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('draw-hero')))
+            .onPressed,
+        attempt < 2 ? isNotNull : isNull,
+      );
+    }
     final draw = find.byKey(const ValueKey('draw-hero'));
     expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
     expect(
@@ -327,6 +356,17 @@ void main() {
       expect(c.campaign.gold, type == HeroType.normal ? 45 : 35);
       expect(c.campaign.recruitmentOffer, isNull);
       expect(c.selectedHero!.soldiers, 0);
+      final draw = find.byKey(const ValueKey('draw-hero'));
+      expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('city-recruit-quota')))
+            .style!
+            .color,
+        const Color(0xffa7b5a4),
+      );
+      await tester.pump(const Duration(seconds: 60));
+      expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

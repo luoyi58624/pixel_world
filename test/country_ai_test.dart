@@ -109,27 +109,31 @@ void main() {
     expect(c.hasDispatched, isFalse);
   });
 
-  test('每城每月一次，放弃和易主不返次数，不同城市可各抽一次', () {
+  test('每城每月最多三次，放弃和易主不返次数，不同城市独立计算', () {
     final c = _campaign(gold: 100);
-    final first = c.drawHero(0)!;
-    expect(c.remainingHeroDraws(0), 0);
-    c.declineHero(first);
+    for (var i = 0; i < 3; i++) {
+      final offer = c.drawHero(0)!;
+      expect(c.remainingHeroDraws(0), 2 - i);
+      c.declineHero(offer);
+    }
     final before = c.gold;
     expect(c.drawHero(0), isNull);
     expect(c.gold, before);
-    expect(c.recruitmentBlockReason(0), contains('本月已抽取'));
+    expect(c.recruitmentBlockReason(0), contains('次数已用完'));
     c.cities[2]!.ownerCountryId = 0;
     c.heroes.firstWhere((hero) => hero.sourceId == 40).cityId = 2;
     final second = c.drawHero(2)!;
     c.declineHero(second);
+    expect(c.remainingHeroDraws(2), 2);
     c.cities[0]!.ownerCountryId = 1;
     expect(c.remainingHeroDraws(0), 0);
     expect(c.drawHero(0, countryId: 1), isNull);
     c.advance(59.99);
     expect(c.remainingHeroDraws(0), 0);
     c.advance(0.01);
-    expect(c.remainingHeroDraws(0), 1);
+    expect(c.remainingHeroDraws(0), 3);
     expect(c.drawHero(0, countryId: 1), isNotNull);
+    expect(c.remainingHeroDraws(0), 0); // NPC 签约成功后也不能继续抽。
   });
 
   test('玩家预留不被其他国家抽到，NPC抽取后立即签约且不能重复领取', () {
@@ -169,7 +173,7 @@ void main() {
     expect(c.recruitPool, isEmpty);
     expect(c.drawHero(1, countryId: 1), isNull);
     expect(c.goldFor(1), before);
-    expect(c.remainingHeroDraws(1), 1);
+    expect(c.remainingHeroDraws(1), 3);
     expect(c.heroes.any((hero) => hero.sourceId == reserved.hero.id), isFalse);
     c.declineHero(reserved);
     final taken = c.drawHero(1, countryId: 1)!;
@@ -194,7 +198,7 @@ void main() {
     expect(c.drawHero(1, countryId: 1), isNull);
     expect(c.recruitPool.map((hero) => hero.id), before);
     expect(c.goldFor(1), 14);
-    expect(c.remainingHeroDraws(1), 1);
+    expect(c.remainingHeroDraws(1), 3);
     expect(c.recruitmentOfferFor(1), isNull);
     // 玩家仍然可以只付抽取费，保留结果再选择是否签约。
     expect(c.drawHero(0), isNotNull);
@@ -224,16 +228,20 @@ void main() {
     }
   });
 
-  test('签约跨月保留原结果，失败不扣次数，新月可再抽且跨年不混淆', () {
+  test('签约跨月保留原结果，实际签约月份停止抽取，下一月恢复', () {
     final c = _campaign(gold: 4);
     expect(c.drawHero(0), isNull);
-    expect(c.remainingHeroDraws(0), 1);
+    expect(c.remainingHeroDraws(0), 3);
     c.advance(60);
     final offer = c.drawHero(0)!;
     c.advance(660);
     expect(c.dateLabel, '2年1月');
     expect(c.recruitmentOffer, same(offer));
     expect(c.signHero(offer), isNotNull);
+    expect(c.drawHero(0), isNull);
+    expect(c.remainingHeroDraws(0), 0);
+    c.advance(60);
+    expect(c.remainingHeroDraws(0), 3);
     expect(c.drawHero(0), isNotNull);
   });
 
@@ -297,7 +305,7 @@ void main() {
     expect(c.marches, isEmpty);
     expect(c.goldFor(1), 0);
     expect(c.gold, 50);
-    expect(c.remainingHeroDraws(1), 1);
+    expect(c.remainingHeroDraws(1), 3);
   });
 
   test('同一国家拥有多座城时分别留守，而非把全国驻军集中一座城', () {

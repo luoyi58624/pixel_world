@@ -136,7 +136,7 @@ void main() {
     expect(c.cities[1]!.reserveSoldiers, 9);
   });
 
-  test('守城存活不是重新入城，不会在普通结算时自动恢复血量', () {
+  test('守城胜利也恢复将领满血，进攻方阵亡不会复活', () {
     final c = campaign();
     final target = c.world.cities[1];
     final guard = c.garrisonAt(1).first..hp = 20;
@@ -149,6 +149,46 @@ void main() {
     c.advance(0.02);
     finish(c, c.battles[1]!);
     expect(hero.hp, 0);
-    expect(guard.hp, 20);
+    expect(guard.hp, guard.maxHp);
   });
+
+  for (final home in [0, 1]) {
+    test('国家 $home 守城结束只回将领 HP，阵亡小兵和剩余兵力保持结算结果', () {
+      final c = campaign();
+      final target = c.world.cities[home];
+      final guard = c.garrisonAt(home).first..hp = 30;
+      final reserve = c.cities[home]!.reserveSoldiers;
+      guard.squad.last.hp = 0;
+      final attacker = c
+          .garrisonAt(home == 0 ? 1 : 0)
+          .firstWhere((hero) => hero.sourceId != 40);
+      final march = c.dispatch(
+        attacker,
+        target,
+        countryId: attacker.countryId,
+      )!;
+      // 自动补兵已经完成，在进入战场前安排残血进攻方。
+      attacker.hp = 1;
+      for (final soldier in attacker.squad) {
+        soldier.hp = 0;
+      }
+      march.position = march.destination;
+      c.advance(0.02);
+      final battle = c.battles[home]!;
+      for (var i = 0; i < 3000 && attacker.health.alive; i++) {
+        c.advance(1 / 60);
+      }
+      final remaining = guard.squad.map((soldier) => soldier.hp).toList();
+      final health = guard.health;
+      finish(c, battle);
+      expect(battle.simulation.result, BattleResult.defenderWon);
+      expect(guard.hp, guard.maxHp);
+      expect(guard.health, same(health));
+      expect(guard.squad.map((soldier) => soldier.hp), remaining);
+      expect(guard.soldiers, lessThan(4));
+      expect(c.cities[home]!.reserveSoldiers, reserve);
+      expect(attacker.hp, 0);
+      expect(c.heroes, isNot(contains(attacker)));
+    });
+  }
 }

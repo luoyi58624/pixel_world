@@ -82,6 +82,7 @@ class CitySituation {
   int _reserveSoldiers = GameConfig.initialCityReserves;
   int _recruitmentMonth = -1;
   int _recruitmentDraws = 0;
+  int _recruitmentSignedMonth = -1;
 
   /// 独立储备兵员，不包含英雄已经携带的士兵。
   int get reserveSoldiers => _reserveSoldiers;
@@ -615,10 +616,10 @@ class CampaignState {
   RecruitmentOffer? recruitmentOfferFor(int countryId) =>
       _recruitmentOffers[countryId];
 
-  /// 当前月份本城剩余抽取次数，城池易主不会获得额外次数。
+  /// 本月可继续抽取的次数，成功签约后归零，易主不重置限制。
   int remainingHeroDraws(int cityId) {
     final city = cities[cityId];
-    if (city == null) return 0;
+    if (city == null || city._recruitmentSignedMonth == settledMonths) return 0;
     return math.max(
       0,
       GameConfig.heroDrawsPerCityPerMonth -
@@ -812,7 +813,10 @@ class CampaignState {
     if (defeated) return '游戏已结束';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
-    if (remainingHeroDraws(cityId) == 0) return '本城本月已抽取，下月可再次招募';
+    if (cities[cityId]!._recruitmentSignedMonth == settledMonths) {
+      return '本城本月已签约，下月可再次招募';
+    }
+    if (remainingHeroDraws(cityId) == 0) return '本城本月抽取次数已用完，下月可再次招募';
     if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';
     final budget =
         GameConfig.heroDrawCost +
@@ -866,6 +870,7 @@ class CampaignState {
         offer.countryId != countryId ||
         !identical(_recruitmentOffers[countryId], offer) ||
         cities[offer.cityId]?.ownerCountryId != countryId ||
+        cities[offer.cityId]!._recruitmentSignedMonth == settledMonths ||
         goldFor(countryId) < offer.signingFee ||
         heroes.any((hero) => hero.sourceId == offer.hero.id)) {
       return null;
@@ -878,6 +883,8 @@ class CampaignState {
       initialSoldiers: GameConfig.recruitedHeroSoldiers,
     );
     heroes.add(hero);
+    // 跨月保留的抽取结果在实际签约月份占名额，失败或放弃不占签约名额。
+    cities[offer.cityId]!._recruitmentSignedMonth = settledMonths;
     _recruitmentOffers.remove(countryId);
     _record(
       '${hero.name}已签约${_cityName(offer.cityId)}，签约费 ${offer.signingFee} 金币',
@@ -1412,6 +1419,8 @@ class CampaignState {
     }
     if (lostAttacker) {
       battle.outcome = lostDefender ? '双方将领阵亡' : '${attacker.name}战败';
+      // 守城胜利与攻城后进驻一样恢复将领 HP，保留实际兵损及伤兵生命。
+      if (!lostDefender) defender.hp = defender.maxHp;
       battle.simulation.stop();
       return;
     }

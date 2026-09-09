@@ -24,8 +24,8 @@ abstract final class GameConfig {
   /// 自动出征至少携带的小兵数，默认配满四兵再出发。
   static const countryAiMinimumSoldiers = 4;
 
-  /// 每座城每月可抽取将领的次数，易主和放弃签约均不重置次数。
-  static const heroDrawsPerCityPerMonth = 1;
+  /// 每城每月最多抽三次，放弃消耗次数，签约成功后当月停止招募。
+  static const heroDrawsPerCityPerMonth = 3;
 
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;

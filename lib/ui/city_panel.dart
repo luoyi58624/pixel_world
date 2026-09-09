@@ -400,6 +400,7 @@ class CityPanel extends StatelessWidget {
               for (final entry in entries)
                 Container(
                   key: ValueKey('city-stat-${entry.$1}'),
+                  constraints: const BoxConstraints(minHeight: 52),
                   width: (constraints.maxWidth - (count - 1) * 8) / count,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 9,
