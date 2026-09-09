@@ -41,9 +41,10 @@ extension _CountryCashPlanning on CampaignState {
     final owned = cities.values.where(
       (city) => city.ownerCountryId == countryId,
     );
-    final income =
-        owned.fold<int>(0, (sum, city) => sum + city.income) -
-        owned.length * GameConfig.poorPenaltyPerCity;
+    final income = owned.fold<int>(
+      0,
+      (sum, city) => sum + city.incomeFor(Harvest.poor),
+    );
     final salary = GameConfig.chargeHeroSalary
         ? heroes
               .where((hero) => hero.countryId == countryId && hero.health.alive)

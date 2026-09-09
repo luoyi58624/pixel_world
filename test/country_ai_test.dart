@@ -257,8 +257,8 @@ void main() {
     expect(c.remainingHeroDraws(0), 3);
     c.advance(60);
     final offer = c.drawHero(0)!;
-    c.advance(660);
-    expect(c.dateLabel, '2年1月');
+    c.advance(60);
+    expect(c.dateLabel, '1年3月');
     expect(c.recruitmentOffer, same(offer));
     expect(c.signHero(offer), isNotNull);
     expect(c.drawHero(0), isNull);

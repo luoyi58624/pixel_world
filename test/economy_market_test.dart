@@ -84,7 +84,7 @@ void main() {
     });
   });
 
-  test('城池月收入10起每级加5，收成按国家当前城池数计算并继续扣月俸', () {
+  test('城池月收入10起每级加5，外国城收成折半并继续扣月俸', () {
     for (var level = 1; level <= 5; level++) {
       final city = CitySituation(
         ownerCountryId: 0,
@@ -94,7 +94,7 @@ void main() {
       );
       expect(city.income, 10 + (level - 1) * 5);
     }
-    for (final entry in {0: 0, 50: -20, 75: 10}.entries) {
+    for (final entry in {0: 0, 50: -15, 75: 7}.entries) {
       final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
       c.cities[1]!.ownerCountryId = 0;
       final governor = _hero(c, 0)..cityId = 1;
@@ -104,10 +104,10 @@ void main() {
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 2);
-      expect(report.baseIncome, 30);
+      expect(report.baseIncome, 20);
       expect(report.adjustment, entry.value);
       expect(report.salary, 6);
-      expect(c.gold, before + 30 + entry.value - 6);
+      expect(c.gold, before + 20 + entry.value - 6);
     }
   });
 
@@ -209,7 +209,7 @@ void main() {
     expect(c.maxSoldierPurchase(0), 0);
     c.cities[0]!.ownerCountryId = 2;
     expect(c.soldiersAt(0), 0);
-    expect(c.soldierCapacityAt(0), 20);
+    expect(c.soldierCapacityAt(0), 18);
   });
 
   test('池中没有在场英雄和主角，普通将领抽取扣5但签约免费且不赠兵', () {
@@ -271,7 +271,7 @@ void main() {
     expect(c.gold, 0);
     expect(c.signHero(offer), isNull);
     expect(c.recruitmentOffer, same(offer));
-    c.advance(180);
+    c.advance(60);
     expect(c.signHero(offer), isNotNull);
     expect(c.gold, greaterThanOrEqualTo(0));
   });

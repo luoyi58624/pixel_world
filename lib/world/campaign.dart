@@ -28,7 +28,9 @@ class CitySituation {
     required this.defense,
     required this.baseIncome,
     required this.initialLevel,
-  }) : _level = initialLevel {
+    int? nativeCountryId,
+  }) : nativeCountryId = nativeCountryId ?? _ownerCountryId,
+       _level = initialLevel {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
     }
@@ -43,6 +45,14 @@ class CitySituation {
   }
 
   int _ownerCountryId;
+
+  /// 城池开局所属国家，易主及显示名称改变都不会改变本土归属。
+  final int nativeCountryId;
+
+  /// 当前占领者是否为城池原属国家。
+  bool get isNative => ownerCountryId == nativeCountryId;
+
+  double get _yieldFactor => isNative ? 1 : GameConfig.foreignCityYieldFactor;
 
   /// 编号 0 是玩家国家。
   bool get isPlayer => ownerCountryId == 0;
@@ -68,8 +78,20 @@ class CitySituation {
       GameConfig.cityRecruitCapacityBase +
       (level - 1) * GameConfig.cityRecruitCapacityPerLevel;
 
-  /// 月收入随等级线性增长。
-  int get income => baseIncome + (level - 1) * GameConfig.cityIncomePerLevel;
+  /// 正常月收入随等级增长，外国城池按产出倍率折算。
+  int get income => incomeFor(Harvest.normal);
+
+  /// 先计入丰欠收再折算该城总收入，金币逐城向下取整。
+  int incomeFor(Harvest harvest) =>
+      ((baseIncome +
+                  (level - 1) * GameConfig.cityIncomePerLevel +
+                  harvest.perCityAdjustment) *
+              _yieldFactor)
+          .floor();
+
+  /// 本城贡献给全国的兵员容量，英雄提供的容量由国家另行统计。
+  int get reserveCapacity =>
+      (level * GameConfig.cityReserveCapacityPerLevel * _yieldFactor).floor();
 
   /// 扣除将领内政前的升级基础费，满级后为空。
   int? get baseUpgradeCost =>
@@ -644,14 +666,13 @@ class CampaignState {
   int reserveSoldiersFor(int countryId) =>
       countryTroops[countryId]?.reserveSoldiers ?? 0;
 
-  /// 全国上限为城防等级总和乘四加存活将领数乘四，无城国家不能保留储备。
+  /// 全国上限为各城折算后的容量加存活将领数乘四，无城国家不能保留储备。
   int reserveCapacityFor(int countryId) {
     final owned = cities.values.where(
       (city) => city.ownerCountryId == countryId,
     );
     if (owned.isEmpty) return 0;
-    return owned.fold<int>(0, (sum, city) => sum + city.level) *
-            GameConfig.cityReserveCapacityPerLevel +
+    return owned.fold<int>(0, (sum, city) => sum + city.reserveCapacity) +
         heroes
                 .where(
                   (hero) => hero.countryId == countryId && hero.health.alive,
@@ -1019,6 +1040,7 @@ class CampaignState {
       cityId: cityId,
       countryId: countryId,
       signingFee: _signingFee(hero),
+      drawnMonth: settledMonths,
     );
     _recruitmentOffers[countryId] = offer;
     // 所有操作同步完成，抽取前已备足最高签约费，中途不会被其他国家抽走。
@@ -1033,6 +1055,7 @@ class CampaignState {
   /// 检查签约归属、驻军名额和费用，供界面与实际签约共用。
   bool canSignHero(RecruitmentOffer offer, {int countryId = 0}) =>
       !defeated &&
+      !offer.isExpired(settledMonths) &&
       offer.countryId == countryId &&
       identical(_recruitmentOffers[countryId], offer) &&
       cities[offer.cityId]?.ownerCountryId == countryId &&
@@ -1072,6 +1095,7 @@ class CampaignState {
   /// 放弃签约返还英雄，但不退抽取费或本月次数。
   bool declineHero(RecruitmentOffer offer, {int countryId = 0}) {
     if (defeated ||
+        offer.isExpired(settledMonths) ||
         offer.countryId != countryId ||
         !identical(_recruitmentOffers[countryId], offer)) {
       return false;
@@ -1109,16 +1133,17 @@ class CampaignState {
           ? Harvest.normal
           : Harvest.draw(_economyRandom);
       final base = owned.fold(0, (sum, city) => sum + city.income);
+      final income = owned.fold(
+        0,
+        (sum, city) => sum + city.incomeFor(harvest),
+      );
       final salary = GameConfig.chargeHeroSalary
           ? heroes
                 .where((hero) => hero.countryId == id && hero.health.alive)
                 .fold(0, (sum, hero) => sum + hero.salary)
           : 0;
       final before = goldFor(id);
-      final after = math.max(
-        0,
-        before + base + harvest.perCityAdjustment * owned.length - salary,
-      );
+      final after = math.max(0, before + income - salary);
       _countryGold[id] = after;
       final report = MonthlySettlement(
         year: year,
@@ -1126,6 +1151,7 @@ class CampaignState {
         harvest: harvest,
         cityCount: owned.length,
         baseIncome: base,
+        adjustment: income - base,
         salary: salary,
         goldBefore: before,
         goldAfter: after,
@@ -1138,6 +1164,11 @@ class CampaignState {
       }
     }
     settledMonths++;
+    for (final offer in _recruitmentOffers.values.toList()) {
+      if (!offer.isExpired(settledMonths)) continue;
+      _releaseOffer(offer.countryId);
+      _record('${offer.hero.name}签约期限已过，返回招募池');
+    }
   }
 
   /// 按单个英雄验证出击，不以城池等级限制同时出征的将领数量。

@@ -27,6 +27,9 @@ abstract final class GameConfig {
   /// 每城每月最多抽三次，放弃消耗次数，签约成功后当月停止招募。
   static const heroDrawsPerCityPerMonth = 3;
 
+  /// 待签约结果包含抽取当月在内保留两个月，第三个月开始时回到共享池。
+  static const heroOfferValidMonths = 2;
+
   /// 一级城的招募人数门槛，只统计驻城英雄，不限制进城与开局名单。
   static const cityRecruitCapacityBase = 2;
 
@@ -74,6 +77,9 @@ abstract final class GameConfig {
 
   /// 每提升一级增加的月收入。
   static const cityIncomePerLevel = 5;
+
+  /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
+  static const foreignCityYieldFactor = 0.5;
 
   /// 丰收时每座城额外增加的收入。
   static const abundantBonusPerCity = 5;

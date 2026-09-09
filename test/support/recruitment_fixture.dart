@@ -9,6 +9,7 @@ void prepareRecruitmentCity(
   final previous = campaign.cities[cityId]!;
   campaign.cities[cityId] = CitySituation(
     ownerCountryId: previous.ownerCountryId,
+    nativeCountryId: previous.nativeCountryId,
     defense: previous.defense,
     baseIncome: previous.baseIncome,
     initialLevel: level,

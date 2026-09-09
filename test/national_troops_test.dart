@@ -154,7 +154,7 @@ void main() {
     expect(c.reserveSoldiersFor(1), 5);
     expect(c.reserveCapacityFor(1), 8);
     expect(c.reserveSoldiersFor(0), 22);
-    expect(c.reserveCapacityFor(0), 28);
+    expect(c.reserveCapacityFor(0), 26);
     expect(c.soldiersAt(1), 22);
     c.defeatHero(hero.id, winnerCountryId: 2, defendedCityId: 1);
     expect(c.cityName(1), '迪麦');

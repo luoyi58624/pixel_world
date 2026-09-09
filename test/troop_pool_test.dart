@@ -225,7 +225,7 @@ void main() {
     expect(c.soldiersAt(0), 9);
     final capacity = c.soldierCapacityAt(1);
     c.upgradeCity(1, hero: hero);
-    expect(c.soldierCapacityAt(1), capacity + 4);
+    expect(c.soldierCapacityAt(1), capacity + 2);
     expect(c.soldiersAt(1), 9);
     c.cities[1]!.ownerCountryId = 0;
     expect(c.soldiersAt(1), 9);

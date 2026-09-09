@@ -33,7 +33,7 @@ void main() {
     expect(city.level, 5);
     city.ownerCountryId = 0;
     expect(city.level, 1);
-    expect(city.income, 86);
+    expect(city.income, 43);
     expect(city.baseUpgradeCost, 30);
     final c = _campaign();
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
@@ -55,7 +55,7 @@ void main() {
     c.advance(0.02);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.level, 1);
-    expect(c.cities[1]!.income, c.cities[1]!.baseIncome);
+    expect(c.cities[1]!.income, c.cities[1]!.baseIncome ~/ 2);
     expect(c.cityBounds(city).size, const ui.Size(32, 48));
     expect(hero.cityId, 1);
     expect(c.garrisonAt(1), [hero]);

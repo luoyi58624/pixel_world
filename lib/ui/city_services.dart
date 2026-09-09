@@ -235,9 +235,10 @@ class CityServices extends StatelessWidget {
           style: const TextStyle(color: _cream, fontSize: 12, height: 1.5),
         ),
         const SizedBox(height: 6),
-        const Text(
-          '出战时自动补兵，放弃不退抽取费。',
-          style: TextStyle(color: _muted, fontSize: 11),
+        Text(
+          '${offer.retentionLabel}，放弃或到期不退抽取费。',
+          key: const ValueKey('recruit-offer-expiry'),
+          style: const TextStyle(color: _muted, fontSize: 11),
         ),
         const SizedBox(height: 10),
         Row(
@@ -278,7 +279,7 @@ class CityServices extends StatelessWidget {
           )
         else if (controller.campaign.gold < offer.signingFee)
           const Text(
-            '签约费不足，可保留结果等待下月。',
+            '签约费不足，请在保留期限内签约。',
             style: TextStyle(color: _muted, fontSize: 11),
           ),
       ],

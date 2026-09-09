@@ -45,6 +45,7 @@ class MonthlySettlement {
     required this.harvest,
     required this.cityCount,
     required this.baseIncome,
+    required this.adjustment,
     required this.salary,
     required this.goldBefore,
     required this.goldAfter,
@@ -75,7 +76,7 @@ class MonthlySettlement {
   final int goldAfter;
 
   /// 收成带来的额外收支。
-  int get adjustment => harvest.perCityAdjustment * cityCount;
+  final int adjustment;
 
   /// 应结算净收入，允许负值。
   int get netIncome => baseIncome + adjustment - salary;

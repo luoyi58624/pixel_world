@@ -281,6 +281,6 @@ void main() {
     expect(c.heroes.any((hero) => defenderIds.contains(hero.id)), isFalse);
     expect(c.marches, isEmpty);
     expect(c.garrisonAt(1), [hero]);
-    expect(c.grossIncome, 20);
+    expect(c.grossIncome, 15);
   });
 }

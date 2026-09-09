@@ -69,6 +69,30 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('待签约面板显示期限，打开面板跨月保留并按时自动移除', (tester) async {
+    final c = await _load(tester, const Size(375, 812), _RandomValue());
+    prepareRecruitmentCity(c.campaign, 0);
+    c.refreshUi();
+    await tester.pump();
+    await _tap(tester, 'draw-hero');
+    final offer = c.campaign.recruitmentOffer!;
+    final expiry = find.byKey(const ValueKey('recruit-offer-expiry'));
+    expect(tester.widget<Text>(expiry).data, contains('保留至 1年2月末'));
+    c.tick(60);
+    await tester.pump();
+    expect(c.campaign.recruitmentOffer, same(offer));
+    expect(tester.widget<Text>(expiry).data, contains('保留至 1年2月末'));
+    c.tick(60);
+    await tester.pump();
+    expect(c.campaign.dateLabel, '1年3月');
+    expect(find.byKey(const ValueKey('city-recruit-offer')), findsNothing);
+    expect(expiry, findsNothing);
+    expect(c.campaign.signHero(offer), isNull);
+    expect(c.campaign.remainingHeroDraws(0), 3);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('同国城池显示全国兵员，易主后标题立即换为当前占领国', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     final target = c.world.cities[1];
@@ -82,12 +106,12 @@ void main() {
     final amount = find.byKey(const ValueKey('city-reserves'));
     expect(find.text('阿尔马国'), findsOneWidget);
     expect(find.text('奥尔梅国'), findsNothing);
-    expect(tester.widget<Text>(amount).data, '10/20');
+    expect(tester.widget<Text>(amount).data, '10/18');
     await _tap(tester, 'buy-reserves');
-    expect(tester.widget<Text>(amount).data, '20/20');
+    expect(tester.widget<Text>(amount).data, '18/18');
     c.openCity(c.world.cities.first);
     await tester.pump();
-    expect(tester.widget<Text>(amount).data, '20/20');
+    expect(tester.widget<Text>(amount).data, '18/18');
     c.campaign.defeatHero(
       hero.id,
       winnerCountryId: 2,

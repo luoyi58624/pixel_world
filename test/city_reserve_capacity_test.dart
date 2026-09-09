@@ -133,7 +133,7 @@ void main() {
     c.advance(1 / 60);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.level, 1);
-    expect(c.reserveCapacityFor(0), 40);
+    expect(c.reserveCapacityFor(0), 38);
     expect(c.soldiersAt(0), 8);
     expect(c.soldiersAt(1), 8);
     expect(c.soldiersAt(2), 8);
