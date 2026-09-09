@@ -82,7 +82,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('dispatch-hero-rom-0')));
     await tester.pump();
     expect(find.text('泽拉斯 · 高级将领'), findsOneWidget);
-    c.campaign.defeatHero('rom-40', winnerCountryId: 4);
+    c.campaign.cities[2]!.ownerCountryId = 0;
+    c.campaign.heroes.firstWhere((hero) => hero.sourceId == 40).cityId = 2;
+    c.campaign.defeatHero('rom-2', winnerCountryId: 4, defendedCityId: 0);
     c.refreshUi();
     await tester.pump();
     expect(tester.widget<CountryFlag>(flag).countryId, 4);

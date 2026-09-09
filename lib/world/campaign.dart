@@ -286,7 +286,21 @@ class CityBattle {
   }
 }
 
-/// 一次战败的城池影响，重复处理已消失英雄不会重复降级。
+/// 本局失败条件，任意一项满足即结束战役。
+enum CampaignDefeatReason {
+  /// 主角阵亡或在城池失守时被移除。
+  protagonistFallen('主角阵亡'),
+
+  /// 玩家已不再拥有任何城池，在外英雄不能继续作战。
+  noCities('全部城池失守');
+
+  const CampaignDefeatReason(this.label);
+
+  /// 结束界面显示的原因。
+  final String label;
+}
+
+/// 一次战败的城池影响；进攻方阵亡不改变出发城。
 typedef DefeatResult = ({
   int cityId,
   int oldLevel,
@@ -297,7 +311,13 @@ typedef DefeatResult = ({
 
 /// 管理一张地图的经济、出征及战败规则，未显示的场景暂停推进。
 class CampaignState {
-  CampaignState._(this.world, this.cities, this.heroes, this._gold);
+  CampaignState._(this.world, this.cities, this.heroes, this._gold)
+    : _protagonist = heroes
+          .where((hero) => hero.isPlayer && hero.type == HeroType.protagonist)
+          .firstOrNull;
+
+  final CampaignHero? _protagonist;
+  CampaignDefeatReason? _defeatReason;
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
   factory CampaignState.fromRom(
@@ -392,11 +412,39 @@ class CampaignState {
   /// 下一次结算净收入。
   int get netIncome => grossIncome - salaryCost;
 
-  /// 失去所有城池且没有我方英雄时，本场景战役结束。
-  bool get defeated =>
-      hasDispatched &&
-      !cities.values.any((city) => city.isPlayer) &&
-      !heroes.any((hero) => hero.isPlayer);
+  /// 主角阵亡或失去全部城池即失败，不要求先出征或全军覆没。
+  bool get defeated => defeatReason != null;
+
+  /// 失败后固定保留原因，不因迟到的指令或数据更新恢复游戏。
+  CampaignDefeatReason? get defeatReason => _defeatReason ?? _detectDefeat();
+
+  CampaignDefeatReason? _detectDefeat() {
+    if (_protagonist != null && !_protagonist.health.alive) {
+      return CampaignDefeatReason.protagonistFallen;
+    }
+    if (!cities.values.any((city) => city.isPlayer)) {
+      return CampaignDefeatReason.noCities;
+    }
+    if (_protagonist != null && !heroes.contains(_protagonist)) {
+      return CampaignDefeatReason.protagonistFallen;
+    }
+    return null;
+  }
+
+  bool _finishDefeat() {
+    if (_defeatReason != null) return false;
+    final reason = _detectDefeat();
+    if (reason == null) return false;
+    _defeatReason = reason;
+    _simulationFraction = 0;
+    for (final battle in battles.values) {
+      battle.outcome ??= '游戏结束 · ${reason.label}';
+      battle.nextWaveIn = 0;
+      battle.simulation.stop();
+    }
+    _record('游戏结束 · ${reason.label}');
+    return true;
+  }
 
   /// 本城所属英雄；失城后已出征的原阵营英雄不列入新驻军。
   List<CampaignHero> heroesAt(int cityId) => heroes
@@ -421,6 +469,7 @@ class CampaignState {
 
   /// 无法出击时给出原因，一级城只允许同时派出一位英雄。
   String? dispatchBlockReason(CampaignHero hero) {
+    if (defeated) return '游戏已结束，请重新开始';
     if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
     if (!hero.isPlayer || cities[hero.cityId]?.isPlayer != true) {
       return '英雄不在我方城池中';
@@ -443,6 +492,7 @@ class CampaignState {
 
   /// 升级我方城池，满级或余额不足时不扣款。
   bool upgradeCity(int cityId) {
+    if (defeated) return false;
     final city = cities[cityId];
     final cost = city?.upgradeCost;
     if (city == null || !city.isPlayer || cost == null || _gold < cost) {
@@ -482,6 +532,7 @@ class CampaignState {
 
   /// 为已出征的我方英雄重新指定目的地。
   bool moveTo(String heroId, Offset point) {
+    if (defeated) return false;
     final march = marches[heroId];
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
       return false;
@@ -503,6 +554,7 @@ class CampaignState {
 
   /// 命令一支部队原地扎营，其他行军和交战照常推进。
   bool camp(String heroId) {
+    if (defeated) return false;
     final march = marches[heroId];
     if (march == null || !march.hero.isPlayer) return false;
     _endBattle(march, '${march.hero.name}已停止进攻');
@@ -548,13 +600,39 @@ class CampaignState {
     }
   }
 
-  /// 英雄战败降一级；一级城易主，只清除该城未出征的败方英雄。
-  DefeatResult? defeatHero(String heroId, {required int winnerCountryId}) {
+  /// 移除战败英雄；只有明确指定其实际守城时，才降低该城等级或令其易主。
+  DefeatResult? defeatHero(
+    String heroId, {
+    required int winnerCountryId,
+    int? defendedCityId,
+  }) {
+    if (_defeatReason != null) return null;
+    final result = _removeDefeatedHero(
+      heroId,
+      winnerCountryId: winnerCountryId,
+      defendedCityId: defendedCityId,
+    );
+    if (result != null) _finishDefeat();
+    return result;
+  }
+
+  DefeatResult? _removeDefeatedHero(
+    String heroId, {
+    required int winnerCountryId,
+    int? defendedCityId,
+  }) {
     final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
     if (hero == null ||
         hero.countryId == winnerCountryId ||
         winnerCountryId < 0 ||
         winnerCountryId >= 16) {
+      return null;
+    }
+    // 守城影响必须显式指向当前城池，出征英雄不能冒充出发城守将。
+    if (defendedCityId != null &&
+        (defendedCityId != hero.cityId ||
+            cities[defendedCityId]?.ownerCountryId != hero.countryId ||
+            marches.containsKey(hero.id))) {
       return null;
     }
     final city = cities[hero.cityId]!;
@@ -566,8 +644,7 @@ class CampaignState {
     marches.remove(hero.id);
     heroes.remove(hero);
     var captured = false;
-    // 已在外的英雄阵亡时，不再次削弱先前占领出发城的敌方。
-    if (city.ownerCountryId == hero.countryId) {
+    if (defendedCityId != null) {
       if (city.level > 1) {
         city._level--;
       } else {
@@ -578,7 +655,9 @@ class CampaignState {
     _record(
       captured
           ? '${hero.name}战败，${_cityName(hero.cityId)}失守，未出战英雄已移除'
-          : '${hero.name}战败，${_cityName(hero.cityId)}现为 ${city.level} 级',
+          : defendedCityId != null
+          ? '${hero.name}守城战败，${_cityName(hero.cityId)}降至 ${city.level} 级'
+          : '${hero.name}进攻战败，出征部队已损失',
     );
     return (
       cityId: hero.cityId,
@@ -591,6 +670,8 @@ class CampaignState {
 
   /// 固定步长推进行军和拼杀，每三十秒结算经济；观战不参与计时。
   bool advance(double elapsed) {
+    if (_finishDefeat()) return true;
+    if (defeated) return false;
     _simulationFraction += elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     var changed = false;
     const dt = BattleSimulation.fixedStep;
@@ -633,7 +714,9 @@ class CampaignState {
             changed;
       }
       changed = _resolveArrivals() || changed;
+      if (_finishDefeat() || defeated) return true;
       changed = _advanceBattles(dt) || changed;
+      if (_finishDefeat() || defeated) return true;
       _secondFraction += dt;
       if (_secondFraction >= 1 - 1e-9) {
         _secondFraction = 0;
@@ -676,6 +759,7 @@ class CampaignState {
         _captureCity(city.id, march.hero.countryId);
         _station(march);
         changed = true;
+        if (defeated) break;
         continue;
       }
       final wasFighting = march.phase == MarchPhase.fighting;
@@ -694,6 +778,7 @@ class CampaignState {
         battle._settled = true;
         _settleBattle(battle);
         changed = true;
+        if (_finishDefeat() || defeated) break;
       } else if (battle.nextWaveIn > 0) {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
@@ -712,10 +797,14 @@ class CampaignState {
     final lostAttacker = !attacker.health.alive;
     final lostDefender = !defender.health.alive;
     if (lostAttacker) {
-      defeatHero(attacker.id, winnerCountryId: defender.countryId);
+      _removeDefeatedHero(attacker.id, winnerCountryId: defender.countryId);
     }
     if (lostDefender) {
-      defeatHero(defender.id, winnerCountryId: attacker.countryId);
+      _removeDefeatedHero(
+        defender.id,
+        winnerCountryId: attacker.countryId,
+        defendedCityId: battle.city.id,
+      );
       battle.record('${defender.name}战败');
     }
     if (lostAttacker) {

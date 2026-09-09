@@ -363,7 +363,7 @@ class CityPanel extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         const Text(
-          '英雄每战败一位，所属城池降一级；一级城战败即失守，未出战英雄一并消失。',
+          '守将战败时城池降一级；一级城守城失败即失守，未出战英雄一并消失。进攻失败不降低出发城等级。',
           style: TextStyle(fontSize: 11, height: 1.5, color: _muted),
         ),
         if (c.campaign.journal.isNotEmpty) ...[

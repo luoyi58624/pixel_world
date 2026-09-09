@@ -57,7 +57,7 @@ void main() {
     expect(_worlds()[2].cities.last.label, '贝尔');
   });
 
-  test('交战失守转为真正获胜国家，国旗变化但固定城名不改', () {
+  test('进攻马易失败不改变阿尔马城的归属、国旗和城名', () {
     final world = _worlds().first;
     final campaign = CampaignState.fromRom(world, _heroes());
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40)
@@ -71,9 +71,9 @@ void main() {
     for (var i = 0; i < 1200 && campaign.marches.isNotEmpty; i++) {
       campaign.advance(0.05);
     }
-    expect(campaign.cities[0]!.ownerCountryId, 2);
-    expect(campaign.cities[0]!.isPlayer, isFalse);
-    expect(world.countryName(campaign.cities[0]!.ownerCountryId), '马易');
+    expect(campaign.cities[0]!.ownerCountryId, 0);
+    expect(campaign.cities[0]!.isPlayer, isTrue);
+    expect(world.countryName(campaign.cities[0]!.ownerCountryId), '阿尔马');
     expect(world.cities[0].label, '阿尔马');
   });
 

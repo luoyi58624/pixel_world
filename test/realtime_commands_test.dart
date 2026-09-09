@@ -178,7 +178,10 @@ void main() {
   test('观战与关闭面板不改变后台交战结果，已结束战斗保留结果', () {
     WorldController battleController() {
       final c = _controller();
-      final unit = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
+      final unit = c.campaign.dispatch(
+        c.campaign.heroes.firstWhere((hero) => hero.sourceId == 0),
+        c.world.cities[1],
+      )!;
       unit.position = unit.destination;
       c.tick(0.02);
       return c;
@@ -440,7 +443,10 @@ void main() {
 
   testWidgets('小窗口点击城上刀剑打开观战，面板开启时战斗持续并保留结束结果', (tester) async {
     final c = await _load(tester, const Size(600, 360));
-    final unit = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
+    final unit = c.campaign.dispatch(
+      c.campaign.heroes.firstWhere((hero) => hero.sourceId == 0),
+      c.world.cities[1],
+    )!;
     unit.position = unit.destination;
     c.tick(0.02);
     final battle = c.campaign.battles[1]!;

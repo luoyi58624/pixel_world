@@ -15,7 +15,8 @@ import 'world_movement.dart';
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。
   WorldController(this.worlds, {List<RomHeroDefinition> heroCatalog = const []})
-    : camera = WorldCamera(worlds.first.pixelSize),
+    : _heroCatalog = List.unmodifiable(heroCatalog),
+      camera = WorldCamera(worlds.first.pixelSize),
       campaigns = worlds
           .map((world) => CampaignState.fromRom(world, heroCatalog))
           .toList() {
@@ -36,6 +37,8 @@ class WorldController extends ChangeNotifier {
 
   /// 各场景的独立玩法状态，切换地图不重置出征记录。
   final List<CampaignState> campaigns;
+  final List<RomHeroDefinition> _heroCatalog;
+  bool _gameOverShown = false;
 
   /// 当前场景的城池与部队状态。
   CampaignState get campaign => campaigns[index];
@@ -73,14 +76,15 @@ class WorldController extends ChangeNotifier {
       campaign.heroes.where((hero) => hero.id == selectedUnitId).firstOrNull;
 
   /// 首次派兵前，城门人物代表实际驻城主角。
-  CampaignHero? get previewHero => campaign.hasDispatched
+  CampaignHero? get previewHero => campaign.hasDispatched || campaign.defeated
       ? null
       : campaign.heroes.where((hero) => hero.isPlayer).firstOrNull;
 
   /// 角色可以接收行军指令，已经在外的部队允许中途改道。
   bool get canMoveSelected =>
-      selectedUnit != null ||
-      (selectedMapHero != null && campaign.canDispatch(selectedMapHero!));
+      !campaign.defeated &&
+      (selectedUnit != null ||
+          (selectedMapHero != null && campaign.canDispatch(selectedMapHero!)));
 
   String? _targetReturnUnitId;
   Offset? _pointer;
@@ -167,6 +171,8 @@ class WorldController extends ChangeNotifier {
 
   /// 切换地图并重置探索位置。
   void switchWorld(int value) {
+    if (campaign.defeated) return;
+    _gameOverShown = false;
     camera.cancelMotion();
     battleCamera.cancelMotion();
     index = value;
@@ -195,6 +201,11 @@ class WorldController extends ChangeNotifier {
 
   /// 更新动画与键盘镜头移动。
   void tick(double elapsed) {
+    if (campaign.defeated) {
+      campaign.advance(0);
+      _showDefeat();
+      return;
+    }
     // 所有面板共用这一时钟；保留真实帧间隔，低帧率不让行军额外变慢。
     final dt = elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     time += dt;
@@ -248,6 +259,10 @@ class WorldController extends ChangeNotifier {
       }
     }
     var changed = campaign.advance(dt);
+    if (campaign.defeated) {
+      _showDefeat();
+      return;
+    }
     if (changed) {
       if (campaign.lastEvent.isNotEmpty) message = campaign.lastEvent;
     }
@@ -277,8 +292,41 @@ class WorldController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _showDefeat() {
+    if (_gameOverShown) return;
+    _gameOverShown = true;
+    camera.cancelMotion();
+    battleCamera.cancelMotion();
+    keyboardDirection = Offset.zero;
+    followHero = false;
+    pendingHero = null;
+    movingHeroId = null;
+    selectedHeroId = null;
+    selectedUnitId = null;
+    selectedCity = null;
+    _targetReturnUnitId = null;
+    _pointer = null;
+    cursor = null;
+    route = [];
+    routeStep = 0;
+    message = '游戏结束 · ${campaign.defeatReason!.label}';
+    refreshUi();
+  }
+
+  /// 重新创建当前地图的战役，恢复主角、城池和经济，不沿用失败进度。
+  void restartCampaign() {
+    if (!campaign.defeated) return;
+    campaigns[index] = CampaignState.fromRom(world, _heroCatalog);
+    time = 0;
+    appearance = HeroAppearance.protagonist;
+    followHero = false;
+    keyboardDirection = Offset.zero;
+    switchWorld(index);
+  }
+
   /// 选点指令优先，其余点击按交战标记、角色、城池依次命中。
   void tap(Offset local) {
+    if (campaign.defeated) return;
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
     final city = world.cityAt(point);
@@ -313,6 +361,7 @@ class WorldController extends ChangeNotifier {
 
   /// 从当前精确位置直线前往目标，途中改点时立即转向。
   void walkTo(TileCoord destination) {
+    if (campaign.defeated) return;
     if (campaign.hasDispatched) {
       message = '点击我方城池查看情况或派遣英雄';
       refreshUi();
@@ -343,6 +392,7 @@ class WorldController extends ChangeNotifier {
 
   /// 直接展开城池详情，我方城池同时提供英雄选择。
   void openCity(CityDefinition city) {
+    if (campaign.defeated) return;
     if (!world.cities.contains(city) || choosingTarget) return;
     selectedUnitId = null;
     watchedBattle = null;
@@ -463,7 +513,7 @@ class WorldController extends ChangeNotifier {
 
   /// 地图底部的行军说明，只在界面状态变化时重建。
   String get statusMessage {
-    if (campaign.defeated) return '城池已失守，本场景没有存活英雄';
+    if (campaign.defeated) return '游戏结束 · ${campaign.defeatReason!.label}';
     final battle = campaign.marches.values
         .where((march) => march.phase == MarchPhase.fighting)
         .firstOrNull;
@@ -553,6 +603,7 @@ class WorldController extends ChangeNotifier {
 
   /// 打开角色操作面板，不停止正在执行的行军或交战。
   void openUnit(String id) {
+    if (campaign.defeated) return;
     if (choosingTarget ||
         (!campaign.marches.containsKey(id) && previewHero?.id != id)) {
       return;
@@ -596,6 +647,7 @@ class WorldController extends ChangeNotifier {
 
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(CityBattle battle) {
+    if (campaign.defeated) return;
     leaveMap();
     camera.cancelMotion();
     battleCamera.cancelMotion();

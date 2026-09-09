@@ -103,23 +103,30 @@ void main() {
     expect(c.gold, 334);
   });
 
-  test('每阵亡一位降一级且立即减产，同一战败不能重复降级', () {
+  test('守将阵亡降一级且立即减产，同一战败不能重复降级', () {
     final c = _campaign(gold: 2000);
     c.upgradeCity(0);
     c.upgradeCity(0);
-    final result = c.defeatHero('rom-40', winnerCountryId: 1)!;
+    final result = c.defeatHero(
+      'rom-0',
+      winnerCountryId: 1,
+      defendedCityId: 0,
+    )!;
     expect(result.oldLevel, 3);
     expect(result.newLevel, 2);
     expect(result.captured, isFalse);
-    expect(result.removedHeroIds, ['rom-40']);
+    expect(result.removedHeroIds, ['rom-0']);
     expect(c.cities[0]!.income, 252);
     expect(c.cities[0]!.isPlayer, isTrue);
     expect(c.heroesAt(0).length, 2);
-    expect(c.defeatHero('rom-40', winnerCountryId: 1), isNull);
+    expect(
+      c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0),
+      isNull,
+    );
     expect(c.cities[0]!.level, 2);
   });
 
-  test('一级城只派一位，战败失城并清理未出战英雄，其他城池不受影响', () {
+  test('一级城只派一位，守城战败失城，其他城池及在外主角不受清除影响', () {
     final c = _campaign();
     final away = _hero(c, 0)..cityId = 2;
     c.cities[2]!.ownerCountryId = 0;
@@ -129,9 +136,13 @@ void main() {
         .toList();
     c.dispatch(_hero(c, 40), c.world.cities[1]);
     expect(c.canDispatch(_hero(c, 2)), isFalse);
-    final result = c.defeatHero('rom-40', winnerCountryId: 1)!;
+    final result = c.defeatHero(
+      'rom-2',
+      winnerCountryId: 1,
+      defendedCityId: 0,
+    )!;
     expect(result.captured, isTrue);
-    expect(result.removedHeroIds, containsAll(['rom-40', 'rom-2']));
+    expect(result.removedHeroIds, ['rom-2']);
     expect(c.cities[0]!.level, 1);
     expect(c.cities[0]!.isPlayer, isFalse);
     expect(c.heroes, contains(away));
@@ -139,22 +150,23 @@ void main() {
       c.heroes.where((hero) => !hero.isPlayer).map((hero) => hero.id),
       enemyIds,
     );
-    expect(c.marches, isEmpty);
+    expect(c.marches.containsKey('rom-40'), isTrue);
+    expect(c.defeated, isFalse);
     expect(c.hasDispatched, isTrue);
   });
 
-  test('升级允许继续出征，后来失城也不会抹去已在外的其他英雄', () {
+  test('升级允许继续出征，最后一城失守保留在外主角记录但本局立即结束', () {
     final c = _campaign();
     c.upgradeCity(0);
     c.dispatch(_hero(c, 40), c.world.cities[1]);
-    c.dispatch(_hero(c, 0), c.world.cities[2]);
-    c.defeatHero('rom-40', winnerCountryId: 1);
+    expect(c.canDispatch(_hero(c, 0)), isTrue);
+    c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
     expect(c.cities[0]!.level, 1);
-    c.defeatHero('rom-2', winnerCountryId: 1);
+    c.defeatHero('rom-2', winnerCountryId: 1, defendedCityId: 0);
     expect(c.cities[0]!.isPlayer, isFalse);
-    expect(c.marches.containsKey('rom-0'), isTrue);
-    expect(_hero(c, 0).isPlayer, isTrue);
-    expect(c.defeated, isFalse);
+    expect(c.marches.containsKey('rom-40'), isTrue);
+    expect(_hero(c, 40).health.alive, isTrue);
+    expect(c.defeatReason, CampaignDefeatReason.noCities);
   });
 
   test('连续迎战时保留兵损和伤势，换守将重新按生命上限补充士气', () {
@@ -189,7 +201,7 @@ void main() {
     );
   });
 
-  test('真实交战触发一级城失守，英雄和地图部队一并清理', () {
+  test('主角进攻战败立即结束，出发城和未出战英雄保留', () {
     final c = _campaign();
     final hero = _hero(c, 40)..hp = 1;
     for (final soldier in hero.squad) {
@@ -201,11 +213,13 @@ void main() {
     for (var i = 0; i < 1200 && c.marches.isNotEmpty; i++) {
       c.advance(0.05);
     }
-    expect(c.cities[0]!.isPlayer, isFalse);
-    expect(c.heroes.any((hero) => hero.isPlayer), isFalse);
+    expect(c.cities[0]!.isPlayer, isTrue);
+    expect(c.cities[0]!.level, 1);
+    expect(c.heroesAt(0).map((hero) => hero.sourceId), [0, 2]);
     expect(c.marches, isEmpty);
     expect(c.defeated, isTrue);
-    expect(c.journal.last, contains('失守'));
+    expect(c.defeatReason, CampaignDefeatReason.protagonistFallen);
+    expect(c.journal.last, contains('游戏结束'));
   });
 
   test('二级城首位守将战败只降级，再次战败才占领并清除剩余守将', () {
