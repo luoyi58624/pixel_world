@@ -133,14 +133,14 @@ void main() {
     final c = _controller();
     addTearDown(c.dispose);
     final city = c.world.cities[1];
-    final start = city.bounds.centerLeft - const Offset(2, 0);
+    final start = city.bounds.centerLeft - const Offset(10, 0);
     final end = city.bounds.centerRight + const Offset(48, 0);
     final unit = c.campaign.dispatchTo(c.previewHero!, end)!;
     unit.position = start;
     c.campaign.moveTo(unit.hero.id, end);
     c.tick(0.2);
     expect(unit.target, city);
-    expect(unit.position.dx, closeTo(city.bounds.left, 0.001));
+    expect(unit.position.dx, closeTo(city.bounds.left - 8, 0.001));
     expect(unit.phase, MarchPhase.fighting);
     final battle = c.campaign.battles[city.id]!;
     expect(battle.isActive, isTrue);
@@ -349,6 +349,9 @@ void main() {
     await tester.pump();
     final canvas = find.byKey(const ValueKey('battle-canvas'));
     expect(canvas, findsOneWidget);
+    // 两名将领的血条加两军士气条；不再逐兵展示血条和血量格。
+    expect(find.byType(LinearProgressIndicator), findsNWidgets(4));
+    expect(find.text('1 · 20'), findsNothing);
     expect(find.byKey(const ValueKey('world-canvas')), findsNothing);
     expect(
       find.byKey(const ValueKey('battle-attacker-morale')),
@@ -407,7 +410,7 @@ void main() {
     expect(battle.rounds, greaterThan(0));
     expect(
       battle.simulation.units.any(
-        (unit) => !unit.isGeneral && unit.health.hp < 25,
+        (unit) => !unit.isGeneral && unit.health.hp < 20,
       ),
       isTrue,
     );

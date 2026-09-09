@@ -37,7 +37,7 @@ class BattleScene extends StatefulWidget {
 }
 
 class _BattleSceneState extends State<BattleScene> {
-  late final BattleArt _art = BattleArt();
+  late final BattleArt _art = BattleArt(widget.assets);
   bool _fitted = false;
   String? _selectedId;
   Offset _anchor = Offset.zero;
@@ -52,6 +52,12 @@ class _BattleSceneState extends State<BattleScene> {
       builder: (context, constraints) {
         final tight = constraints.maxHeight < 390 || constraints.maxWidth < 620;
         final selected = sim.unitById(_selectedId);
+        final pressure = sim.pushedSide == null
+            ? '势均力敌'
+            : sim.pushedSide == BattleSide.defender
+            ? '守军受压'
+            : '攻方受压';
+        final overflow = sim.lastClash?.overflowPercent ?? 0;
         final status =
             battle.outcome ??
             (battle.nextWaveIn > 0
@@ -59,11 +65,8 @@ class _BattleSceneState extends State<BattleScene> {
                 : sim.forming
                 ? '双方列阵'
                 : '第 ${battle.wave} 位守将 · 拼杀 ${sim.clashes}'
-                      '${sim.clashes == 0 ? '' : ' · ${sim.pushedSide == null
-                                ? '士气持平'
-                                : sim.pushedSide == BattleSide.defender
-                                ? '守军后退'
-                                : '攻方后退'}'}');
+                      '${sim.clashes == 0 ? '' : ' · $pressure'}'
+                      '${overflow > 0 ? ' · 撞墙' : ''}');
         return ColoredBox(
           key: const ValueKey('battle-scene'),
           color: _ink,
@@ -160,18 +163,26 @@ class _BattleSceneState extends State<BattleScene> {
                                           .where(
                                             (unit) =>
                                                 unit.health.alive &&
-                                                (unit.position - point)
+                                                (unit.renderPosition(
+                                                              sim.elapsed,
+                                                            ) -
+                                                            point)
                                                         .distance <=
                                                     radius,
                                           )
                                           .toList()
                                         ..sort(
-                                          (a, b) => (a.position - point)
-                                              .distanceSquared
-                                              .compareTo(
-                                                (b.position - point)
-                                                    .distanceSquared,
-                                              ),
+                                          (a, b) =>
+                                              (a.renderPosition(sim.elapsed) -
+                                                      point)
+                                                  .distanceSquared
+                                                  .compareTo(
+                                                    (b.renderPosition(
+                                                              sim.elapsed,
+                                                            ) -
+                                                            point)
+                                                        .distanceSquared,
+                                                  ),
                                         );
                                   setState(
                                     () => _selectedId = units.firstOrNull?.id,
@@ -342,10 +353,10 @@ class _BattleSceneState extends State<BattleScene> {
                     color: const Color(0xff0c120e),
                     child: Text(
                       selected == null
-                          ? '拖拽 / 边缘滚屏移动战场 · 滚轮缩放 · 点击单位查看血量'
-                          : '${selected.name}  ${selected.health.label}/${selected.health.maxHp} HP · 攻击 ${selected.attack}'
-                                ' · 目标 ${sim.unitById(selected.targetId)?.name ?? '等待接战'}'
-                                '${sim.atWall(selected) ? ' · 靠墙：受到伤害 +50%' : ''}',
+                          ? '拖拽 / 边缘滚屏移动战场 · 滚轮缩放 · 点击单位查看情况'
+                          : '${selected.name}'
+                                '${selected.isGeneral ? '  ${selected.health.label}/${selected.health.maxHp} HP' : ''}'
+                                ' · 距墙 ${battleNumber(sim.distanceToWall(selected.side))} 点',
                       key: const ValueKey('battle-unit-information'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -422,7 +433,7 @@ class _BattleSceneState extends State<BattleScene> {
               ),
             ),
             Text(
-              '投入 ${morale.spent} · +${morale.bonus}%',
+              '蓄力 ${morale.accumulated} · +${morale.bonus}%',
               style: TextStyle(color: color, fontSize: tight ? 9 : 11),
             ),
           ],
@@ -433,40 +444,6 @@ class _BattleSceneState extends State<BattleScene> {
           minHeight: tight ? 2 : 3,
           color: _gold,
           backgroundColor: const Color(0xff30392c),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            for (var i = 0; i < hero.squad.length; i++)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: i == hero.squad.length - 1 ? 0 : 4,
-                  ),
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: tight ? 2 : 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xff1b261f),
-                      border: Border.all(
-                        color: hero.squad[i].alive
-                            ? color.withValues(alpha: 0.45)
-                            : const Color(0xff374036),
-                      ),
-                    ),
-                    child: Text(
-                      '${i + 1} · ${hero.squad[i].label}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: hero.squad[i].alive
-                            ? _cream
-                            : const Color(0xff70806b),
-                        fontSize: tight ? 9 : 11,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ],
     );
@@ -507,7 +484,7 @@ class _CommanderPortrait extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) => canvas.drawImageRect(
-    assets.heroes[hero.appearance]!,
+    assets.heroImage(hero.appearance, friendly: hero.isPlayer),
     const Rect.fromLTWH(0, 0, 16, 16),
     Offset.zero & size,
     Paint()..filterQuality = FilterQuality.none,

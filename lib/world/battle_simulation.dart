@@ -13,7 +13,10 @@ class BattleHealth {
 
   /// 当前生命值，赋值时限制在合法范围。
   double get hp => _hp;
-  set hp(num value) => _hp = value.toDouble().clamp(0, maxHp.toDouble());
+  set hp(num value) {
+    final next = value.toDouble().clamp(0.0, maxHp.toDouble());
+    _hp = next < 1e-9 ? 0.0 : next;
+  }
 
   /// 用于界面显示的血量，百分比伤害保留小数而不逐次取整。
   String get label => battleNumber(hp);
@@ -42,19 +45,26 @@ class BattleMorale {
   /// 尚未消耗的士气。
   late int remaining;
 
-  /// 本轮随机投入比例，范围为 0 到 25。
+  /// 本次随机消耗比例，范围为 5 到 10，每半秒重新抽取。
   int percent = 0;
 
-  /// 本轮实际消耗点数。
+  /// 最近半秒消耗的点数，用于提升冲锋速度。
   int spent = 0;
+
+  /// 上次碰撞后累计消耗的士气，在下次碰撞时投入比拼。
+  int accumulated = 0;
+
+  /// 最近一次碰撞实际投入的累计士气。
+  int committed = 0;
 
   /// 当前拼杀的伤害加成百分点。
   int bonus = 0;
 
   void _roll(math.Random random) {
-    percent = random.nextInt(26);
+    percent = 5 + random.nextInt(6);
     spent = remaining * percent ~/ 100;
     remaining -= spent;
+    accumulated += spent;
   }
 }
 
@@ -106,7 +116,107 @@ enum BattleResult {
   draw,
 }
 
-/// 战斗中的独立单位，包含位置、目标、冷却和受击动画状态。
+/// 整队动作阶段，退到终点后必须经过准备再重新冲锋。
+enum BattleMotion {
+  /// 收势、蓄力，队伍暂留原地。
+  preparing,
+
+  /// 朝对方加速前进。
+  charging,
+
+  /// 碰撞后的短暂停顿。
+  impact,
+
+  /// 按承受伤害反弹并逐渐减速。
+  recoiling,
+
+  /// 战斗结束或撤离。
+  halted,
+}
+
+/// 原版固定纵队，横向位置由整支队伍共用，阵亡不会让其他人补位。
+class BattleFormation {
+  /// 原版开场前排中心分别在 48 和 208，后排将领再相隔 24 像素。
+  BattleFormation(this.side) : frontX = side == BattleSide.defender ? 48 : 208;
+
+  /// 队伍所在侧。
+  final BattleSide side;
+
+  /// 四名士兵共用的横坐标。
+  double frontX;
+
+  /// 整队击退到达的横坐标。
+  double? recoilX;
+
+  /// 本帧是否移动。
+  bool moving = false;
+
+  /// 整队累计行走距离。
+  double walkDistance = 0;
+
+  /// 当前冲锋速度，起步时逐渐加速。
+  double velocity = 0;
+
+  /// 当前动作，整排士兵和将领同时切换。
+  BattleMotion motion = BattleMotion.preparing;
+
+  /// 当前收势准备结束的时刻。
+  double readyAt = 0.8;
+
+  double _prepareAt = 0;
+
+  /// 最近碰撞时刻，整队共用一次短暂停顿与回身动作。
+  double impactAt = -100;
+
+  /// 最近真正抵达墙边的时刻，驱动回弹与碎屑。
+  double wallHitAt = -100;
+
+  double _recoilStart = 0;
+  double _recoilDuration = 0;
+
+  void _retreatTo(double goal, double time) {
+    recoilX = goal;
+    _recoilStart = frontX;
+    _recoilDuration =
+        0.18 + math.min(0.28, math.sqrt((goal - frontX).abs()) / 38);
+    impactAt = time;
+  }
+
+  void _prepare(double time) {
+    motion = BattleMotion.preparing;
+    velocity = 0;
+    _prepareAt = time;
+    readyAt = time + BattleSimulation.preparationTime;
+  }
+
+  /// 撞墙轻弹只改变显示，整队实际后退由模拟坐标负责。
+  double visualOffset(double time) {
+    final inward = side == BattleSide.defender ? 1.0 : -1.0;
+    final wallAge = time - wallHitAt;
+    if (wallAge >= 0 && wallAge < 0.24) {
+      return inward * math.sin(wallAge / 0.24 * math.pi) * 3;
+    }
+    if (motion == BattleMotion.preparing && _prepareAt > 0) {
+      final t = ((time - _prepareAt) / (readyAt - _prepareAt)).clamp(0.0, 1.0);
+      return -inward * math.sin(t * math.pi) * 1.5;
+    }
+    return 0;
+  }
+
+  /// E78A 的 OAM 纵坐标加一，减去画面顶部 16，再加人物中心 8。
+  Offset positionFor(int slot, {double? front}) => Offset(
+    ((front ?? frontX) +
+            (slot < 0
+                ? side == BattleSide.defender
+                      ? -24
+                      : 24
+                : 0))
+        .clamp(8.0, 248.0),
+    slot < 0 ? 86 : 48 + slot * 24.0,
+  );
+}
+
+/// 战斗中的独立生命与动画；站位由固定队形提供，不追逐目标上下跑动。
 class BattleUnit {
   BattleUnit._({
     required this.id,
@@ -115,8 +225,10 @@ class BattleUnit {
     required this.slot,
     required this.health,
     required this.attack,
-    required this.position,
-  });
+    required this._formation,
+  }); // 固定队形由模拟器共享，单位不另存可漂移坐标。
+  final BattleFormation _formation;
+  Offset? _deathPosition;
 
   /// 全战場唯一编号。
   final String id;
@@ -139,14 +251,26 @@ class BattleUnit {
   /// 是否是将领。
   bool get isGeneral => slot < 0;
 
-  /// 连续战场位置。
-  Offset position;
+  /// 固定槽位与全队横移合成的位置，阵亡后保留倒地起点。
+  Offset get position => _deathPosition ?? _formation.positionFor(slot);
 
-  /// 当前目标，目标阵亡后重新选择。
-  String? targetId;
+  /// 合并整队碰撞动作后的显示位置，身体始终留在战场内。
+  Offset renderPosition(double time) {
+    if (_deathPosition != null) return _deathPosition!;
+    final point = position;
+    return Offset(
+      (point.dx + _formation.visualOffset(time)).clamp(8.0, 248.0),
+      point.dy,
+    );
+  }
 
-  /// 下一次攻击前的剩余冷却秒数。
-  double cooldown = 0;
+  /// 原版两帧步态和拼杀帧随整队动作衔接，蓄力末段举起武器。
+  int animationFrame(double time) => switch (_formation.motion) {
+    BattleMotion.impact || BattleMotion.recoiling => 2,
+    BattleMotion.preparing => _formation.readyAt - time < 0.08 ? 2 : 0,
+    BattleMotion.charging => ((position.dx - 8) / 8).floor() % 2,
+    BattleMotion.halted => time - lastAttackAt < 0.3 ? 2 : 0,
+  };
 
   /// 距离上次攻击的时间，驱动挥砍与前冲动画。
   double lastAttackAt = -100;
@@ -161,25 +285,43 @@ class BattleUnit {
   double? diedAt;
 
   /// 角色当前是否在行走。
-  bool moving = false;
+  bool get moving => health.alive && _formation.moving;
 
   /// 累计位移用于切换走路帧。
-  double walkDistance = 0;
+  double get walkDistance => _formation.walkDistance;
 
   /// 是否朝右，静止时保留方向。
-  bool facingRight = true;
+  bool get facingRight => side == BattleSide.defender;
 
   /// 被击退时的真实目标位置，逐帧到达而不是瞬间传送。
-  Offset? recoilTarget;
+  Offset? get recoilTarget => _formation.recoilX == null
+      ? null
+      : _formation.positionFor(slot, front: _formation.recoilX);
+
+  void _fall(double time) {
+    _deathPosition ??= renderPosition(time);
+    diedAt ??= time;
+  }
 }
 
-/// 一次实际命中的伤害与位置，绘制飘字和命中特效共用。
+/// 一次实际命中的伤害与位置，供记录和命中特效使用。
 typedef BattleHit = ({
   String sourceId,
   String targetId,
   double damage,
   Offset position,
   double at,
+});
+
+/// 一轮整队碰撞的结算，超出墙边的部分只给本轮胜方追加伤害。
+typedef BattleClash = ({
+  double attackerDamage,
+  double defenderDamage,
+  double difference,
+  double retreatPoints,
+  double attackerRetreat,
+  double defenderRetreat,
+  double overflowPercent,
 });
 
 /// 固定步长的自动拼杀模拟，观战只读取状态，不执行第二份战斗。
@@ -197,7 +339,7 @@ class BattleSimulation {
   }
 
   /// 小兵的生命上限。
-  static const soldierHp = 25;
+  static const soldierHp = 20;
 
   /// 小兵每次拼杀的攻击力。
   static const soldierAttack = 1;
@@ -208,11 +350,26 @@ class BattleSimulation {
   /// 一秒一次攻击，接近目标后才触发。
   static const attackInterval = 1.0;
 
+  /// 每半秒投入一次士气，碰撞前持续积累。
+  static const moraleInterval = 0.5;
+
+  /// 碰撞时仅停顿队形四帧，游戏时钟与后台进度照常推进。
+  static const impactHold = 4 / 60;
+
+  /// 退到终点后的收势与举剑准备时间。
+  static const preparationTime = 0.22;
+
+  /// 整个有效战场折算为五十点，首轮接触时两侧各余二十五点。
+  static const arenaPoints = 50.0;
+
   /// 战场的原生像素尺寸。
-  static const arenaSize = Size(384, 224);
+  static const arenaSize = Size(256, 144);
 
   /// 单位进入近身距离后停步拼杀。
-  static const attackRange = 18.0;
+  static const attackRange = 16.0;
+
+  /// 冲锋基础速度为原来的三倍，士气每多消耗一点再增加十八像素每秒。
+  static const baseChargeSpeed = 120.0;
 
   /// 进攻队伍。
   final BattleArmy attacker;
@@ -226,10 +383,16 @@ class BattleSimulation {
   /// 守城方本场士气。
   final BattleMorale defenderMorale;
 
+  /// 所有角色共用两条队伍横坐标，原始纵向槽位始终不变。
+  final Map<BattleSide, BattleFormation> formations = {
+    BattleSide.defender: BattleFormation(BattleSide.defender),
+    BattleSide.attacker: BattleFormation(BattleSide.attacker),
+  };
+
   /// 所有本轮参战单位，阵亡后保留用于结果与倒地动画。
   final List<BattleUnit> units = [];
 
-  /// 最近命中，保留一秒多用于飘字。
+  /// 最近命中，保留一秒多用于受击效果。
   final List<BattleHit> hits = [];
 
   /// 最近六条战斗记录。
@@ -248,7 +411,11 @@ class BattleSimulation {
   bool stopped = false;
   double _accumulator = 0;
   double _nextClashAt = 0;
+  double _moraleSeconds = 0;
   final math.Random _random;
+
+  /// 最近一轮双方伤害及后退结算。
+  BattleClash? lastClash;
 
   /// 最近一轮被击退的阵营，平手时为空。
   BattleSide? pushedSide;
@@ -257,10 +424,33 @@ class BattleSimulation {
   BattleMorale morale(BattleSide side) =>
       side == BattleSide.attacker ? attackerMorale : defenderMorale;
 
-  /// 仅实际贴住左右城墙的受击单位承受额外 50% 伤害。
-  bool atWall(BattleUnit unit) =>
-      unit.position.dx <= 12.001 ||
-      unit.position.dx >= arenaSize.width - 12.001;
+  /// 一方本轮基础伤害，按仍存活的小兵人数加上将领攻击。
+  double baseDamage(BattleSide side) =>
+      (survivors(side) * soldierAttack +
+              math.max(
+                0,
+                side == BattleSide.attacker ? attacker.attack : defender.attack,
+              ))
+          .toDouble();
+
+  /// 根据最近半秒消耗的士气提高冲锋速度。
+  double chargeSpeed(BattleSide side) =>
+      baseChargeSpeed + morale(side).spent * 18;
+
+  /// 当前队伍到自身墙边的真实退路；碰撞时两侧退路之和为五十点。
+  double distanceToWall(BattleSide side) {
+    final x = formations[side]!.frontX;
+    return (side == BattleSide.defender ? x - 8 : 248 - x) /
+        (arenaSize.width - 32) *
+        arenaPoints;
+  }
+
+  /// 只限制开场在中央交锋，后续接触点由双方实际运动决定。
+  double initialContactX(BattleSide side) =>
+      arenaSize.width / 2 + (side == BattleSide.defender ? -8 : 8);
+
+  /// 判断单位是否贴墙，增伤按整队后退空间的溢出比例另行计算。
+  bool atWall(BattleUnit unit) => distanceToWall(unit.side) <= 0.001;
 
   /// 当前是否停止战斗。
   bool get finished => result != null || stopped;
@@ -306,7 +496,11 @@ class BattleSimulation {
   void stop() {
     stopped = true;
     for (final unit in units) {
-      unit.moving = false;
+      if (!unit.health.alive) unit._fall(elapsed);
+    }
+    for (final formation in formations.values) {
+      formation.moving = false;
+      formation.motion = BattleMotion.halted;
     }
   }
 
@@ -319,9 +513,9 @@ class BattleSimulation {
         side: side,
         slot: -1,
         health: army.general,
-        attack: math.max(1, army.attack),
-        position: Offset(left ? 52 : 332, 134),
-      )..facingRight = left,
+        attack: math.max(0, army.attack),
+        formation: formations[side]!,
+      ),
     );
     for (var slot = 0; slot < army.soldiers.length; slot++) {
       if (!army.soldiers[slot].alive) continue;
@@ -333,150 +527,167 @@ class BattleSimulation {
           slot: slot,
           health: army.soldiers[slot],
           attack: soldierAttack,
-          position: Offset(left ? 96 : 288, 86 + slot * 32.0),
-        )..facingRight = left,
+          formation: formations[side]!,
+        ),
       );
     }
-  }
-
-  BattleUnit? _targetFor(BattleUnit unit) {
-    final current = unitById(unit.targetId);
-    if (current != null && current.health.alive) return current;
-    final enemies = units
-        .where((enemy) => enemy.side != unit.side && enemy.health.alive)
-        .toList();
-    final soldiers = enemies.where((enemy) => !enemy.isGeneral).toList();
-    BattleUnit? target;
-    if (soldiers.isEmpty) {
-      target = enemies.firstOrNull;
-    } else if (unit.isGeneral) {
-      target = soldiers[_random.nextInt(soldiers.length)];
-    } else {
-      target = soldiers.where((enemy) => enemy.slot == unit.slot).firstOrNull;
-      if (target == null) {
-        soldiers.sort((a, b) {
-          final distance = (a.position - unit.position).distanceSquared
-              .compareTo((b.position - unit.position).distanceSquared);
-          return distance != 0 ? distance : a.slot.compareTo(b.slot);
-        });
-        target = soldiers.first;
-      }
-    }
-    unit.targetId = target?.id;
-    return target;
   }
 
   bool _step() {
+    for (final unit in units) {
+      if (!unit.health.alive) unit._fall(elapsed);
+    }
     if (_finishIfNeeded()) return true;
-    if (forming) return false;
-    final positions = {for (final unit in units) unit.id: unit.position};
-    final moves = <BattleUnit, Offset>{};
-    for (final unit in units) {
-      unit.moving = false;
-      if (!unit.health.alive) continue;
-      unit.cooldown = math.max(0, unit.cooldown - fixedStep);
-      if (unit.recoilTarget case final destination?) {
-        final delta = destination - unit.position;
-        final distance = math.min(delta.distance, 120 * fixedStep);
-        moves[unit] = delta.distance < 0.001
-            ? destination
-            : unit.position + delta / delta.distance * distance;
-        if (distance >= delta.distance - 0.001) unit.recoilTarget = null;
-        continue;
-      }
-      final target = _targetFor(unit);
-      if (target == null) continue;
-      final delta = positions[target.id]! - positions[unit.id]!;
-      if (delta.dx.abs() > 0.1) unit.facingRight = delta.dx > 0;
-      if (elapsed - unit.lastAttackAt < 0.32 || delta.distance <= attackRange) {
-        continue;
-      }
-      final distance = math.min(
-        delta.distance - attackRange,
-        (unit.isGeneral ? 36.0 : 40.0) * fixedStep,
-      );
-      moves[unit] = unit.position + delta / delta.distance * distance;
-      unit.walkDistance += distance;
-      unit.moving = distance > 0.001;
+    var changed = false;
+    _moraleSeconds += fixedStep;
+    if (_moraleSeconds >= moraleInterval - 1e-9) {
+      _moraleSeconds -= moraleInterval;
+      attackerMorale._roll(_random);
+      defenderMorale._roll(_random);
+      changed = true;
     }
-    for (final entry in moves.entries) {
-      entry.key.position = entry.value;
+    if (forming) return changed;
+    _moveFormations();
+    if (elapsed < _nextClashAt - 1e-9 ||
+        formations.values.any(
+          (formation) => formation.motion != BattleMotion.charging,
+        ) ||
+        formations[BattleSide.attacker]!.frontX -
+                formations[BattleSide.defender]!.frontX >
+            attackRange + 0.001) {
+      return changed;
     }
-    if (elapsed < _nextClashAt - 1e-9) return false;
-    // 先收集同一时刻的全部攻击，再统一扣血，避免遍历顺序让阵亡者失去本次反击。
-    final strikes = <(BattleUnit, BattleUnit)>[];
-    for (final unit in units) {
-      if (!unit.health.alive ||
-          unit.cooldown > 1e-9 ||
-          unit.recoilTarget != null) {
-        continue;
-      }
-      final target = unitById(unit.targetId);
-      if (target == null ||
-          !target.health.alive ||
-          (target.position - unit.position).distance > attackRange + 0.001) {
-        continue;
-      }
-      strikes.add((unit, target));
-    }
-    hits.removeWhere((hit) => elapsed - hit.at > 1.3);
-    if (strikes.isEmpty) return false;
     clashes++;
     _nextClashAt = elapsed + attackInterval;
-    attackerMorale._roll(_random);
-    defenderMorale._roll(_random);
-    final difference = attackerMorale.spent - defenderMorale.spent;
-    attackerMorale.bonus = math.max(0, difference);
-    defenderMorale.bonus = math.max(0, -difference);
-    final damages = <BattleUnit, double>{};
-    for (final (source, target) in strikes) {
-      source.cooldown = attackInterval;
-      source.lastAttackAt = elapsed;
-      final delta = target.position - source.position;
-      source.strikeDirection = delta.distance < 0.001
-          ? Offset(source.facingRight ? 1 : -1, 0)
-          : delta / delta.distance;
-      final damage =
-          source.attack *
-          (1 + morale(source.side).bonus / 100) *
-          (atWall(target) ? 1.5 : 1.0);
-      damages[target] = (damages[target] ?? 0) + damage;
-      hits.add((
-        sourceId: source.id,
-        targetId: target.id,
-        damage: damage,
-        position: target.position,
-        at: elapsed,
-      ));
-      _record('${source.name} → ${target.name}  -${battleNumber(damage)}');
-      if (source.isGeneral) source.targetId = null;
-    }
-    pushedSide = difference == 0
+    attackerMorale.committed = attackerMorale.accumulated;
+    defenderMorale.committed = defenderMorale.accumulated;
+    final chargeDifference =
+        attackerMorale.committed - defenderMorale.committed;
+    attackerMorale.bonus = math.max(0, chargeDifference);
+    defenderMorale.bonus = math.max(0, -chargeDifference);
+    attackerMorale.accumulated = 0;
+    defenderMorale.accumulated = 0;
+
+    // 双方伤害先按碰撞前的人数计算，扣血顺序不会剥夺同一轮的反击。
+    var attackDamage =
+        baseDamage(BattleSide.attacker) * (1 + attackerMorale.bonus / 100);
+    var defendDamage =
+        baseDamage(BattleSide.defender) * (1 + defenderMorale.bonus / 100);
+    final difference = (attackDamage - defendDamage).abs();
+    pushedSide = difference < 1e-9
         ? null
-        : difference > 0
+        : attackDamage > defendDamage
         ? BattleSide.defender
         : BattleSide.attacker;
+    var overflow = 0.0;
+    for (final formation in formations.values) {
+      formation.impactAt = elapsed;
+      formation.velocity = 0;
+      formation.moving = false;
+      formation.motion = BattleMotion.impact;
+    }
     if (pushedSide case final side?) {
-      for (final unit in units.where(
-        (unit) => unit.side == side && unit.health.alive,
-      )) {
-        final x = (unit.position.dx + (side == BattleSide.defender ? -32 : 32))
-            .clamp(12.0, arenaSize.width - 12);
-        unit.recoilTarget = Offset(x, unit.position.dy);
+      final available = distanceToWall(side);
+      overflow = math.max(0.0, difference - available);
+      if (side == BattleSide.defender) {
+        attackDamage *= 1 + overflow / 100;
+      } else {
+        defendDamage *= 1 + overflow / 100;
       }
     }
-    for (final entry in damages.entries) {
-      final target = entry.key;
-      target.health.hp -= entry.value;
-      target.lastHitAt = elapsed;
-      if (!target.health.alive) {
-        target.diedAt = elapsed;
-        target.moving = false;
-        _record('${target.name}阵亡');
-      }
+    // 双方按承受伤害后退，到各自终点收势后再冲锋，不预设下一次碰撞线。
+    final defenderRetreat = _recoilFromDamage(
+      BattleSide.defender,
+      attackDamage,
+    );
+    final attackerRetreat = _recoilFromDamage(
+      BattleSide.attacker,
+      defendDamage,
+    );
+    lastClash = (
+      attackerDamage: attackDamage,
+      defenderDamage: defendDamage,
+      difference: difference,
+      retreatPoints: pushedSide == BattleSide.defender
+          ? defenderRetreat
+          : attackerRetreat,
+      attackerRetreat: attackerRetreat,
+      defenderRetreat: defenderRetreat,
+      overflowPercent: overflow,
+    );
+    for (final unit in units.where((unit) => unit.health.alive)) {
+      unit.lastAttackAt = elapsed;
+      unit.strikeDirection = Offset(unit.facingRight ? 1 : -1, 0);
     }
+    hits.removeWhere((hit) => elapsed - hit.at > 1.3);
+    _applyArmyDamage(BattleSide.defender, attackDamage);
+    _applyArmyDamage(BattleSide.attacker, defendDamage);
     _finishIfNeeded();
     return true;
+  }
+
+  double _recoilFromDamage(BattleSide side, double received) {
+    if (received <= 1e-9) return 0;
+    final formation = formations[side]!;
+    final outward = side == BattleSide.defender ? -1.0 : 1.0;
+    final goal =
+        (formation.frontX +
+                outward * received / arenaPoints * (arenaSize.width - 32))
+            .clamp(8.0, 248.0);
+    if ((goal - formation.frontX).abs() > 0.001) {
+      formation._retreatTo(goal, elapsed);
+    } else {
+      formation.wallHitAt = elapsed + impactHold;
+    }
+    return (goal - formation.frontX).abs() /
+        (arenaSize.width - 32) *
+        arenaPoints;
+  }
+
+  void _applyArmyDamage(BattleSide side, double damage) {
+    var remaining = damage;
+    final enemy = side == BattleSide.attacker ? defender : attacker;
+    while (remaining > 1e-9) {
+      final soldiers = units
+          .where(
+            (unit) => unit.side == side && !unit.isGeneral && unit.health.alive,
+          )
+          .toList();
+      if (soldiers.isEmpty) break;
+      // 先消耗上轮已经受伤的那名士兵；轮到下一名时随机挑选，保持整队兵力连续。
+      final wounded = soldiers
+          .where((unit) => unit.health.hp < unit.health.maxHp - 1e-9)
+          .toList();
+      final candidates = wounded.isEmpty ? soldiers : wounded;
+      final victim = candidates[_random.nextInt(candidates.length)];
+      final amount = math.min(remaining, victim.health.hp);
+      _hurt(victim, amount, enemy.id);
+      remaining -= amount;
+    }
+    if (remaining > 1e-9) {
+      final general = units.firstWhere(
+        (unit) => unit.side == side && unit.isGeneral,
+      );
+      _hurt(general, math.min(remaining, general.health.hp), enemy.id);
+    }
+    _record('${enemy.name}部队造成 ${battleNumber(damage)} 点伤害');
+  }
+
+  void _hurt(BattleUnit unit, double damage, String sourceId) {
+    if (damage <= 0) return;
+    hits.add((
+      sourceId: sourceId,
+      targetId: unit.id,
+      damage: damage,
+      position: unit.position,
+      at: elapsed,
+    ));
+    unit.health.hp -= damage;
+    unit.lastHitAt = elapsed;
+    if (!unit.health.alive) {
+      unit._fall(elapsed);
+      _record('${unit.name}阵亡');
+    }
   }
 
   bool _finishIfNeeded() {
@@ -486,11 +697,101 @@ class BattleSimulation {
         : attacker.general.alive
         ? BattleResult.attackerWon
         : BattleResult.defenderWon;
+    for (final formation in formations.values) {
+      formation.moving = false;
+      formation.motion = BattleMotion.halted;
+    }
     for (final unit in units) {
-      unit.moving = false;
-      if (!unit.health.alive) unit.diedAt ??= elapsed;
+      if (!unit.health.alive) unit._fall(elapsed);
     }
     return true;
+  }
+
+  void _moveFormations() {
+    final proposed = <BattleSide, double>{};
+    for (final formation in formations.values) {
+      final before = formation.frontX;
+      if (formation.motion == BattleMotion.impact &&
+          elapsed >= formation.impactAt + impactHold - 1e-9) {
+        if (formation.recoilX == null) {
+          formation._prepare(elapsed);
+        } else {
+          formation.motion = BattleMotion.recoiling;
+        }
+      }
+      if (formation.motion == BattleMotion.preparing &&
+          elapsed >= formation.readyAt - 1e-9) {
+        formation.motion = BattleMotion.charging;
+      }
+      if (formation.motion == BattleMotion.recoiling) {
+        final goal = formation.recoilX!;
+        final t =
+            ((elapsed - formation.impactAt - impactHold) /
+                    formation._recoilDuration)
+                .clamp(0.0, 1.0);
+        final eased = 1 - math.pow(1 - t, 3);
+        proposed[formation.side] =
+            formation._recoilStart + (goal - formation._recoilStart) * eased;
+        if (t >= 1) {
+          if (goal <= 8.001 || goal >= 247.999) formation.wallHitAt = elapsed;
+          formation.recoilX = null;
+          formation._prepare(elapsed);
+        }
+      } else if (formation.motion == BattleMotion.charging) {
+        final targetSpeed = chargeSpeed(formation.side);
+        formation.velocity += (targetSpeed - formation.velocity).clamp(
+          -720 * fixedStep,
+          720 * fixedStep,
+        );
+        final step = formation.velocity * fixedStep;
+        final goal = clashes == 0
+            ? initialContactX(formation.side)
+            : formation.side == BattleSide.defender
+            ? 232.0
+            : 24.0;
+        proposed[formation.side] = before + (goal - before).clamp(-step, step);
+      } else {
+        proposed[formation.side] = before;
+      }
+    }
+    // 相交帧回推到真实接触点；准备或后退的一方不会被推着滑行。
+    final left = formations[BattleSide.defender]!;
+    final right = formations[BattleSide.attacker]!;
+    if (proposed[BattleSide.attacker]! - proposed[BattleSide.defender]! <
+        attackRange) {
+      if (left.motion != BattleMotion.charging) {
+        proposed[BattleSide.attacker] =
+            proposed[BattleSide.defender]! + attackRange;
+      } else if (right.motion != BattleMotion.charging) {
+        proposed[BattleSide.defender] =
+            proposed[BattleSide.attacker]! - attackRange;
+      } else {
+        final closing =
+            (proposed[BattleSide.defender]! - left.frontX) +
+            (right.frontX - proposed[BattleSide.attacker]!);
+        final fraction = closing > 0
+            ? ((right.frontX - left.frontX - attackRange) / closing).clamp(
+                0.0,
+                1.0,
+              )
+            : 0.0;
+        proposed[BattleSide.defender] =
+            left.frontX +
+            (proposed[BattleSide.defender]! - left.frontX) * fraction;
+        proposed[BattleSide.attacker] =
+            proposed[BattleSide.defender]! + attackRange;
+      }
+    }
+    for (final formation in formations.values) {
+      final before = formation.frontX;
+      formation.frontX = proposed[formation.side]!.clamp(
+        8.0,
+        arenaSize.width - 8,
+      );
+      final distance = (formation.frontX - before).abs();
+      formation.moving = distance > 0.001;
+      formation.walkDistance += distance;
+    }
   }
 
   void _record(String message) {

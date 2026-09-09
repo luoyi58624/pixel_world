@@ -290,7 +290,7 @@ class WorldController extends ChangeNotifier {
     final city = world.cityAt(point);
     if (choosingTarget) {
       if (!world.contains(cell)) return;
-      confirmPosition(city?.bounds.center ?? cell.center);
+      confirmPosition(city == null ? cell.center : point);
       return;
     }
     final battle = _battleAt(local);

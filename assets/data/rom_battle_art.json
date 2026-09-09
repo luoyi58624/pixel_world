@@ -1,0 +1,1077 @@
+{
+  "sourceSha256": "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59",
+  "frameSize": 32,
+  "bodyOrigin": [
+    8,
+    8
+  ],
+  "frameOrder": [
+    "side_a",
+    "side_b",
+    "clash"
+  ],
+  "sprites": {
+    "soldier_red": {
+      "kind": 0,
+      "indicesFileOffset": "015E2A",
+      "attributesFileOffset": "01612C",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "01475A",
+            "tileId": 5,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01476A",
+            "tileId": 6,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01485A",
+            "tileId": 21,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01486A",
+            "tileId": 22,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01477A",
+            "tileId": 7,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01476A",
+            "tileId": 6,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01487A",
+            "tileId": 23,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01488A",
+            "tileId": 24,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "0147DA",
+            "tileId": 13,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0147EA",
+            "tileId": 14,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0148DA",
+            "tileId": 29,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "0148EA",
+            "tileId": 30,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "soldier_blue": {
+      "kind": 7,
+      "indicesFileOffset": "015F26",
+      "attributesFileOffset": "016228",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "01475A",
+            "tileId": 5,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01476A",
+            "tileId": 6,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01485A",
+            "tileId": 21,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01486A",
+            "tileId": 22,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01477A",
+            "tileId": 7,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01476A",
+            "tileId": 6,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01487A",
+            "tileId": 23,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01488A",
+            "tileId": 24,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "0147DA",
+            "tileId": 13,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0147EA",
+            "tileId": 14,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0148DA",
+            "tileId": 29,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "0148EA",
+            "tileId": 30,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "advanced_red": {
+      "kind": 3,
+      "indicesFileOffset": "015E96",
+      "attributesFileOffset": "016198",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "014B2A",
+            "tileId": 66,
+            "attribute": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014B3A",
+            "tileId": 67,
+            "attribute": 1,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014C2A",
+            "tileId": 82,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014C3A",
+            "tileId": 83,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "014B4A",
+            "tileId": 68,
+            "attribute": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014B3A",
+            "tileId": 67,
+            "attribute": 1,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014C4A",
+            "tileId": 84,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014C5A",
+            "tileId": 85,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "014BAA",
+            "tileId": 74,
+            "attribute": 1,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014BBA",
+            "tileId": 75,
+            "attribute": 1,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014CAA",
+            "tileId": 90,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014CBA",
+            "tileId": 91,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "advanced_blue": {
+      "kind": 10,
+      "indicesFileOffset": "015F92",
+      "attributesFileOffset": "016294",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "0151CA",
+            "tileId": 172,
+            "attribute": 3,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0151DA",
+            "tileId": 173,
+            "attribute": 3,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014C2A",
+            "tileId": 82,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014C3A",
+            "tileId": 83,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "0151EA",
+            "tileId": 174,
+            "attribute": 3,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0151DA",
+            "tileId": 173,
+            "attribute": 3,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014C4A",
+            "tileId": 84,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014C5A",
+            "tileId": 85,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "0152BA",
+            "tileId": 187,
+            "attribute": 3,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0152CA",
+            "tileId": 188,
+            "attribute": 3,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014CAA",
+            "tileId": 90,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014CBA",
+            "tileId": 91,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "normal_red": {
+      "kind": 4,
+      "indicesFileOffset": "015EBA",
+      "attributesFileOffset": "0161BC",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "014D0A",
+            "tileId": 96,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014D1A",
+            "tileId": 97,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E0A",
+            "tileId": 112,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E1A",
+            "tileId": 113,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "014D2A",
+            "tileId": 98,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014D1A",
+            "tileId": 97,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E2A",
+            "tileId": 114,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E3A",
+            "tileId": 115,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "014D8A",
+            "tileId": 104,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014D9A",
+            "tileId": 105,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E8A",
+            "tileId": 120,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E9A",
+            "tileId": 121,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "normal_blue": {
+      "kind": 11,
+      "indicesFileOffset": "015FB6",
+      "attributesFileOffset": "0162B8",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "01531A",
+            "tileId": 193,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01532A",
+            "tileId": 194,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E0A",
+            "tileId": 112,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E1A",
+            "tileId": 113,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01533A",
+            "tileId": 195,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01532A",
+            "tileId": 194,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E2A",
+            "tileId": 114,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E3A",
+            "tileId": 115,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01538A",
+            "tileId": 200,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01539A",
+            "tileId": 201,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014E8A",
+            "tileId": 120,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "014E9A",
+            "tileId": 121,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "protagonist_red": {
+      "kind": 6,
+      "indicesFileOffset": "015F02",
+      "attributesFileOffset": "016204",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "014FEA",
+            "tileId": 142,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014FFA",
+            "tileId": 143,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0150EA",
+            "tileId": 158,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "0150FA",
+            "tileId": 159,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01510A",
+            "tileId": 160,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "014FFA",
+            "tileId": 143,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01520A",
+            "tileId": 176,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01521A",
+            "tileId": 177,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01516A",
+            "tileId": 166,
+            "attribute": 0,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01517A",
+            "tileId": 167,
+            "attribute": 0,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01526A",
+            "tileId": 182,
+            "attribute": 1,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01527A",
+            "tileId": 183,
+            "attribute": 1,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    },
+    "protagonist_blue": {
+      "kind": 13,
+      "indicesFileOffset": "015FFE",
+      "attributesFileOffset": "016300",
+      "frames": [
+        [
+          {
+            "tileFileOffset": "0154BA",
+            "tileId": 219,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0154CA",
+            "tileId": 220,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0150EA",
+            "tileId": 158,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "0150FA",
+            "tileId": 159,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "0154DA",
+            "tileId": 221,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "0154CA",
+            "tileId": 220,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01520A",
+            "tileId": 176,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01521A",
+            "tileId": 177,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          }
+        ],
+        [
+          {
+            "tileFileOffset": "01552A",
+            "tileId": 226,
+            "attribute": 2,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01553A",
+            "tileId": 227,
+            "attribute": 2,
+            "x": 8,
+            "y": 0
+          },
+          {
+            "tileFileOffset": "01526A",
+            "tileId": 182,
+            "attribute": 3,
+            "x": 0,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01527A",
+            "tileId": 183,
+            "attribute": 3,
+            "x": 8,
+            "y": 8
+          },
+          {
+            "tileFileOffset": "01554A",
+            "tileId": 228,
+            "attribute": 0,
+            "x": -8,
+            "y": 1
+          },
+          {
+            "tileFileOffset": "0156EA",
+            "tileId": 254,
+            "attribute": 192,
+            "x": 0,
+            "y": 16
+          }
+        ]
+      ]
+    }
+  },
+  "stages": [
+    {
+      "stage": 3,
+      "patternFileOffset": "00A959",
+      "paletteFileOffset": "0145BC",
+      "palette": [
+        15,
+        32,
+        16,
+        0,
+        15,
+        27,
+        41,
+        10,
+        15,
+        27,
+        21,
+        48,
+        15,
+        15,
+        22,
+        48
+      ]
+    },
+    {
+      "stage": 4,
+      "patternFileOffset": "00AA92",
+      "paletteFileOffset": "0145C4",
+      "palette": [
+        15,
+        12,
+        40,
+        51,
+        15,
+        8,
+        0,
+        11,
+        15,
+        8,
+        21,
+        48,
+        15,
+        15,
+        22,
+        48
+      ]
+    },
+    {
+      "stage": 5,
+      "patternFileOffset": "00ABC1",
+      "paletteFileOffset": "0145CC",
+      "palette": [
+        15,
+        7,
+        40,
+        51,
+        15,
+        7,
+        0,
+        11,
+        15,
+        7,
+        21,
+        48,
+        15,
+        15,
+        22,
+        48
+      ]
+    }
+  ],
+  "layout": {
+    "sourceYFileOffset": "03E79A",
+    "sourceY": [
+      55,
+      79,
+      103,
+      127,
+      93
+    ],
+    "cropTop": 16,
+    "oamYOffset": 1,
+    "bodySize": 16,
+    "arenaSize": [
+      256,
+      144
+    ],
+    "sourceXFileOffset": "03E790",
+    "sourceXOffsets": [
+      0,
+      0,
+      0,
+      0,
+      24,
+      24,
+      24,
+      24,
+      24,
+      0
+    ],
+    "levelStages": [
+      5,
+      4,
+      4,
+      4,
+      3
+    ]
+  },
+  "rgbPalette": [
+    "666666",
+    "002A88",
+    "1412A7",
+    "3B00A4",
+    "5C007E",
+    "6E0040",
+    "6C0600",
+    "561D00",
+    "333500",
+    "0B4800",
+    "005200",
+    "004F08",
+    "00404D",
+    "000000",
+    "000000",
+    "000000",
+    "ADADAD",
+    "155FD9",
+    "4240FF",
+    "7527FE",
+    "A01ACC",
+    "B71E7B",
+    "B53120",
+    "994E00",
+    "6B6D00",
+    "388700",
+    "0C9300",
+    "008F32",
+    "007C8D",
+    "000000",
+    "000000",
+    "000000",
+    "FFFEFF",
+    "64B0FF",
+    "9290FF",
+    "C676FF",
+    "F36AFF",
+    "FE6ECC",
+    "FE8170",
+    "EA9E22",
+    "BCBE00",
+    "88D800",
+    "5CE430",
+    "45E082",
+    "48CDDE",
+    "4F4F4F",
+    "000000",
+    "000000",
+    "FFFEFF",
+    "C0DFFF",
+    "D3D2FF",
+    "E8C8FF",
+    "FBC2FF",
+    "FEC4EA",
+    "FECCC5",
+    "F7D8A5",
+    "E4E594",
+    "CFEF96",
+    "BDF4AB",
+    "B3F3CC",
+    "B5EBF2",
+    "B8B8B8",
+    "000000",
+    "000000"
+  ]
+}

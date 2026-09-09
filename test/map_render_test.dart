@@ -7,6 +7,7 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/hero_sprite.dart';
 import 'package:pixel_world/world/world_assets.dart';
 import 'package:pixel_world/world/world_controller.dart';
+import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
 Future<List<Offset>> _heroPixels(
@@ -49,6 +50,38 @@ Offset _topLeft(List<Offset> pixels) => Offset(
 );
 
 void main() {
+  testWidgets('鼠标悬停、选城和更换行军目标不再画出方框、路线或目的地标记', (tester) async {
+    await tester.runAsync(() async {
+      final assets = await WorldAssets.load();
+      final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
+      c.camera.resize(const Size(400, 400));
+      final march = c.campaign.dispatchTo(
+        c.previewHero!,
+        c.heroPosition + const Offset(80, 32),
+      )!;
+      Future<List<int>> render() async {
+        final recorder = ui.PictureRecorder();
+        WorldPainter(c, assets).paint(Canvas(recorder), const Size(400, 400));
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(400, 400);
+        final bytes = (await image.toByteData())!.buffer.asUint8List().toList();
+        image.dispose();
+        picture.dispose();
+        return bytes;
+      }
+
+      final baseline = await render();
+      c.cursor = const TileCoord(15, 45);
+      c.selectedCity = c.world.cities.first;
+      c.selectedUnitId = march.hero.id;
+      c.pendingHero = c.campaign.garrisonAt(0).first;
+      march.destination += const Offset(60, -32);
+      expect(await render(), baseline);
+      c.dispose();
+      assets.dispose();
+    });
+  });
+
   testWidgets('野外驻守显示居中的橙顶小屋，点击仍选中英雄，重新移动恢复人物', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();

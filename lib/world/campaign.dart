@@ -465,10 +465,9 @@ class CampaignState {
     if (!canDispatch(hero) || !_containsPoint(point)) return null;
     final target = world.cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
-    final start = world.nearestWalkable(source.entrance).center;
-    final end = target == null
-        ? point
-        : world.nearestWalkable(target.entrance).center;
+    if (target == source) return null;
+    final start = _departurePoint(source, point);
+    final end = target == null ? point : _contactPoint(start, point, target);
     final march = HeroMarch(
       hero: hero,
       target: target,
@@ -487,10 +486,16 @@ class CampaignState {
     if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
       return false;
     }
-    _endBattle(march, '${march.hero.name}已撤离');
     final city = world.cityAt(point);
+    if (city != null &&
+        city == march.target &&
+        (march.phase == MarchPhase.fighting ||
+            march.phase == MarchPhase.awaitingBattle)) {
+      return true;
+    }
+    _endBattle(march, '${march.hero.name}已撤离');
     march.moveTo(
-      city == null ? point : world.nearestWalkable(city.entrance).center,
+      city == null ? point : _contactPoint(march.position, point, city),
       city: city,
     );
     return true;
@@ -510,6 +515,30 @@ class CampaignState {
       point.dx.isFinite &&
       point.dy.isFinite &&
       (Offset.zero & world.pixelSize).contains(point);
+
+  // 地图人物本体为 16×16，中心距城池边缘八像素时即贴城。
+  Offset _departurePoint(CityDefinition source, Offset toward) {
+    final rect = source.bounds.inflate(8);
+    final delta = toward - rect.center;
+    if (delta.distance < 1e-9) return rect.centerRight;
+    final factor = math.min(
+      delta.dx.abs() < 1e-9 ? double.infinity : rect.width / 2 / delta.dx.abs(),
+      delta.dy.abs() < 1e-9
+          ? double.infinity
+          : rect.height / 2 / delta.dy.abs(),
+    );
+    final point = rect.center + delta * factor;
+    return Offset(
+      point.dx.clamp(8.0, world.pixelSize.width - 8),
+      point.dy.clamp(8.0, world.pixelSize.height - 8),
+    );
+  }
+
+  Offset _contactPoint(Offset from, Offset aim, CityDefinition city) {
+    final rect = city.bounds.inflate(8);
+    final fraction = _entryFraction(from, aim, rect);
+    return fraction == null ? from : from + (aim - from) * fraction;
+  }
 
   void _endBattle(HeroMarch march, String outcome) {
     final battle = battles[march.target?.id];
@@ -582,7 +611,7 @@ class CampaignState {
             final fraction = _entryFraction(
               previous,
               march.position,
-              city.bounds,
+              city.bounds.inflate(8),
             );
             if (fraction != null && fraction < nearest) {
               nearest = fraction;

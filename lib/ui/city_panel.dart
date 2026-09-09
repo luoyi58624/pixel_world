@@ -422,7 +422,9 @@ class CityPanel extends StatelessWidget {
 
   Widget _portrait(CampaignHero hero, double size) => CustomPaint(
     size: Size.square(size),
-    painter: _PortraitPainter(assets.heroes[hero.appearance]!),
+    painter: _PortraitPainter(
+      assets.heroImage(hero.appearance, friendly: hero.isPlayer),
+    ),
   );
 
   Widget _section(String text) => Text(

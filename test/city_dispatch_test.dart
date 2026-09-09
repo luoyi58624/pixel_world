@@ -141,7 +141,13 @@ void main() {
     expect(c.campaign.marches.length, 1);
     expect(c.campaign.soldiersAt(home.id), 8);
     final march = c.campaign.marches['rom-40']!;
-    expect(march.position, home.entrance.center);
+    expect(home.bounds.contains(march.position), isFalse);
+    final direction = target.bounds.center - home.bounds.center;
+    final departure = march.position - home.bounds.center;
+    expect(
+      departure.dx * direction.dx + departure.dy * direction.dy,
+      greaterThan(0),
+    );
     expect(march.target, target);
     expect(c.campaign.dispatch(march.hero, target), isNull);
     expect(

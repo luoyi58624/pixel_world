@@ -17,6 +17,9 @@ class WorldAssets {
     this.minimaps,
     this.heroCatalog,
     this.flags,
+    this.friendlyHeroes,
+    this.battleSprites,
+    this.battleScenes,
   );
 
   /// 三个场景的独立地图定义。
@@ -34,6 +37,19 @@ class WorldAssets {
   /// 高级将领、普通将领和主角各自的六帧动作图集。
   final Map<HeroAppearance, ui.Image> heroes;
 
+  /// 我方将领使用参考图的红褐配色，主角保留独立图集。
+  final Map<HeroAppearance, ui.Image> friendlyHeroes;
+
+  /// 从战斗拼接表提取的角色：两个侧面步态和一帧拼杀动作。
+  final Map<String, ui.Image> battleSprites;
+
+  /// 原 ROM 城内背景，编号 3、4、5 对应不同城池等级。
+  final Map<int, ui.Image> battleScenes;
+
+  /// 按实际阵营读取地图或面板人物，避免我方仍使用敌方蓝色。
+  ui.Image heroImage(HeroAppearance appearance, {bool friendly = false}) =>
+      (friendly ? friendlyHeroes : heroes)[appearance]!;
+
   /// 水面动画图块集。
   final ui.Image water;
 
@@ -44,10 +60,15 @@ class WorldAssets {
   final List<ui.Image> minimaps;
 
   int? _heroFrameSize;
-  final _heroFrames = <(HeroAppearance, int), ui.Image>{};
+  final _heroFrames = <(HeroAppearance, bool, int), ui.Image>{};
 
   /// 按当前物理尺寸缓存动画帧，平移时直接贴图，避免非整数放大的重复采样抖动。
-  ui.Image heroFrame(HeroAppearance appearance, int frame, int pixelSize) {
+  ui.Image heroFrame(
+    HeroAppearance appearance,
+    int frame,
+    int pixelSize, {
+    bool friendly = false,
+  }) {
     if (_heroFrameSize != pixelSize) {
       for (final image in _heroFrames.values) {
         image.dispose();
@@ -55,10 +76,10 @@ class WorldAssets {
       _heroFrames.clear();
       _heroFrameSize = pixelSize;
     }
-    return _heroFrames.putIfAbsent((appearance, frame), () {
+    return _heroFrames.putIfAbsent((appearance, friendly, frame), () {
       final recorder = ui.PictureRecorder();
       ui.Canvas(recorder).drawImageRect(
-        heroes[appearance]!,
+        heroImage(appearance, friendly: friendly),
         ui.Rect.fromLTWH(frame * 16, 0, 16, 16),
         ui.Rect.fromLTWH(0, 0, pixelSize.toDouble(), pixelSize.toDouble()),
         ui.Paint()
@@ -80,6 +101,16 @@ class WorldAssets {
     final heroCatalog = decodeRomHeroes(
       await rootBundle.loadString('assets/data/rom_heroes.json'),
     );
+    const battleNames = [
+      'soldier_red',
+      'soldier_blue',
+      'advanced_red',
+      'advanced_blue',
+      'normal_red',
+      'normal_blue',
+      'protagonist_red',
+      'protagonist_blue',
+    ];
     final textures = await Future.wait(
       [
         'terrain',
@@ -91,11 +122,28 @@ class WorldAssets {
         'minimap_2',
         'flags',
         'hero/protagonist',
+        'hero/advanced_red',
+        'hero/normal_red',
+        ...battleNames.map((name) => 'battle/$name'),
+        'battle/stage_3',
+        'battle/stage_4',
+        'battle/stage_5',
       ].map(_image),
     );
-    for (final hero in [textures[1], textures[2], textures[8]]) {
+    for (final hero in [
+      textures[1],
+      textures[2],
+      textures[8],
+      textures[9],
+      textures[10],
+    ]) {
       if (hero.width != 96 || hero.height != 16) {
         throw const FormatException('英雄图集必须为六帧横排的 96×16 图片');
+      }
+    }
+    for (final sprite in textures.sublist(11, 19)) {
+      if (sprite.width != 96 || sprite.height != 32) {
+        throw const FormatException('战斗图集必须为三帧横排的 96×32 图片');
       }
     }
     if (textures[7].width != 128 || textures[7].height != 8) {
@@ -139,6 +187,16 @@ class WorldAssets {
       textures.sublist(4, 7),
       heroCatalog,
       textures[7],
+      Map.unmodifiable({
+        HeroAppearance.advanced: textures[9],
+        HeroAppearance.normal: textures[10],
+        HeroAppearance.protagonist: textures[8],
+      }),
+      {
+        for (var n = 0; n < battleNames.length; n++)
+          battleNames[n]: textures[11 + n],
+      },
+      {3: textures[19], 4: textures[20], 5: textures[21]},
     );
   }
 
@@ -152,15 +210,18 @@ class WorldAssets {
 
   /// 释放本界面持有的图形资源。
   void dispose() {
-    for (final image in [
+    for (final image in <ui.Image>{
       terrain,
       ...heroes.values,
+      ...friendlyHeroes.values,
+      ...battleSprites.values,
+      ...battleScenes.values,
       water,
       ...scenes,
       ...minimaps,
       ..._heroFrames.values,
       flags,
-    ]) {
+    }) {
       image.dispose();
     }
   }

@@ -253,7 +253,7 @@ class _HeroPortrait extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) => canvas.drawImageRect(
-    assets.heroes[hero.appearance]!,
+    assets.heroImage(hero.appearance, friendly: hero.isPlayer),
     const Rect.fromLTWH(0, 0, 16, 16),
     Offset.zero & size,
     Paint()
@@ -264,5 +264,6 @@ class _HeroPortrait extends CustomPainter {
   @override
   bool shouldRepaint(covariant _HeroPortrait oldDelegate) =>
       assets != oldDelegate.assets ||
-      hero.appearance != oldDelegate.hero.appearance;
+      hero.appearance != oldDelegate.hero.appearance ||
+      hero.isPlayer != oldDelegate.hero.isPlayer;
 }

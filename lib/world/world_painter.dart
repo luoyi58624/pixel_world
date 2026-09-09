@@ -87,98 +87,6 @@ class WorldPainter extends CustomPainter {
       }
     }
 
-    for (final city in c.world.cities) {
-      final player = c.campaign.cities[city.id]!.isPlayer;
-      final color = player ? const Color(0xffd6bd7c) : const Color(0xffe77d70);
-      if (c.choosingTarget && !player) {
-        _brackets(
-          canvas,
-          city.bounds.inflate(2),
-          color,
-          1 / camera.scale + 0.5,
-        );
-      }
-    }
-
-    for (final march in c.campaign.marches.values) {
-      if (march.phase != MarchPhase.marching) continue;
-      canvas.drawLine(
-        march.position,
-        march.destination,
-        Paint()
-          ..color = const Color(0xbbe4bd7c)
-          ..strokeWidth = 1,
-      );
-      canvas.drawRect(
-        Rect.fromCenter(center: march.destination, width: 5, height: 5),
-        Paint()..color = const Color(0xffe77d70),
-      );
-    }
-
-    if (c.walking && !c.campaign.hasDispatched) {
-      final path = Path()..moveTo(c.heroPosition.dx, c.heroPosition.dy);
-      for (var n = c.routeStep; n < c.route.length; n++) {
-        final point = c.route[n].center;
-        path.lineTo(point.dx, point.dy);
-      }
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xaaffefab)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
-      );
-      final destination = c.route.last.center;
-      canvas.drawRect(
-        Rect.fromCenter(center: destination, width: 5, height: 5),
-        Paint()..color = const Color(0xffffedbc),
-      );
-    }
-
-    if (c.selectedCity case final city?) {
-      _brackets(
-        canvas,
-        city.bounds.inflate(2),
-        const Color(0xffffe5a3),
-        1 / camera.scale + 0.5,
-      );
-    }
-    if (c.selectedMapHero != null) {
-      _brackets(
-        canvas,
-        Rect.fromCenter(
-          center: c.selectedUnit?.position ?? c.heroPosition,
-          width: 18,
-          height: 18,
-        ),
-        const Color(0xffffe5a3),
-        1,
-      );
-    }
-    if (c.cursor case final cell?) {
-      final cursor = Rect.fromLTWH(cell.x * 16, cell.y * 16, 16, 16);
-      final color = c.choosingTarget
-          ? const Color(0xffffe5a3)
-          : const Color(0xffe6d5ff);
-      _brackets(canvas, cursor, color, 1);
-      if (c.choosingTarget) {
-        final center = cursor.center;
-        final aim = Paint()
-          ..color = color
-          ..strokeWidth = 1 / camera.scale;
-        canvas.drawLine(
-          center - const Offset(3, 0),
-          center + const Offset(3, 0),
-          aim,
-        );
-        canvas.drawLine(
-          center - const Offset(0, 3),
-          center + const Offset(0, 3),
-          aim,
-        );
-      }
-    }
-
     canvas.restore();
     if (!c.campaign.hasDispatched) {
       _drawHero(
@@ -188,6 +96,7 @@ class WorldPainter extends CustomPainter {
         c.direction,
         c.appearance,
         c.animationStep,
+        friendly: true,
       );
     } else {
       final marches = c.campaign.marches.values.toList()
@@ -203,6 +112,7 @@ class WorldPainter extends CustomPainter {
             march.direction,
             march.hero.appearance,
             march.animationStep,
+            friendly: march.hero.isPlayer,
           );
         }
       }
@@ -311,8 +221,9 @@ class WorldPainter extends CustomPainter {
     Offset position,
     HeroDirection direction,
     HeroAppearance appearance,
-    int animationStep,
-  ) {
+    int animationStep, {
+    bool friendly = false,
+  }) {
     final camera = controller.camera;
     final frame = HeroAnimation.frameIndex(direction, animationStep);
     // 先合成镜头与角色的精确位置，再对齐最终屏幕像素；世界坐标取整会放大跳动。
@@ -325,6 +236,7 @@ class WorldPainter extends CustomPainter {
       appearance,
       frame,
       math.max(1, (16 * spriteScale).round()),
+      friendly: friendly,
     );
     canvas.drawOval(
       Rect.fromCenter(
@@ -354,31 +266,6 @@ class WorldPainter extends CustomPainter {
     (position.dx * devicePixelRatio).roundToDouble(),
     (position.dy * devicePixelRatio).roundToDouble(),
   );
-
-  void _brackets(Canvas canvas, Rect rect, Color color, double width) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width
-      ..isAntiAlias = false;
-    final edge = math.min(5.0, rect.width / 3);
-    for (final corner in [
-      rect.topLeft,
-      rect.topRight,
-      rect.bottomLeft,
-      rect.bottomRight,
-    ]) {
-      final dx = corner.dx == rect.left ? edge : -edge;
-      final dy = corner.dy == rect.top ? edge : -edge;
-      canvas.drawPath(
-        Path()
-          ..moveTo(corner.dx + dx, corner.dy)
-          ..lineTo(corner.dx, corner.dy)
-          ..lineTo(corner.dx, corner.dy + dy),
-        paint,
-      );
-    }
-  }
 
   @override
   bool shouldRepaint(covariant WorldPainter oldDelegate) =>
