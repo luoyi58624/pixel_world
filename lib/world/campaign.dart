@@ -18,13 +18,14 @@ part 'siege_battles.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
-  /// 按玩法配置创建开局等级、基础产出和储备兵员。
+  /// 按配置初始化；countOwnedHeroes 实时统计该城所属国的存活将领，含出征部队。
   CitySituation({
     required this._ownerCountryId,
     required this.defense,
     required this.baseIncome,
     required int initialLevel,
     int initialReserveSoldiers = GameConfig.initialCityReserves,
+    this._countOwnedHeroes,
   }) : _level = initialLevel {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
@@ -34,7 +35,7 @@ class CitySituation {
       throw ArgumentError.value(
         initialReserveSoldiers,
         'initialReserveSoldiers',
-        '储备兵员超过当前等级容量',
+        '初始储备超过城防等级与所属英雄提供的容量',
       );
     }
     _reserveSoldiers = initialReserveSoldiers;
@@ -46,13 +47,11 @@ class CitySituation {
     if (value == _ownerCountryId) return;
     _ownerCountryId = value;
     _level = 1;
-    _reserveSoldiers = GameConfig.capturedCityReserves.clamp(
-      0,
-      reserveCapacity,
-    );
+    _reserveSoldiers = GameConfig.capturedCityReserves;
   }
 
   int _ownerCountryId;
+  final int Function(int countryId)? _countOwnedHeroes;
 
   /// 编号 0 是玩家国家。
   bool get isPlayer => ownerCountryId == 0;
@@ -85,10 +84,12 @@ class CitySituation {
   /// 独立储备兵员，不包含英雄已经携带的士兵。
   int get reserveSoldiers => _reserveSoldiers;
 
-  /// 当前城池允许的最大储备，一级十人、每级再加五人。
+  /// 动态征兵上限：城防等级乘四加所属存活英雄数乘四，出征不减少名额。
+  /// 降级、失去英雄或占领奖励产生的超额兵员保留，消耗到上限以下才能再征兵。
   int get reserveCapacity =>
-      GameConfig.cityBaseReserveCapacity +
-      (level - 1) * GameConfig.cityReserveCapacityPerLevel;
+      level * GameConfig.cityReserveCapacityPerLevel +
+      (_countOwnedHeroes?.call(ownerCountryId) ?? 0) *
+          GameConfig.cityReserveCapacityPerHero;
 }
 
 /// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
@@ -479,6 +480,14 @@ class CampaignState {
         for (final city in world.cities)
           city.id: CitySituation(
             ownerCountryId: city.initialOwnerId,
+            countOwnedHeroes: (countryId) => heroes
+                .where(
+                  (hero) =>
+                      hero.cityId == city.id &&
+                      hero.countryId == countryId &&
+                      hero.health.alive,
+                )
+                .length,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
             baseIncome:
                 world.setup.cities[(world.id, city.id)]?.baseIncome ??
@@ -1253,10 +1262,6 @@ class CampaignState {
     if (defendedCityId != null) {
       if (city.level > 1) {
         city._level--;
-        city._reserveSoldiers = math.min(
-          city._reserveSoldiers,
-          city.reserveCapacity,
-        );
         _refreshCityApproaches(hero.cityId);
       } else {
         captured = true;

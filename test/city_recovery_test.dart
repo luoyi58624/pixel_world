@@ -82,7 +82,7 @@ void main() {
       ),
       isTrue,
     );
-    expect(stock.reserveSoldiers, 25);
+    expect(stock.reserveSoldiers, stock.reserveCapacity);
     c.heroes.removeWhere((hero) => hero.cityId == 1);
     final hero = c.garrisonAt(0).first..hp = 7;
     hero.squad.first.hp = 0;

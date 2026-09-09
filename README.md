@@ -97,7 +97,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 开局为 1 年 1 月，每 60 秒结算刚结束的月份并进入下一月，12 月后跨年。所有国家各有独立国库，初始资金读取玩法 JSON 的 `countries[].initialGold`，玩家默认 50，其余国家默认 40–80 金币；每个有城池的国家独立抽取收成：50% 正常、25% 欠收、25% 丰收。正常收入为各城月收入之和，丰收再加 `5 × 城池数`，欠收再减 `10 × 城池数`，最后扣该国存活英雄月俸，国库最低为零。主角始终零月俸，其他将领为原 ROM 报酬除以 5 后向上取整，例如 8 和 10 都变为 2。顶栏显示年月和我方金币，城市面板显示所属国家的金币与上月收支；打开面板不会暂停月份。
 
-每城储备兵员与英雄随行兵分开，一级容量 10，每级增加 5，最高 30；初始储备按玩法 JSON 读取。征兵为 1 金币一人，面板每次点击最多招 10 人，不足时按余额与容量减少人数。出战在有效目的地确认后自动补齐阵亡兵位，有多少储备就补多少，最多带 4 人；不额外扣金币，不治疗伤兵或将领。取消、无效目标、重复指令、途中改道都不会再次扣储备。降级时截断超额储备，易主时储备重置为 10。批量人数由 GameConfig.soldierRecruitBatchSize 配置。
+每城储备兵员与英雄随行兵分开，上限为“城防等级 × 4 + 本城所属存活英雄数 × 4”；二级城、三名英雄就是 20，一级城、三名英雄就是 16。各城独立计算，国家合计等于各城容量之和，不重复计入英雄。已出征或扎营的英雄仍属于出发城，进驻另一城后才转移名额；招募签约增加名额，待签约或已阵亡英雄不计入。初始储备按玩法 JSON 读取，并按实际起始英雄人数验证容量。征兵为 1 金币一人，面板每次点击最多招 10 人，不足时按余额与容量减少人数。出战在有效目的地确认后自动补齐阵亡兵位，有多少储备就补多少，最多带 4 人；不额外扣金币，不治疗伤兵或将领。取消、无效目标、重复指令、途中改道都不会再次扣储备。降级或英雄减少时保留已有超额储备，达到上限时不能继续征兵；占城仍重置为 10，即使一级城一名英雄仅有 8 个名额也不扣减奖励，消耗到上限以下后恢复征兵。每级和每名英雄提供的容量分别由 GameConfig.cityReserveCapacityPerLevel、cityReserveCapacityPerHero 配置，征兵批量由 soldierRecruitBatchSize 配置。
 
 英雄商店从本地图的共享回收池随机抽一位英雄，每次花 5 金币，**每城每月最多抽三次，签约成功后本月停止招募**，池中英雄等概率且不会与在场或待签约英雄重复。玩家抽中后立即锁定该英雄、等待签约或放弃，其他国家无法抽到；NPC 抽取后同步付费签约归队，不保留待签约结果。NPC 抽取前须备足抽取费及池中最高可能的签约费，资金不足不扣费、不锁人、不占次数；实际只扣抽中的将领对应费用。每次抽取消耗一次机会；放弃后可继续使用剩余次数，最多三次，签约成功后剩余机会归零。关闭面板、英雄阵亡或城池易主都不会重置本月限制。跨月保留的结果按实际签约月份锁定，下月恢复三次。普通将领免费签约，高级将领另付 10 金币，也可以放弃；放弃将英雄退回池中，抽取费不退。未登场、阵亡和失城被移除的非主角英雄均可入池，主角永不入池。抽取结果保留到处理，关闭面板不重复抽取；签约费不足可等待月结。签约后英雄满血进驻招募城，初始不带兵，离城时自动从储备补兵。招募城易主时待签约结果返回池中。
 
@@ -145,7 +145,7 @@ python tool/extract_nes_battle_art.py "你的 ROM 路径"
 ```powershell
 flutter analyze
 flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
-flutter test test/city_dispatch_test.dart test/city_services_test.dart test/auto_reinforcement_test.dart
+flutter test test/city_dispatch_test.dart test/city_services_test.dart test/auto_reinforcement_test.dart test/city_reserve_capacity_test.dart
 flutter test test/campaign_rules_test.dart test/city_defense_test.dart test/field_battle_test.dart test/field_battle_ui_test.dart
 flutter test test/siege_queue_test.dart
 flutter test test/identity_flags_test.dart

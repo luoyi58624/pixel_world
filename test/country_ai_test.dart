@@ -436,12 +436,16 @@ void main() {
           ),
           isFalse,
         );
-        for (final city in c.cities.values) {
+        for (final entry in c.cities.entries) {
+          final city = entry.value;
           expect(city.level, inInclusiveRange(1, 5));
-          expect(
-            city.reserveSoldiers,
-            inInclusiveRange(0, city.reserveCapacity),
-          );
+          expect(city.reserveSoldiers, greaterThanOrEqualTo(0));
+          if (city.reserveSoldiers >= city.reserveCapacity) {
+            expect(
+              c.maxSoldierPurchase(entry.key, countryId: city.ownerCountryId),
+              0,
+            );
+          }
         }
       }
       if (!c.defeated) {

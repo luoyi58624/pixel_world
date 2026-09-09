@@ -172,11 +172,10 @@ void main() {
     expect(() => setup.cities.clear(), throwsUnsupportedError);
   });
 
-  test('错误类型、负数、等级越界、兵员超容量和重复编号明确报错', () {
+  test('错误类型、负数、等级越界和重复编号明确报错', () {
     final edits = <void Function(Map<String, dynamic>)>[
       (data) => city(data)['initialLevel'] = 0,
       (data) => city(data)['initialLevel'] = 6,
-      (data) => city(data)['initialReserveSoldiers'] = 11,
       (data) => city(data)['initialReserveSoldiers'] = -1,
       (data) => city(data)['baseIncome'] = -1,
       (data) => city(data)['baseIncome'] = '20',
@@ -212,5 +211,26 @@ void main() {
         throwsFormatException,
       );
     }
+  });
+
+  test('初始兵员按实际英雄计算容量，一级三将允许十六兵，超过时在创建战役时报错', () {
+    final data = configJson();
+    city(data)['initialReserveSoldiers'] = 16;
+    final setup = CampaignSetup.decode(jsonEncode(data));
+    final c = CampaignState.fromRom(
+      decodeWorlds(mapJson(), setup: setup).first,
+      heroes(),
+    );
+    expect(c.cities[0]!.reserveSoldiers, 16);
+    expect(c.cities[0]!.reserveCapacity, 16);
+    city(data)['initialReserveSoldiers'] = 17;
+    final invalid = CampaignSetup.decode(jsonEncode(data));
+    expect(
+      () => CampaignState.fromRom(
+        decodeWorlds(mapJson(), setup: invalid).first,
+        heroes(),
+      ),
+      throwsArgumentError,
+    );
   });
 }

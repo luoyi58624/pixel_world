@@ -137,8 +137,8 @@ void main() {
     rich.upgradeCity(0, hero: hero);
     expect(rich.soldierPurchaseBatch(0), 10);
     rich.buySoldiers(0, 10);
-    expect(rich.soldierPurchaseBatch(0), 5);
-    rich.buySoldiers(0, 5);
+    expect(rich.soldierPurchaseBatch(0), 10);
+    rich.buySoldiers(0, 10);
     expect(rich.soldierPurchaseBatch(0), 0);
     expect(rich.soldierPurchaseBatch(1), 0);
   });

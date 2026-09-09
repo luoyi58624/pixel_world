@@ -98,9 +98,6 @@ class CampaignSetup {
             row,
             'initialReserveSoldiers',
             location,
-            max:
-                GameConfig.cityBaseReserveCapacity +
-                (level - 1) * GameConfig.cityReserveCapacityPerLevel,
           ),
         );
       }
