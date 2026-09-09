@@ -123,6 +123,9 @@ abstract final class GameConfig {
   /// 地图基础行军速度，单位为原生像素每秒。
   static const baseMarchSpeed = 22.0;
 
+  /// 地图步行动画每帧持续的秒数，独立于行军速度和地形倍率。
+  static const heroWalkFrameSeconds = 0.2;
+
   /// 草地、树林和土路的行军倍率。
   static const grassSpeedFactor = 0.75;
 

@@ -75,7 +75,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 地形位平面、组合表、地图布局、城堡模板和角色图块，从用户提供的《半熟英雄中文版》ROM 只读提取。源文件 SHA-256 为 `c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59`。工程不包含原始 ROM，运行也不依赖模拟器。
 
-地形 RGB 配色按参考视频校准。角色从 ROM 的部件组合表和翻转属性表重建六帧动画，配色按用户截图核对，普通英雄下装使用独立的浅色调色板。主角从类型 3 的独立部件组合还原，上半身橙金色、下半身红褐色，使用独立图集；[六帧预览](docs/protagonist_frames.png) 中的侧面 A 镜像后与用户主角截图逐像素吻合。左侧面素材在向右时镜像，斜向复用左右侧面；动画步频随实际行军速度变化，静止保留朝向。原 `assets/images/hero.png` 保留给已有 3D 美术文件作参考，游戏加载 hero 子目录下的三套完整动画图集。
+地形 RGB 配色按参考视频校准。角色从 ROM 的部件组合表和翻转属性表重建六帧动画，配色按用户截图核对，普通英雄下装使用独立的浅色调色板。主角从类型 3 的独立部件组合还原，上半身橙金色、下半身红褐色，使用独立图集；[六帧预览](docs/protagonist_frames.png) 中的侧面 A 镜像后与用户主角截图逐像素吻合。左侧面素材在向右时镜像，斜向复用左右侧面；地图步行动画按固定时间播放，默认每 0.2 秒换一帧（GameConfig.heroWalkFrameSeconds），地形只改变位移速度；静止保留朝向和站立帧，再出发从第一帧开始，途中改道不重置动画。原 `assets/images/hero.png` 保留给已有 3D 美术文件作参考，游戏加载 hero 子目录下的三套完整动画图集。
 
 按用户指定规则，地图内所有地形均可通行，始终沿当前位置到目标的最短直线移动，不绕山、不绕河；基础行军速度从 44 减半至 22 原生像素/秒，再叠加地形倍率：草地、树林和土路 0.75（16.5 像素/秒），山地 0.2（4.4 像素/秒），水面 0.4（8.8 像素/秒）；桥梁和建筑保持基础速度 22 像素/秒。跨格边界时分段计算速度，斜走不会额外加速，探索途中改点立即从当前像素位置转向。地形分类仍按图块调色板分组，城池未知字段保存在 `sourceRecord` 中。
 
@@ -144,7 +144,7 @@ python tool/extract_nes_battle_art.py "你的 ROM 路径"
 
 ```powershell
 flutter analyze
-flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
+flutter test test/navigation_test.dart test/hero_sprite_test.dart test/hero_walk_animation_test.dart test/map_render_test.dart
 flutter test test/city_dispatch_test.dart test/city_services_test.dart test/auto_reinforcement_test.dart test/city_reserve_capacity_test.dart
 flutter test test/campaign_rules_test.dart test/city_defense_test.dart test/field_battle_test.dart test/field_battle_ui_test.dart
 flutter test test/siege_queue_test.dart

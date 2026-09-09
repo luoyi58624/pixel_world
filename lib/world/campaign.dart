@@ -238,6 +238,7 @@ class HeroMarch {
 
   /// 实际行军距离。
   double walkDistance = 0;
+  final _walkAnimation = HeroWalkAnimation();
 
   /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
@@ -245,12 +246,13 @@ class HeroMarch {
   // 抵达城下后持有顺序号；暂时转入野战不丢失原来的等候顺序。
   ({int cityId, int order})? _siegeArrival;
 
-  /// 动画步频随移动速度变化。
+  /// 地图步态按固定时间换帧，地形只改变实际位移。
   int get animationStep =>
-      phase == MarchPhase.marching ? (walkDistance / 6).floor() % 2 : 0;
+      phase == MarchPhase.marching ? _walkAnimation.step : 0;
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(Offset point, {CityDefinition? city}) {
+    if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
     target = city;
     destination = point;
@@ -264,6 +266,7 @@ class HeroMarch {
 
   /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
   void camp() {
+    _walkAnimation.reset();
     _siegeArrival = null;
     target = null;
     destination = position;
@@ -280,6 +283,7 @@ class HeroMarch {
   bool tick(WorldDefinition world, double elapsed) {
     if (phase != MarchPhase.marching) return false;
     final result = advanceToward(world, position, destination, elapsed);
+    _walkAnimation.advance(elapsed);
     position = result.position;
     walkDistance += result.distance;
     if (position == destination) {

@@ -164,14 +164,15 @@ class WorldController extends ChangeNotifier {
   /// 当前使用的英雄图集。
   HeroAppearance appearance = HeroAppearance.protagonist;
 
-  /// 当前行程已走过的像素距离，用于使步频随地形减速。
+  /// 当前行程实际走过的像素距离，与动画时钟独立。
   double walkDistance = 0;
+  final _walkAnimation = HeroWalkAnimation();
 
   /// 角色脚下的行军地形。
   MovementTerrain get movementTerrain => world.movementTerrainAt(heroCell);
 
   /// 同一方向的两帧步行动画索引，静止时保持站立帧。
-  int get animationStep => walking ? (walkDistance / 6).floor() % 2 : 0;
+  int get animationStep => walking ? _walkAnimation.step : 0;
 
   /// 叠加地形倍率前的行军速度，单位为原生地图像素每秒。
   static const double baseMovementSpeed = baseMarchSpeed;
@@ -213,6 +214,7 @@ class WorldController extends ChangeNotifier {
     heroPosition = heroCell.center;
     direction = HeroDirection.south;
     walkDistance = 0;
+    _walkAnimation.reset();
     camera.worldSize = world.pixelSize;
     camera.scale = 3;
     camera.center = campaign.cityBounds(world.cities.first).center;
@@ -244,6 +246,7 @@ class WorldController extends ChangeNotifier {
       activeCamera.advanceInertia(dt);
     }
     if (walking && !campaign.hasDispatched) {
+      _walkAnimation.advance(dt);
       final oldTerrain = movementTerrain;
       var remainingTime = dt;
       while (walking && remainingTime > 1e-9) {
@@ -412,7 +415,10 @@ class WorldController extends ChangeNotifier {
       refreshUi();
       return;
     }
-    if (!walking) walkDistance = 0;
+    if (!walking) {
+      walkDistance = 0;
+      _walkAnimation.reset();
+    }
     final delta = destination.center - heroPosition;
     route = delta.distance < 1e-8 ? [] : [path.last];
     routeStep = 0;

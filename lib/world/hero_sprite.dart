@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../game_config.dart';
+
 /// 根据实际行军向量区分八个朝向，图片朝向与镜头移动无关。
 enum HeroDirection {
   /// 向右。
@@ -74,4 +76,21 @@ abstract final class HeroAnimation {
   /// 返回固定 16×16 图格的纹理区域。
   static Rect sourceRect(HeroDirection direction, int step) =>
       Rect.fromLTWH(frameIndex(direction, step) * 16, 0, 16, 16);
+}
+
+/// 地图行走的两帧时钟，只累计行走时间，不读取距离或地形。
+class HeroWalkAnimation {
+  double _time = 0;
+
+  /// 当前步态；微小容差避免累加误差让整帧边界晚切换一次。
+  int get step => (_time / GameConfig.heroWalkFrameSeconds + 1e-9).floor() % 2;
+
+  /// 推进行走时间，忽略无效间隔并把累计值限制在一个循环内。
+  void advance(double seconds) {
+    if (!seconds.isFinite || seconds <= 0) return;
+    _time = (_time + seconds) % (GameConfig.heroWalkFrameSeconds * 2);
+  }
+
+  /// 新一段行走从站立步态开始。
+  void reset() => _time = 0;
 }
