@@ -83,6 +83,7 @@ void main() {
       c.world.cities.first,
       c.garrisonAt(1).first,
       defender,
+      cityLevel: c.cities[0]!.level,
     );
     c.battles[0] = battle;
     final simulation = battle.simulation;

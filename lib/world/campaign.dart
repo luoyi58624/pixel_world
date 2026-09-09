@@ -266,14 +266,20 @@ class HeroMarch {
 
 /// 后台交战的实时记录，观战只读取这份状态，不另起战斗时钟。
 class CityBattle {
-  /// 记录一支部队与当前守将的交战。
-  CityBattle(this.city, this.attacker, this.defender, {int seed = 1})
-    : _seed = seed,
-      simulation = BattleSimulation(
-        attacker: attacker.battleArmy,
-        defender: defender.battleArmy,
-        seed: seed,
-      );
+  /// 按当前城池等级记录一支部队与当前守将的交战。
+  CityBattle(
+    this.city,
+    this.attacker,
+    this.defender, {
+    required int cityLevel,
+    int seed = 1,
+  }) : _seed = seed,
+       simulation = BattleSimulation(
+         attacker: attacker.battleArmy,
+         defender: defender.battleArmy,
+         defenderCityLevel: cityLevel,
+         seed: seed,
+       );
 
   /// 战斗所在城池。
   final CityDefinition city;
@@ -313,7 +319,7 @@ class CityBattle {
     if (events.length > 6) events.removeAt(0);
   }
 
-  void _nextDefender(CampaignHero hero) {
+  void _nextDefender(CampaignHero hero, int cityLevel) {
     defender = hero;
     wave++;
     nextWaveIn = 0;
@@ -321,6 +327,7 @@ class CityBattle {
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
+      defenderCityLevel: cityLevel,
       seed: _seed + wave,
     );
     record('${hero.name}接替守城');
@@ -1284,7 +1291,9 @@ class CampaignState {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
           final next = garrisonAt(battle.city.id).firstOrNull;
-          if (next != null) battle._nextDefender(next);
+          if (next != null) {
+            battle._nextDefender(next, cities[battle.city.id]!.level);
+          }
           changed = true;
         }
       }
@@ -1372,6 +1381,7 @@ class CampaignState {
       city,
       march.hero,
       defender,
+      cityLevel: cities[city.id]!.level,
       seed: (++_battleSerial * 1009) + city.id * 41 + march.hero.sourceId,
     );
   }

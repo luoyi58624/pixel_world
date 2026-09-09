@@ -374,7 +374,8 @@ class _BattleSceneState extends State<BattleScene> {
   }
 
   Widget _army(CampaignHero hero, BattleSide side, bool tight) {
-    final morale = widget.controller.watchedBattle!.simulation.morale(side);
+    final sim = widget.controller.watchedBattle!.simulation;
+    final morale = sim.morale(side);
     final color = side == BattleSide.attacker
         ? const Color(0xffe1ac58)
         : const Color(0xff979bff);
@@ -444,6 +445,14 @@ class _BattleSceneState extends State<BattleScene> {
           color: _gold,
           backgroundColor: const Color(0xff30392c),
         ),
+        if (side == BattleSide.defender) ...[
+          const SizedBox(height: 5),
+          Text(
+            '城防加成 · 攻击 +${sim.defenderAttackBonus} · 初始士气 +${sim.defenderMoraleBonus}',
+            key: const ValueKey('battle-defense-bonus'),
+            style: TextStyle(color: _gold, fontSize: tight ? 9 : 11),
+          ),
+        ],
       ],
     );
   }

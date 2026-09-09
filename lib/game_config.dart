@@ -122,6 +122,15 @@ abstract final class GameConfig {
   /// 小兵对整队伤害的贡献。
   static const soldierAttack = 1;
 
+  /// 守城方从二级起，每级增加的整队基础攻击力。
+  static const cityDefenseAttackPerLevel = 2;
+
+  /// 守城方从二级起，每级增加的初始士气。
+  static const cityDefenseMoralePerLevel = 5;
+
+  /// 双方士气的最高值，英雄、小兵和城防贡献合计后封顶。
+  static const moraleLimit = 100;
+
   /// 地图基础行军速度，单位为原生像素每秒。
   static const baseMarchSpeed = 22.0;
 

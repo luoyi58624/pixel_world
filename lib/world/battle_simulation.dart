@@ -31,13 +31,15 @@ class BattleHealth {
 String battleNumber(num value) =>
     value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 
-/// 每场战斗单独恢复的士气，初始值只取将领生命上限和存活小兵数。
+/// 每场恢复的士气，合计英雄生命上限、存活兵数和城防加成后封顶。
 class BattleMorale {
   /// 用参战队伍初始化，受伤不降低将领提供的士气。
-  BattleMorale(BattleArmy army)
+  BattleMorale(BattleArmy army, {int bonus = 0})
     : maximum =
-          army.general.maxHp +
-          army.soldiers.where((soldier) => soldier.alive).length {
+          (army.general.maxHp +
+                  army.soldiers.where((soldier) => soldier.alive).length +
+                  bonus)
+              .clamp(0, GameConfig.moraleLimit) {
     remaining = maximum;
   }
 
@@ -337,9 +339,16 @@ class BattleSimulation {
     required this.attacker,
     required this.defender,
     required int seed,
-  }) : _random = math.Random(seed),
+    this.defenderCityLevel = 1,
+  }) : assert(
+         defenderCityLevel >= 1 && defenderCityLevel <= GameConfig.maxCityLevel,
+       ),
+       _random = math.Random(seed),
        attackerMorale = BattleMorale(attacker),
-       defenderMorale = BattleMorale(defender) {
+       defenderMorale = BattleMorale(
+         defender,
+         bonus: (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel,
+       ) {
     _addArmy(defender, BattleSide.defender);
     _addArmy(attacker, BattleSide.attacker);
   }
@@ -382,6 +391,17 @@ class BattleSimulation {
 
   /// 守城队伍。
   final BattleArmy defender;
+
+  /// 本位守将上场时的城池等级，中途升级不重填士气或更改本场加成。
+  final int defenderCityLevel;
+
+  /// 城防对整队基础伤害的额外贡献，只计算一次，不乘小兵人数。
+  int get defenderAttackBonus =>
+      (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel;
+
+  /// 城防提供的初始士气，最终士气仍受统一上限约束。
+  int get defenderMoraleBonus =>
+      (defenderCityLevel - 1) * GameConfig.cityDefenseMoralePerLevel;
 
   /// 进攻方本场士气。
   final BattleMorale attackerMorale;
@@ -430,9 +450,10 @@ class BattleSimulation {
   BattleMorale morale(BattleSide side) =>
       side == BattleSide.attacker ? attackerMorale : defenderMorale;
 
-  /// 一方本轮基础伤害，按仍存活的小兵人数加上将领攻击。
+  /// 基础伤害由存活兵数、将领攻击和守方城防加成相加，再参与士气比拼。
   double baseDamage(BattleSide side) =>
       (survivors(side) * soldierAttack +
+              (side == BattleSide.defender ? defenderAttackBonus : 0) +
               math.max(
                 0,
                 side == BattleSide.attacker ? attacker.attack : defender.attack,

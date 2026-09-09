@@ -209,11 +209,11 @@ void main() {
     expect(hero.squad.map((soldier) => soldier.hp), soldiers);
     expect(
       battle.simulation.attackerMorale.maximum,
-      hero.maxHp + hero.soldiers,
+      (hero.maxHp + hero.soldiers).clamp(0, 100),
     );
     expect(
       battle.simulation.attackerMorale.remaining,
-      hero.maxHp + hero.soldiers,
+      (hero.maxHp + hero.soldiers).clamp(0, 100),
     );
   });
 
