@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'world_data.dart';
+import '../game_config.dart';
 
 /// 一次直线行军积分的结果，探索角色与出征部队共用。
 typedef MovementResult = ({
@@ -11,7 +12,7 @@ typedef MovementResult = ({
 });
 
 /// 叠加地形倍率前的基础行军速度，单位为原生像素每秒。
-const double baseMarchSpeed = 22;
+const double baseMarchSpeed = GameConfig.baseMarchSpeed;
 
 /// 将世界坐标限制为地图内的当前格子。
 TileCoord cellAt(WorldDefinition world, Offset position) => TileCoord(

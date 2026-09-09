@@ -1,0 +1,311 @@
+import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/game_config.dart';
+import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/economy.dart';
+import 'package:pixel_world/world/rom_hero.dart';
+import 'package:pixel_world/world/world_data.dart';
+
+class _RandomValue implements math.Random {
+  _RandomValue([this.value = 0]);
+  int value;
+  @override
+  int nextInt(int max) => value % max;
+  @override
+  bool nextBool() => value.isEven;
+  @override
+  double nextDouble() => (value % 100) / 100;
+}
+
+CampaignState _campaign({
+  int gold = 50,
+  math.Random? economy,
+  math.Random? recruitment,
+}) => CampaignState.fromRom(
+  decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
+  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+  startingGold: gold,
+  economyRandom: economy ?? _RandomValue(),
+  recruitmentRandom: recruitment ?? _RandomValue(),
+);
+
+CampaignHero _hero(CampaignState c, int id) =>
+    c.heroes.firstWhere((hero) => hero.sourceId == id);
+
+void _choose(CampaignState c, _RandomValue random, HeroType type) {
+  if (!c.recruitPool.any((hero) => hero.type == type)) {
+    final available = c.heroes.firstWhere((hero) => hero.type == type);
+    c.defeatHero(
+      available.id,
+      winnerCountryId: available.countryId == 0 ? 1 : 0,
+    );
+  }
+  random.value = c.recruitPool.indexWhere((hero) => hero.type == type);
+  expect(random.value, greaterThanOrEqualTo(0));
+}
+
+void main() {
+  test('每国初始50金币，60秒跨月，十二个月正确跨年', () {
+    final c = _campaign();
+    for (final country in c.world.countries) {
+      expect(c.goldFor(country.id), 50);
+    }
+    expect(c.dateLabel, '1年1月');
+    c.advance(59.99);
+    expect(c.dateLabel, '1年1月');
+    expect(c.gold, 50);
+    c.advance(0.01);
+    expect(c.dateLabel, '1年2月');
+    expect(c.gold, 56);
+    expect(c.lastSettlementFor(0)!.month, 1);
+    final foreign = c.lastSettlementFor(1)!;
+    expect(c.goldFor(1), 50 + foreign.baseIncome - foreign.salary);
+    c.advance(660);
+    expect(c.dateLabel, '2年1月');
+    expect(c.settledMonths, 12);
+    expect(c.gold, 122);
+  });
+
+  test('概率边界严格为正常50份、欠收25份、丰收25份', () {
+    final counts = {for (final value in Harvest.values) value: 0};
+    for (var i = 0; i < 100; i++) {
+      counts.update(Harvest.draw(_RandomValue(i)), (value) => value + 1);
+    }
+    expect(counts, {
+      Harvest.normal: 50,
+      Harvest.poor: 25,
+      Harvest.abundant: 25,
+    });
+  });
+
+  test('城池月收入10起每级加5，收成按国家当前城池数计算并继续扣月俸', () {
+    for (var level = 1; level <= 5; level++) {
+      final city = CitySituation(
+        ownerCountryId: 0,
+        defense: 100,
+        baseIncome: 10,
+        initialLevel: level,
+      );
+      expect(city.income, 10 + (level - 1) * 5);
+    }
+    for (final entry in {0: 0, 50: -20, 75: 10}.entries) {
+      final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
+      c.cities[1]!.ownerCountryId = 0;
+      c.upgradeCity(1);
+      c.upgradeCity(1);
+      final before = c.gold;
+      c.advance(60);
+      final report = c.lastSettlementFor(0)!;
+      expect(report.cityCount, 2);
+      expect(report.baseIncome, 30);
+      expect(report.adjustment, entry.value);
+      expect(report.salary, 4);
+      expect(c.gold, before + 30 + entry.value - 4);
+    }
+  });
+
+  test('月俸缩减到原来的五分之一向上取整，主角任何情况下都是零', () {
+    final c = _campaign();
+    expect(_hero(c, 0).salary, 2);
+    expect(_hero(c, 2).salary, 2);
+    expect(_hero(c, 40).salary, 0);
+    final definition = RomHeroDefinition.fromJson({
+      'id': 40,
+      'name': null,
+      'type': 'protagonist',
+      'maxHp': 99,
+      'combat': 15,
+      'politics': 15,
+      'salary': 99,
+      'eggCapable': true,
+      'soldierLimit': 4,
+    });
+    expect(CampaignHero.fromRom(definition, cityId: 0, countryId: 0).salary, 0);
+    final poor = _campaign(gold: 1, economy: _RandomValue(50));
+    poor.advance(60);
+    expect(poor.gold, 0);
+    expect(poor.lastSettlementFor(0)!.netIncome, -4);
+    expect(poor.lastSettlementFor(0)!.actualChange, -1);
+    expect(poor.defeated, isFalse);
+  });
+
+  test('大步进与逐帧月结一致，抽将不扰乱收成随机源', () {
+    final a = _campaign(economy: math.Random(73));
+    final b = _campaign(economy: math.Random(73));
+    a.advance(180);
+    for (var i = 0; i < 1800; i++) {
+      b.advance(0.1);
+    }
+    expect(a.dateLabel, b.dateLabel);
+    for (final country in a.world.countries) {
+      expect(a.goldFor(country.id), b.goldFor(country.id));
+      expect(
+        a.lastSettlementFor(country.id)!.harvest,
+        b.lastSettlementFor(country.id)!.harvest,
+      );
+    }
+    final first = _campaign(economy: math.Random(6));
+    final second = _campaign(economy: math.Random(6));
+    final offer = first.drawHero(0)!;
+    first.declineHero(offer);
+    first.advance(60);
+    second.advance(60);
+    expect(
+      first.lastSettlementFor(0)!.harvest,
+      second.lastSettlementFor(0)!.harvest,
+    );
+  });
+
+  test('储备购买按人数收费，拒绝超额和负数，配兵不治疗已有伤势', () {
+    final c = _campaign();
+    expect(c.cities[0]!.reserveSoldiers, 0);
+    expect(c.cities[0]!.reserveCapacity, 10);
+    expect(c.buySoldiers(0, 11), isFalse);
+    expect(c.buySoldiers(0, -1), isFalse);
+    expect(c.buySoldiers(1, 1), isFalse);
+    expect(c.gold, 50);
+    expect(c.buySoldiers(0, 10), isTrue);
+    expect(c.gold, 40);
+    expect(c.buySoldiers(0, 1), isFalse);
+    final hero = _hero(c, 0)..hp = 20;
+    hero.squad[0].hp = 0;
+    hero.squad[1].hp = 0;
+    hero.squad[2].hp = 5;
+    final fallen = hero.squad[0];
+    expect(c.reinforceHero(hero), 2);
+    expect(hero.soldiers, 4);
+    expect(hero.squad[2].hp, 5);
+    expect(hero.hp, 20);
+    expect(fallen.hp, 0);
+    expect(c.cities[0]!.reserveSoldiers, 8);
+    expect(c.gold, 40);
+    expect(c.reinforceHero(hero), 0);
+    c.dispatch(hero, c.world.cities[1]);
+    hero.squad[0].hp = 0;
+    expect(c.reinforceHero(hero), 0);
+  });
+
+  test('储备每级多5人，降级截断超额储备，易主清空', () {
+    final c = _campaign(gold: 10000);
+    for (var level = 1; level <= 5; level++) {
+      if (level > 1) c.upgradeCity(0);
+      expect(c.cities[0]!.reserveCapacity, 10 + 5 * (level - 1));
+    }
+    expect(c.buySoldiers(0, 30), isTrue);
+    c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
+    expect(c.cities[0]!.reserveSoldiers, 25);
+    c.cities[0]!.ownerCountryId = 2;
+    expect(c.cities[0]!.reserveSoldiers, 0);
+    expect(c.cities[0]!.reserveCapacity, 10);
+  });
+
+  test('池中没有在场英雄和主角，普通将领抽取扣5但签约免费且不赠兵', () {
+    final random = _RandomValue();
+    final c = _campaign(recruitment: random);
+    final active = c.heroes.map((hero) => hero.sourceId).toSet();
+    expect(
+      c.recruitPool.any(
+        (hero) => active.contains(hero.id) || hero.type == HeroType.protagonist,
+      ),
+      isFalse,
+    );
+    _choose(c, random, HeroType.normal);
+    final offer = c.drawHero(0)!;
+    expect(c.gold, 45);
+    expect(offer.signingFee, 0);
+    expect(c.drawHero(0), isNull);
+    expect(c.gold, 45);
+    final hero = c.signHero(offer)!;
+    expect(c.gold, 45);
+    expect(hero.cityId, 0);
+    expect(hero.soldiers, 0);
+    expect(hero.hp, hero.maxHp);
+    expect(c.signHero(offer), isNull);
+    expect(c.heroes.where((h) => h.sourceId == hero.sourceId).length, 1);
+    expect(c.recruitPool.any((h) => h.id == hero.sourceId), isFalse);
+  });
+
+  test('高级将领额外扣10签约，放弃不退抽取费并归还池子', () {
+    final random = _RandomValue();
+    final c = _campaign(recruitment: random);
+    _choose(c, random, HeroType.advanced);
+    final offer = c.drawHero(0)!;
+    expect(offer.signingFee, 10);
+    expect(c.gold, 45);
+    expect(c.signHero(offer), isNotNull);
+    expect(c.gold, 35);
+    final declined = c.drawHero(0)!;
+    expect(c.gold, 30);
+    expect(c.declineHero(declined), isTrue);
+    expect(c.gold, 30);
+    expect(
+      c.recruitPool.where((hero) => hero.id == declined.hero.id).length,
+      1,
+    );
+    expect(c.declineHero(declined), isFalse);
+    expect(c.signHero(declined), isNull);
+  });
+
+  test('签约费不足时保留结果等待月结，不能绕过费用生成英雄', () {
+    final random = _RandomValue();
+    final c = _campaign(gold: 5, recruitment: random);
+    _choose(c, random, HeroType.advanced);
+    final offer = c.drawHero(0)!;
+    expect(c.gold, 0);
+    expect(c.signHero(offer), isNull);
+    expect(c.recruitmentOffer, same(offer));
+    c.advance(180);
+    expect(c.signHero(offer), isNotNull);
+    expect(c.gold, greaterThanOrEqualTo(0));
+  });
+
+  test('阵亡及失城移除的非主角回池，已签约英雄死亡后可再次招募', () {
+    final c = _campaign();
+    c.cities[2]!.ownerCountryId = 0;
+    _hero(c, 40).cityId = 2;
+    c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
+    expect(c.recruitPool.map((hero) => hero.id), containsAll([0, 2]));
+    expect(c.recruitPool.any((hero) => hero.id == 40), isFalse);
+    final count = c.recruitPool.length;
+    c.defeatHero('rom-0', winnerCountryId: 1);
+    expect(c.recruitPool.length, count);
+    final offer = c.drawHero(2)!;
+    final hero = c.signHero(offer)!;
+    c.defeatHero(hero.id, winnerCountryId: 1);
+    expect(
+      c.recruitPool.where((candidate) => candidate.id == hero.sourceId).length,
+      1,
+    );
+  });
+
+  test('抽取城池易主退回待签约英雄，旧签约按钮失效，主角不能回池', () {
+    final c = _campaign();
+    c.cities[2]!.ownerCountryId = 0;
+    _hero(c, 40).cityId = 2;
+    final offer = c.drawHero(0)!;
+    c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
+    expect(c.recruitmentOffer, isNull);
+    expect(c.recruitPool.any((hero) => hero.id == offer.hero.id), isTrue);
+    expect(c.signHero(offer), isNull);
+    c.defeatHero('rom-40', winnerCountryId: 1);
+    expect(c.recruitPool.any((hero) => hero.id == 40), isFalse);
+    expect(c.drawHero(2), isNull);
+    expect(c.buySoldiers(2, 1), isFalse);
+  });
+
+  test('余额不足或没有候选人时不收抽取费', () {
+    final poor = _campaign(gold: 4);
+    expect(poor.drawHero(0), isNull);
+    expect(poor.gold, 4);
+    final c = _campaign(gold: 10000);
+    while (c.recruitPool.isNotEmpty) {
+      c.signHero(c.drawHero(0)!);
+    }
+    final before = c.gold;
+    expect(c.drawHero(0), isNull);
+    expect(c.gold, before);
+    expect(GameConfig.heroDrawCost, 5);
+  });
+}

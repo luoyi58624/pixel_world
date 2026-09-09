@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../game_config.dart';
+
 import '../world/hero_sprite.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
@@ -567,32 +569,36 @@ class _WorldScreenState extends State<WorldScreen>
           children: [
             const Icon(Icons.fort_outlined, color: _gold, size: 26),
             const SizedBox(width: 10),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '像素远征',
-                  style: TextStyle(
-                    fontSize: compact ? 16 : 19,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 2,
-                    color: _cream,
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '像素远征',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: compact ? 16 : 19,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 2,
+                      color: _cream,
+                    ),
                   ),
-                ),
-                Text(
-                  compact
-                      ? '金币 ${c.campaign.gold}'
-                      : '金币 ${c.campaign.gold} · 第 ${c.campaign.settledTurns + 1} 回合',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Color(0xff8f9d91),
-                    letterSpacing: 1.4,
+                  Text(
+                    '${c.campaign.dateLabel} · 金币 ${c.campaign.gold}',
+                    key: const ValueKey('campaign-calendar'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: Color(0xff8f9d91),
+                      letterSpacing: compact ? 0 : 1.4,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const Spacer(),
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xff0b110d),
@@ -872,9 +878,9 @@ class _WorldScreenState extends State<WorldScreen>
         backgroundColor: _ink,
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
-        content: const Text(
-          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　移动、扎营、情况\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n基础行军速度 22 像素/秒\n草地速度 75%，山地 20%，涉水 40%\n点击城池　直接查看情况与守军\n我方城池　同页选英雄，右下角出击\n经济区域　升级城池，最高五级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n进攻战败　损失出征英雄，出发城不降级\n守将战败　守城城池降一级\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 30 秒　结算产出与英雄报酬\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
-          style: TextStyle(fontSize: 13, height: 1.8, color: _cream),
+        content: Text(
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　移动、扎营、情况\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　直接查看情况与守军\n我方城池　同页选英雄，右下角出击\n经济区域　升级城池，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n进攻战败　损失出征英雄，出发城不降级\n守将战败　守城城池降一级\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，储备可分配给驻军\n商店　${GameConfig.heroDrawCost} 金币抽英雄，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n主角无月俸，其他将领按新标准结算\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          style: const TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [
           TextButton(

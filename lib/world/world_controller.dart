@@ -3,6 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import '../game_config.dart';
+
 import 'battle_simulation.dart';
 import 'campaign.dart';
 import 'hero_sprite.dart';
@@ -10,16 +12,26 @@ import 'rom_hero.dart';
 import 'world_camera.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
+import 'recruitment.dart';
 
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。
-  WorldController(this.worlds, {List<RomHeroDefinition> heroCatalog = const []})
-    : _heroCatalog = List.unmodifiable(heroCatalog),
-      camera = WorldCamera(worlds.first.pixelSize),
-      campaigns = worlds
-          .map((world) => CampaignState.fromRom(world, heroCatalog))
-          .toList() {
+  WorldController(
+    this.worlds, {
+    List<RomHeroDefinition> heroCatalog = const [],
+    int startingGold = GameConfig.initialGold,
+  }) : _heroCatalog = List.unmodifiable(heroCatalog),
+       camera = WorldCamera(worlds.first.pixelSize),
+       campaigns = worlds
+           .map(
+             (world) => CampaignState.fromRom(
+               world,
+               heroCatalog,
+               startingGold: startingGold,
+             ),
+           )
+           .toList() {
     switchWorld(0);
   }
 
@@ -503,6 +515,51 @@ class WorldController extends ChangeNotifier {
           : '金币不足，暂时无法升级';
     }
     refreshUi();
+  }
+
+  /// 购买当前城池的储备兵员，面板操作不暂停时间。
+  void buyCitySoldiers(int count) {
+    final city = selectedCity;
+    if (city != null && campaign.buySoldiers(city.id, count)) {
+      message = campaign.lastEvent;
+      refreshUi();
+    }
+  }
+
+  /// 从城池储备给当前选中的驻军补兵。
+  void reinforceSelectedHero() {
+    final hero = selectedHero;
+    if (hero != null && campaign.reinforceHero(hero) > 0) {
+      message = campaign.lastEvent;
+      refreshUi();
+    }
+  }
+
+  /// 在当前城池付费抽取一位可签约英雄。
+  void drawCityHero() {
+    final city = selectedCity;
+    if (city != null && campaign.drawHero(city.id) != null) {
+      message = campaign.lastEvent;
+      refreshUi();
+    }
+  }
+
+  /// 按当前展示的报价签约并选中新英雄。
+  void signRecruitment(RecruitmentOffer offer) {
+    final hero = campaign.signHero(offer);
+    if (hero != null) {
+      selectedHeroId = hero.id;
+      message = campaign.lastEvent;
+      refreshUi();
+    }
+  }
+
+  /// 放弃这次抽取的英雄，保留已经扣除的抽取费。
+  void declineRecruitment(RecruitmentOffer offer) {
+    if (campaign.declineHero(offer)) {
+      message = campaign.lastEvent;
+      refreshUi();
+    }
   }
 
   /// 镜头跟随最近派出的部队，尚未派兵时跟随探索角色。

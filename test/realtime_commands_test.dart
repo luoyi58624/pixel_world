@@ -17,6 +17,7 @@ WorldController _controller() => WorldController(
   heroCatalog: decodeRomHeroes(
     File('assets/data/rom_heroes.json').readAsStringSync(),
   ),
+  startingGold: 300,
 );
 
 Future<WorldController> _load(WidgetTester tester, Size size) async {
@@ -37,11 +38,18 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
     );
     await tester.pump();
   }
-  return (tester
+  final painter =
+      (tester
               .widget<CustomPaint>(find.byKey(const ValueKey('world-canvas')))
               .painter!
-          as WorldPainter)
-      .controller;
+          as WorldPainter);
+  final c = painter.controller;
+  c.campaigns[0] = CampaignState.fromRom(
+    c.world,
+    painter.assets.heroCatalog,
+    startingGold: 300,
+  );
+  return c;
 }
 
 void main() {
@@ -72,7 +80,7 @@ void main() {
     c.campSelected();
     final stopped = unit.position;
     final hp = hero.hp;
-    c.tick(30);
+    c.tick(60);
     expect(unit.position, stopped);
     expect(unit.destination, stopped);
     expect(hero.hp, hp);
@@ -224,7 +232,7 @@ void main() {
       expect(c.camera.center, before);
     }
     c.leaveMap();
-    c.tick(30);
+    c.tick(60);
     expect(c.camera.center, before);
     expect(c.campaign.settledTurns, greaterThan(0));
   });
@@ -281,7 +289,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('unit-camp')));
     await tester.pump();
     final stopped = unit.position;
-    await tester.pump(const Duration(seconds: 31));
+    await tester.pump(const Duration(seconds: 61));
     expect(unit.position, stopped);
     expect(find.textContaining('扎营中'), findsOneWidget);
     expect(c.campaign.settledTurns, greaterThan(0));

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
@@ -9,8 +10,22 @@ List<RomHeroDefinition> _catalog() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
-CampaignState _campaign({int gold = 300}) =>
-    CampaignState.fromRom(_worlds().first, _catalog(), startingGold: gold);
+CampaignState _campaign({int gold = 300}) => CampaignState.fromRom(
+  _worlds().first,
+  _catalog(),
+  startingGold: gold,
+  economyRandom: _NormalRandom(),
+);
+
+class _NormalRandom implements math.Random {
+  @override
+  int nextInt(int max) => 0;
+  @override
+  bool nextBool() => false;
+  @override
+  double nextDouble() => 0;
+}
+
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
@@ -22,7 +37,7 @@ void main() {
       final c = CampaignState.fromRom(world, _catalog());
       expect(world.cities[1].initialLevel, index + 2);
       expect(c.cities[1]!.level, index + 2);
-      expect(c.cities[1]!.income, 86 * (index + 2));
+      expect(c.cities[1]!.income, 10 + 5 * (index + 1));
       for (final city in world.cities) {
         expect(c.cities[city.id]!.level, city.initialLevel);
       }
@@ -70,7 +85,7 @@ void main() {
       final before = c.gold;
       expect(c.upgradeCity(0), isTrue);
       expect(c.cities[0]!.level, level);
-      expect(c.cities[0]!.income, 126 * level);
+      expect(c.cities[0]!.income, 10 + 5 * (level - 1));
       expect(before - c.gold, 200 * (level - 1));
     }
     final balance = c.gold;
@@ -84,23 +99,23 @@ void main() {
     expect(poor.cities[0]!.level, 1);
   });
 
-  test('每 30 秒按现有等级产出并扣英雄报酬，结果与帧长一致', () {
+  test('每60秒按现有等级月结并扣缩减后的月俸，结果与帧长一致', () {
     for (final frames in [1, 60, 1200]) {
       final c = _campaign();
-      expect(c.salaryCost, 18);
-      expect(c.netIncome, 108);
+      expect(c.salaryCost, 4);
+      expect(c.netIncome, 6);
       for (var n = 0; n < frames; n++) {
-        c.advance(60 / frames);
+        c.advance(120 / frames);
       }
       expect(c.settledTurns, 2);
-      expect(c.gold, 516);
+      expect(c.gold, 312);
     }
     final c = _campaign();
     c.upgradeCity(0);
-    c.advance(29.9);
+    c.advance(59.9);
     expect(c.gold, 100);
     c.advance(0.1);
-    expect(c.gold, 334);
+    expect(c.gold, 111);
   });
 
   test('守将阵亡降一级且立即减产，同一战败不能重复降级', () {
@@ -116,7 +131,7 @@ void main() {
     expect(result.newLevel, 2);
     expect(result.captured, isFalse);
     expect(result.removedHeroIds, ['rom-0']);
-    expect(c.cities[0]!.income, 252);
+    expect(c.cities[0]!.income, 15);
     expect(c.cities[0]!.isPlayer, isTrue);
     expect(c.heroesAt(0).length, 2);
     expect(
@@ -251,6 +266,6 @@ void main() {
     expect(c.heroes.any((hero) => defenderIds.contains(hero.id)), isFalse);
     expect(c.marches, isEmpty);
     expect(c.garrisonAt(1), [hero]);
-    expect(c.grossIncome, 212);
+    expect(c.grossIncome, 20);
   });
 }

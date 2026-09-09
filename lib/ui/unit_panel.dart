@@ -166,7 +166,7 @@ class UnitPanel extends StatelessWidget {
             children: [
               _stat('战斗', '${hero.combat}'),
               _stat('内政', '${hero.politics}'),
-              _stat('报酬 / 回合', '${hero.salary}'),
+              _stat('月俸', '${hero.salary}'),
               _stat('士兵', '${hero.soldiers} 人'),
               _stat('王牌', hero.ace),
               _stat('召唤蛋', hero.hasEgg ? '有' : '无'),

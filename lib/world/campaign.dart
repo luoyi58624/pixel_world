@@ -1,11 +1,15 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../game_config.dart';
+
 import 'battle_simulation.dart';
 import 'hero_sprite.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
+import 'economy.dart';
+import 'recruitment.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -19,6 +23,7 @@ class CitySituation {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
     }
+    _reserveSoldiers = GameConfig.initialCityReserves.clamp(0, reserveCapacity);
   }
 
   /// 当前占领国家；易主时统一重置为一级，同一国家重复进驻不会降级。
@@ -27,6 +32,7 @@ class CitySituation {
     if (value == _ownerCountryId) return;
     _ownerCountryId = value;
     _level = 1;
+    _reserveSoldiers = 0;
   }
 
   int _ownerCountryId;
@@ -37,21 +43,32 @@ class CitySituation {
   /// 基础城防，用于界面展示。
   final int defense;
 
-  /// 一级城市每回合产出。
+  /// 一级城市的基础月收入。
   final int baseIncome;
   int _level;
 
   /// 当前等级，始终处于 1 到 5。
   int get level => _level;
 
-  /// 每升级一级增加一份基础产出。
-  int get income => baseIncome * level;
+  /// 月收入随等级线性增长。
+  int get income => baseIncome + (level - 1) * GameConfig.cityIncomePerLevel;
 
   /// 升级所需金币，满级后为空。
-  int? get upgradeCost => level < maxLevel ? level * 200 : null;
+  int? get upgradeCost =>
+      level < maxLevel ? level * GameConfig.cityUpgradeCostPerLevel : null;
 
   /// 城池最高等级。
-  static const maxLevel = 5;
+  static const maxLevel = GameConfig.maxCityLevel;
+
+  int _reserveSoldiers = GameConfig.initialCityReserves;
+
+  /// 独立储备兵员，不包含英雄已经携带的士兵。
+  int get reserveSoldiers => _reserveSoldiers;
+
+  /// 当前城池允许的最大储备，一级十人、每级再加五人。
+  int get reserveCapacity =>
+      GameConfig.cityBaseReserveCapacity +
+      (level - 1) * GameConfig.cityReserveCapacityPerLevel;
 }
 
 /// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
@@ -61,6 +78,7 @@ class CampaignHero {
     RomHeroDefinition definition, {
     required this.cityId,
     required this.countryId,
+    int initialSoldiers = GameConfig.initialHeroSoldiers,
   }) : sourceId = definition.id,
        id = 'rom-${definition.id}',
        name = definition.name ?? '主角',
@@ -68,10 +86,13 @@ class CampaignHero {
        health = BattleHealth(definition.maxHp),
        combat = definition.combat,
        politics = definition.politics,
-       salary = definition.salary,
+       salary = salaryFor(definition),
        squad = List.generate(
-         definition.soldierLimit,
-         (_) => BattleHealth(BattleSimulation.soldierHp),
+         math.min(definition.soldierLimit, GameConfig.heroSoldierLimit),
+         (slot) => BattleHealth(
+           BattleSimulation.soldierHp,
+           hp: slot < initialSoldiers ? BattleSimulation.soldierHp : 0,
+         ),
        ),
        hasEgg = definition.eggCapable,
        appearance = switch (definition.type) {
@@ -120,8 +141,15 @@ class CampaignHero {
   /// 内政能力。
   final int politics;
 
-  /// 每回合报酬。
+  /// 适配新金币体系后的月报酬，原 ROM 属性单独保存在目录中。
   final int salary;
+
+  /// 把原版报酬换算成当前月俸，主角始终免费。
+  static int salaryFor(RomHeroDefinition definition) =>
+      definition.type == HeroType.protagonist
+      ? 0
+      : (definition.salary + GameConfig.heroSalaryDivisor - 1) ~/
+            GameConfig.heroSalaryDivisor;
 
   /// 保留每个对位槽的小兵生命，阵亡后不自动补兵。
   final List<BattleHealth> squad;
@@ -318,19 +346,33 @@ typedef DefeatResult = ({
 
 /// 管理一张地图的经济、出征及战败规则，未显示的场景暂停推进。
 class CampaignState {
-  CampaignState._(this.world, this.cities, this.heroes, this._gold)
-    : _protagonist = heroes
+  CampaignState._(
+    this.world,
+    this.cities,
+    this.heroes,
+    this._countryGold,
+    this._catalog,
+    this._economyRandom,
+    this._recruitmentRandom,
+  ) : _protagonist = heroes
           .where((hero) => hero.isPlayer && hero.type == HeroType.protagonist)
           .firstOrNull;
 
   final CampaignHero? _protagonist;
   CampaignDefeatReason? _defeatReason;
+  final Map<int, RomHeroDefinition> _catalog;
+  final math.Random _economyRandom;
+  final math.Random _recruitmentRandom;
+  final Map<int, RomHeroDefinition> _heroPool = {};
+  RecruitmentOffer? _recruitmentOffer;
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
   factory CampaignState.fromRom(
     WorldDefinition world,
     List<RomHeroDefinition> catalog, {
-    int startingGold = 300,
+    int startingGold = GameConfig.initialGold,
+    math.Random? economyRandom,
+    math.Random? recruitmentRandom,
   }) {
     final home = world.cities.first.id;
     final placement = <int, int>{};
@@ -355,20 +397,37 @@ class CampaignState {
             b.sourceId == 40 ? -1 : b.sourceId,
           ),
         );
-    return CampaignState._(
+    final campaign = CampaignState._(
       world,
       {
         for (final city in world.cities)
           city.id: CitySituation(
             ownerCountryId: city.initialOwnerId,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
-            baseIncome: city.id == home ? 126 : 80 + city.id * 6,
-            initialLevel: city.initialLevel,
+            baseIncome: GameConfig.cityBaseIncome,
+            initialLevel: math.min(city.initialLevel, GameConfig.maxCityLevel),
           ),
       },
       heroes,
-      math.max(0, startingGold),
+      {
+        for (final id in {
+          0,
+          ...world.countries.map((country) => country.id),
+          ...world.cities.map((city) => city.initialOwnerId),
+        })
+          id: math.max(0, startingGold),
+      },
+      {for (final hero in catalog) hero.id: hero},
+      economyRandom ?? math.Random(),
+      recruitmentRandom ?? math.Random(),
     );
+    for (final hero in catalog) {
+      if (hero.type != HeroType.protagonist &&
+          !heroes.any((active) => active.sourceId == hero.id)) {
+        campaign._heroPool[hero.id] = hero;
+      }
+    }
+    return campaign;
   }
 
   /// 静态地图。
@@ -409,17 +468,46 @@ class CampaignState {
 
   /// 派兵后即使部队全灭，也不重新生成探索人物。
   bool hasDispatched = false;
-  int _gold;
+  final Map<int, int> _countryGold;
+  final Map<int, MonthlySettlement> _settlements = {};
 
   /// 当前金币。
-  int get gold => _gold;
+  int get gold => goldFor(0);
+
+  /// 读取指定国家的国库，城池易主不转移国库金币。
+  int goldFor(int countryId) =>
+      _countryGold[countryId] ?? GameConfig.initialGold;
+
+  /// 该国最近一次完整的月结记录。
+  MonthlySettlement? lastSettlementFor(int countryId) =>
+      _settlements[countryId];
+
+  /// 当前可抽取的英雄，已经在场或待签约的英雄不重复进入池子。
+  List<RomHeroDefinition> get recruitPool =>
+      List.unmodifiable(_heroPool.values);
+
+  /// 尚未处理的签约结果。
+  RecruitmentOffer? get recruitmentOffer => _recruitmentOffer;
 
   /// 已完成的经济结算次数。
-  int settledTurns = 0;
-  double _secondFraction = 0;
+  int get settledTurns => settledMonths;
+
+  /// 已经结束并完成结算的月份数。
+  int settledMonths = 0;
+
+  /// 当前游戏年份。
+  int get year =>
+      GameConfig.initialYear +
+      (GameConfig.initialMonth - 1 + settledMonths) ~/ 12;
+
+  /// 当前游戏月份。
+  int get month => (GameConfig.initialMonth - 1 + settledMonths) % 12 + 1;
+
+  /// 顶栏显示的年月。
+  String get dateLabel => '$year年$month月';
+  double _monthSeconds = 0;
   double _simulationFraction = 0;
   int _battleSerial = 0;
-  int _economySeconds = 0;
 
   /// 最近一条反馈。
   String lastEvent = '';
@@ -433,9 +521,11 @@ class CampaignState {
       .fold(0, (sum, city) => sum + city.income);
 
   /// 存活我方英雄的报酬，包括已出征部队。
-  int get salaryCost => heroes
-      .where((hero) => hero.isPlayer)
-      .fold(0, (sum, hero) => sum + hero.salary);
+  int get salaryCost => GameConfig.chargeHeroSalary
+      ? heroes
+            .where((hero) => hero.isPlayer)
+            .fold(0, (sum, hero) => sum + hero.salary)
+      : 0;
 
   /// 下一次结算净收入。
   int get netIncome => grossIncome - salaryCost;
@@ -464,6 +554,7 @@ class CampaignState {
     final reason = _detectDefeat();
     if (reason == null) return false;
     _defeatReason = reason;
+    _releaseOffer();
     _simulationFraction = 0;
     for (final battle in battles.values) {
       battle.outcome ??= '游戏结束 · ${reason.label}';
@@ -492,8 +583,192 @@ class CampaignState {
       garrisonAt(cityId).fold(0, (sum, hero) => sum + hero.soldiers);
 
   /// 本城英雄报酬。
-  int salaryAt(int cityId) =>
-      heroesAt(cityId).fold(0, (sum, hero) => sum + hero.salary);
+  int salaryAt(int cityId) => GameConfig.chargeHeroSalary
+      ? heroesAt(cityId).fold(0, (sum, hero) => sum + hero.salary)
+      : 0;
+
+  /// 可购买的储备兵数量，同时受容量、国库和城池归属限制。
+  int maxSoldierPurchase(int cityId) {
+    final city = cities[cityId];
+    if (defeated || city == null || !city.isPlayer) return 0;
+    return math.max(
+      0,
+      math.min(
+        city.reserveCapacity - city.reserveSoldiers,
+        gold ~/ GameConfig.soldierRecruitCost,
+      ),
+    );
+  }
+
+  /// 购买城池储备兵员，一次操作统一验证并扣款，不接受超额或负数。
+  bool buySoldiers(int cityId, int count) {
+    if (count <= 0 || count > maxSoldierPurchase(cityId)) return false;
+    final cost = count * GameConfig.soldierRecruitCost;
+    _countryGold[0] = gold - cost;
+    cities[cityId]!._reserveSoldiers += count;
+    _record('${_cityName(cityId)}征募 $count 名储备兵，花费 $cost 金币');
+    return true;
+  }
+
+  /// 当前可以从本城储备给这名驻城英雄补充的人数，交战与出征中均不可补兵。
+  int reinforcementCount(CampaignHero hero) {
+    final city = cities[hero.cityId];
+    if (defeated ||
+        !heroes.contains(hero) ||
+        !hero.isPlayer ||
+        !hero.health.alive ||
+        city == null ||
+        !city.isPlayer ||
+        marches.containsKey(hero.id) ||
+        battles.values.any(
+          (battle) => battle.isActive && battle.defender == hero,
+        )) {
+      return 0;
+    }
+    return math.min(
+      city.reserveSoldiers,
+      hero.squad.where((soldier) => !soldier.alive).length,
+    );
+  }
+
+  /// 只补充阵亡槽位，不把受伤士兵或英雄免费治疗为满血。
+  int reinforceHero(CampaignHero hero) {
+    final count = reinforcementCount(hero);
+    if (count == 0) return 0;
+    var remaining = count;
+    for (var slot = 0; slot < hero.squad.length; slot++) {
+      if (remaining == 0) break;
+      if (!hero.squad[slot].alive) {
+        // 新兵使用新生命对象，避免让旧战斗记录中的阵亡士兵复活。
+        hero.squad[slot] = BattleHealth(GameConfig.soldierHp);
+        remaining--;
+      }
+    }
+    cities[hero.cityId]!._reserveSoldiers -= count;
+    _record('${hero.name}补充 $count 名士兵');
+    return count;
+  }
+
+  /// 解释不能抽取英雄的原因，空池或待签约时不扣费。
+  String? recruitmentBlockReason(int cityId) {
+    if (defeated) return '游戏已结束';
+    if (cities[cityId]?.isPlayer != true) return '只能在我方城池招募';
+    if (_recruitmentOffer != null) return '请先签约或放弃当前抽到的英雄';
+    if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';
+    if (gold < GameConfig.heroDrawCost) return '金币不足';
+    return null;
+  }
+
+  /// 支付一次抽取费后保留唯一签约结果，面板关闭和月份变化不重复抽取。
+  RecruitmentOffer? drawHero(int cityId) {
+    if (recruitmentBlockReason(cityId) != null) return null;
+    final choices = _heroPool.values.toList();
+    final hero = choices[_recruitmentRandom.nextInt(choices.length)];
+    _heroPool.remove(hero.id);
+    _countryGold[0] = gold - GameConfig.heroDrawCost;
+    final offer = RecruitmentOffer(
+      hero: hero,
+      cityId: cityId,
+      countryId: 0,
+      signingFee: hero.type == HeroType.advanced
+          ? GameConfig.advancedSigningFee
+          : GameConfig.normalSigningFee,
+    );
+    _recruitmentOffer = offer;
+    _record('抽到${hero.name}，等待签约');
+    return offer;
+  }
+
+  /// 按抽取时显示的费用签约，旧按钮或重复调用不会重复扣费或生成英雄。
+  CampaignHero? signHero(RecruitmentOffer offer) {
+    if (defeated ||
+        !identical(_recruitmentOffer, offer) ||
+        cities[offer.cityId]?.ownerCountryId != offer.countryId ||
+        gold < offer.signingFee ||
+        heroes.any((hero) => hero.sourceId == offer.hero.id)) {
+      return null;
+    }
+    _countryGold[0] = gold - offer.signingFee;
+    final hero = CampaignHero.fromRom(
+      offer.hero,
+      cityId: offer.cityId,
+      countryId: offer.countryId,
+      initialSoldiers: GameConfig.recruitedHeroSoldiers,
+    );
+    heroes.add(hero);
+    _recruitmentOffer = null;
+    _record(
+      '${hero.name}已签约${_cityName(offer.cityId)}，签约费 ${offer.signingFee} 金币',
+    );
+    return hero;
+  }
+
+  /// 放弃签约会把英雄放回池中，已经支付的抽取费不退回。
+  bool declineHero(RecruitmentOffer offer) {
+    if (defeated || !identical(_recruitmentOffer, offer)) return false;
+    _releaseOffer();
+    _record('已放弃与${offer.hero.name}签约');
+    return true;
+  }
+
+  void _releaseOffer() {
+    final offer = _recruitmentOffer;
+    if (offer == null) return;
+    if (!heroes.any((hero) => hero.sourceId == offer.hero.id)) {
+      _heroPool[offer.hero.id] = offer.hero;
+    }
+    _recruitmentOffer = null;
+  }
+
+  void _recycleHero(CampaignHero hero) {
+    final definition = _catalog[hero.sourceId];
+    if (GameConfig.recycleDefeatedHeroes &&
+        hero.type != HeroType.protagonist &&
+        definition != null &&
+        !heroes.any((active) => active.sourceId == hero.sourceId)) {
+      _heroPool[hero.sourceId] = definition;
+    }
+  }
+
+  void _settleMonth() {
+    for (final id in _countryGold.keys.toList()..sort()) {
+      final owned = cities.values
+          .where((city) => city.ownerCountryId == id)
+          .toList();
+      final harvest = owned.isEmpty
+          ? Harvest.normal
+          : Harvest.draw(_economyRandom);
+      final base = owned.fold(0, (sum, city) => sum + city.income);
+      final salary = GameConfig.chargeHeroSalary
+          ? heroes
+                .where((hero) => hero.countryId == id && hero.health.alive)
+                .fold(0, (sum, hero) => sum + hero.salary)
+          : 0;
+      final before = goldFor(id);
+      final after = math.max(
+        0,
+        before + base + harvest.perCityAdjustment * owned.length - salary,
+      );
+      _countryGold[id] = after;
+      final report = MonthlySettlement(
+        year: year,
+        month: month,
+        harvest: harvest,
+        cityCount: owned.length,
+        baseIncome: base,
+        salary: salary,
+        goldBefore: before,
+        goldAfter: after,
+      );
+      _settlements[id] = report;
+      if (id == 0) {
+        _record(
+          '$dateLabel结算 · ${harvest.label} · 收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
+        );
+      }
+    }
+    settledMonths++;
+  }
 
   /// 无法出击时给出原因，一级城只允许同时派出一位英雄。
   String? dispatchBlockReason(CampaignHero hero) {
@@ -523,13 +798,13 @@ class CampaignState {
     if (defeated) return false;
     final city = cities[cityId];
     final cost = city?.upgradeCost;
-    if (city == null || !city.isPlayer || cost == null || _gold < cost) {
+    if (city == null || !city.isPlayer || cost == null || gold < cost) {
       return false;
     }
-    _gold -= cost;
+    _countryGold[0] = gold - cost;
     city._level++;
     _refreshCityApproaches(cityId);
-    _record('${_cityName(cityId)}升至 ${city.level} 级，每回合产出 ${city.income}');
+    _record('${_cityName(cityId)}升至 ${city.level} 级，每月收入 ${city.income}');
     return true;
   }
 
@@ -713,10 +988,15 @@ class CampaignState {
     hero.hp = 0;
     marches.remove(hero.id);
     heroes.remove(hero);
+    _recycleHero(hero);
     var captured = false;
     if (defendedCityId != null) {
       if (city.level > 1) {
         city._level--;
+        city._reserveSoldiers = math.min(
+          city._reserveSoldiers,
+          city.reserveCapacity,
+        );
         _refreshCityApproaches(hero.cityId);
       } else {
         captured = true;
@@ -739,12 +1019,19 @@ class CampaignState {
     );
   }
 
-  /// 固定步长推进行军和拼杀，每三十秒结算经济；观战不参与计时。
+  /// 固定步长推进行军和拼杀，满一个月结算各国经济；观战不参与计时。
   bool advance(double elapsed) {
     if (_finishDefeat()) return true;
     if (defeated) return false;
     _simulationFraction += elapsed.isFinite ? math.max(0.0, elapsed) : 0.0;
     var changed = false;
+    final offer = _recruitmentOffer;
+    if (offer != null &&
+        cities[offer.cityId]?.ownerCountryId != offer.countryId) {
+      _releaseOffer();
+      _record('招募城池已易主，待签约英雄返回回收池');
+      changed = true;
+    }
     const dt = BattleSimulation.fixedStep;
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
@@ -788,18 +1075,11 @@ class CampaignState {
       if (_finishDefeat() || defeated) return true;
       changed = _advanceBattles(dt) || changed;
       if (_finishDefeat() || defeated) return true;
-      _secondFraction += dt;
-      if (_secondFraction >= 1 - 1e-9) {
-        _secondFraction = 0;
-        _economySeconds++;
-        if (_economySeconds == 30) {
-          _economySeconds = 0;
-          final income = netIncome;
-          _gold = math.max(0, _gold + income);
-          settledTurns++;
-          _record('第 $settledTurns 次结算：${income >= 0 ? '+' : ''}$income 金币');
-          changed = true;
-        }
+      _monthSeconds += dt;
+      if (_monthSeconds >= GameConfig.secondsPerMonth - 1e-9) {
+        _monthSeconds = math.max(0, _monthSeconds - GameConfig.secondsPerMonth);
+        _settleMonth();
+        changed = true;
       }
     }
     return changed;
@@ -895,17 +1175,24 @@ class CampaignState {
   }
 
   List<String> _captureCity(int cityId, int winnerCountryId) {
-    final removed = heroes
+    final removedHeroes = heroes
         .where(
           (hero) =>
               hero.cityId == cityId &&
               hero.countryId != winnerCountryId &&
               !marches.containsKey(hero.id),
         )
-        .map((hero) => hero.id)
         .toList();
+    final removed = removedHeroes.map((hero) => hero.id).toList();
     heroes.removeWhere((hero) => removed.contains(hero.id));
+    for (final hero in removedHeroes) {
+      _recycleHero(hero);
+    }
     cities[cityId]!.ownerCountryId = winnerCountryId;
+    if (_recruitmentOffer?.cityId == cityId &&
+        _recruitmentOffer?.countryId != winnerCountryId) {
+      _releaseOffer();
+    }
     _refreshCityApproaches(cityId);
     return removed;
   }

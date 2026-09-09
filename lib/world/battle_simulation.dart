@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../game_config.dart';
+
 /// 跨战斗保留的生命值，退出观战、撤离和换守将都不重置。
 class BattleHealth {
   /// 创建满血单位，或恢复已有生命值。
@@ -61,7 +63,11 @@ class BattleMorale {
   int bonus = 0;
 
   void _roll(math.Random random) {
-    percent = 5 + random.nextInt(6);
+    percent =
+        GameConfig.moraleMinPercent +
+        random.nextInt(
+          GameConfig.moraleMaxPercent - GameConfig.moraleMinPercent + 1,
+        );
     spent = remaining * percent ~/ 100;
     remaining -= spent;
     accumulated += spent;
@@ -339,28 +345,28 @@ class BattleSimulation {
   }
 
   /// 小兵的生命上限。
-  static const soldierHp = 20;
+  static const soldierHp = GameConfig.soldierHp;
 
   /// 小兵每次拼杀的攻击力。
-  static const soldierAttack = 1;
+  static const soldierAttack = GameConfig.soldierAttack;
 
   /// 战斗每秒模拟六十次，与绘制帧数无关。
   static const fixedStep = 1 / 60;
 
   /// 一秒一次攻击，接近目标后才触发。
-  static const attackInterval = 1.0;
+  static const attackInterval = GameConfig.clashInterval;
 
   /// 每半秒投入一次士气，碰撞前持续积累。
-  static const moraleInterval = 0.5;
+  static const moraleInterval = GameConfig.moraleInterval;
 
   /// 碰撞时仅停顿队形四帧，游戏时钟与后台进度照常推进。
   static const impactHold = 4 / 60;
 
   /// 退到终点后的收势与举剑准备时间。
-  static const preparationTime = 0.22;
+  static const preparationTime = GameConfig.chargePreparationTime;
 
   /// 整个有效战场折算为五十点，首轮接触时两侧各余二十五点。
-  static const arenaPoints = 50.0;
+  static const arenaPoints = GameConfig.battlefieldPoints;
 
   /// 战场的原生像素尺寸。
   static const arenaSize = Size(256, 144);
@@ -369,7 +375,7 @@ class BattleSimulation {
   static const attackRange = 16.0;
 
   /// 冲锋基础速度为原来的三倍，士气每多消耗一点再增加十八像素每秒。
-  static const baseChargeSpeed = 120.0;
+  static const baseChargeSpeed = GameConfig.baseChargeSpeed;
 
   /// 进攻队伍。
   final BattleArmy attacker;
@@ -435,7 +441,7 @@ class BattleSimulation {
 
   /// 根据最近半秒消耗的士气提高冲锋速度。
   double chargeSpeed(BattleSide side) =>
-      baseChargeSpeed + morale(side).spent * 18;
+      baseChargeSpeed + morale(side).spent * GameConfig.chargeSpeedPerMorale;
 
   /// 当前队伍到自身墙边的真实退路；碰撞时两侧退路之和为五十点。
   double distanceToWall(BattleSide side) {

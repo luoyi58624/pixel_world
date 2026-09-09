@@ -214,7 +214,7 @@ void main() {
       expect(find.byKey(const ValueKey('game-over-panel')), findsNothing);
       expect(c.campaign, isNot(same(previous)));
       expect(c.campaign.defeated, isFalse);
-      expect(c.campaign.gold, 300);
+      expect(c.campaign.gold, 50);
       expect(c.campaign.cities[0]!.isPlayer, isTrue);
       expect(c.previewHero!.hp, 99);
       expect(c.campaign.battles, isEmpty);

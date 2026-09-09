@@ -2,11 +2,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../game_config.dart';
+
 import '../world/campaign.dart';
 import '../world/rom_hero.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import 'country_flag.dart';
+import 'city_services.dart';
 
 const _ink = Color(0xff141b17);
 const _cream = Color(0xffece7d1);
@@ -105,7 +108,7 @@ class CityPanel extends StatelessWidget {
 
   Widget _cityStats(CitySituation situation) => _stats([
     ('城防', '${situation.defense}'),
-    ('收入 / 回合', '${situation.income}'),
+    ('月收入', '${situation.income}'),
     ('驻守士兵', '${controller.campaign.soldiersAt(controller.selectedCity!.id)}'),
   ], columns: 3);
 
@@ -133,6 +136,13 @@ class CityPanel extends StatelessWidget {
         const SizedBox(height: 18),
         if (situation.isPlayer) ...[
           _heroSelection(),
+          const SizedBox(height: 20),
+          CityServices(
+            key: ValueKey('city-services-${controller.selectedCity!.id}'),
+            controller: controller,
+            assets: assets,
+            onAction: onAction,
+          ),
           const SizedBox(height: 20),
           _economy(situation),
         ] else ...[
@@ -244,7 +254,7 @@ class CityPanel extends StatelessWidget {
           _stats([
             ('战斗', '${hero.combat}'),
             ('内政', '${hero.politics}'),
-            ('报酬', '${hero.salary} / 回合'),
+            ('月俸', '${hero.salary}'),
           ], columns: 3),
           const SizedBox(height: 10),
           _stats([('士兵', '${hero.soldiers} 人'), ('王牌', hero.ace)], columns: 2),
@@ -318,21 +328,36 @@ class CityPanel extends StatelessWidget {
     final c = controller;
     final cityId = c.selectedCity!.id;
     final cost = situation.upgradeCost;
+    final report = c.campaign.lastSettlementFor(situation.ownerCountryId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _section('经济情况'),
         const SizedBox(height: 10),
         _stats([
-          ('英雄报酬 / 回合', '${c.campaign.salaryAt(cityId)}'),
-          ('本城净产出', '${situation.income - c.campaign.salaryAt(cityId)}'),
+          ('本城月俸', '${c.campaign.salaryAt(cityId)}'),
+          ('正常收成净收入', '${situation.income - c.campaign.salaryAt(cityId)}'),
         ], columns: 2),
         const SizedBox(height: 10),
-        if (situation.isPlayer) ...[
+        Text(
+          '国家金币 ${c.campaign.goldFor(situation.ownerCountryId)} · ${c.campaign.dateLabel}',
+          key: const ValueKey('city-treasury'),
+          style: const TextStyle(fontSize: 12, color: _cream),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '每 ${GameConfig.secondsPerMonth.toInt()} 秒进入下一月，按国家结算收成与月俸。',
+          style: const TextStyle(fontSize: 11, color: _muted),
+        ),
+        if (report != null) ...[
+          const SizedBox(height: 8),
           Text(
-            '国库 ${c.campaign.gold} 金币 · 每 30 秒结算',
-            style: const TextStyle(fontSize: 12, color: _cream),
+            '${report.year}年${report.month}月 · ${report.harvest.label}\n城池收入 ${report.baseIncome}，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -${report.salary}\n国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange} 金币',
+            key: const ValueKey('city-monthly-report'),
+            style: const TextStyle(fontSize: 11, height: 1.5, color: _cream),
           ),
+        ],
+        if (situation.isPlayer) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -344,7 +369,7 @@ class CityPanel extends StatelessWidget {
               icon: const Icon(Icons.upgrade, size: 18),
               label: Text(
                 cost == null
-                    ? '已满级 · 5 级城市'
+                    ? '已满级 · ${GameConfig.maxCityLevel} 级城市'
                     : '升级至 ${situation.level + 1} 级 · $cost 金币',
               ),
               style: _primaryStyle,
@@ -352,7 +377,7 @@ class CityPanel extends StatelessWidget {
           ),
           if (cost != null)
             Text(
-              '升级后每回合产出 ${situation.income + situation.baseIncome}',
+              '升级后月收入 ${situation.income + GameConfig.cityIncomePerLevel} · 储备上限 ${situation.reserveCapacity + GameConfig.cityReserveCapacityPerLevel}',
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
           if (cost != null && c.campaign.gold < cost)
@@ -444,6 +469,7 @@ class CityPanel extends StatelessWidget {
           children: [
             for (final entry in entries)
               Container(
+                key: ValueKey('city-stat-${entry.$1}'),
                 width: (constraints.maxWidth - (columns - 1) * 8) / columns,
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
                 decoration: BoxDecoration(
