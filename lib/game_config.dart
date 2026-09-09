@@ -57,11 +57,8 @@ abstract final class GameConfig {
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;
 
-  /// 一级升二级的基础费用，实际支付再扣主持将领的内政。
-  static const cityUpgradeBaseCost = 30;
-
-  /// 城池每高一级，升级基础费用增加的金币。
-  static const cityUpgradeCostPerLevel = 10;
+  /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
+  static const List<int> cityUpgradeCosts = [30, 80, 150, 300];
 
   /// 一级城的储备兵员容量。
   static const cityBaseReserveCapacity = 10;

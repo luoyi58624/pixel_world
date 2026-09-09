@@ -89,7 +89,7 @@ void main() {
       expect(c.upgradeCity(0, hero: _hero(c, 40)), isTrue);
       expect(c.cities[0]!.level, level);
       expect(c.cities[0]!.income, 10 + 5 * (level - 1));
-      expect(before - c.gold, 15 + 10 * (level - 2));
+      expect(before - c.gold, [15, 65, 135, 285][level - 2]);
     }
     final balance = c.gold;
     expect(c.upgradeCity(0, hero: _hero(c, 40)), isFalse);

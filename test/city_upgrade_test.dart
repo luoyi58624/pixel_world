@@ -33,7 +33,7 @@ void main() {
     expect(governor.hp, 20);
     expect(governor.squad.map((soldier) => soldier.hp), soldierHp);
     expect(c.journal.last, contains(governor.name));
-    expect(c.upgradeCostFor(0, governor), 37);
+    expect(c.upgradeCostFor(0, governor), 77);
   });
 
   test('无选择、伪造同编号、外城、敌军和已阵亡将领不能升级且不扣款', () {
@@ -70,7 +70,7 @@ void main() {
     expect(c.camp(away.id), isTrue);
     expect(c.upgradeCity(0, hero: away), isFalse);
     expect(c.gold, 50);
-    expect(c.canDispatch(governor), isFalse);
+    expect(c.canDispatch(governor), isTrue);
     expect(c.upgradeCity(0, hero: governor), isTrue);
     expect(c.cities[0]!.level, 2);
     expect(c.canDispatch(governor), isTrue);
@@ -104,7 +104,7 @@ void main() {
         'type': 'advanced',
         'maxHp': 95,
         'combat': 15,
-        'politics': 99,
+        'politics': 300,
         'salary': 8,
         'eggCapable': true,
         'soldierLimit': 4,
@@ -114,7 +114,7 @@ void main() {
     );
     c.heroes.removeWhere((hero) => hero.sourceId == 0);
     c.heroes.add(governor);
-    for (final base in [30, 40, 50, 60]) {
+    for (final base in [30, 80, 150, 300]) {
       expect(c.cities[0]!.baseUpgradeCost, base);
       expect(c.upgradeCostFor(0, governor), 0);
       expect(c.upgradeCity(0, hero: governor), isTrue);
@@ -135,7 +135,7 @@ void main() {
     c.upgradeSelectedCity();
     expect(c.campaign.gold, 50);
     expect(c.campaign.cities[0]!.level, 1);
-    expect(c.message, contains('不能主持升级'));
+    expect(c.message, contains('选择一位城内将领'));
     c.openCity(home);
     expect(c.selectedHero!.sourceId, 0);
     c.upgradeSelectedCity();

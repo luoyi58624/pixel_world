@@ -256,13 +256,13 @@ void main() {
     await tester.tap(upgrade);
     await tester.pump();
     expect(c.campaign.gold, 273);
-    expect(tester.widget<Text>(quote).data, contains('37金币'));
+    expect(tester.widget<Text>(quote).data, contains('77金币'));
     c.campaign.dispatch(c.selectedHero!, c.world.cities[1]);
     c.refreshUi();
     await tester.pump();
     expect(quote, findsNothing);
     expect(tester.widget<OutlinedButton>(upgrade).onPressed, isNull);
-    expect(find.textContaining('基础 40'), findsNothing);
+    expect(find.textContaining('基础 80'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

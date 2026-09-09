@@ -22,8 +22,9 @@ class _RandomValue implements math.Random {
 Future<WorldController> _load(
   WidgetTester tester,
   Size size,
-  _RandomValue random,
-) async {
+  _RandomValue random, {
+  int? startingGold,
+}) async {
   rootBundle.evict('assets/maps/worlds.json');
   rootBundle.evict('assets/data/rom_heroes.json');
   tester.view.physicalSize = size;
@@ -41,6 +42,7 @@ Future<WorldController> _load(
   final painter = tester.widget<CustomPaint>(canvas).painter! as WorldPainter;
   final c = painter.controller;
   c.campaigns[0] = CampaignState.fromRom(
+    startingGold: startingGold,
     aiEnabled: false,
     c.world,
     painter.assets.heroCatalog,
@@ -166,7 +168,12 @@ void main() {
   });
 
   testWidgets('征兵方块按当前金币显示能招募的人数', (tester) async {
-    final c = await _load(tester, const Size(375, 812), _RandomValue());
+    final c = await _load(
+      tester,
+      const Size(375, 812),
+      _RandomValue(),
+      startingGold: 90,
+    );
     final hero = c.selectedHero!;
     c.campaign.upgradeCity(0, hero: hero);
     c.campaign.upgradeCity(0, hero: hero);

@@ -98,7 +98,7 @@ void main() {
     expect(c.reinforceHero(governor, countryId: 1), 1);
     expect(c.cities[1]!.reserveSoldiers, 3);
     final price = c.upgradeCostFor(1, governor, countryId: 1)!;
-    expect(price, 40 - governor.politics);
+    expect(price, 80 - governor.politics);
     expect(c.upgradeCity(1, hero: governor), isFalse);
     expect(c.upgradeCity(1, hero: governor, countryId: 1), isTrue);
     expect(c.goldFor(1), 96 - price);

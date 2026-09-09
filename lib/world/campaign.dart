@@ -71,10 +71,8 @@ class CitySituation {
   int get income => baseIncome + (level - 1) * GameConfig.cityIncomePerLevel;
 
   /// 扣除将领内政前的升级基础费，满级后为空。
-  int? get baseUpgradeCost => level < maxLevel
-      ? GameConfig.cityUpgradeBaseCost +
-            (level - 1) * GameConfig.cityUpgradeCostPerLevel
-      : null;
+  int? get baseUpgradeCost =>
+      level < maxLevel ? GameConfig.cityUpgradeCosts[level - 1] : null;
 
   /// 城池最高等级。
   static const maxLevel = GameConfig.maxCityLevel;
