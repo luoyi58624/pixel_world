@@ -48,6 +48,18 @@ abstract final class GameConfig {
   /// 每位守将预留的交战时间，与行军时间一起计入出征粮草预算。
   static const countryAiBattleBudgetSeconds = 30.0;
 
+  /// 进攻目标的距离衰减尺度，单位秒；越小越偏向短途进攻。
+  static const countryAiTargetTravelScale = 30.0;
+
+  /// 行军时间的权重衰减指数，设为零可关闭额外的近邻偏好。
+  static const countryAiTargetDistancePower = 2.0;
+
+  /// 目标国每多占一城增加的目标权重，零表示关闭额外的大国倾向。
+  static const countryAiTerritoryWeightPerCity = 0.5;
+
+  /// 领地规模最多提供的权重倍率，避免大国完全挤掉其他目标。
+  static const countryAiTerritoryWeightCap = 6.0;
+
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;
 

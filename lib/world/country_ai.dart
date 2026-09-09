@@ -114,7 +114,7 @@ extension _CountryAutonomy on CampaignState {
       final hero = candidates.first;
       final targets = _fundedAiTargets(hero);
       if (targets.isEmpty) break;
-      final target = targets[_aiRandom.nextInt(targets.length)];
+      final target = _chooseAiTarget(hero, targets);
       if (dispatch(hero, target, countryId: countryId) == null) break;
       _record(
         '${world.countryName(countryId)}国派出${hero.name}进攻${target.label}',
@@ -134,6 +134,51 @@ extension _CountryAutonomy on CampaignState {
             _canFundAiSortie(hero, city, march: march),
       )
       .toList();
+
+  // 预算先筛选，再按行军成本与目标国实际领地加权；不改变各国的交战关系。
+  CityDefinition _chooseAiTarget(
+    CampaignHero hero,
+    List<CityDefinition> targets, {
+    HeroMarch? march,
+  }) {
+    if (targets.length == 1) return targets.single;
+    final territory = <int, int>{};
+    for (final city in cities.values) {
+      territory.update(
+        city.ownerCountryId,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    final source = world.cities.firstWhere((city) => city.id == hero.cityId);
+    final weights = [
+      for (final target in targets)
+        math.min(
+              GameConfig.countryAiTerritoryWeightCap,
+              1 +
+                  (territory[cities[target.id]!.ownerCountryId]! - 1) *
+                      GameConfig.countryAiTerritoryWeightPerCity,
+            ) /
+            math.pow(
+              1 +
+                  _aiTravelTo(
+                        march?.position ??
+                            _departurePoint(source, cityBounds(target).center),
+                        target,
+                      ) /
+                      GameConfig.countryAiTargetTravelScale,
+              GameConfig.countryAiTargetDistancePower,
+            ),
+    ];
+    var roll =
+        _aiRandom.nextDouble() *
+        weights.fold(0.0, (sum, weight) => sum + weight);
+    for (var index = 0; index < targets.length; index++) {
+      if (roll < weights[index]) return targets[index];
+      roll -= weights[index];
+    }
+    return targets.last;
+  }
 
   // 先逐队核算旧部队，不能一有收入就让所有营地同时恢复全速耗粮。
   bool _manageAiFieldArmies() {
@@ -167,7 +212,7 @@ extension _CountryAutonomy on CampaignState {
           changed = _returnAiArmy(march) || changed;
           continue;
         }
-        final target = targets[_aiRandom.nextInt(targets.length)];
+        final target = _chooseAiTarget(march.hero, targets, march: march);
         march.moveTo(
           _contactPoint(march.position, cityBounds(target).center, target),
           city: target,
