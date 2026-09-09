@@ -156,8 +156,8 @@ void main() {
     diagonal.walkTo(const TileCoord(4, 4));
     _advance(horizontal, 20);
     _advance(diagonal, 20);
-    expect((horizontal.heroPosition - start).distance, closeTo(44, 1e-8));
-    expect((diagonal.heroPosition - start).distance, closeTo(44, 1e-8));
+    expect((horizontal.heroPosition - start).distance, closeTo(16.5, 1e-8));
+    expect((diagonal.heroPosition - start).distance, closeTo(16.5, 1e-8));
     expect(diagonal.direction, HeroDirection.southEast);
     final moved = diagonal.heroPosition - start;
     expect(moved.dx * 48 - moved.dy * 64, closeTo(0, 1e-8));
@@ -165,8 +165,9 @@ void main() {
     diagonal.dispose();
   });
 
-  test('山地和水域只减速，仍然可以抵达目标', () {
-    for (final entry in {0: 1.0, 1: 0.5, 2: 0.6, 3: 1.0}.entries) {
+  test('基础速度减半，草地0.75、河流0.4、山地0.2，桥梁和建筑保留基础速度', () {
+    expect(WorldController.baseMovementSpeed, 22);
+    for (final entry in {0: 0.75, 1: 0.4, 2: 0.2, 3: 1.0}.entries) {
       final controller = WorldController([
         _fixture(List.filled(25, entry.key)),
       ]);
@@ -175,9 +176,9 @@ void main() {
       _advance(controller, 20);
       expect(
         (controller.heroPosition - start).distance,
-        closeTo(44 * entry.value, 1e-8),
+        closeTo(22 * entry.value, 1e-8),
       );
-      _advance(controller, 100);
+      _advance(controller, 400);
       expect(controller.heroPosition, const TileCoord(4, 1).center);
       expect(controller.walking, isFalse);
       controller.dispose();
@@ -189,9 +190,9 @@ void main() {
     for (final frames in [1, 5, 20, 100]) {
       final controller = WorldController([world]);
       controller.walkTo(const TileCoord(4, 1));
-      _advance(controller, frames, 1 / frames);
-      // 从 x=8 到 x=32 为平地，剩余时间在水中移动到 x=42。
-      expect(controller.heroPosition.dx, closeTo(42, 1e-8));
+      _advance(controller, frames, 3 / frames);
+      // 前 24 像素按 16.5/s，剩余时间按水速 8.8/s，三秒到 x=45.6。
+      expect(controller.heroPosition.dx, closeTo(45.6, 1e-8));
       expect(controller.heroPosition.dy, 24);
       expect(controller.movementTerrain, MovementTerrain.water);
       controller.dispose();
@@ -204,8 +205,8 @@ void main() {
     controller.heroPosition = const Offset(56, 24);
     controller.heroCell = const TileCoord(3, 1);
     controller.walkTo(const TileCoord(0, 1));
-    _advance(controller, 30);
-    expect(controller.heroPosition.dx, closeTo(14, 1e-8));
+    _advance(controller, 80);
+    expect(controller.heroPosition.dx, closeTo(11, 1e-8));
     expect(controller.movementTerrain, MovementTerrain.plain);
     expect(controller.direction, HeroDirection.west);
     controller.dispose();

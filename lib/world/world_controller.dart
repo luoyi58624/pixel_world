@@ -151,8 +151,8 @@ class WorldController extends ChangeNotifier {
   /// 同一方向的两帧步行动画索引，静止时保持站立帧。
   int get animationStep => walking ? (walkDistance / 6).floor() % 2 : 0;
 
-  /// 平地行军速度，单位为原生地图像素每秒。
-  static const double baseMovementSpeed = plainMovementSpeed;
+  /// 叠加地形倍率前的行军速度，单位为原生地图像素每秒。
+  static const double baseMovementSpeed = baseMarchSpeed;
 
   /// 是否显示格子边界。
   bool showGrid = false;

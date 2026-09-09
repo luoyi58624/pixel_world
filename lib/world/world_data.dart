@@ -5,21 +5,24 @@ import 'city_appearance.dart';
 
 /// 行军地形只改变速度，地图内的格子均可通行。
 enum MovementTerrain {
-  /// 草地、树林、道路、桥梁和建筑区域使用正常速度。
-  plain('平地', 1),
+  /// 草地、树林和土路使用基础速度的四分之三。
+  plain('平地', 0.75),
 
-  /// 涉水时使用正常速度的一半。
-  water('涉水', 0.5),
+  /// 涉水时使用基础速度的四成。
+  water('涉水', 0.4),
 
-  /// 翻越山地时使用正常速度的六成。
-  mountain('山地', 0.6);
+  /// 翻越山地时使用基础速度的两成。
+  mountain('山地', 0.2),
+
+  /// 桥梁和城堡图块保持基础速度。
+  structure('桥梁/建筑', 1);
 
   const MovementTerrain(this.label, this.speedFactor);
 
   /// 用于行军状态显示的名称。
   final String label;
 
-  /// 相对于平地的行军速度。
+  /// 相对于基础行军速度的地形倍率。
   final double speedFactor;
 }
 
@@ -233,6 +236,7 @@ class WorldDefinition {
     return switch (paletteIds[displayTiles[cell.y * width + cell.x]]) {
       1 => MovementTerrain.water,
       2 => MovementTerrain.mountain,
+      3 => MovementTerrain.structure,
       _ => MovementTerrain.plain,
     };
   }

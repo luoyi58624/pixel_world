@@ -10,8 +10,8 @@ typedef MovementResult = ({
   double remainingTime,
 });
 
-/// 平地的原生像素行军速度。
-const double plainMovementSpeed = 44;
+/// 叠加地形倍率前的基础行军速度，单位为原生像素每秒。
+const double baseMarchSpeed = 22;
 
 /// 将世界坐标限制为地图内的当前格子。
 TileCoord cellAt(WorldDefinition world, Offset position) => TileCoord(
@@ -19,7 +19,7 @@ TileCoord cellAt(WorldDefinition world, Offset position) => TileCoord(
   (position.dy / 16).floor().clamp(0, world.height - 1),
 );
 
-/// 沿最短直线前进，在河岸和山地边界处分段计算时间，平地速度为 44 像素/秒。
+/// 沿最短直线前进，在地形边界处分段计算速度和剩余时间。
 MovementResult advanceToward(
   WorldDefinition world,
   Offset position,
@@ -37,8 +37,7 @@ MovementResult advanceToward(
     }
     final unit = delta / distance;
     final cell = cellAt(world, position + unit * 1e-7);
-    final speed =
-        plainMovementSpeed * world.movementTerrainAt(cell).speedFactor;
+    final speed = baseMarchSpeed * world.movementTerrainAt(cell).speedFactor;
     final boundary = math.min(
       _boundaryDistance(position.dx, unit.dx, cell.x),
       _boundaryDistance(position.dy, unit.dy, cell.y),
