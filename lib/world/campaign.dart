@@ -14,6 +14,7 @@ import 'recruitment.dart';
 import 'field_terrain.dart';
 
 part 'country_ai.dart';
+part 'country_ai_budget.dart';
 part 'field_battles.dart';
 part 'siege_battles.dart';
 part 'field_supplies.dart';
@@ -503,6 +504,9 @@ class CampaignState {
   /// 读取国家的初始资金配置。
   CountryConfig configFor(int countryId) =>
       countryConfigs[countryId] ?? const CountryConfig();
+
+  /// 当前国家的保守经营预算，预留既有部队粮草、月俸和应急资金。
+  CountryAiBudget aiBudgetFor(int countryId) => _planAiBudget(countryId);
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
   factory CampaignState.fromRom(

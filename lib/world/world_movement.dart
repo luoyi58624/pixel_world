@@ -14,6 +14,16 @@ typedef MovementResult = ({
 /// 叠加地形倍率前的基础行军速度，单位为原生像素每秒。
 const double baseMarchSpeed = GameConfig.baseMarchSpeed;
 
+/// 用实际地形积分估算直线行军秒数，不改变部队位置或动画。
+double estimateMarchSeconds(WorldDefinition world, Offset from, Offset target) {
+  final slowest = MovementTerrain.values
+      .map((terrain) => terrain.speedFactor)
+      .reduce(math.min);
+  final allowance = (target - from).distance / (baseMarchSpeed * slowest) + 1;
+  return allowance -
+      advanceToward(world, from, target, allowance).remainingTime;
+}
+
 /// 将世界坐标限制为地图内的当前格子。
 TileCoord cellAt(WorldDefinition world, Offset position) => TileCoord(
   (position.dx / 16).floor().clamp(0, world.width - 1),

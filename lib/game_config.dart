@@ -39,8 +39,14 @@ abstract final class GameConfig {
   /// 扎营的粮草消耗倍率，一半消耗即二十秒一金币。
   static const campSupplyRate = 0.5;
 
-  /// 电脑经营至少保留一金币，避免征兵花光国库而无法出征。
-  static const countryAiSupplyReserve = 1;
+  /// 电脑在已预留粮草和月俸之外保留的应急金币。
+  static const countryAiEmergencyGold = 5;
+
+  /// 预算至少覆盖一个月再加这段时间，避免刚结算就再次花空国库。
+  static const countryAiSupplySafetySeconds = 30.0;
+
+  /// 每位守将预留的交战时间，与行军时间一起计入出征粮草预算。
+  static const countryAiBattleBudgetSeconds = 30.0;
 
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;

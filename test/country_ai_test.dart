@@ -279,21 +279,21 @@ void main() {
 
   test('决策按固定时钟启动，派最强者随机攻打其他国家，每城留足人数', () {
     final countries = _quietCountries()
-      ..[1] = const CountryConfig(initialGold: 1);
+      ..[1] = const CountryConfig(initialGold: 30);
     final c = _campaign(ai: true, countries: countries, stocks: {1: 4});
     final initial = c.garrisonAt(1).toList()..sort(_strength);
     c.advance(GameConfig.countryAiInitialDelay - 0.01);
     expect(c.marches, isEmpty);
     c.advance(0.01);
-    expect(c.marches.length, 1);
-    final march = c.marches.values.single;
+    expect(c.marches.length, 2);
+    final march = c.marches.values.first;
     expect(march.hero, same(initial.first));
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.garrisonAt(1).length, 1);
     expect(c.cities[march.target!.id]!.ownerCountryId, isNot(1));
     expect(c.hasDispatched, isFalse);
     expect(c.gold, 50);
     c.advance(GameConfig.countryAiInterval);
-    expect(c.marches.length, 1);
+    expect(c.marches.length, 2);
   });
 
   test('新招将领配兵后由最强者出击，经营升级和兵员都真实扣款', () {
@@ -349,7 +349,7 @@ void main() {
     final c = _campaign(
       ai: true,
       stocks: {1: 4},
-      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
+      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 30),
     );
     c.cities[4]!.ownerCountryId = 1;
     final stationed = c.garrisonAt(1);
@@ -367,10 +367,11 @@ void main() {
         ai: true,
         stocks: {1: 4},
         random: math.Random(seed),
-        countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
+        countries: _quietCountries()
+          ..[1] = const CountryConfig(initialGold: 30),
       );
       c.advance(8);
-      choices.add(c.marches.values.single.target!.id);
+      choices.add(c.marches.values.first.target!.id);
     }
     expect(choices.length, greaterThan(1));
     expect(choices.any((id) => id != 0), isTrue);
@@ -430,10 +431,10 @@ void main() {
     expect(c.battles[2]!.defender.countryId, 2);
   });
 
-  test('一级开局留守为零，允许全部将领出征', () {
+  test('一级城留守为零，预算不足时仍保留无法供养的将领', () {
     final c = _campaign(
       ai: true,
-      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 1),
+      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 30),
     );
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
@@ -443,9 +444,10 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      count,
+      count - 1,
     );
-    expect(c.garrisonAt(1), isEmpty);
+    expect(c.garrisonAt(1).length, 1);
+    expect(c.cities[1]!.requiredGarrison, 0);
   });
 
   test('三张地图多国经营交战持续模拟，英雄不重复、资金和储备不越界，结束后停止AI', () {

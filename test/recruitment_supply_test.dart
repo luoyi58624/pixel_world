@@ -8,44 +8,52 @@ import 'package:pixel_world/world/world_data.dart';
 
 import 'support/fixed_siege_random.dart';
 
-CampaignState _campaign({int gold = 100, int level = 1, bool ai = false}) =>
-    CampaignState.fromRom(
-      WorldDefinition.fromJson(
-        {
-          'id': 0,
-          'width': 160,
-          'height': 64,
-          'tiles': List.filled(160 * 64, 0),
-          'cities': [
-            for (final (id, x, country, units) in [
-              (0, 10, 0, [40, 0, 2]),
-              (1, 70, 1, [18, 19, 20]),
-              (2, 140, 0, [3, 4]),
-            ])
-              {
-                'id': id,
-                'name': '测试城',
-                'x': x,
-                'y': 30,
-                'width': 2,
-                'height': 2,
-                'shape': [3, 3, 3, 3],
-                'initialLevel': level,
-                'initialOwnerId': country,
-                'unitIds': units,
-              },
-          ],
-        },
-        [0, 1, 2, 3],
-      ),
-      decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-      aiEnabled: ai,
-      startingGold: gold,
-      economyRandom: const FixedSiegeRandom(),
-      aiRandom: math.Random(7),
-      recruitmentRandom: math.Random(3),
-      siegeRandom: math.Random(8),
-    );
+CampaignState _campaign({
+  int gold = 100,
+  int level = 1,
+  bool ai = false,
+  bool recruitment = true,
+}) => CampaignState.fromRom(
+  WorldDefinition.fromJson(
+    {
+      'id': 0,
+      'width': 160,
+      'height': 64,
+      'tiles': List.filled(160 * 64, 0),
+      'cities': [
+        for (final (id, x, country, units) in [
+          (0, 10, 0, [40, 0, 2]),
+          (1, 70, 1, [18, 19, 20]),
+          (2, 140, 0, [3, 4]),
+        ])
+          {
+            'id': id,
+            'name': '测试城',
+            'x': x,
+            'y': 30,
+            'width': 2,
+            'height': 2,
+            'shape': [3, 3, 3, 3],
+            'initialLevel': level,
+            'initialOwnerId': country,
+            'unitIds': units,
+          },
+      ],
+    },
+    [0, 1, 2, 3],
+  ),
+  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync())
+      .where(
+        (hero) => recruitment || {40, 0, 2, 18, 19, 20, 3, 4}.contains(hero.id),
+      )
+      .toList(),
+  aiEnabled: ai,
+  startingGold: gold,
+  economyRandom: const FixedSiegeRandom(),
+  aiRandom: math.Random(7),
+  recruitmentRandom: math.Random(3),
+  siegeRandom: math.Random(8),
+);
 
 HeroMarch _leave(CampaignState c, int id, {int country = 0, double y = 40}) {
   final hero = c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -73,13 +81,18 @@ void _until(CampaignState c, bool Function() done) {
 void main() {
   test('各初始等级分别留守等级减一位，额外将领有兵有钱才自动出征', () {
     for (var level = 1; level <= 5; level++) {
-      final c = _campaign(gold: 13, level: level, ai: true);
+      final c = _campaign(
+        gold: 1000,
+        level: level,
+        ai: true,
+        recruitment: false,
+      );
       c.buySoldiers(1, 12, countryId: 1);
       final keep = math.min(3, level - 1);
       c.advance(8);
       expect(c.garrisonAt(1).length, keep);
       expect(c.marches.length, 3 - keep);
-      expect(c.goldFor(1), 1);
+      expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
     }
   });
 
