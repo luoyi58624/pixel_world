@@ -80,8 +80,20 @@ class _WorldScreenState extends State<WorldScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.resumed) {
+      _controller?.campaign.pauseAi();
+    }
     // 失焦只清除输入；保留游戏时钟，系统恢复帧调度后按真实间隔推进。
     if (state != AppLifecycleState.resumed) _clearKeys();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _controller?.campaign.pauseAi();
   }
 
   void _clearKeys() {

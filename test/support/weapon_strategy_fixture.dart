@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/weapon.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -33,6 +34,7 @@ CampaignState weaponStrategyCampaign({
   bool fortifiedCapital = false,
   WeaponCatalog? catalog,
   math.Random? weaponRandom,
+  Map<int, Map<String, Object>> heroOverrides = const {},
 }) {
   final records = [
     (0, 75, 42, 0, 5, [40]),
@@ -75,6 +77,9 @@ CampaignState weaponStrategyCampaign({
     capitalHero['combat'] = 63;
     capitalHero['maxHp'] = 255;
   }
+  for (final row in heroData['heroes'] as List) {
+    row.addAll(heroOverrides[row['id']] ?? <String, Object>{});
+  }
   final c = CampaignState.fromRom(
     world,
     decodeRomHeroes(jsonEncode(heroData))
@@ -89,6 +94,7 @@ CampaignState weaponStrategyCampaign({
       2: const CountryConfig(initialGold: 0),
       3: const CountryConfig(initialGold: 0),
     },
+    aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: math.Random(7),
     recruitmentRandom: const FixedSiegeRandom(),
     economyRandom: const FixedSiegeRandom(),

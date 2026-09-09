@@ -1,0 +1,449 @@
+import 'geometry.dart';
+
+/// 显式可见状态，不携带战斗内存或敌军隐藏命令。
+enum AiArmyState {
+  garrison,
+  marching,
+  camped,
+  queue,
+  attacking,
+  defending,
+  field,
+  retreating,
+}
+
+/// 一名可观察英雄及其合法操作快照。
+class AiHero {
+  /// 由观察适配器创建。
+  AiHero({
+    required this.id,
+    required this.country,
+    required this.city,
+    required this.order,
+    required this.type,
+    required this.hp,
+    required this.maxHp,
+    required this.combat,
+    required this.politics,
+    required this.salary,
+    required this.position,
+    this.velocity = const AiPoint(0, 0),
+    this.state = AiArmyState.garrison,
+    List<double> soldiers = const [],
+    List<int> weapons = const [],
+    this.morale = 0,
+    this.supplyDue = 0,
+    this.destination,
+    this.targetCity,
+    this.returnSeconds = 0,
+    this.canDispatch = false,
+    this.canMove = false,
+    this.canDismiss = false,
+    this.canUpgrade = false,
+    this.canRetreat = false,
+    this.marked = false,
+    this.revision = '',
+    this.orderRevision = 0,
+    this.opponent,
+    this.clashes = 0,
+    this.received = 0,
+    this.dealt = 0,
+    this.openingAvailable = true,
+    this.weaponReady = true,
+    this.returnPath = const [],
+  }) : soldiers = List.unmodifiable(soldiers),
+       weapons = List.unmodifiable(weapons);
+
+  /// 解码不含领域对象的记录。
+  factory AiHero.fromJson(Map<String, dynamic> d) => AiHero(
+    id: d['id'],
+    country: d['c'],
+    city: d['home'],
+    order: d['o'],
+    type: d['t'],
+    hp: (d['hp'] as num).toDouble(),
+    maxHp: d['max'],
+    combat: d['a'],
+    politics: d['p'],
+    salary: d['pay'],
+    position: AiPoint.fromJson(d['xy']),
+    velocity: AiPoint.fromJson(d['v']),
+    state: AiArmyState.values[d['s']],
+    soldiers: [for (final n in d['troops'] as List) (n as num).toDouble()],
+    weapons: List<int>.from(d['w']),
+    morale: (d['m'] as num).toDouble(),
+    supplyDue: (d['due'] as num).toDouble(),
+    destination: d['to'] == null ? null : AiPoint.fromJson(d['to']),
+    targetCity: d['target'],
+    returnSeconds: (d['return'] as num).toDouble(),
+    canDispatch: d['dispatch'],
+    canMove: d['move'],
+    canDismiss: d['dismiss'],
+    canUpgrade: d['upgrade'],
+    canRetreat: d['retreat'],
+    marked: d['marked'],
+    revision: d['rev'],
+    orderRevision: d['orderRev'],
+    opponent: d['opponent'],
+    clashes: d['clashes'],
+    received: (d['received'] as num).toDouble(),
+    dealt: (d['dealt'] as num).toDouble(),
+    openingAvailable: d['opening'],
+    weaponReady: d['weaponReady'],
+    returnPath: [for (final p in d['returnPath']) AiPoint.fromJson(p)],
+  );
+
+  /// 身份、国家、所属城、显示顺序与类型；类型 0/1/2 为普通/高级/主角。
+  final String id;
+  final int country, city, order, type;
+
+  /// 当前生命、初始生命与战斗/内政/月俸。
+  final double hp;
+  final int maxHp, combat, politics, salary;
+
+  /// 公开位置和最近观察到的移动速度。
+  final AiPoint position, velocity;
+
+  /// 当前实际状态。
+  final AiArmyState state;
+
+  /// 实际随军小兵生命及有序背包。
+  final List<double> soldiers;
+  final List<int> weapons;
+
+  /// 已显示的士气与己方粮草零头。
+  final double morale, supplyDue;
+
+  /// 只允许己方携带的命令终点和目标城；敌方必须为空。
+  final AiPoint? destination;
+  final int? targetCity;
+
+  /// 己方已锁定撤退的保守返程秒数。
+  final double returnSeconds;
+
+  /// 主环境按真实命令生成的权限。
+  final bool canDispatch, canMove, canDismiss, canUpgrade, canRetreat, marked;
+
+  /// 与普通坐标变化分开的实体及指令版本。
+  final String revision;
+  final int orderRevision;
+
+  /// 已公开的对手、碰撞及上次伤害，不包含未来结果。
+  final String? opponent;
+  final int clashes;
+  final double received, dealt;
+
+  /// 当前动作是否允许释放及本场开场释放是否尚未发生。
+  final bool openingAvailable, weaponReady;
+
+  /// 仅己方撤退的已走过路线。
+  final List<AiPoint> returnPath;
+
+  /// 是否占据城内迎战名额。
+  bool get stationed =>
+      state == AiArmyState.garrison || state == AiArmyState.defending;
+
+  /// 活着的小兵数量。
+  int get soldierCount => soldiers.where((n) => n > 0).length;
+
+  /// 总体当前承伤资源。
+  double get health => hp + soldiers.fold(0.0, (a, b) => a + b);
+
+  /// 跨平台记录。
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'c': country,
+    'home': city,
+    'o': order,
+    't': type,
+    'hp': hp,
+    'max': maxHp,
+    'a': combat,
+    'p': politics,
+    'pay': salary,
+    'xy': position.toJson(),
+    'v': velocity.toJson(),
+    's': state.index,
+    'troops': soldiers,
+    'w': weapons,
+    'm': morale,
+    'due': supplyDue,
+    'to': destination?.toJson(),
+    'target': targetCity,
+    'return': returnSeconds,
+    'dispatch': canDispatch,
+    'move': canMove,
+    'dismiss': canDismiss,
+    'upgrade': canUpgrade,
+    'retreat': canRetreat,
+    'marked': marked,
+    'rev': revision,
+    'orderRev': orderRevision,
+    'opponent': opponent,
+    'clashes': clashes,
+    'received': received,
+    'dealt': dealt,
+    'opening': openingAvailable,
+    'weaponReady': weaponReady,
+    'returnPath': [for (final p in returnPath) p.toJson()],
+  };
+}
+
+/// 城池公开状态，安全名额不随本场中途升级增加。
+class AiCity {
+  /// 创建城池视图。
+  AiCity({
+    required this.id,
+    required this.country,
+    required this.nativeCountry,
+    required this.level,
+    required this.requiredGarrison,
+    required this.center,
+    required this.outline,
+    required this.income,
+    required this.poorIncome,
+    required this.capacityContribution,
+    required this.recruitCapacity,
+    required this.recruitAllowed,
+    required this.revision,
+    this.baseIncome = 10,
+    this.initialBattleLevel,
+    this.victories = 0,
+    this.attacker,
+    this.defender,
+    this.battleStage = '',
+    this.nextWaveSeconds = 0,
+    this.dangerSeconds = 0,
+  });
+
+  /// 解码城市记录。
+  factory AiCity.fromJson(Map<String, dynamic> d) => AiCity(
+    id: d['id'],
+    country: d['c'],
+    nativeCountry: d['native'],
+    level: d['level'],
+    requiredGarrison: d['keep'],
+    center: AiPoint.fromJson(d['xy']),
+    outline: AiOutline([
+      for (final p in d['outline'] as List) AiPoint.fromJson(p),
+    ]),
+    income: d['income'],
+    poorIncome: d['poor'],
+    capacityContribution: d['cap'],
+    recruitCapacity: d['recruitCap'],
+    recruitAllowed: d['recruit'],
+    revision: d['rev'],
+    baseIncome: d['baseIncome'],
+    initialBattleLevel: d['initial'],
+    victories: d['wins'],
+    attacker: d['attacker'],
+    defender: d['defender'],
+    battleStage: d['stage'],
+    nextWaveSeconds: (d['next'] as num).toDouble(),
+    dangerSeconds: (d['danger'] as num).toDouble(),
+  );
+
+  /// 城市身份、归属、原生国家与建筑等级。
+  final int id, country, nativeCountry, level, requiredGarrison;
+
+  /// 实际中心及接触轮廓。
+  final AiPoint center;
+  final AiOutline outline;
+
+  /// 月收入、欠收收入、城防容量贡献和招募容量。
+  final int income, poorIncome, capacityContribution, recruitCapacity;
+
+  /// 未折算的一级基础产出，避免外国城市升级时的取整误差。
+  final int baseIncome;
+
+  /// 当前真实规则是否允许抽取。
+  final bool recruitAllowed;
+
+  /// 归属、等级和本场守军序列的版本。
+  final String revision;
+
+  /// 进行中攻城开场等级；为空表示当前没有攻城。
+  final int? initialBattleLevel;
+
+  /// 进攻方本场已赢的守将数。
+  final int victories;
+
+  /// 正在对阵的英雄及公开过场。
+  final String? attacker, defender;
+  final String battleStage;
+  final double nextWaveSeconds;
+
+  /// 只由公开的当前准备或武器动画得出的最早结算下界，未知时为零。
+  final double dangerSeconds;
+
+  /// 当前仍可能迎战的真实名额。
+  int get safeSlots => initialBattleLevel == null
+      ? level
+      : (initialBattleLevel! - victories).clamp(0, 5);
+
+  /// 跨平台记录。
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'c': country,
+    'native': nativeCountry,
+    'level': level,
+    'keep': requiredGarrison,
+    'xy': center.toJson(),
+    'outline': [for (final p in outline.points) p.toJson()],
+    'income': income,
+    'baseIncome': baseIncome,
+    'poor': poorIncome,
+    'cap': capacityContribution,
+    'recruitCap': recruitCapacity,
+    'recruit': recruitAllowed,
+    'rev': revision,
+    'initial': initialBattleLevel,
+    'wins': victories,
+    'attacker': attacker,
+    'defender': defender,
+    'stage': battleStage,
+    'next': nextWaveSeconds,
+    'danger': dangerSeconds,
+  };
+}
+
+/// 全国资源及公开经济数据；武器库存只发送本国的。
+class AiCountry {
+  /// 创建国库视图。
+  AiCountry(
+    this.id,
+    this.gold,
+    this.reserves,
+    this.capacity,
+    this.salary,
+    this.poorIncome, {
+    Map<int, int> stock = const {},
+    Map<int, int> hatred = const {},
+  }) : stock = Map.unmodifiable(stock),
+       hatred = Map.unmodifiable(hatred);
+
+  /// 解码资源记录。
+  factory AiCountry.fromJson(Map<String, dynamic> d) => AiCountry(
+    d['id'],
+    d['gold'],
+    d['reserves'],
+    d['capacity'],
+    d['salary'],
+    d['poor'],
+    stock: {
+      for (final e in (d['stock'] as Map).entries)
+        int.parse(e.key): e.value as int,
+    },
+    hatred: {
+      for (final e in (d['hate'] as Map).entries)
+        int.parse(e.key): e.value as int,
+    },
+  );
+
+  /// 国家身份、现金、兵员、上限、月俸及欠收收入。
+  final int id, gold, reserves, capacity, salary, poorIncome;
+
+  /// 库存和有方向的本国仇恨。
+  final Map<int, int> stock, hatred;
+
+  /// 跨平台记录。
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'gold': gold,
+    'reserves': reserves,
+    'capacity': capacity,
+    'salary': salary,
+    'poor': poorIncome,
+    'stock': {for (final e in stock.entries) '${e.key}': e.value},
+    'hate': {for (final e in hatred.entries) '${e.key}': e.value},
+  };
+}
+
+/// 同一时刻冻结的公平观察；不包含真实随机序列或敌国任务。
+class AiObservation {
+  /// 创建不可变快照。
+  AiObservation({
+    required this.country,
+    required this.tick,
+    required this.monthRemaining,
+    required List<AiCity> cities,
+    required List<AiHero> heroes,
+    required List<AiCountry> countries,
+    this.poolCount = 0,
+    this.maximumSalary = 3,
+  }) : cities = List.unmodifiable(cities),
+       heroes = List.unmodifiable(heroes),
+       countries = List.unmodifiable(countries);
+
+  /// 解码观察。
+  factory AiObservation.fromJson(Map<String, dynamic> d) => AiObservation(
+    country: d['country'],
+    tick: d['tick'],
+    monthRemaining: (d['month'] as num).toDouble(),
+    cities: [
+      for (final v in d['cities'])
+        AiCity.fromJson(Map<String, dynamic>.from(v)),
+    ],
+    heroes: [
+      for (final v in d['heroes'])
+        AiHero.fromJson(Map<String, dynamic>.from(v)),
+    ],
+    countries: [
+      for (final v in d['countries'])
+        AiCountry.fromJson(Map<String, dynamic>.from(v)),
+    ],
+    poolCount: d['pool'],
+    maximumSalary: d['salary'],
+  );
+
+  /// 当前决策国与逻辑时刻。
+  final int country, tick;
+
+  /// 本月剩余时间。
+  final double monthRemaining;
+
+  /// 当前允许观察的实体。
+  final List<AiCity> cities;
+  final List<AiHero> heroes;
+  final List<AiCountry> countries;
+
+  /// 公开池数量与目录最大月俸，用于保守招募预算。
+  final int poolCount, maximumSalary;
+
+  /// 本国国库。
+  AiCountry get nation => countries.firstWhere((c) => c.id == country);
+
+  /// 本国现有城池。
+  Iterable<AiCity> get owned => cities.where((c) => c.country == country);
+
+  /// 当前城内守军，包含已锁定守将，按真实显示顺序排列。
+  List<AiHero> garrison(int city) =>
+      heroes
+          .where(
+            (h) =>
+                h.city == city &&
+                h.stationed &&
+                h.hp > 0 &&
+                h.country == cities.firstWhere((c) => c.id == city).country,
+          )
+          .toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+
+  /// 查找英雄。
+  AiHero? hero(String? id) => heroes.where((h) => h.id == id).firstOrNull;
+
+  /// 查找城池。
+  AiCity? city(int? id) => cities.where((c) => c.id == id).firstOrNull;
+
+  /// 跨平台记录。
+  Map<String, Object?> toJson() => {
+    'country': country,
+    'tick': tick,
+    'month': monthRemaining,
+    'cities': [for (final c in cities) c.toJson()],
+    'heroes': [for (final h in heroes) h.toJson()],
+    'countries': [for (final c in countries) c.toJson()],
+    'pool': poolCount,
+    'salary': maximumSalary,
+  };
+}

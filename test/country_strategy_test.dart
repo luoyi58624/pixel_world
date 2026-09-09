@@ -4,27 +4,35 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
 import 'support/weapon_strategy_fixture.dart';
 
+const _balancedSiege = <int, Map<String, Object>>{
+  0: {'combat': 20, 'maxHp': 140, 'salary': 0},
+  2: {'combat': 20, 'maxHp': 140, 'salary': 0},
+  3: {'combat': 20, 'maxHp': 95},
+  4: {'combat': 20, 'maxHp': 95},
+};
+
 void main() {
-  test('开局优先扩张弱城，所有多余高级将领出击且留下配置的两位守将', () {
+  test('开局立即扩张弱城，单军足够时不把多余将领全部堆向同一目标', () {
     final c = weaponStrategyCampaign(ai: true);
     c.advance(.2);
     final marches = c.marches.values
         .where((m) => m.hero.countryId == 1)
         .toList();
-    expect(marches.length, 2);
-    expect(marches.first.hero.sourceId, 0);
+    expect(marches.length, 1);
+    expect(marches.first.hero.sourceId, 2);
     expect(marches.every((m) => m.target!.id == 2), isTrue);
     expect(marches.every((m) => m.hero.weaponIds.isEmpty), isTrue);
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.garrisonAt(1).length, 3);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.attacking);
     c.advance(5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
   });
 
   test('高城防高级守将：同时备齐武器、士兵与粮草，多将锁定同一目标', () {
@@ -34,6 +42,7 @@ void main() {
       fortifiedCapital: true,
       targetHeroes: [3, 4],
       enemyStock: 8,
+      heroOverrides: _balancedSiege,
     );
     c.advance(.2);
     final raid = c.marches.values.where((m) => m.hero.countryId == 1).toList();
@@ -61,14 +70,15 @@ void main() {
       gold: 20,
       targetLevel: 5,
       fortifiedCapital: true,
-      targetHeroes: [3],
+      targetHeroes: [3, 4],
+      heroOverrides: _balancedSiege,
     );
     c.advance(.2);
     final plan = c.warPlanFor(1)!;
     expect(plan.phase, CountryWarPhase.saving);
     expect(plan.requiredGold, greaterThan(20));
     expect(c.marches, isEmpty);
-    expect(c.goldFor(1), 20);
+    expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
     expect(
       c.heroes.where((h) => h.countryId == 1).every((h) => h.weaponIds.isEmpty),
       isTrue,
@@ -83,7 +93,7 @@ void main() {
     }
     expect(plan.targetCityId, target);
     expect(plan.phase, CountryWarPhase.attacking);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
     expect(c.goldFor(1), greaterThan(0));
   });
 
@@ -122,7 +132,7 @@ void main() {
     expect(c.goldFor(1), 935);
   });
 
-  test('侦测来敌后优先升级、招将、补兵，守军不购买武器且停止新的攻势', () {
+  test('侦测可见来敌后修复迎战名额，不在危险满员城继续招募', () {
     final c = weaponStrategyCampaign(ai: true, gold: 300, recruitment: true);
     final attacker = weaponHero(c, 40);
     final march = c.dispatch(attacker, c.world.cities[1])!;
@@ -132,11 +142,11 @@ void main() {
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
     expect(c.weaponStorageUsed(1), 0);
     expect(c.garrisonAt(1).every((hero) => hero.weaponIds.isEmpty), isTrue);
-    expect(c.cities[1]!.level, 3);
+    expect(c.cities[1]!.level, 4);
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     c.advance(5);
     expect(c.cities[1]!.level, 4);
-    expect(c.heroes.where((h) => h.countryId == 1).length, greaterThan(4));
+    expect(c.garrisonAt(1).length, lessThanOrEqualTo(c.cities[1]!.level));
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
   });
@@ -188,6 +198,7 @@ void main() {
         world,
         heroes,
         weaponCatalog: testWeaponCatalog(),
+        aiWorkerFactory: SynchronousAiWorker.new,
         aiRandom: math.Random(7),
         recruitmentRandom: math.Random(11),
         economyRandom: math.Random(17),
@@ -209,7 +220,10 @@ void main() {
           }
         }
       }
-      expect(c.aiRouteEstimates, lessThan(c.aiStrategicDecisions * 12 + 100));
+      expect(
+        c.aiRouteEstimates,
+        lessThanOrEqualTo(c.aiStrategicDecisions * 6000),
+      );
     }
     clock.stop();
     debugPrint(

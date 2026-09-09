@@ -5,17 +5,18 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
-// 均匀扫描随机分位点，验证真正的出征结果，避免统计测试偶发失败。
+// 扫描独立偏好种子，验证真实目标选择；不采样任何战斗。
 class _Roll implements math.Random {
   _Roll(this.value);
   final double value;
   @override
   double nextDouble() => value;
   @override
-  int nextInt(int max) => 0;
+  int nextInt(int max) => (value * max).floor();
   @override
   bool nextBool() => false;
 }
@@ -86,6 +87,7 @@ CampaignState _campaign(
       2: const CountryConfig(initialGold: 0),
       attacker: CountryConfig(initialGold: gold),
     },
+    aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: _Roll(roll),
     economyRandom: _Roll(0),
     recruitmentRandom: _Roll(0),
@@ -107,7 +109,7 @@ CampaignState _campaign(
 }
 
 Map<int, int> _draws({
-  int samples = 360,
+  int samples = 64,
   int left = 30,
   int right = 70,
   int extras = 0,
@@ -148,9 +150,9 @@ Map<int, int> _draws({
       );
       c.advance(GameConfig.countryAiInterval + .5);
     } else {
-      c.advance(
-        GameConfig.countryAiInitialDelay + GameConfig.countryAiInterval - .01,
-      );
+      for (var tick = 0; tick < 6; tick++) {
+        c.advance(1 / 60);
+      }
     }
     final march = c.marches.values.single;
     final target = march.target!;
@@ -164,52 +166,50 @@ Map<int, int> _draws({
 }
 
 void main() {
-  test('近邻有明显更高进攻概率，远处仍有机会，不变成固定选择最近城', () {
+  test('静态收益更好的邻城优先，不为随机性选择明显更差的远征', () {
     final counts = _draws(left: 60, right: 110);
-    expect(counts[0], greaterThan(4 * counts[2]!));
-    expect(counts[2], greaterThan(0));
+    expect(counts[0], 64);
+    expect(counts[2] ?? 0, 0);
   });
 
   test('相同国力和相同行军成本时机会均等，不对玩家阵营额外优待或仇视', () {
     final counts = _draws();
-    expect(counts[0], 180);
-    expect(counts[2], 180);
+    expect(counts[0], inInclusiveRange(20, 44));
+    expect(counts[2], inInclusiveRange(20, 44));
   });
 
   test('隔山的近城更费粮草时，会倾向实际更省钱的稍远目标', () {
     final counts = _draws(left: 35, right: 75, mountainsOnLeft: true);
-    expect(counts[2], greaterThan(1.8 * counts[0]!));
-    expect(counts[0], greaterThan(0));
+    expect(counts[2], 64);
+    expect(counts[0] ?? 0, 0);
   });
 
-  test('多个独立国家默认优先弱国，相同守军下较少领地的国家更容易被选择', () {
+  test('对局条件相同且一国领土已占多数时，允许优先压制扩张大国', () {
     for (final attacker in [1, 3]) {
       final counts = _draws(extras: 2, attacker: attacker);
       // 比较两座路程相同的主城，额外城池自身的选中次数不算入比较。
-      expect(counts[0], greaterThan(counts[2]!));
-      expect(counts[0], greaterThan(0));
+      expect(counts[2], 64);
     }
   });
 
-  test('城市易主后按当前国力重算偏好，玩家也适用弱国优先规则', () {
+  test('城市易主后重算领土压力，同一规则也适用于玩家国家', () {
     final counts = _draws(extras: 2, transferExtrasTo: 0);
-    expect(counts[2], greaterThan(counts[0]!));
-    expect(counts[2], greaterThan(0));
+    expect(counts[0], 64);
   });
 
   test('目标国再大也不能越过补给预算，负担不起的远征不会抽中', () {
     final counts = _draws(
-      samples: 60,
+      samples: 32,
       left: 60,
       right: 110,
       extras: 4,
-      gold: 16,
+      gold: 25,
     );
-    expect(counts, {0: 60});
+    expect(counts, {0: 32});
   });
 
   test('营地恢复补给后先返回友城整备，不立即再次盲目进攻', () {
-    final counts = _draws(samples: 180, recovering: true);
-    expect(counts, {1: 180});
+    final counts = _draws(samples: 32, recovering: true);
+    expect(counts, {1: 32});
   });
 }

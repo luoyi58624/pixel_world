@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 
 import 'support/fixed_siege_random.dart';
 
@@ -51,6 +52,7 @@ CampaignState _campaign({
   startingGold: gold,
   economyRandom: const FixedSiegeRandom(),
   aiRandom: math.Random(7),
+  aiWorkerFactory: SynchronousAiWorker.new,
   recruitmentRandom: math.Random(3),
   siegeRandom: math.Random(8),
 );
@@ -97,7 +99,7 @@ void main() {
     }
   });
 
-  test('电脑断粮后等待月收入，恢复资金再自动出征', () {
+  test('电脑断粮后等待月收入，恢复资金后分帧决策并回城整备', () {
     final c = _campaign(gold: 1, ai: true);
     final march = _leave(c, 18, country: 1, y: 160);
     c.advance(10);
@@ -105,9 +107,15 @@ void main() {
     final point = march.position;
     c.advance(40);
     expect(march.position, point);
-    c.advance(13.1);
+    for (var i = 0; i < 786; i++) {
+      c.advance(1 / 60);
+    }
     expect(c.goldFor(1), greaterThan(0));
-    expect(march.supplyHalted, isFalse);
+    expect(
+      march.supplyHalted,
+      isFalse,
+      reason: c.aiDiagnostics.toJson().toString(),
+    );
     expect(march.position, isNot(point));
   });
 

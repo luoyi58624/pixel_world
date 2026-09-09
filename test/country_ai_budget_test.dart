@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -91,6 +92,7 @@ CampaignState _campaign({
     },
     economyRandom: economy ?? _Poor(),
     recruitmentRandom: math.Random(3),
+    aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: math.Random(7),
     retreatRandom: math.Random(31),
   );
@@ -130,6 +132,7 @@ void main() {
           File('assets/data/rom_weapons.json').readAsStringSync(),
         ),
         economyRandom: math.Random(17),
+        aiWorkerFactory: SynchronousAiWorker.new,
         aiRandom: math.Random(7),
         retreatRandom: math.Random(31),
         recruitmentRandom: math.Random(11),
@@ -171,12 +174,12 @@ void main() {
     a.position = const Offset(200, 30);
     b.position = const Offset(220, 30);
     final moving = c.aiBudgetFor(1);
-    expect(moving.planningSeconds, 90);
+    expect(moving.planningSeconds, closeTo(1700 / (22 * .75), .01));
     expect(moving.minimumMonthlyIncome, 0);
     expect(moving.monthlySalary, 6);
-    expect(moving.reserveGold, 29); // 两队九十秒十八金币，月俸六金币，应急五金币。
+    expect(moving.reserveGold, 31); // 两队完整行军约 103 秒各付十金币，加月俸六金币与应急五金币。
     b.camp();
-    expect(c.aiBudgetFor(1).reserveGold, 25);
+    expect(c.aiBudgetFor(1).reserveGold, 26);
     expect(c.aiBudgetFor(0).reserveGold, 5);
     c.advance(59.9);
     expect(c.aiBudgetFor(1).reserveGold, greaterThan(25)); // 预测期内新增一次月结。
@@ -278,17 +281,14 @@ void main() {
       stock: 0,
       recruitment: true,
       hireSalary: 60,
-      level: 3,
+      level: 4,
     );
-    final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 3);
-    for (final c in [expensive, cheap]) {
-      final march = c.dispatch(_hero(c, 40), c.world.cities[1])!;
-      march.position =
-          c.cityBounds(c.world.cities[1]).center + const Offset(140, 0);
-    }
+    final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 4);
     final count = expensive.heroes.length;
-    expensive.advance(13);
-    cheap.advance(13);
+    for (var i = 0; i < 780; i++) {
+      expensive.advance(1 / 60);
+      cheap.advance(1 / 60);
+    }
     expect(expensive.remainingHeroDraws(1), 3);
     expect(expensive.heroes.length, count);
     expect(cheap.remainingHeroDraws(1), 0);
@@ -307,7 +307,9 @@ void main() {
     expect(a.supplyHalted, isTrue);
     expect(b.supplyHalted, isTrue);
     c.dismissHero(_hero(c, 18), countryId: 1);
-    c.advance(10);
+    for (var i = 0; i < 600; i++) {
+      c.advance(1 / 60);
+    }
     expect(c.marches, isEmpty);
     expect(c.garrisonAt(1).length, 2);
     expect(c.goldFor(1), greaterThan(0));

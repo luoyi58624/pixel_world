@@ -1,5 +1,10 @@
+import 'world/ai/config.dart';
+
 /// 游戏数值集中配置；修改后热重启，以便当前战役重新按配置初始化。
 abstract final class GameConfig {
+  /// 国家 AI 的反应、工作量和风险预算；不改变实际战斗规则。
+  static const nationalAi = AiTuning();
+
   /// 初始年份。
   static const initialYear = 1;
 

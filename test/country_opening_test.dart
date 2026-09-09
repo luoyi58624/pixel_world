@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -92,13 +93,14 @@ CampaignState _game({
         .where((h) => ids.contains(h.id))
         .toList(),
     aiEnabled: ai,
+    aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: math.Random(7),
     economyRandom: math.Random(11),
   );
 }
 
 void main() {
-  test('第一帧立即出兵，一帧只决策一个国家，各国保留两将并全面出动多余将领', () {
+  test('第一帧立即规划，各国按实际战力出征并保留最低驻军', () {
     final c = _game();
     expect(c.marches, isEmpty);
     c.advance(1 / 60);
@@ -110,8 +112,8 @@ void main() {
       c.advance(1 / 60);
       expect(c.aiStrategicDecisions - before, lessThanOrEqualTo(1));
     }
-    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 2);
-    expect(c.garrisonAt(2).length, 2);
+    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 1);
+    expect(c.garrisonAt(2).length, 3);
     expect(c.marches.values.any((m) => m.hero.countryId == 0), isFalse);
     expect(c.marches.values.map((m) => m.target!.id).toSet(), {3, 4});
     for (final country in [1, 2]) {
@@ -122,12 +124,12 @@ void main() {
     }
   });
 
-  test('独立留守配置不由等级推算，超过四位的多余将领也能全部出征', () {
+  test('独立留守配置不由等级推算，但只派足以处理现有目标的编队', () {
     final c = _game(level: 5, guards: 1, largeArmy: true);
     c.advance(1 / 60);
     expect(c.cities[1]!.requiredGarrison, 1);
-    expect(c.garrisonAt(1).length, 1);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 6);
+    expect(c.garrisonAt(1).length, 5);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
     c.cities[1]!.ownerCountryId = 2;
     expect(c.cities[1]!.level, 1);
     expect(c.cities[1]!.requiredGarrison, 1);

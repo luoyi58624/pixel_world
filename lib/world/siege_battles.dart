@@ -52,7 +52,7 @@ extension _CitySieges on CampaignState {
       final city = march.target!;
       if (cities[city.id]!.ownerCountryId == march.hero.countryId) {
         if (march.phase == MarchPhase.marching) continue;
-        if (_atCityContact(march)) _station(march);
+        if (_atCityContact(march) && _aiAllowArrival(march)) _station(march);
         changed = true;
         continue;
       }
@@ -111,6 +111,7 @@ extension _CitySieges on CampaignState {
     if (existing?.isActive == true) {
       return existing!.attacker == march.hero ? existing : null;
     }
+    _protectAiCity(city.id, force: true);
     final defender = _pickDefender(city.id);
     if (defender == null) return null;
     reinforceHero(defender, countryId: defender.countryId);

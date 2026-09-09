@@ -4,10 +4,13 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
 import 'fixed_siege_random.dart';
+
+final _setupWorkers = <CampaignState, SynchronousAiWorker>{};
 
 /// 可计数的撤退随机源，用于检查概率边界与重复点击。
 class RetreatRoll implements math.Random {
@@ -70,7 +73,8 @@ CampaignState retreatCampaign({
     },
     [0, 1, 2, 3],
   );
-  return CampaignState.fromRom(
+  final worker = SynchronousAiWorker();
+  final campaign = CampaignState.fromRom(
     world,
     decodeRomHeroes(jsonEncode(data))
         .where((hero) => {40, 0, 2, 3, 18, 4}.contains(hero.id))
@@ -80,8 +84,11 @@ CampaignState retreatCampaign({
     retreatRandom: random ?? RetreatRoll(.9),
     siegeRandom: const FixedSiegeRandom(),
     economyRandom: const FixedSiegeRandom(),
+    aiWorkerFactory: () => worker,
     aiRandom: math.Random(7),
   );
+  _setupWorkers[campaign] = worker;
+  return campaign;
 }
 
 /// 从测试名单取得实际将领对象。
@@ -101,7 +108,9 @@ CityBattle startRetreatSiege(
     countryId: hero.countryId,
   )!;
   march.position = march.destination;
+  _setupWorkers[c]?.paused = true;
   c.advance(1 / 60);
+  _setupWorkers[c]?.paused = false;
   return c.battles[target]!;
 }
 

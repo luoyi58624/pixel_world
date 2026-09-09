@@ -29,6 +29,7 @@ extension BattleRetreatCommands on CampaignState {
     final succeeded =
         _retreatRandom.nextDouble() >= GameConfig.retreatFailureChance;
     battle.simulation.beginRetreat(side, succeeded: succeeded);
+    _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
     final message = battle.simulation.retreatMessage!;
     battle.record(message);
     _record(message);
@@ -122,56 +123,4 @@ extension BattleRetreatCommands on CampaignState {
 
   (String, String) _retreatPair(String a, String b) =>
       a.compareTo(b) < 0 ? (a, b) : (b, a);
-
-  bool _tryAiRetreat(WorldBattle battle) {
-    final sim = battle.simulation;
-    if (!sim.canRetreat ||
-        sim.lastClash == null ||
-        sim.clashes < GameConfig.aiRetreatMinimumClashes ||
-        sim.clashes <= battle._lastAiRetreatClash) {
-      return false;
-    }
-    battle._lastAiRetreatClash = sim.clashes;
-    for (final side in BattleSide.values) {
-      final hero = side == BattleSide.attacker
-          ? battle.attacker
-          : battle.defender;
-      if (hero.isPlayer ||
-          hero.type != HeroType.advanced ||
-          hero.hp >= hero.maxHp * GameConfig.aiRetreatHealthRatio ||
-          retreatBlockReason(hero.id, countryId: hero.countryId) != null) {
-        continue;
-      }
-      // 已备好的安全武器先用完，不能刚发现劣势就带着整包武器逃走。
-      if (hero._weaponIds.any(
-        (id) => weaponCatalog.weapons[id]?.selfDamage == 0,
-      )) {
-        continue;
-      }
-      final other = side == BattleSide.attacker
-          ? battle.defender
-          : battle.attacker;
-      final hit = sim.lastClash!;
-      final received = side == BattleSide.attacker
-          ? hit.defenderDamage
-          : hit.attackerDamage;
-      final dealt = side == BattleSide.attacker
-          ? hit.attackerDamage
-          : hit.defenderDamage;
-      if (received <= 0) continue;
-      final ownHealth =
-          hero.hp + hero.squad.fold<double>(0, (sum, s) => sum + s.hp);
-      final enemyHealth =
-          other.hp + other.squad.fold<double>(0, (sum, s) => sum + s.hp);
-      final losing =
-          ownHealth / received <
-          enemyHealth / math.max(1, dealt) * GameConfig.aiRetreatSurvivalRatio;
-      if (losing) {
-        // 明显劣势才冒六成阵亡风险，每次新碰撞观察一次，不逐帧抽签。
-        retreatHero(hero.id, countryId: hero.countryId);
-        return true;
-      }
-    }
-    return false;
-  }
 }

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:convert';
 import 'dart:ui';
 
 import '../game_config.dart';
@@ -13,8 +14,16 @@ import 'economy.dart';
 import 'recruitment.dart';
 import 'field_terrain.dart';
 import 'weapon.dart';
+import 'ai/geometry.dart';
+import 'ai/observation.dart';
+import 'ai/protocol.dart';
+import 'ai/rules_data.dart';
+import 'ai/budget.dart';
+import 'ai/routes.dart';
+import 'ai/work_budget.dart';
+import 'ai/runtime/worker.dart';
+import 'ai/runtime/build_stamp.dart';
 
-part 'country_ai.dart';
 part 'country_ai_budget.dart';
 part 'field_battles.dart';
 part 'siege_battles.dart';
@@ -24,7 +33,9 @@ part 'battle_retreat.dart';
 part 'campaign_weapons.dart';
 part 'country_strategy.dart';
 part 'country_relations.dart';
-part 'country_expansion.dart';
+part 'ai_observation_bridge.dart';
+part 'ai_executor.dart';
+part 'ai_runtime_bridge.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -376,7 +387,9 @@ abstract class WorldBattle {
   /// 最近一次战斗结果，为空表示交战中。
   String? outcome;
   bool _settled = false;
-  int _lastAiRetreatClash = 0;
+  int _aiNoticedClashes = -1;
+  int _aiNoticedTroops = -1, _aiNoticedWeapons = -1;
+  double _aiNoticedAttackerHp = -1, _aiNoticedDefenderHp = -1;
   final Set<String> _weaponOpeningDone = {};
   final Set<String> _pendingWeapons = {};
   int _lastWeaponClash = 0;
@@ -470,7 +483,6 @@ class CityBattle extends WorldBattle {
     wave++;
     nextWaveIn = 0;
     _settled = false;
-    _lastAiRetreatClash = 0;
     _weaponOpeningDone.clear();
     _pendingWeapons.clear();
     _lastWeaponClash = 0;
@@ -556,20 +568,29 @@ class CampaignState {
   final WeaponCatalog weaponCatalog;
   final Map<int, Map<int, int>> _weaponStock = {};
   final Map<int, RecruitmentOffer> _recruitmentOffers = {};
-  double _aiUntilDecision = GameConfig.countryAiInitialDelay;
   double _strategyTime = 0;
-  int _aiCountryCursor = 0;
-  final Set<int> _aiStartedCountries = {};
   final Map<int, Map<int, int>> _countryHatred = {};
   final Map<int, CountryWarPlan> _warPlans = {};
-  final Map<(Offset, int, int), double> _aiTravelCache = {};
+  _AiCoordinator? _ai;
+  final Map<String, int> _aiOrderVersions = {};
+  final Map<String, CampaignHero> _aiKnownHeroes = {};
+  final Map<String, int> _aiLifeVersions = {};
+  final Map<String, Offset> _aiVelocity = {};
+  final Map<int, double> _aiRearDeadlines = {};
+  final _emptyAiDiagnostics = NationalAiDiagnostics();
+
+  /// 离线对抗测试可让玩家国家也使用 AI；正式游戏默认关闭。
+  bool aiControlsPlayer = false;
+
+  /// 离线对抗测试可继续观察玩家失败后的国家战争，正式游戏仍立即结束。
+  bool endOnPlayerDefeat = true;
   int _aiRouteEstimates = 0;
   int _aiStrategicDecisions = 0;
 
   /// 已执行的单国战略决策次数，用于验证错峰调度，不影响游戏规则。
   int get aiStrategicDecisions => _aiStrategicDecisions;
 
-  /// 战略决策读取的路线精算总次数，便于性能回归检查。
+  /// 后台路线积分的地形段总数，便于检查每个请求的工作配额。
   int get aiRouteEstimates => _aiRouteEstimates;
 
   /// 查看电脑当前的目标与筹备状态，不改变其决策时钟。
@@ -581,6 +602,29 @@ class CampaignState {
 
   /// 当前国家的保守经营预算，预留既有部队粮草、月俸和应急资金。
   CountryAiBudget aiBudgetFor(int countryId) => _planAiBudget(countryId);
+
+  /// 读取本国视角的冻结观察，敌方隐藏命令不在其中。
+  AiObservation aiObservationFor(int countryId) => _observeAi(countryId);
+
+  /// 导出与真实游戏一致的纯规则，便于跨后端验证。
+  AiRules aiRulesForTesting() => _createAiRules();
+
+  /// 导出只含地形的地图，不传递图片或战斗对象。
+  AiMap aiMapForTesting() => _createAiMap();
+
+  /// 后台状态与有限诊断信息。
+  NationalAiDiagnostics get aiDiagnostics =>
+      _ai?.diagnostics ?? _emptyAiDiagnostics;
+
+  /// 本国正在执行的持续任务，外部不能修改任务表。
+  Map<String, ArmyTask> get aiTasks =>
+      Map.unmodifiable(_ai?.tasks ?? <String, ArmyTask>{});
+
+  /// 地图暂停或销毁时结束工作环境并使旧请求失效；下次推进会重新连接。
+  void pauseAi() => _ai?.pause();
+
+  /// 释放当前战役持有的后台端口。
+  void dispose() => pauseAi();
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
   factory CampaignState.fromRom(
@@ -595,6 +639,9 @@ class CampaignState {
     math.Random? siegeRandom,
     math.Random? retreatRandom,
     math.Random? weaponRandom,
+    AiWorker Function()? aiWorkerFactory,
+    bool aiControlsPlayer = false,
+    bool endOnPlayerDefeat = true,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
     final home = world.cities.first.id;
@@ -683,6 +730,14 @@ class CampaignState {
           !heroes.any((active) => active.sourceId == hero.id)) {
         campaign._heroPool[hero.id] = hero;
       }
+    }
+    campaign.aiControlsPlayer = aiControlsPlayer;
+    campaign.endOnPlayerDefeat = endOnPlayerDefeat;
+    if (aiEnabled) {
+      campaign._ai = _AiCoordinator(
+        campaign,
+        aiWorkerFactory ?? createAiWorker,
+      );
     }
     return campaign;
   }
@@ -829,6 +884,7 @@ class CampaignState {
     _trimCountryTroops(hero.countryId);
     _recycleHero(hero, dismissed: true);
     _countryGold[countryId] = goldFor(countryId) + reward;
+    _ai?.urgent(countryId);
     _record('已解雇${hero.name}，获得 $reward 金币');
     return reward;
   }
@@ -901,6 +957,7 @@ class CampaignState {
   CampaignDefeatReason? get defeatReason => _defeatReason ?? _detectDefeat();
 
   CampaignDefeatReason? _detectDefeat() {
+    if (!endOnPlayerDefeat) return null;
     if (_protagonist != null && !_protagonist.health.alive) {
       // 原版先播完阵亡和胜方过场；战役结算后再覆盖游戏结束界面。
       final showingDefeat = allBattles.any(
@@ -925,6 +982,7 @@ class CampaignState {
     final reason = _detectDefeat();
     if (reason == null) return false;
     _defeatReason = reason;
+    pauseAi();
     for (final countryId in _recruitmentOffers.keys.toList()) {
       _releaseOffer(countryId);
     }
@@ -1265,7 +1323,14 @@ class CampaignState {
   }
 
   /// 按单个英雄验证出击，不以城池等级限制同时出征的将领数量。
-  String? dispatchBlockReason(CampaignHero hero, {int countryId = 0}) {
+  String? dispatchBlockReason(CampaignHero hero, {int countryId = 0}) =>
+      _dispatchProblem(hero, countryId);
+
+  String? _dispatchProblem(
+    CampaignHero hero,
+    int countryId, {
+    bool requireGold = true,
+  }) {
     if (defeated) return '游戏已结束，请重新开始';
     if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
     if (hero.countryId != countryId ||
@@ -1273,7 +1338,8 @@ class CampaignState {
       return '英雄不在本国城池中';
     }
     if (marches.containsKey(hero.id)) return '这位英雄已经出征';
-    if (goldFor(countryId) == 0) return '金币不足，无法支付出征粮草';
+    if (requireGold && goldFor(countryId) == 0) return '金币不足，无法支付出征粮草';
+    if (_disbandAfterBattle.contains(hero.id)) return '所属城池已失守';
     if (battles.values.any(
       (battle) => battle.isActive && battle.defender == hero,
     )) {
@@ -1397,19 +1463,48 @@ class CampaignState {
     );
     marches[hero.id] = march;
     march.moveTo(end, city: target);
+    _aiOrderVersions.update(hero.id, (n) => n + 1, ifAbsent: () => 1);
     if (hero.isPlayer) hasDispatched = true;
     return march;
   }
 
-  /// 为已出征的我方英雄重新指定目的地。
-  bool moveTo(String heroId, Offset point) {
-    if (defeated || gold == 0) return false;
+  /// 玩家和 AI 共用改令权限，交战及撤退返程不能免费脱离。
+  String? moveBlockReason(String heroId, {int countryId = 0}) =>
+      _moveProblem(heroId, countryId);
+
+  String? _moveProblem(
+    String heroId,
+    int countryId, {
+    bool requireGold = true,
+  }) {
+    if (defeated) return '游戏已结束';
+    final march = marches[heroId];
+    if (march == null ||
+        !heroes.contains(march.hero) ||
+        !march.hero.health.alive) {
+      return '英雄已不在野外';
+    }
+    if (march.hero.countryId != countryId) return '只能指挥本国将领';
+    if (_disbandAfterBattle.contains(heroId) ||
+        cities[march.hero.cityId]?.ownerCountryId != countryId) {
+      return '所属城池已失守';
+    }
+    if (activeBattleForHero(heroId) != null || march.returningFromRetreat) {
+      return '交战或撤退返程中无法改令';
+    }
+    if (requireGold && goldFor(countryId) == 0) return '金币不足，无法行军';
+    return null;
+  }
+
+  /// 为本国已经出征的英雄重新指定目的地，默认仍为玩家国家。
+  bool moveTo(String heroId, Offset point, {int countryId = 0}) {
+    if (moveBlockReason(heroId, countryId: countryId) != null) return false;
     final march = marches[heroId];
     if (activeBattleForHero(heroId) != null ||
         march?.returningFromRetreat == true) {
       return false;
     }
-    if (march == null || !march.hero.isPlayer || !_containsPoint(point)) {
+    if (march == null || !_containsPoint(point)) {
       return false;
     }
     final city = cityAt(point);
@@ -1428,24 +1523,30 @@ class CampaignState {
       city == null ? point : _contactPoint(march.position, point, city),
       city: city,
     );
+    _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
     return true;
   }
 
+  /// 扎营权限与改令共用锁定规则，零金币仍允许停止。
+  String? campBlockReason(String heroId, {int countryId = 0}) =>
+      _moveProblem(heroId, countryId, requireGold: false);
+
   /// 命令一支部队原地扎营，其他行军和交战照常推进。
-  bool camp(String heroId) {
-    if (defeated) return false;
+  bool camp(String heroId, {int countryId = 0}) {
+    if (campBlockReason(heroId, countryId: countryId) != null) return false;
     final march = marches[heroId];
     if (activeBattleForHero(heroId) != null ||
         march?.returningFromRetreat == true) {
       return false;
     }
-    if (march == null || !march.hero.isPlayer) return false;
+    if (march == null) return false;
     _endBattle(march, '${march.hero.name}已停止进攻');
     if (_disbandAfterBattle.contains(heroId)) {
       _disbandHero(march.hero);
       return false;
     }
     march.camp();
+    _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
     _record('${march.hero.name}已原地扎营');
     return true;
   }
@@ -1629,6 +1730,7 @@ class CampaignState {
 
   /// 固定步长推进行军和拼杀，满一个月结算各国经济；观战不参与计时。
   bool advance(double elapsed) {
+    _ai?.diagnostics.beginFrame();
     final justDefeated = _finishDefeat();
     if (defeated) {
       // 世界结束后不经营或行军，只让失城时已经开打的部队完成交战再消失。
@@ -1647,6 +1749,7 @@ class CampaignState {
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
       _strategyTime += dt;
+      changed = (_ai?.commitAndTasks() ?? false) || changed;
       changed = _advanceSupplies(dt) || changed;
       changed = _advanceRetreatReturns() || changed;
       final previousPositions = {
@@ -1693,6 +1796,12 @@ class CampaignState {
             changed;
       }
       _markSiegeArrivals();
+      for (final entry in previousPositions.entries) {
+        final march = marches[entry.key];
+        if (march != null) {
+          _aiVelocity[entry.key] = (march.position - entry.value) / dt;
+        }
+      }
       changed = _resolveFieldEncounters(previousPositions) || changed;
       changed = _resolveArrivals() || changed;
       if (_finishDefeat() || defeated) return true;
@@ -1706,34 +1815,21 @@ class CampaignState {
       if (_monthSeconds >= GameConfig.secondsPerMonth - 1e-9) {
         _monthSeconds = math.max(0, _monthSeconds - GameConfig.secondsPerMonth);
         _settleMonth();
-        changed = true;
-      }
-      if (aiEnabled) {
-        _aiUntilDecision -= dt;
-        if (_aiUntilDecision <= 1e-9) {
-          final countries = cities.values
-              .map((city) => city.ownerCountryId)
-              .where((id) => id != 0)
-              .toSet();
-          final opening = countries.any(
-            (id) => !_aiStartedCountries.contains(id),
-          );
-          changed = _runCountryDecisions() || changed;
-          final remainingOpening = countries.any(
-            (id) => !_aiStartedCountries.contains(id),
-          );
-          _aiUntilDecision += remainingOpening
-              ? dt
-              : opening
-              ? GameConfig.countryAiInterval
-              : math.max(
-                  dt,
-                  GameConfig.countryAiInterval / math.max(1, countries.length),
-                );
+        for (final id in cities.values.map((c) => c.ownerCountryId).toSet()) {
+          _ai?.urgent(id);
         }
+        changed = true;
       }
       changed = _haltUnfundedArmies() || changed;
     }
+    // 一次补帧只提交最新观察；后台结果在后续固定命令阶段落地。
+    if (elapsed.isFinite && elapsed > 0) {
+      _ai?.requestLatest();
+      if (_ai?.worker?.synchronous == true) {
+        changed = (_ai?.commitAndTasks() ?? false) || changed;
+      }
+    }
+    _ai?.diagnostics.endFrame();
     return changed;
   }
 
@@ -1742,9 +1838,25 @@ class CampaignState {
     for (final battle in allBattles.toList()) {
       if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
+      final troopCount = battle.attacker.soldiers + battle.defender.soldiers,
+          weaponCount =
+              battle.attacker.weaponIds.length +
+              battle.defender.weaponIds.length;
+      if (battle._aiNoticedClashes != battle.rounds ||
+          battle._aiNoticedAttackerHp != battle.attacker.hp ||
+          battle._aiNoticedDefenderHp != battle.defender.hp ||
+          battle._aiNoticedTroops != troopCount ||
+          battle._aiNoticedWeapons != weaponCount) {
+        battle._aiNoticedTroops = troopCount;
+        battle._aiNoticedWeapons = weaponCount;
+        battle._aiNoticedClashes = battle.rounds;
+        battle._aiNoticedAttackerHp = battle.attacker.hp;
+        battle._aiNoticedDefenderHp = battle.defender.hp;
+        _ai?.urgent(battle.attacker.countryId);
+        _ai?.urgent(battle.defender.countryId);
+      }
       if (!battle.isActive) continue;
       if (!closingOnly) changed = _tryAutomaticWeapons(battle) || changed;
-      if (!closingOnly && aiEnabled) changed = _tryAiRetreat(battle) || changed;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;
         if (battle.simulation.retreat?.succeeded == true) {
@@ -1768,6 +1880,7 @@ class CampaignState {
       } else if (battle is CityBattle && battle.nextWaveIn > 0) {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
+          changed = _protectAiCity(battle.city.id, force: true) || changed;
           final next = _pickDefender(battle.city.id);
           if (next != null) {
             reinforceHero(next, countryId: next.countryId);
@@ -1860,6 +1973,8 @@ class CampaignState {
       }
     }
     cities[cityId]!.ownerCountryId = winnerCountryId;
+    _ai?.urgent(previousOwner);
+    _ai?.urgent(winnerCountryId);
     _trimCountryTroops(previousOwner);
     _trimCountryTroops(winnerCountryId);
     for (final offer in _recruitmentOffers.values.toList()) {
@@ -1921,6 +2036,7 @@ class CampaignState {
     _endBattle(march, '${march.hero.name}已进驻${cityName(march.target!.id)}');
     marches.remove(march.hero.id);
     march.hero.cityId = march.target!.id;
+    _aiOrderVersions.update(march.hero.id, (n) => n + 1, ifAbsent: () => 1);
     march.hero.hp = march.hero.maxHp;
     final returned = _returnSoldiers(march.hero);
     _returnWeapons(march.hero);

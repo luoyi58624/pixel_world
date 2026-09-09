@@ -1,4 +1,7 @@
 import 'dart:math' as math;
+
+import 'combat_rules.dart';
+
 import 'dart:ui';
 
 import '../game_config.dart';
@@ -311,12 +314,15 @@ class BattleSimulation {
   /// 野战对英雄属性的倍率，小兵不受影响。
   double get heroAttackFactor => fieldTerrain?.heroAttackFactor ?? 1;
   int _combat(BattleArmy army) =>
-      (army.attack * heroAttackFactor).floor().clamp(0, 63);
+      CombatRules.heroAttack(army.attack, heroAttackFactor);
 
   /// 城防只修正基础攻击，每级增加两点，野战不享有加成。
   int get defenderAttackBonus => fieldTerrain == null
-      ? GameConfig.cityDefenseBaseAttack +
-            (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel
+      ? CombatRules.defenseBonus(
+          defenderCityLevel,
+          GameConfig.cityDefenseBaseAttack,
+          GameConfig.cityDefenseAttackPerLevel,
+        )
       : 0;
 
   /// 城防不提供额外士气，初始红条仅按英雄有效战斗属性计算。

@@ -30,221 +30,37 @@ class CountryAiBudget {
 }
 
 extension _CountryCashPlanning on CampaignState {
-  CountryAiBudget _planAiBudget(
-    int countryId, {
-    CampaignHero? departing,
-    HeroMarch? redirecting,
-    CityDefinition? destination,
-    int extraSalary = 0,
-    double? horizon,
-    List<CampaignHero> raid = const [],
-    CityDefinition? raidTarget,
-  }) {
-    final owned = cities.values.where(
-      (city) => city.ownerCountryId == countryId,
-    );
-    final income = owned.fold<int>(
-      0,
-      (sum, city) => sum + city.incomeFor(Harvest.poor),
-    );
-    final salary = GameConfig.chargeHeroSalary
-        ? heroes
-              .where((hero) => hero.countryId == countryId && hero.health.alive)
-              .fold<int>(extraSalary, (sum, hero) => sum + hero.salary)
-        : 0;
-    var duration =
-        GameConfig.secondsPerMonth + GameConfig.countryAiSupplySafetySeconds;
-    var outstanding = 0.0;
-    final supplies = <({double rate, double until})>[];
-    for (final march in marches.values) {
-      if (march.hero.countryId != countryId || !march.hero.health.alive) {
-        continue;
-      }
-      if (march.returningFromRetreat) {
-        // 撤退要走回所有拐点，不能按直线距离预支返城后省下的粮草。
-        var from = march.position;
-        var travel = march.phase == MarchPhase.dueling
-            ? GameConfig.countryAiBattleBudgetSeconds
-            : 0.0;
-        for (final point in [
-          march.destination,
-          ...march._returnRoute.reversed,
-        ]) {
-          travel += estimateMarchSeconds(world, from, point);
-          from = point;
-        }
-        duration = math.max(duration, travel);
-        supplies.add((
-          rate: 1 / GameConfig.fieldSupplySecondsPerGold,
-          until: travel,
-        ));
-        outstanding += march.hero._supplyDue;
-        continue;
-      }
-      final redirected = identical(march, redirecting);
-      final target = redirected ? destination : march.target;
-      final camped = !redirected && march.phase == MarchPhase.camped;
-      var travel = target == null || camped
-          ? 0.0
-          : _aiTravelTo(march.position, target);
-      if (march.phase == MarchPhase.dueling) {
-        travel += GameConfig.countryAiBattleBudgetSeconds;
-      }
-      final returning =
-          target != null && cities[target.id]!.ownerCountryId == countryId;
-      final battleTime = target == null || returning
-          ? 0.0
-          : _aiSiegeSeconds(target, march: march);
-      duration = math.max(duration, travel + battleTime);
-      supplies.add((
-        rate:
-            (camped ? GameConfig.campSupplyRate : 1) /
-            GameConfig.fieldSupplySecondsPerGold,
-        until: target == null ? double.infinity : travel + battleTime,
-      ));
-      outstanding += march.hero._supplyDue;
-    }
-    if (departing != null && destination != null) {
-      final source = world.cities.firstWhere(
-        (city) => city.id == departing.cityId,
+  CountryAiBudget _planAiBudget(int countryId) {
+    if (!cities.values.any((city) => city.ownerCountryId == countryId)) {
+      return CountryAiBudget._(
+        gold: goldFor(countryId),
+        reserveGold: 0,
+        planningSeconds: 0,
+        monthlySalary: 0,
+        minimumMonthlyIncome: 0,
       );
-      final travel = _aiTravelTo(
-        _departurePoint(source, cityBounds(destination).center),
-        destination,
-      );
-      final commitment = travel + _aiSiegeSeconds(destination);
-      duration = math.max(duration, commitment);
-      supplies.add((
-        rate: 1 / GameConfig.fieldSupplySecondsPerGold,
-        until: commitment,
-      ));
-      outstanding += departing._supplyDue;
     }
-    if (raidTarget != null) {
-      final guards = math.max(
-        1,
-        math.min(
-          cities[raidTarget.id]!.level,
-          garrisonAt(raidTarget.id).length,
-        ),
-      );
-      for (var i = 0; i < raid.length; i++) {
-        final hero = raid[i];
-        final source = world.cities.firstWhere(
-          (city) => city.id == hero.cityId,
-        );
-        final travel = _aiTravelTo(
-          _departurePoint(source, cityBounds(raidTarget).center),
-          raidTarget,
-        );
-        final commitment =
-            travel + (i + 1) * guards * GameConfig.countryAiBattleBudgetSeconds;
-        duration = math.max(duration, commitment);
-        supplies.add((
-          rate: 1 / GameConfig.fieldSupplySecondsPerGold,
-          until: commitment,
-        ));
-        outstanding += hero._supplyDue;
-      }
-    }
-    duration = horizon ?? duration;
-    double costBetween(double from, double to) => supplies.fold(
-      0.0,
-      (sum, item) =>
-          sum +
-          item.rate *
-              math.max(
-                0,
-                math.min(to, item.until) - math.min(from, item.until),
-              ),
+    // 此只读查询用于诊断；正式规划在后台对同一纯规则账本执行。
+    final rules = _ai?.worker != null ? _ai!.rules : _createAiRules();
+    final map = _ai?.worker != null ? _ai!.map : _createAiMap();
+    final view = _observeAi(countryId);
+    final ledger = AiLedger(
+      view,
+      rules,
+      AiRoutes(map, rules, AiWorkBudget(rules.tuning)),
+      tasks:
+          _ai?.tasks.values
+              .where((task) => view.hero(task.hero)?.country == countryId)
+              .toList() ??
+          [],
     );
-
-    // 同时检查月结前和月结后的最低现金，不能先花掉尚未到账的收入。
-    var spent = outstanding;
-    var peak = outstanding;
-    var previous = 0.0;
-    for (
-      var monthAt = GameConfig.secondsPerMonth - _monthSeconds;
-      monthAt <= duration + 1e-9;
-      monthAt += GameConfig.secondsPerMonth
-    ) {
-      spent += costBetween(previous, monthAt);
-      peak = math.max(peak, spent);
-      spent += salary - income;
-      peak = math.max(peak, spent);
-      previous = monthAt;
-    }
-    peak = math.max(peak, spent + costBetween(previous, duration));
+    final cash = ledger.cash();
     return CountryAiBudget._(
       gold: goldFor(countryId),
-      reserveGold:
-          GameConfig.countryAiEmergencyGold + math.max(0, (peak - 1e-9).ceil()),
-      planningSeconds: duration,
-      monthlySalary: salary,
-      minimumMonthlyIncome: income,
+      reserveGold: cash.reserve,
+      planningSeconds: cash.horizon,
+      monthlySalary: cash.salary,
+      minimumMonthlyIncome: cash.poorIncome,
     );
-  }
-
-  double _aiTravelTo(Offset from, CityDefinition city) {
-    final key = (from, city.id, cities[city.id]!.level);
-    final cached = _aiTravelCache[key];
-    if (cached != null) return cached;
-    final seconds = estimateMarchSeconds(
-      world,
-      from,
-      _contactPoint(from, cityBounds(city).center, city),
-    );
-    if (_aiTravelCache.length >= GameConfig.aiTravelCacheSize) {
-      _aiTravelCache.remove(_aiTravelCache.keys.first);
-    }
-    _aiRouteEstimates++;
-    return _aiTravelCache[key] = seconds;
-  }
-
-  double _aiSiegeSeconds(CityDefinition city, {HeroMarch? march}) {
-    final center = cityBounds(city).center;
-    final ahead = marches.values
-        .where(
-          (other) =>
-              !identical(other, march) &&
-              !other.returningFromRetreat &&
-              other.target?.id == city.id &&
-              (other.phase == MarchPhase.fighting ||
-                  other.phase == MarchPhase.marching &&
-                      (march == null ||
-                          (other.position - center).distanceSquared <
-                              (march.position - center).distanceSquared ||
-                          (other.position - center).distanceSquared ==
-                                  (march.position - center).distanceSquared &&
-                              other.hero.id.compareTo(march.hero.id) < 0) ||
-                  other.phase == MarchPhase.awaitingBattle &&
-                      (march?._siegeArrival == null ||
-                          (other._siegeArrival?.order ?? 0) <
-                              march!._siegeArrival!.order)),
-        )
-        .length;
-    return (1 + ahead) *
-        math.max(
-          1,
-          math.min(
-            cities[city.id]!.level,
-            garrisonAt(city.id).where((hero) => hero.health.alive).length,
-          ),
-        ) *
-        GameConfig.countryAiBattleBudgetSeconds;
-  }
-
-  bool _canFundAiSortie(
-    CampaignHero hero,
-    CityDefinition target, {
-    HeroMarch? march,
-  }) {
-    final budget = _planAiBudget(
-      hero.countryId,
-      departing: march == null ? hero : null,
-      redirecting: march,
-      destination: target,
-    );
-    return budget.gold >= budget.reserveGold;
   }
 }

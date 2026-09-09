@@ -14,6 +14,7 @@ import 'world_data.dart';
 import 'world_movement.dart';
 import 'recruitment.dart';
 import 'weapon.dart';
+import 'ai/runtime/worker.dart';
 
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
@@ -25,12 +26,14 @@ class WorldController extends ChangeNotifier {
     Map<int, CountryConfig>? countryConfigs,
     bool aiEnabled = GameConfig.countryAiEnabled,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
+    AiWorker Function()? aiWorkerFactory,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
        _countryConfigs = countryConfigs == null
            ? null
            : Map.unmodifiable(countryConfigs),
        _aiEnabled = aiEnabled,
        _weaponCatalog = weaponCatalog,
+       _aiWorkerFactory = aiWorkerFactory,
        camera = WorldCamera(worlds.first.pixelSize),
        campaigns = worlds
            .map(
@@ -41,6 +44,7 @@ class WorldController extends ChangeNotifier {
                countryConfigs: countryConfigs,
                aiEnabled: aiEnabled,
                weaponCatalog: weaponCatalog,
+               aiWorkerFactory: aiWorkerFactory,
              ),
            )
            .toList() {
@@ -65,6 +69,7 @@ class WorldController extends ChangeNotifier {
   final Map<int, CountryConfig>? _countryConfigs;
   final bool _aiEnabled;
   final WeaponCatalog _weaponCatalog;
+  final AiWorker Function()? _aiWorkerFactory;
   bool _gameOverShown = false;
 
   /// 当前场景的城池与部队状态。
@@ -214,6 +219,7 @@ class WorldController extends ChangeNotifier {
   /// 切换地图并重置探索位置。
   void switchWorld(int value) {
     if (campaign.defeated) return;
+    if (value != index) campaign.pauseAi();
     _clearWeaponSelection();
     _gameOverShown = false;
     camera.cancelMotion();
@@ -378,12 +384,14 @@ class WorldController extends ChangeNotifier {
   /// 重新创建当前地图的战役，恢复主角、城池和经济，不沿用失败进度。
   void restartCampaign() {
     if (!campaign.defeated) return;
+    campaign.dispose();
     campaigns[index] = CampaignState.fromRom(
       world,
       _heroCatalog,
       countryConfigs: _countryConfigs,
       aiEnabled: _aiEnabled,
       weaponCatalog: _weaponCatalog,
+      aiWorkerFactory: _aiWorkerFactory,
     );
     time = 0;
     appearance = HeroAppearance.protagonist;
@@ -871,6 +879,9 @@ class WorldController extends ChangeNotifier {
 
   @override
   void dispose() {
+    for (final campaign in campaigns) {
+      campaign.dispose();
+    }
     uiRevision.dispose();
     super.dispose();
   }

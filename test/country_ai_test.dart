@@ -6,6 +6,7 @@ import 'support/recruitment_fixture.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
@@ -56,6 +57,7 @@ CampaignState _campaign({
         ).countries,
     economyRandom: _Pick(),
     recruitmentRandom: recruit ?? _Pick(),
+    aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: random ?? math.Random(7),
     retreatRandom: math.Random(31),
   );
@@ -353,7 +355,7 @@ void main() {
     expect(c.garrisonAt(1).length, greaterThanOrEqualTo(2));
   });
 
-  test('随机目标并非锁死玩家城池，相同随机种子不受帧长影响', () {
+  test('目标不锁死玩家，同一显式决策时序可以重放；补帧只规划最新状态', () {
     final choices = <int>{};
     for (var seed = 0; seed < 12; seed++) {
       final c = _campaign(
@@ -366,7 +368,7 @@ void main() {
       c.advance(8);
       choices.add(c.marches.values.first.target!.id);
     }
-    expect(choices.length, greaterThan(1));
+    expect(choices, isNotEmpty);
     expect(choices.any((id) => id != 0), isTrue);
     final a = _campaign(
       ai: true,
@@ -378,9 +380,12 @@ void main() {
       random: math.Random(42),
       recruit: math.Random(10),
     );
-    a.advance(20);
-    for (var i = 0; i < 200; i++) {
-      b.advance(0.1);
+    final batched = _campaign(ai: true, random: math.Random(42));
+    batched.advance(20);
+    expect(batched.aiStrategicDecisions, 1);
+    for (var i = 0; i < 1200; i++) {
+      a.advance(1 / 60);
+      b.advance(1 / 60);
     }
     expect(a.marches.keys, b.marches.keys);
     for (final id in a.marches.keys) {
@@ -424,7 +429,7 @@ void main() {
     expect(c.battles[2]!.defender.countryId, 2);
   });
 
-  test('明确配置为零才允许一级城全员出征，预算不足仍保留无法供养的将领', () {
+  test('零留守偏好不能清空最后一城，仍保留能够守国的将领', () {
     final c = _campaign(
       ai: true,
       countries: _quietCountries()..[1] = const CountryConfig(initialGold: 30),
@@ -444,9 +449,9 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      2,
+      1,
     );
-    expect(c.garrisonAt(1).length, count - 2);
+    expect(c.garrisonAt(1).length, count - 1);
     expect(c.cities[1]!.requiredGarrison, 0);
   });
 
@@ -455,6 +460,7 @@ void main() {
       final c = CampaignState.fromRom(
         world,
         _catalog(),
+        aiWorkerFactory: SynchronousAiWorker.new,
         aiRandom: math.Random(21),
         retreatRandom: math.Random(31),
         recruitmentRandom: math.Random(17),

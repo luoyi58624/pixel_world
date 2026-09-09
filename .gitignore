@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# 独立 AI Worker 的编译诊断产物；worker.js 随项目发布。
+/web/ai/*.map
+/web/ai/*.deps
+
 # Symbolication related
 app.*.symbols
 

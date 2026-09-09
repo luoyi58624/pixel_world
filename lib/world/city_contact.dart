@@ -40,6 +40,9 @@ class CityContact {
   /// 接触轮廓外框，用于快速排除远处线段，不代替实体接触判定。
   late final Rect bounds;
 
+  /// 提供只读轮廓，供后台路线估时复用真实接触几何。
+  List<Offset> get outline => List.unmodifiable(_outline);
+
   /// 判断人物中心是否已进入实体接触区域，轮廓边界也算接触。
   bool contains(Offset point) {
     if (!bounds.inflate(_epsilon).contains(point)) return false;
