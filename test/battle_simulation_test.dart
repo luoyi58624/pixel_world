@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/battle_simulation.dart';
 
 BattleArmy _army(String id, {int hp = 95, int attack = 15, int soldiers = 4}) =>
@@ -44,6 +45,50 @@ void _round(BattleSimulation sim, int count) {
 }
 
 void main() {
+  test('开场冲锋和连续拼杀放慢，首击至少两秒、后续完整攻防周期至少两秒', () {
+    final sim = _battle(hp: 1000);
+    final times = <double>[];
+    for (var frame = 0; frame < 2400 && times.length < 6; frame++) {
+      sim.advance(1 / 60);
+      if (sim.clashes > times.length) times.add(sim.elapsed);
+    }
+    expect(times.length, 6);
+    expect(times.first, inInclusiveRange(2, 2.8));
+    for (var i = 1; i < times.length; i++) {
+      expect(times[i] - times[i - 1], inInclusiveRange(2, 3.5));
+    }
+  });
+
+  test('短距离击退也在退步终点完成整备，不贴脸空转等待下次伤害', () {
+    final sim = _battle(attack: 1, defense: 1, hp: 1000, soldiers: 0);
+    _withoutMorale(sim);
+    _round(sim, 1);
+    final clashAt = sim.elapsed;
+    while (sim.formations.values.any(
+      (formation) => formation.recoilX != null,
+    )) {
+      sim.advance(1 / 60);
+    }
+    final positions = [
+      for (final formation in sim.formations.values) formation.frontX,
+    ];
+    while (sim.elapsed + 1 / 60 < clashAt + GameConfig.clashInterval - 1e-9) {
+      sim.advance(1 / 60);
+      expect(
+        sim.formations.values.every(
+          (formation) => formation.motion == BattleMotion.preparing,
+        ),
+        isTrue,
+      );
+      expect([
+        for (final formation in sim.formations.values) formation.frontX,
+      ], positions);
+      expect(sim.clashes, 1);
+    }
+    _round(sim, 2);
+    expect(sim.elapsed - clashAt, greaterThan(GameConfig.clashInterval));
+  });
+
   test('必须先退到终点，再收势举剑准备，之后才能加速开始下一轮', () {
     final sim = _battle(attack: 20, defense: 20, hp: 1000, soldiers: 0);
     _withoutMorale(sim);
@@ -62,10 +107,10 @@ void main() {
     sim.advance(0.1);
     expect(formation.frontX, closeTo(destination, 1e-8));
     expect(formation.velocity, 0);
-    sim.advance(0.07);
+    sim.advance(formation.readyAt - sim.elapsed - 0.1);
     expect(formation.motion, BattleMotion.preparing);
     expect(unit.animationFrame(sim.elapsed), 2);
-    sim.advance(0.08);
+    sim.advance(0.12);
     expect(formation.motion, BattleMotion.charging);
     expect(formation.frontX, greaterThan(destination));
     expect(sim.clashes, 1);
@@ -107,10 +152,10 @@ void main() {
     expect(attacker.frontX, closeTo(136, 1e-8));
   });
 
-  test('冲锋逐步加速，碰撞只冻结队形四帧，时钟继续推进', () {
+  test('冲锋逐步加速，出剑短停队形时游戏时钟继续推进', () {
     final sim = _battle(attack: 35, defense: 5, hp: 1000);
     _withoutMorale(sim);
-    sim.advance(0.8);
+    sim.advance(GameConfig.battleFormationTime);
     final formation = sim.formations[BattleSide.defender]!;
     final first = formation.velocity;
     sim.advance(1 / 60);
@@ -122,7 +167,7 @@ void main() {
     _round(sim, 1);
     final x = formation.frontX;
     final time = sim.elapsed;
-    sim.advance(3 / 60);
+    sim.advance(BattleSimulation.impactHold - 1 / 60);
     expect(formation.frontX, x);
     expect(sim.elapsed, greaterThan(time));
     sim.advance(2 / 60);
@@ -143,9 +188,13 @@ void main() {
       final initial = weak.frontX;
       var previous = initial;
       final steps = <double>[];
-      for (var i = 0; i < 50 && weak.recoilX != null; i++) {
+      for (var i = 0; i < 150 && weak.recoilX != null; i++) {
         sim.advance(1 / 60);
         final step = (weak.frontX - previous).abs();
+        expect(
+          step,
+          lessThanOrEqualTo(GameConfig.battleRecoilPeakSpeed / 60 + 1e-8),
+        );
         if (step > 0.001) steps.add(step);
         expect(
           weak.frontX,
@@ -261,7 +310,8 @@ void main() {
       expect(morale.accumulated, morale.spent);
       expect(
         sim.chargeSpeed(side),
-        BattleSimulation.baseChargeSpeed + morale.spent * 18,
+        BattleSimulation.baseChargeSpeed +
+            morale.spent * GameConfig.chargeSpeedPerMorale,
       );
     }
     final before = sim.attackerMorale.remaining;

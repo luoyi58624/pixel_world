@@ -144,10 +144,28 @@ abstract final class GameConfig {
   static const waterSpeedFactor = 0.4;
 
   /// 基础冲锋速度。
-  static const baseChargeSpeed = 120.0;
+  static const baseChargeSpeed = 110.0;
 
   /// 最近一次每消耗一点士气增加的冲锋速度。
-  static const chargeSpeedPerMorale = 18.0;
+  static const chargeSpeedPerMorale = 6.0;
+
+  /// 冲锋加速度，单位为原生像素每秒平方，避免开步瞬间冲到最高速。
+  static const chargeAcceleration = 200.0;
+
+  /// 开场列阵时间，期间世界时钟与士气照常推进。
+  static const battleFormationTime = 1.2;
+
+  /// 碰撞出剑的短暂停顿，只停队形，不暂停整个游戏。
+  static const battleImpactHold = 0.1;
+
+  /// 击退的最高初速度，长距离退步相应延长时间，不瞬间飞到墙边。
+  static const battleRecoilPeakSpeed = 180.0;
+
+  /// 短距离受击也保留能看清的退步动作。
+  static const battleRecoilMinimumTime = 0.28;
+
+  /// 收势最后这段时间举剑，衔接下一次冲锋。
+  static const chargeRaiseTime = 0.14;
 
   /// 士气投入间隔，单位秒。
   static const moraleInterval = 0.5;
@@ -161,11 +179,11 @@ abstract final class GameConfig {
   /// 整个战场对应的后退距离点数。
   static const battlefieldPoints = 50.0;
 
-  /// 每轮拼杀的最短间隔。
-  static const clashInterval = 1.0;
+  /// 碰撞后至少整备这些秒再冲锋，冷却在退步终点完成，不在贴脸时等待。
+  static const clashInterval = 1.6;
 
   /// 退步终点的准备时间。
-  static const chargePreparationTime = 0.22;
+  static const chargePreparationTime = 0.35;
 }
 
 /// 国家的开局经济与自动出征策略，城池等级和初始英雄仍由地图数据提供。

@@ -125,7 +125,6 @@ class BattlePainter extends CustomPainter {
     for (final unit in units) {
       final dead = unit.diedAt == null ? 0.0 : sim.elapsed - unit.diedAt!;
       if (!unit.health.alive && dead > 0.65) continue;
-      final hurtAge = sim.elapsed - unit.lastHitAt;
       var point = unit.renderPosition(sim.elapsed);
       if (!unit.health.alive) {
         point += Offset(
@@ -178,12 +177,6 @@ class BattlePainter extends CustomPainter {
       final spritePaint = Paint()
         ..filterQuality = FilterQuality.none
         ..color = Colors.white.withValues(alpha: alpha);
-      if (unit.health.alive && hurtAge < 0.12) {
-        spritePaint.colorFilter = const ColorFilter.mode(
-          Color(0xfffff2c2),
-          BlendMode.srcATop,
-        );
-      }
       canvas.drawImageRect(
         image,
         Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),

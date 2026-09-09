@@ -10,7 +10,7 @@ import 'package:pixel_world/world/world_assets.dart';
 import 'package:pixel_world/world/world_controller.dart';
 
 void main() {
-  testWidgets('战场隐藏小兵血量和伤害飘字，英雄血条仍随生命变化', (tester) async {
+  testWidgets('战场隐藏小兵血量、伤害飘字和受伤变色，英雄血条仍随生命变化', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
@@ -49,6 +49,9 @@ void main() {
         position: soldier.position,
         at: sim.elapsed,
       ));
+      for (final unit in sim.units) {
+        unit.lastHitAt = sim.elapsed;
+      }
       expect(await render(), baseline);
       sim.units.firstWhere((unit) => unit.isGeneral).health.hp = 1;
       expect(await render(), isNot(baseline));

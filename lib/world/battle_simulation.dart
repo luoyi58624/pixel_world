@@ -169,7 +169,7 @@ class BattleFormation {
   BattleMotion motion = BattleMotion.preparing;
 
   /// 当前收势准备结束的时刻。
-  double readyAt = 0.8;
+  double readyAt = GameConfig.battleFormationTime;
 
   double _prepareAt = 0;
 
@@ -185,16 +185,19 @@ class BattleFormation {
   void _retreatTo(double goal, double time) {
     recoilX = goal;
     _recoilStart = frontX;
-    _recoilDuration =
-        0.18 + math.min(0.28, math.sqrt((goal - frontX).abs()) / 38);
+    // 二次减速的初速度为 2×距离/时间，按峰值限速保留原击退距离。
+    _recoilDuration = math.max(
+      GameConfig.battleRecoilMinimumTime,
+      2 * (goal - frontX).abs() / GameConfig.battleRecoilPeakSpeed,
+    );
     impactAt = time;
   }
 
-  void _prepare(double time) {
+  void _prepare(double time, {required double notBefore}) {
     motion = BattleMotion.preparing;
     velocity = 0;
     _prepareAt = time;
-    readyAt = time + BattleSimulation.preparationTime;
+    readyAt = math.max(time + BattleSimulation.preparationTime, notBefore);
   }
 
   /// 撞墙轻弹只改变显示，整队实际后退由模拟坐标负责。
@@ -275,7 +278,8 @@ class BattleUnit {
   /// 原版两帧步态和拼杀帧随整队动作衔接，蓄力末段举起武器。
   int animationFrame(double time) => switch (_formation.motion) {
     BattleMotion.impact || BattleMotion.recoiling => 2,
-    BattleMotion.preparing => _formation.readyAt - time < 0.08 ? 2 : 0,
+    BattleMotion.preparing =>
+      _formation.readyAt - time < GameConfig.chargeRaiseTime ? 2 : 0,
     BattleMotion.charging => ((position.dx - 8) / 8).floor() % 2,
     BattleMotion.halted => time - lastAttackAt < 0.3 ? 2 : 0,
   };
@@ -362,14 +366,14 @@ class BattleSimulation {
   /// 战斗每秒模拟六十次，与绘制帧数无关。
   static const fixedStep = 1 / 60;
 
-  /// 一秒一次攻击，接近目标后才触发。
+  /// 上次碰撞后的最低整备间隔，冲锋和实际接触还需另外完成。
   static const attackInterval = GameConfig.clashInterval;
 
   /// 每半秒投入一次士气，碰撞前持续积累。
   static const moraleInterval = GameConfig.moraleInterval;
 
-  /// 碰撞时仅停顿队形四帧，游戏时钟与后台进度照常推进。
-  static const impactHold = 4 / 60;
+  /// 出剑接触时短停队形，游戏时钟与后台进度照常推进。
+  static const impactHold = GameConfig.battleImpactHold;
 
   /// 退到终点后的收势与举剑准备时间。
   static const preparationTime = GameConfig.chargePreparationTime;
@@ -383,7 +387,7 @@ class BattleSimulation {
   /// 单位进入近身距离后停步拼杀。
   static const attackRange = 16.0;
 
-  /// 冲锋基础速度为原来的三倍，士气每多消耗一点再增加十八像素每秒。
+  /// 冲锋基础速度，士气追加由配置提供，实际起步仍受加速度约束。
   static const baseChargeSpeed = GameConfig.baseChargeSpeed;
 
   /// 进攻队伍。
@@ -483,7 +487,7 @@ class BattleSimulation {
   bool get finished => result != null || stopped;
 
   /// 开场短暂列队后开始接近。
-  bool get forming => elapsed < 0.8;
+  bool get forming => elapsed < GameConfig.battleFormationTime - 1e-9;
 
   /// 某一方仍存活的小兵数。
   int survivors(BattleSide side) => units
@@ -741,7 +745,7 @@ class BattleSimulation {
       if (formation.motion == BattleMotion.impact &&
           elapsed >= formation.impactAt + impactHold - 1e-9) {
         if (formation.recoilX == null) {
-          formation._prepare(elapsed);
+          formation._prepare(elapsed, notBefore: _nextClashAt);
         } else {
           formation.motion = BattleMotion.recoiling;
         }
@@ -756,19 +760,19 @@ class BattleSimulation {
             ((elapsed - formation.impactAt - impactHold) /
                     formation._recoilDuration)
                 .clamp(0.0, 1.0);
-        final eased = 1 - math.pow(1 - t, 3);
+        final eased = 1 - (1 - t) * (1 - t);
         proposed[formation.side] =
             formation._recoilStart + (goal - formation._recoilStart) * eased;
         if (t >= 1) {
           if (goal <= 8.001 || goal >= 247.999) formation.wallHitAt = elapsed;
           formation.recoilX = null;
-          formation._prepare(elapsed);
+          formation._prepare(elapsed, notBefore: _nextClashAt);
         }
       } else if (formation.motion == BattleMotion.charging) {
         final targetSpeed = chargeSpeed(formation.side);
         formation.velocity += (targetSpeed - formation.velocity).clamp(
-          -720 * fixedStep,
-          720 * fixedStep,
+          -GameConfig.chargeAcceleration * fixedStep,
+          GameConfig.chargeAcceleration * fixedStep,
         );
         final step = formation.velocity * fixedStep;
         final goal = clashes == 0
