@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +70,63 @@ CityBattle _siege(
 }
 
 void main() {
+  testWidgets('攻城部队在大地图与小地图隐藏且无残留点击区，撤退后重新出现', (tester) async {
+    final c = await _load(tester, const Size(1280, 720), RetreatRoll(.9));
+    final assets =
+        (tester
+                    .widget<CustomPaint>(
+                      find.byKey(const ValueKey('world-canvas')),
+                    )
+                    .painter!
+                as WorldPainter)
+            .assets;
+    final battle = _siege(c);
+    c.cancelCityAction();
+    final march = c.campaign.marches[battle.attacker.id]!;
+    expect(march.visibleOnMap, isFalse);
+    c.camera.viewport = const Size(400, 300);
+    c.camera.center = march.position;
+    Future<List<int>> render(CustomPainter painter, Size size) async {
+      final recorder = ui.PictureRecorder();
+      painter.paint(Canvas(recorder), size);
+      final picture = recorder.endRecording();
+      final image = picture.toImageSync(
+        size.width.toInt(),
+        size.height.toInt(),
+      );
+      final data = await tester.runAsync(() => image.toByteData());
+      final result = data!.buffer.asUint8List().toList();
+      image.dispose();
+      picture.dispose();
+      return result;
+    }
+
+    for (final (painter, size) in [
+      (WorldPainter(c, assets), const Size(400, 300)),
+      (MinimapPainter(c, assets), const Size(200, 160)),
+    ]) {
+      final visible = await render(painter, size);
+      c.campaign.marches.remove(march.hero.id);
+      final removed = await render(painter, size);
+      c.campaign.marches[march.hero.id] = march;
+      expect(
+        listEquals(visible, removed),
+        isTrue,
+        reason: '隐藏将领不能残留人物、影子或小地图光点',
+      );
+    }
+    c.tap(c.camera.toScreen(march.position));
+    expect(c.selectedUnitId, isNull);
+    expect(c.campaign.retreatHero(march.hero.id), isTrue);
+    c.tick(1.81);
+    expect(march.visibleOnMap, isTrue);
+    expect(march.returningFromRetreat, isTrue);
+    c.cancelCityAction();
+    c.tap(c.camera.toScreen(march.position));
+    expect(c.selectedUnitId, march.hero.id);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final size in [
     const Size(375, 812),
     const Size(812, 375),
@@ -132,7 +192,7 @@ void main() {
     expect(find.byType(HeroRetreatButton), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('unit-retreat')));
     await tester.pump();
-    expect(battle.attacker.hp, 0);
+    expect(battle.attacker.hp, greaterThan(0));
     expect(random.calls, 1);
     expect(c.campaign.retreatHero(battle.attacker.id), isNull);
     expect(tester.takeException(), isNull);

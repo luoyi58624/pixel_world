@@ -31,7 +31,8 @@ void main() {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
-      targetHeroes: [3],
+      targetHeroes: [3, 4],
+      enemyStock: 8,
     );
     c.advance(8);
     final raid = c.marches.values.where((m) => m.hero.countryId == 1).toList();
@@ -74,7 +75,7 @@ void main() {
     c.advance(60);
     expect(plan.targetCityId, target);
     expect(plan.phase, CountryWarPhase.attacking);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
     expect(c.goldFor(1), greaterThan(0));
   });
 

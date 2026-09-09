@@ -734,6 +734,7 @@ class WorldController extends ChangeNotifier {
       ..sort((a, b) => b.position.dy.compareTo(a.position.dy));
     final radius = math.max(8.0, 12 / camera.scale);
     for (final unit in units) {
+      if (!unit.visibleOnMap) continue;
       if (Rect.fromCenter(
         center: unit.position,
         width: radius * 2,

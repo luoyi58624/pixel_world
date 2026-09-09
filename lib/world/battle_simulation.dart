@@ -158,7 +158,6 @@ class BattleUnit {
   });
   final BattleFormation _formation;
   final NesBattleKernel _kernel;
-  double _retreatOffset = 0;
   bool _retreating = false;
   int get _index =>
       (side == BattleSide.attacker ? 0 : 5) + (slot < 0 ? 4 : slot);
@@ -185,13 +184,11 @@ class BattleUnit {
   bool get isGeneral => slot < 0;
 
   /// 是否仍需绘制，包含弹地退场中的角色。
-  bool get visible =>
-      _kernel.ram[0x570 + _index] != 0 &&
-      (!_retreating || position.dx >= -24 && position.dx <= 280);
+  bool get visible => _kernel.ram[0x570 + _index] != 0;
 
   /// 身体中心，阵亡角色可飞出地板范围。
   Offset get position => Offset(
-    _kernel.ram[0x5c0 + _index] + 8.0 + _retreatOffset,
+    _kernel.ram[0x5c0 + _index] + 8.0,
     _kernel.ram[0x5d0 + _index] - 7.0,
   );
 
@@ -253,7 +250,11 @@ class BattleSimulation {
     this.resultPerspective = BattleSide.attacker,
   }) {
     _kernel = NesBattleKernel(
-      attack: [_combat(attacker), _combat(defender) + defenderAttackBonus],
+      attack: [
+        _combat(attacker),
+        (_combat(defender) + defenderAttackBonus).clamp(0, 63),
+      ],
+      moraleAttack: [_combat(attacker), _combat(defender)],
       hp: [attacker.general.hp.round(), defender.general.hp.round()],
       slots: [
         for (final army in [attacker, defender])
@@ -312,15 +313,14 @@ class BattleSimulation {
   int _combat(BattleArmy army) =>
       (army.attack * heroAttackFactor).floor().clamp(0, 63);
 
-  /// 城防作为战斗输入修正，当前平衡为一级四点、之后每级再加四点。
+  /// 城防只修正基础攻击，每级增加两点，野战不享有加成。
   int get defenderAttackBonus => fieldTerrain == null
       ? GameConfig.cityDefenseBaseAttack +
             (defenderCityLevel - 1) * GameConfig.cityDefenseAttackPerLevel
       : 0;
 
-  /// 城防使红条实际增加的点数，上限 63。
-  int get defenderMoraleBonus =>
-      defenderMorale.maximum - math.min(63, (_combat(defender) + 1) * 4 - 1);
+  /// 城防不提供额外士气，初始红条仅按英雄有效战斗属性计算。
+  int get defenderMoraleBonus => 0;
 
   /// 双方红条显示快照。
   late final BattleMorale attackerMorale, defenderMorale;
@@ -402,6 +402,7 @@ class BattleSimulation {
 
   BattleRetreat? _retreat;
   double _retreatElapsed = 0;
+  late List<int> _retreatOrigins;
 
   /// 已锁定的撤退结果，普通拼杀时为空。
   BattleRetreat? get retreat => _retreat;
@@ -414,29 +415,22 @@ class BattleSimulation {
       attacker.general.alive &&
       defender.general.alive;
 
-  /// 锁定结果；成功保留伤势并转身离场，失败使用原版阵亡与胜方过场。
+  /// 锁定结果，双方先退回开场位置，抵达后才揭晓或开始原版死亡动画。
   bool beginRetreat(BattleSide side, {required bool succeeded}) {
     if (!canRetreat) return false;
     _retreat = (side: side, succeeded: succeeded);
-    if (succeeded) {
-      stage = BattleStage.retreating;
-      _pendingResult = side == BattleSide.attacker
-          ? BattleResult.defenderWon
-          : BattleResult.attackerWon;
-      for (final formation in formations.values) {
-        formation.moving = false;
-        formation.motion = BattleMotion.halted;
-      }
-      for (final unit in units) {
-        unit._retreating = unit.side == side && unit.health.alive;
-      }
-    } else {
-      final army = side == BattleSide.attacker ? attacker : defender;
-      army.general.hp = 0;
-      _kernel.setHeroHp(_side(side), 0);
-      _syncHealth();
-      _ticks = math.max(_ticks, GameConfig.battleFormationFrames);
-      stage = BattleStage.falling;
+    _retreatOrigins = [_kernel.ram[0x81], _kernel.ram[0x83]];
+    stage = BattleStage.retreating;
+    _pendingResult = side == BattleSide.attacker
+        ? BattleResult.defenderWon
+        : BattleResult.attackerWon;
+    for (final formation in formations.values) {
+      formation.moving = false;
+      formation.velocity = 0;
+      formation.motion = BattleMotion.preparing;
+    }
+    for (final unit in units) {
+      unit._retreating = unit.health.alive;
     }
     return true;
   }
@@ -448,6 +442,7 @@ class BattleSimulation {
     final name = attempt.side == BattleSide.attacker
         ? attacker.name
         : defender.name;
+    if (stage == BattleStage.retreating) return '$name正在撤退 · 双方退回起点';
     return attempt.succeeded ? '$name撤退成功' : '$name撤退失败，阵亡';
   }
 
@@ -545,7 +540,8 @@ class BattleSimulation {
         changed = _ticks % 6 == 0 || changed;
         continue;
       }
-      if (_retreat?.succeeded == true) {
+      if (_retreat != null &&
+          (stage == BattleStage.retreating || _retreat!.succeeded)) {
         final previousStage = stage;
         _advanceRetreat();
         changed = changed || _ticks % 6 == 0 || previousStage != stage;
@@ -643,17 +639,42 @@ class BattleSimulation {
       0.0,
       1.0,
     );
-    final distance = 280 * progress * progress * (3 - 2 * progress);
-    final side = _retreat!.side;
-    final formation = formations[side]!;
-    formation.moving = progress < 1;
-    formation.motion = progress < 1
-        ? BattleMotion.charging
-        : BattleMotion.halted;
-    for (final unit in units.where((unit) => unit._retreating)) {
-      unit._retreatOffset = side == BattleSide.attacker ? distance : -distance;
+    final eased = progress * progress * (3 - 2 * progress);
+    _kernel.advanceWithdrawal([
+      for (var side = 0; side < 2; side++)
+        (_retreatOrigins[side] +
+                (NesBattleKernel.initialFormationX[side] -
+                        _retreatOrigins[side]) *
+                    eased)
+            .round(),
+    ]);
+    for (final side in BattleSide.values) {
+      final index = _side(side), formation = formations[side]!;
+      final x = _kernel.ram[0x81 + index * 2] + (index == 0 ? 8.0 : 32.0);
+      final distance = x - formation.frontX;
+      formation.frontX = x;
+      formation.walkDistance += distance.abs();
+      formation.velocity = distance / fixedStep;
+      formation.moving = distance != 0;
+      formation.motion = progress < 1
+          ? BattleMotion.recoiling
+          : BattleMotion.halted;
     }
-    if (progress == 1) stage = BattleStage.ending;
+    if (progress == 1 && stage == BattleStage.retreating) {
+      for (final unit in units) {
+        unit._retreating = false;
+      }
+      if (!_retreat!.succeeded) {
+        // 撤退失败时残兵也全军覆没，先用原版整队伤害启动小兵的弹地退场。
+        _kernel.applyWeaponDamage(_side(_retreat!.side), 255);
+        _kernel.setHeroHp(_side(_retreat!.side), 0);
+        _syncHealth();
+        _ticks = math.max(_ticks, GameConfig.battleFormationFrames);
+        stage = BattleStage.falling;
+        return;
+      }
+      stage = BattleStage.ending;
+    }
     if (_retreatElapsed + 1e-9 >=
         GameConfig.retreatExitSeconds + GameConfig.retreatResultSeconds) {
       _complete();

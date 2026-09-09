@@ -26,7 +26,7 @@ void main() {
       expect(c.retreatHero(hero.id), isNull);
       expect(random.calls, 1);
       expect(c.gold, gold);
-      expect(hero.hp, success ? hp : 0);
+      expect(hero.hp, hp);
       expect(battle.isActive, isTrue);
       advanceRetreatUntil(c, () => !battle.isActive);
       expect(c.cities[0]!.level, 3);
@@ -107,7 +107,7 @@ void main() {
     final battle = startRetreatSiege(c, heroId: 40);
     c.retreatHero('rom-40');
     expect(c.defeated, isFalse);
-    expect(battle.attacker.hp, 0);
+    expect(battle.attacker.hp, battle.attacker.maxHp);
     advanceRetreatUntil(c, () => c.defeated);
     expect(c.defeatReason, CampaignDefeatReason.protagonistFallen);
     expect(c.cities[0]!.level, 3);
@@ -245,18 +245,49 @@ void main() {
     expect(battle.simulation.retreat, isNull);
   });
 
+  test('高级将领即使兵少且胜算很低，生命未低于四分之一也不撤退', () {
+    final random = RetreatRoll(.9);
+    final c = retreatCampaign(ai: true, weakNpc: true, random: random);
+    c.buySoldiers(0, 12);
+    c.buySoldiers(1, 4, countryId: 1);
+    final hero = retreatHeroById(c, 3)..hp = 60;
+    final battle = startRetreatSiege(c, heroId: 3, target: 0);
+    advanceRetreatUntil(c, () => battle.rounds >= 2);
+    expect(hero.hp, greaterThanOrEqualTo(hero.maxHp / 4));
+    expect(hero.soldiers, lessThan(battle.defender.soldiers));
+    expect(random.calls, 0);
+    expect(battle.simulation.retreat, isNull);
+  });
+
+  test('高级将领低于四分之一生命但部队仍有胜算时不会撤退', () {
+    final random = RetreatRoll(.9);
+    final c = retreatCampaign(ai: true, random: random);
+    c.buySoldiers(1, 4, countryId: 1);
+    final hero = retreatHeroById(c, 3);
+    hero.hp = hero.maxHp / 4 - 1;
+    final battle = startRetreatSiege(c, heroId: 3, target: 0);
+    advanceRetreatUntil(c, () => battle.rounds >= 2);
+    expect(hero.hp, lessThan(hero.maxHp / 4));
+    expect(hero.soldiers, greaterThan(0));
+    expect(random.calls, 0);
+    expect(battle.simulation.retreat, isNull);
+  });
+
   test('高级AI撤退失败与玩家同样阵亡，不降低AI出发城等级', () {
     final random = RetreatRoll(.2);
     final c = retreatCampaign(ai: true, weakNpc: true, random: random);
     c.buySoldiers(0, 12);
-    final hero = retreatHeroById(c, 3)..hp = 60;
+    final hero = retreatHeroById(c, 3);
+    hero.hp = hero.maxHp / 4 - 1;
+    c.buySoldiers(1, 4, countryId: 1);
     final battle = startRetreatSiege(c, heroId: 3, target: 0);
     advanceRetreatUntil(
       c,
       () => battle.simulation.retreat != null || !hero.health.alive,
     );
     expect(battle.simulation.retreat?.succeeded, isFalse);
-    expect(hero.hp, 0);
+    expect(hero.hp, greaterThan(0));
+    expect(hero.hp, lessThan(hero.maxHp / 4));
     advanceRetreatUntil(c, () => !battle.isActive);
     expect(c.heroes, isNot(contains(hero)));
     expect(c.cities[1]!.level, greaterThanOrEqualTo(3));
@@ -268,13 +299,15 @@ void main() {
     final c = retreatCampaign(ai: true, weakNpc: true, random: random);
     c.buySoldiers(0, 12);
     final hero = retreatHeroById(c, 3);
-    hero.hp = 60;
+    hero.hp = hero.maxHp / 4 - 1;
+    c.buySoldiers(1, 4, countryId: 1);
     final battle = startRetreatSiege(c, heroId: 3, target: 0);
     advanceRetreatUntil(
       c,
       () => battle.simulation.retreat != null || !hero.health.alive,
     );
     expect(battle.simulation.retreat?.succeeded, isTrue);
+    expect(hero.hp, lessThan(hero.maxHp / 4));
     expect(random.calls, 1);
     expect(battle.rounds, greaterThanOrEqualTo(2));
     advanceRetreatUntil(c, () => !battle.isActive);

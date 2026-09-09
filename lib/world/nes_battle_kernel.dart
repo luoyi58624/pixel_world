@@ -10,12 +10,16 @@ class NesBattleKernel {
   /// ROM 固定的每兵碰撞强度，对应 E1E6 的左移。
   static const soldierPower = 2;
 
+  /// 双方开场阵形锚点，顺序为右军、左军。
+  static const initialFormationX = [200, 16];
+
   /// 输入顺序为右军、左军，属性必须处于原版单字节范围内。
   NesBattleKernel({
     required List<int> attack,
     required List<int> hp,
     required List<List<int>> slots,
     required int seed,
+    List<int>? moraleAttack,
   }) {
     for (final entry in nesBattleBlocks.entries) {
       final hex = entry.value;
@@ -23,8 +27,8 @@ class NesBattleKernel {
         ram[entry.key + i ~/ 2] = int.parse(hex.substring(i, i + 2), radix: 16);
       }
     }
-    ram[0x81] = 200;
-    ram[0x83] = 16;
+    ram[0x81] = initialFormationX[0];
+    ram[0x83] = initialFormationX[1];
     ram[0x0e] = 255;
     for (var i = 0; i < 3; i++) {
       ram[0xd0 + i] = seed >> (8 * i) & 255;
@@ -48,7 +52,18 @@ class NesBattleKernel {
         ram[0x570 + side * 5 + slot] = 128;
       }
       _call(0xe1d8, x: side);
+      // 城防只修正碰撞强度；红条仍让原 E1C6 按独立的英雄属性初始化。
+      final strength = ram[0x1a + side];
+      if (moraleAttack != null) {
+        if (moraleAttack.length != 2 ||
+            moraleAttack[side] < 0 ||
+            moraleAttack[side] > 63) {
+          throw ArgumentError('士气属性超出原版范围');
+        }
+        ram[0x1a + side] = moraleAttack[side];
+      }
       _call(0xe1c6, x: side);
+      ram[0x1a + side] = strength;
       _call(0xe758, x: side);
     }
   }
@@ -125,6 +140,23 @@ class NesBattleKernel {
   int velocity(int side) {
     final raw = ram[0x84 + side * 2] | ram[0x85 + side * 2] << 8;
     return raw >= 32768 ? raw - 65536 : raw;
+  }
+
+  /// 撤退时只移动阵形并推进已有死亡动画，不再消耗士气或触发碰撞。
+  void advanceWithdrawal(List<int> positions) {
+    if (positions.length != 2 || positions.any((x) => x < 0 || x > 255)) {
+      throw ArgumentError('撤退阵形坐标无效');
+    }
+    ram[0x0e] = 255;
+    for (var side = 0; side < 2; side++) {
+      ram[0x80 + side * 2] = 0;
+      ram[0x81 + side * 2] = positions[side];
+      ram[0x84 + side * 2] = 0;
+      ram[0x85 + side * 2] = 0;
+    }
+    _call(0xdc21);
+    _call(0xe758, x: 0);
+    _call(0xe758, x: 1);
   }
 
   /// 战役修改将领生命时同步，并沿用原版阵亡状态初始化。

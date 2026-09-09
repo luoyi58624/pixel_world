@@ -79,14 +79,14 @@ void _win(CampaignState c, CityBattle battle) {
 }
 
 void main() {
-  test('三级城临时加成为12、8、4，前三胜不提前改实际等级，第三胜直接占领', () {
+  test('三级城临时加成为6、4、2，前三胜不提前改实际等级，第三胜直接占领', () {
     final rolls = _Rolls([0]);
     final c = _campaign(rolls);
     final battle = _start(c);
     final remaining = c.garrisonAt(1).map((hero) => hero.id).toSet();
     for (var wave = 1; wave <= 3; wave++) {
       expect(battle.wave, wave);
-      expect(battle.simulation.defenderAttackBonus, 16 - wave * 4);
+      expect(battle.simulation.defenderAttackBonus, 8 - wave * 2);
       expect(battle.simulation.cityAppearanceLevel, 3);
       expect(c.cities[1]!.level, 3);
       expect(rolls.calls, 0);
@@ -176,7 +176,7 @@ void main() {
     _until(c, () => battle.wave == 2);
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     expect(c.cities[1]!.level, 4);
-    expect(battle.simulation.defenderAttackBonus, 8);
+    expect(battle.simulation.defenderAttackBonus, 4);
     expect(battle.initialCityLevel, 3);
     expect(c.retreatHero(battle.attacker.id), isTrue);
     _until(c, () => !battle.isActive);

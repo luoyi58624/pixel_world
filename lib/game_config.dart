@@ -84,10 +84,10 @@ abstract final class GameConfig {
   /// 出征及野战将领撤退的失败概率，失败沿用整队阵亡结算。
   static const retreatFailureChance = 0.6;
 
-  /// 撤退成功时转身跑出战场及结果停留的秒数。
+  /// 发起撤退后双方从当前位置退回开场位置的秒数。
   static const retreatExitSeconds = 1.2;
 
-  /// 成功撤离后短暂停留，再返回地图沿来路回城。
+  /// 双方回到起点后，成功结果停留的秒数，随后沿地图来路回城。
   static const retreatResultSeconds = 0.6;
 
   /// 高级电脑将领至少观察的碰撞轮数，避免刚列阵就逃跑。
@@ -96,8 +96,8 @@ abstract final class GameConfig {
   /// 预计自身可承受轮数低于敌方此比例时才考虑撤退。
   static const aiRetreatSurvivalRatio = 0.6;
 
-  /// 生命低于此比例或兵数落后时，允许电脑在明显劣势下冒险撤退。
-  static const aiRetreatHealthRatio = 0.5;
+  /// 生命严格低于四分之一且胜算渺茫时，高级电脑将领才考虑撤退。
+  static const aiRetreatHealthRatio = 0.25;
 
   /// 武器演出的总时长与命中时刻；仅当前战斗短暂停下普通碰撞。
   static const weaponAnimationSeconds = 1.0;
@@ -181,10 +181,10 @@ abstract final class GameConfig {
   static const recycleDefeatedHeroes = true;
 
   /// 守城方从二级起，每级增加的整队基础攻击力。
-  static const cityDefenseAttackPerLevel = 4;
+  static const cityDefenseAttackPerLevel = 2;
 
-  /// 新游戏一级城市的守方攻击加成，之后每级再增加四点。
-  static const cityDefenseBaseAttack = 4;
+  /// 一级城市的守方攻击加成，之后每级再增加两点，不增加士气。
+  static const cityDefenseBaseAttack = 2;
 
   /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
   static const fieldEncounterDistance = 16.0;

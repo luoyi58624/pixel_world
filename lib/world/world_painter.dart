@@ -102,6 +102,7 @@ class WorldPainter extends CustomPainter {
       final marches = c.campaign.marches.values.toList()
         ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
       for (final march in marches) {
+        if (!march.visibleOnMap) continue;
         if (march.phase == MarchPhase.camped) {
           _drawCamp(canvas, size, march.position);
         } else {
@@ -328,7 +329,9 @@ class MinimapPainter extends CustomPainter {
       );
     }
     final positions = [
-      ...c.campaign.marches.values.map((march) => march.position),
+      ...c.campaign.marches.values
+          .where((march) => march.visibleOnMap)
+          .map((march) => march.position),
     ];
     for (final position in positions) {
       final hero = Offset(position.dx * sx, position.dy * sy);

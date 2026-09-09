@@ -262,6 +262,9 @@ class HeroMarch {
   /// 撤退后沿来路返城，返程结束前不接受新的进攻指令。
   bool get returningFromRetreat => _returningFromRetreat;
 
+  /// 进入城堡交战的进攻军在地图上隐藏，排队和野战部队仍可见。
+  bool get visibleOnMap => phase != MarchPhase.fighting;
+
   void _rememberPosition() {
     if (!_returningFromRetreat && _outboundRoute.last != position) {
       _outboundRoute.add(position);

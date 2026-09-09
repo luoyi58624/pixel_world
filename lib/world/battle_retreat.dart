@@ -19,7 +19,7 @@ extension BattleRetreatCommands on CampaignState {
     return null;
   }
 
-  /// 返回成功或失败；非法指令返回空且不消耗随机数，失败将领直接阵亡。
+  /// 锁定成功或失败，双方退回起点后再演出结果；非法指令不消耗随机数。
   bool? retreatHero(String heroId, {int countryId = 0}) {
     if (retreatBlockReason(heroId, countryId: countryId) != null) return null;
     final battle = activeBattleForHero(heroId)!;
@@ -138,6 +138,7 @@ extension BattleRetreatCommands on CampaignState {
           : battle.defender;
       if (hero.isPlayer ||
           hero.type != HeroType.advanced ||
+          hero.hp >= hero.maxHp * GameConfig.aiRetreatHealthRatio ||
           retreatBlockReason(hero.id, countryId: hero.countryId) != null) {
         continue;
       }
@@ -165,9 +166,7 @@ extension BattleRetreatCommands on CampaignState {
       final losing =
           ownHealth / received <
           enemyHealth / math.max(1, dealt) * GameConfig.aiRetreatSurvivalRatio;
-      if (losing &&
-          (hero.hp <= hero.maxHp * GameConfig.aiRetreatHealthRatio ||
-              hero.soldiers < other.soldiers)) {
+      if (losing) {
         // 明显劣势才冒六成阵亡风险，每次新碰撞观察一次，不逐帧抽签。
         retreatHero(hero.id, countryId: hero.countryId);
         return true;
