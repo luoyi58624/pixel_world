@@ -172,6 +172,8 @@ void main() {
     expect(c.gold, 34);
     expect(c.buySoldiers(0, 1), isFalse);
     final hero = _hero(c, 0)..hp = 20;
+    expect(c.reinforceHero(hero), 4);
+    expect(c.cities[0]!.reserveSoldiers, 12);
     hero.squad[0].hp = 0;
     hero.squad[1].hp = 0;
     hero.squad[2].hp = 5;
@@ -181,7 +183,7 @@ void main() {
     expect(hero.squad[2].hp, 5);
     expect(hero.hp, 20);
     expect(fallen.hp, 0);
-    expect(c.cities[0]!.reserveSoldiers, 14);
+    expect(c.cities[0]!.reserveSoldiers, 10);
     expect(c.gold, 34);
     expect(c.reinforceHero(hero), 0);
     c.dispatch(hero, c.world.cities[1]);
@@ -189,7 +191,7 @@ void main() {
     expect(c.reinforceHero(hero), 0);
   });
 
-  test('城防每级四人、每名所属英雄四人，降级保留超额储备，易主刷新十人', () {
+  test('城防和将领贡献容量，降级裁掉超额储备，易主不赠兵', () {
     final c = _campaign(gold: 10000);
     for (var level = 1; level <= 5; level++) {
       if (level > 1) c.upgradeCity(0, hero: c.garrisonAt(0).first);
@@ -197,11 +199,11 @@ void main() {
     }
     expect(c.buySoldiers(0, 32), isTrue);
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
-    expect(c.cities[0]!.reserveSoldiers, 32);
+    expect(c.cities[0]!.reserveSoldiers, 24);
     expect(c.cities[0]!.reserveCapacity, 24);
     expect(c.maxSoldierPurchase(0), 0);
     c.cities[0]!.ownerCountryId = 2;
-    expect(c.cities[0]!.reserveSoldiers, 10);
+    expect(c.cities[0]!.reserveSoldiers, 0);
     expect(c.cities[0]!.reserveCapacity, 4);
   });
 

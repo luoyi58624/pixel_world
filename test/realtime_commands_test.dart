@@ -66,6 +66,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
 void main() {
   test('任意空地出击、到达驻留、重新指定目标与扎营保留同一英雄身份', () {
     final c = _controller();
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     addTearDown(c.dispose);
     final hero = c.campaign.garrisonAt(0).first;
     final point = c.heroPosition + const Offset(80, 32);
@@ -133,6 +134,7 @@ void main() {
 
   test('移动可以选择我方城池，进驻后恢复驻军且不生成第二个英雄', () {
     final c = _controller();
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     addTearDown(c.dispose);
     final hero = c.campaign.garrisonAt(0).first;
     final unit = c.campaign.dispatchTo(
@@ -284,6 +286,10 @@ void main() {
     expect(find.text('王牌'), findsNothing);
     expect(find.text('召唤蛋'), findsNothing);
     expect(find.text('内政'), findsOneWidget);
+    expect(find.text('士兵'), findsOneWidget);
+    expect(find.text('${deployed.hero.soldiers} 人'), findsOneWidget);
+    expect(deployed.hero.soldiers, 4);
+    expect(c.campaign.soldiersAt(0), 6);
     await tester.tap(find.byKey(const ValueKey('unit-move')));
     await tester.pump();
     expect(c.choosingTarget, isTrue);

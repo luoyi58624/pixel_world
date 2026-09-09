@@ -230,16 +230,7 @@ class CityPanel extends StatelessWidget {
             ('战斗', '${hero.combat}'),
             ('内政', '${hero.politics}'),
             ('月俸', '${hero.salary}'),
-            ('士兵', '${hero.soldiers} / ${hero.squad.length}'),
-          ], columns: 4),
-          if (hero.isPlayer && c.campaign.reinforcementCount(hero) > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              '出战自动补充 ${c.campaign.reinforcementCount(hero)} 人',
-              key: const ValueKey('hero-auto-reinforcement'),
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-          ],
+          ], columns: 3),
           if (hero.isPlayer && !c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),

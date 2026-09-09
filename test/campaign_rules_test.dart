@@ -70,7 +70,8 @@ void main() {
     );
     final c = _campaign();
     expect(c.heroesAt(0).map((hero) => hero.sourceId), [40, 0, 2]);
-    expect(c.soldiersAt(0), 12);
+    expect(c.soldiersAt(0), 0);
+    expect(c.heroesAt(0).every((hero) => hero.soldiers == 0), isTrue);
   });
 
   test('重复初始化编号采用最后所属城池，不复制英雄身份', () {

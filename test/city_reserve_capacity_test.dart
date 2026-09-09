@@ -95,11 +95,11 @@ void main() {
     expect(hero.cityId, 2);
     expect(c.cities[0]!.reserveCapacity, 16);
     expect(c.cities[2]!.reserveCapacity, 20);
-    expect(c.cities[0]!.reserveSoldiers, 20);
+    expect(c.cities[0]!.reserveSoldiers, 16);
     expect(c.maxSoldierPurchase(0), 0);
   });
 
-  test('预留和放弃不扩容，签约增加四个名额，阵亡减少名额但不扣已有兵员', () {
+  test('预留和放弃不扩容，签约增加名额，阵亡后裁掉超额库存', () {
     final c = _campaign();
     c.buySoldiers(0, 20);
     final declined = c.drawHero(0)!;
@@ -114,11 +114,11 @@ void main() {
     c.defeatHero(hero.id, winnerCountryId: 1);
     expect(c.cities[0]!.level, 2);
     expect(c.cities[0]!.reserveCapacity, 20);
-    expect(c.cities[0]!.reserveSoldiers, 24);
+    expect(c.cities[0]!.reserveSoldiers, 20);
     expect(c.maxSoldierPurchase(0), 0);
   });
 
-  test('守将战败同时减一级城防和一名英雄容量，超额兵不随之消失', () {
+  test('守将战败减少城防和英雄容量，超额兵员立即舍弃', () {
     final c = _campaign();
     c.buySoldiers(0, 20);
     c.defeatHero(
@@ -128,11 +128,11 @@ void main() {
     );
     expect(c.cities[0]!.level, 1);
     expect(c.cities[0]!.reserveCapacity, 12);
-    expect(c.cities[0]!.reserveSoldiers, 20);
+    expect(c.cities[0]!.reserveSoldiers, 12);
     expect(c.maxSoldierPurchase(0), 0);
   });
 
-  test('占城保留十兵奖励，一级一将上限八，消耗到上限以下才能再买', () {
+  test('空兵部队占城不生成奖励兵，一级一将上限八，征兵只能买到上限', () {
     final c = _campaign();
     c.heroes.removeWhere((hero) => hero.cityId == 1);
     final hero = c.garrisonAt(0).first;
@@ -143,12 +143,10 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(hero.cityId, 1);
     expect(c.cities[1]!.reserveCapacity, 8);
-    expect(c.cities[1]!.reserveSoldiers, 10);
-    expect(c.maxSoldierPurchase(1), 0);
-    for (final soldier in hero.squad.take(3)) {
-      soldier.hp = 0;
-    }
-    c.reinforceHero(hero);
+    expect(c.cities[1]!.reserveSoldiers, 0);
+    expect(hero.soldiers, 0);
+    expect(c.maxSoldierPurchase(1), 8);
+    c.buySoldiers(1, 7);
     expect(c.cities[1]!.reserveSoldiers, 7);
     expect(c.maxSoldierPurchase(1), 1);
     expect(c.buySoldiers(1, 2), isFalse);

@@ -28,12 +28,10 @@ void finish(CampaignState c, WorldBattle battle) {
 
 void main() {
   for (final country in [0, 1]) {
-    test('${country == 0 ? '玩家' : 'NPC'}将领回到本国城池立即满血，不刷新已有储备或补齐随行兵', () {
+    test('${country == 0 ? '玩家' : 'NPC'}将领回城立即满血，生还者归入库存并清空随军', () {
       final c = campaign();
       final home = c.world.cities[country];
       final hero = c.garrisonAt(home.id).first..hp = 3;
-      hero.squad.first.hp = 5;
-      hero.squad.last.hp = 0;
       final health = hero.health;
       final reserves = c.cities[home.id]!.reserveSoldiers;
       final march = c.dispatchTo(
@@ -42,16 +40,16 @@ void main() {
         countryId: country,
       )!;
       expect(hero.soldiers, 4);
-      expect(c.cities[home.id]!.reserveSoldiers, reserves - 1);
-      hero.squad.last.hp = 0; // 模拟出城后损失，回城本身只治疗英雄。
+      expect(c.cities[home.id]!.reserveSoldiers, reserves - 4);
+      hero.squad.first.hp = 5;
+      hero.squad.last.hp = 0; // 一兵阵亡，只归还三名生还者。
       // NPC 与玩家使用同一到达处理，直接把最后一段路线落到本国城池边缘。
       march.moveTo(march.position, city: home);
       c.advance(0.02);
       expect(c.marches, isNot(contains(hero.id)));
       expect(hero.health, same(health));
       expect(hero.hp, hero.maxHp);
-      expect(hero.squad.first.hp, 5);
-      expect(hero.soldiers, 3);
+      expect(hero.soldiers, 0);
       expect(c.cities[home.id]!.reserveSoldiers, reserves - 1);
     });
   }
@@ -69,7 +67,7 @@ void main() {
     expect(c.cities[1]!.ownerCountryId, 1);
   });
 
-  test('占领无守军高级城后储备重置为10并满血，援军及重复进驻不会刷兵', () {
+  test('占领只归还随军生还者，援军按实际人数入库，重复进驻不刷兵', () {
     final c = campaign(2);
     final target = c.world.cities[1];
     final stock = c.cities[1]!;
@@ -92,23 +90,21 @@ void main() {
     c.advance(0.02);
     expect(stock.ownerCountryId, 0);
     expect(stock.level, 1);
-    expect(stock.reserveSoldiers, 10);
+    expect(stock.reserveSoldiers, 3);
     expect(hero.hp, hero.maxHp);
     expect(hero.cityId, target.id);
-    expect(hero.soldiers, 3);
-    expect(c.reinforceHero(hero), 1);
-    expect(stock.reserveSoldiers, 9);
+    expect(hero.soldiers, 0);
     final reinforcement = c.garrisonAt(0).first..hp = 1;
     final second = c.dispatch(reinforcement, target)!;
     second.position = second.destination;
     c.advance(0.02);
     expect(reinforcement.hp, reinforcement.maxHp);
-    expect(stock.reserveSoldiers, 9);
+    expect(stock.reserveSoldiers, 7);
     stock.ownerCountryId = 0;
-    expect(stock.reserveSoldiers, 9);
+    expect(stock.reserveSoldiers, 7);
   });
 
-  test('实际打下一座一级城后满血并刷新10储备，重复结算不再赠送', () {
+  test('实际打下一级城后满血，只接收战斗生还兵员，重复结算不重复入库', () {
     final c = campaign();
     final target = c.world.cities[1];
     c.cities[1]!.ownerCountryId = 2;
@@ -125,12 +121,11 @@ void main() {
     finish(c, battle);
     expect(battle.simulation.result, BattleResult.attackerWon);
     expect(hero.hp, hero.maxHp);
-    expect(c.cities[1]!.reserveSoldiers, 10);
-    hero.squad.last.hp = 0;
-    c.reinforceHero(hero);
-    expect(c.cities[1]!.reserveSoldiers, 9);
+    final survivors = battle.simulation.survivors(BattleSide.attacker);
+    expect(c.cities[1]!.reserveSoldiers, survivors);
+    expect(hero.soldiers, 0);
     c.advance(1);
-    expect(c.cities[1]!.reserveSoldiers, 9);
+    expect(c.cities[1]!.reserveSoldiers, survivors);
   });
 
   test('守城胜利也恢复将领满血，进攻方阵亡不会复活', () {
@@ -150,7 +145,7 @@ void main() {
   });
 
   for (final home in [0, 1]) {
-    test('国家 $home 守城结束只回将领 HP，阵亡小兵和剩余兵力保持结算结果', () {
+    test('国家 $home 守城结束恢复将领 HP，生还兵归营，战斗记录保留实际兵损', () {
       final c = campaign();
       final target = c.world.cities[home];
       final guard = c.garrisonAt(home).last..hp = 30;
@@ -181,9 +176,15 @@ void main() {
       expect(battle.simulation.result, BattleResult.defenderWon);
       expect(guard.hp, guard.maxHp);
       expect(guard.health, same(health));
-      expect(guard.squad.map((soldier) => soldier.hp), remaining);
-      expect(guard.soldiers, lessThan(4));
-      expect(c.cities[home]!.reserveSoldiers, reserve);
+      expect(guard.soldiers, 0);
+      expect(
+        battle.simulation.defender.soldiers.map((soldier) => soldier.hp),
+        remaining,
+      );
+      expect(
+        c.cities[home]!.reserveSoldiers,
+        reserve - 4 + remaining.where((hp) => hp > 0).length,
+      );
       expect(attacker.hp, 0);
       expect(c.heroes, isNot(contains(attacker)));
     });

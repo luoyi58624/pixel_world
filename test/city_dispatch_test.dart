@@ -109,7 +109,8 @@ void main() {
       c.confirmPosition(c.heroPosition + Offset(100 + i * 32, 48 + i * 16));
       await tester.pump();
       expect(c.campaign.marches.length, i + 1);
-      expect(c.campaign.soldiersAt(home.id), (2 - i) * 4);
+      expect(c.campaign.soldiersAt(home.id), [6, 2, 0][i]);
+      expect(heroes[i].soldiers, [4, 4, 2][i]);
     }
     await _tapCity(tester, c, home);
     expect(find.text('城中暂无驻守英雄'), findsOneWidget);
@@ -307,6 +308,7 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     c.openCity(c.world.cities.first);
     expect(c.selectedCity, c.world.cities.first);
     _prepare(c, 'rom-0');
@@ -329,6 +331,7 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     final home = c.world.cities.first;
     final target = c.world.cities[1];
     _prepare(c, 'rom-40');
@@ -362,6 +365,7 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     expect(c.campaign.cities[0]!.level, 1);
     _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
@@ -386,6 +390,7 @@ void main() {
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
+    expect(c.campaign.buySoldiers(0, 12), isTrue);
     c.campaign.upgradeCity(
       c.world.cities.first.id,
       hero: c.campaign.garrisonAt(c.world.cities.first.id).first,
@@ -398,7 +403,7 @@ void main() {
     c.switchWorld(1);
     expect(c.pendingHero, isNull);
     expect(c.campaign.marches, isEmpty);
-    expect(c.campaign.soldiersAt(c.world.cities.first.id), 12);
+    expect(c.campaign.soldiersAt(c.world.cities.first.id), 0);
     c.switchWorld(0);
     expect(c.campaign.marches['rom-40']!.position, position);
     expect(c.campaign.soldiersAt(c.world.cities.first.id), 8);
@@ -413,7 +418,7 @@ void main() {
     expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
     expect(find.text('月收入'), findsOneWidget);
     expect(find.text('士兵数量'), findsOneWidget);
-    expect(find.text('士兵'), findsOneWidget);
+    expect(find.text('士兵'), findsNothing);
     expect(find.text('王牌'), findsNothing);
     final cancel = find.byKey(const ValueKey('city-cancel'));
     final sortie = find.byKey(const ValueKey('dispatch-confirm'));

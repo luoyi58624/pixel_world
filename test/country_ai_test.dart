@@ -40,20 +40,42 @@ CampaignState _campaign({
   Map<int, CountryConfig>? countries,
   math.Random? random,
   math.Random? recruit,
-}) => CampaignState.fromRom(
-  _worlds().first,
-  _catalog(),
-  aiEnabled: ai,
-  startingGold: gold,
-  countryConfigs:
-      countries ??
-      CampaignSetup.decode(
-        File('assets/data/campaign_config.json').readAsStringSync(),
-      ).countries,
-  economyRandom: _Pick(),
-  recruitmentRandom: recruit ?? _Pick(),
-  aiRandom: random ?? math.Random(7),
-);
+  Map<int, int> stocks = const {},
+}) {
+  final c = CampaignState.fromRom(
+    _worlds().first,
+    _catalog(),
+    aiEnabled: ai,
+    startingGold: gold,
+    countryConfigs:
+        countries ??
+        CampaignSetup.decode(
+          File('assets/data/campaign_config.json').readAsStringSync(),
+        ).countries,
+    economyRandom: _Pick(),
+    recruitmentRandom: recruit ?? _Pick(),
+    aiRandom: random ?? math.Random(7),
+  );
+  for (final entry in stocks.entries) {
+    _setStock(c, entry.key, entry.value);
+  }
+  return c;
+}
+
+void _setStock(CampaignState c, int cityId, int count) {
+  final old = c.cities[cityId]!;
+  c.cities[cityId] = CitySituation(
+    ownerCountryId: old.ownerCountryId,
+    defense: old.defense,
+    baseIncome: old.baseIncome,
+    initialLevel: old.level,
+    initialReserveSoldiers: count,
+    countOwnedHeroes: (country) => c
+        .heroesAt(cityId)
+        .where((hero) => hero.health.alive && hero.countryId == country)
+        .length,
+  );
+}
 
 int _strength(CampaignHero a, CampaignHero b) {
   final combat = b.combat.compareTo(a.combat);
@@ -92,8 +114,8 @@ void main() {
     expect(c.buySoldiers(1, 4, countryId: 1), isTrue);
     expect(c.goldFor(1), 96);
     expect(c.reinforceHero(governor), 0);
-    expect(c.reinforceHero(governor, countryId: 1), 1);
-    expect(c.cities[1]!.reserveSoldiers, 3);
+    expect(c.reinforceHero(governor, countryId: 1), 4);
+    expect(c.cities[1]!.reserveSoldiers, 0);
     final price = c.upgradeCostFor(1, governor, countryId: 1)!;
     expect(price, 80 - governor.politics);
     expect(c.upgradeCity(1, hero: governor), isFalse);
@@ -245,7 +267,7 @@ void main() {
   test('决策按固定时钟启动，派最强者随机攻打其他国家，每城留足人数', () {
     final countries = _quietCountries()
       ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 2);
-    final c = _campaign(ai: true, countries: countries);
+    final c = _campaign(ai: true, countries: countries, stocks: {1: 4});
     final initial = c.garrisonAt(1).toList()..sort(_strength);
     c.advance(GameConfig.countryAiInitialDelay - 0.01);
     expect(c.marches, isEmpty);
@@ -275,7 +297,7 @@ void main() {
       (hero) => hero.sourceId == weakest.first.id,
     );
     expect(newHero.countryId, 1);
-    expect(newHero.soldiers, 4);
+    expect(newHero.soldiers, 0);
     final ranked = [...previous, newHero]..sort(_strength);
     expect(c.marches.values.single.hero, same(ranked.first));
     expect(c.garrisonAt(1).length, 3);
@@ -308,6 +330,7 @@ void main() {
   test('同一国家拥有多座城时分别留守，而非把全国驻军集中一座城', () {
     final c = _campaign(
       ai: true,
+      stocks: {1: 4},
       countries: _quietCountries()
         ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 1),
     );
@@ -325,6 +348,7 @@ void main() {
     for (var seed = 0; seed < 12; seed++) {
       final c = _campaign(
         ai: true,
+        stocks: {1: 4},
         random: math.Random(seed),
         countries: _quietCountries()
           ..[1] = const CountryConfig(initialGold: 0, garrisonHeroes: 2),
@@ -399,6 +423,7 @@ void main() {
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
     final count = c.garrisonAt(1).length;
+    _setStock(c, 1, count * 4);
     c.advance(8);
     expect(c.cities[1]!.level, 1);
     expect(
@@ -450,16 +475,25 @@ void main() {
       }
       if (!c.defeated) {
         c.heroes.firstWhere((hero) => hero.type == HeroType.protagonist).hp = 0;
-        c.advance(0);
+        for (var i = 0; i < 4000 && !c.defeated; i++) {
+          c.advance(1 / 60);
+        }
       }
+      expect(c.defeated, isTrue);
       final funds = [for (final id in _configuredCountries.keys) c.goldFor(id)];
-      final positions = [for (final march in c.marches.values) march.position];
+      final positions = {
+        for (final march in c.marches.values) march.hero.id: march.position,
+      };
       final month = c.settledMonths;
       c.advance(180);
       expect([
         for (final id in _configuredCountries.keys) c.goldFor(id),
       ], funds);
-      expect([for (final march in c.marches.values) march.position], positions);
+      // 已失城且正在交战的部队会在收尾后消失；其他部队不能继续行军或新增。
+      for (final march in c.marches.values) {
+        expect(positions, contains(march.hero.id));
+        expect(march.position, positions[march.hero.id]);
+      }
       expect(c.settledMonths, month);
     }
   });

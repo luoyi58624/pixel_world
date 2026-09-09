@@ -69,9 +69,6 @@ abstract final class GameConfig {
   /// 未加载玩法 JSON 的简化地图默认储备兵员，正式开局按每座城的配置读取。
   static const initialCityReserves = 0;
 
-  /// 城池易主后重置的储备兵员，同国重复进驻不刷新。
-  static const capturedCityReserves = 10;
-
   /// 征募一个储备兵员的价格。
   static const soldierRecruitCost = 1;
 
@@ -94,8 +91,8 @@ abstract final class GameConfig {
     30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
   ];
 
-  /// 原始驻城英雄的初始随行兵数。
-  static const initialHeroSoldiers = 4;
+  /// 驻城英雄不预占兵员，确认出征或守城开战时才从城内调拨。
+  static const initialHeroSoldiers = 0;
 
   /// 新签约英雄的初始随行兵数，正式离城时自动从城池储备补齐。
   static const recruitedHeroSoldiers = 0;

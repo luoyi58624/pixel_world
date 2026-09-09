@@ -53,28 +53,9 @@ extension _CountryAutonomy on CampaignState {
   }
 
   bool _supplyAiCity(int cityId, int countryId) {
-    var changed = false;
-    final stationed = garrisonAt(
-      cityId,
-    ).where((hero) => hero.health.alive).toList()..sort(_compareAiStrength);
-    for (final hero in stationed) {
-      changed = reinforceHero(hero, countryId: countryId) > 0 || changed;
-      final missing = hero.squad.length - hero.soldiers;
-      final purchase = math.min(
-        missing,
-        maxSoldierPurchase(cityId, countryId: countryId),
-      );
-      if (purchase > 0 && buySoldiers(cityId, purchase, countryId: countryId)) {
-        changed = true;
-        reinforceHero(hero, countryId: countryId);
-      }
-    }
-    // 保留城池储备供后续新将领或战后补兵，所有兵员仍按一金币一人购买。
+    // 驻军共用库存，不提前把士兵分给每位将领；真正离城或迎战时才领取。
     final reserves = maxSoldierPurchase(cityId, countryId: countryId);
-    if (reserves > 0) {
-      changed = buySoldiers(cityId, reserves, countryId: countryId) || changed;
-    }
-    return changed;
+    return reserves > 0 && buySoldiers(cityId, reserves, countryId: countryId);
   }
 
   bool _sendAiArmies(CityDefinition source, int countryId) {
@@ -87,7 +68,8 @@ extension _CountryAutonomy on CampaignState {
               .where(
                 (hero) =>
                     canDispatch(hero, countryId: countryId) &&
-                    hero.soldiers >=
+                    hero.soldiers +
+                            reinforcementCount(hero, countryId: countryId) >=
                         math.min(
                           hero.squad.length,
                           GameConfig.countryAiMinimumSoldiers,

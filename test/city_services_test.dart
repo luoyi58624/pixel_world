@@ -236,12 +236,14 @@ void main() {
           .onPressed,
       isNotNull,
     );
-    expect(hero.soldiers, 2);
+    expect(hero.soldiers, 0);
+    expect(find.byKey(const ValueKey('city-stat-士兵')), findsNothing);
+    expect(find.byKey(const ValueKey('hero-auto-reinforcement')), findsNothing);
     await _tap(tester, 'dispatch-confirm');
-    expect(hero.soldiers, 2);
+    expect(hero.soldiers, 0);
     c.confirmTarget(c.world.cities[1]);
     expect(hero.soldiers, 4);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 8);
+    expect(c.campaign.cities[0]!.reserveSoldiers, 6);
     expect(c.campaign.gold, 50);
     c.campaign.camp(hero.id);
     c.openCity(c.world.cities[0]);
@@ -249,7 +251,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('buy-reserves')),
-        matching: find.text('8金币'),
+        matching: find.text('10金币'),
       ),
       findsOneWidget,
     );
@@ -258,10 +260,10 @@ void main() {
     await tester.tapAt(tester.getTopLeft(card) + const Offset(14, 18));
     await tester.pump();
     expect(c.campaign.cities[0]!.reserveSoldiers, 16);
-    expect(c.campaign.gold, 42);
+    expect(c.campaign.gold, 40);
     expect(find.text('已满'), findsOneWidget);
     await tester.pump(const Duration(seconds: 60));
-    expect(find.text('1年2月 · 金币 48'), findsOneWidget);
+    expect(find.text('1年2月 · 金币 46'), findsOneWidget);
     expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

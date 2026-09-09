@@ -66,7 +66,7 @@ void main() {
     expect(hero.squad[1], same(wounded));
     expect(wounded.hp, 5);
     expect(hero.hp, 9);
-    expect(c.cities[0]!.reserveSoldiers, 9);
+    expect(c.cities[0]!.reserveSoldiers, 7);
   });
 
   test('多英雄连续离城共享同一库存，后出发者带走剩余兵员', () {

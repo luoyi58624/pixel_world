@@ -112,6 +112,7 @@ extension _CitySieges on CampaignState {
     }
     final defender = _pickDefender(city.id);
     if (defender == null) return null;
+    reinforceHero(defender, countryId: defender.countryId);
     march._siegeArrival = null;
     march.phase = MarchPhase.fighting;
     return battles[city.id] = CityBattle(
