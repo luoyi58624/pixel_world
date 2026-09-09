@@ -72,72 +72,98 @@ void main() {
     const Size(375, 812),
     const Size(1280, 720),
   ]) {
-    testWidgets('城池、英雄和属性方块在 $size 共用字号、间距与高度', (tester) async {
-      final c = await _load(tester, size, _RandomValue());
-      final services = [
-        'city-upgrade',
-        'buy-reserves',
-        'draw-hero',
-      ].map((key) => find.byKey(ValueKey(key))).toList();
-      final choices = c.campaign
-          .garrisonAt(0)
-          .map((hero) => find.byKey(ValueKey('dispatch-hero-${hero.id}')))
-          .toList();
-      expect(c.campaign.garrisonAt(0).map((hero) => hero.sourceId), [0, 2, 40]);
-      final serviceRects = services.map(tester.getRect).toList();
-      final heroRects = choices.map(tester.getRect).toList();
-      for (var i = 0; i < 3; i++) {
-        expect(heroRects[i].width, closeTo(serviceRects[i].width, 0.01));
-        expect(heroRects[i].height, serviceRects[i].height);
-        expect(heroRects[i].top, heroRects[0].top);
-        final service = tester.widget<OutlinedButton>(services[i]);
-        final choice = tester.widget<OutlinedButton>(choices[i]);
+    testWidgets(
+      '城池、英雄和属性方块在 $size 共用字号、间距与高度',
+      (tester) async {
+        final c = await _load(tester, size, _RandomValue());
+        final services = [
+          'city-upgrade',
+          'buy-reserves',
+          'draw-hero',
+        ].map((key) => find.byKey(ValueKey(key))).toList();
+        final choices = c.campaign
+            .garrisonAt(0)
+            .map((hero) => find.byKey(ValueKey('dispatch-hero-${hero.id}')))
+            .toList();
+        expect(c.campaign.garrisonAt(0).map((hero) => hero.sourceId), [
+          0,
+          2,
+          40,
+        ]);
+        final serviceRects = services.map(tester.getRect).toList();
+        final heroRects = choices.map(tester.getRect).toList();
+        for (var i = 0; i < 3; i++) {
+          expect(heroRects[i].width, closeTo(serviceRects[i].width, 0.01));
+          expect(heroRects[i].height, serviceRects[i].height);
+          expect(heroRects[i].top, heroRects[0].top);
+          // 测量实际渲染位置，桌面 compact 密度曾让声明的 padding 被吃掉。
+          for (final card in [services[i], choices[i]]) {
+            final texts = find.descendant(
+              of: card,
+              matching: find.byType(Text),
+            );
+            final content = tester
+                .getRect(texts.first)
+                .expandToInclude(tester.getRect(texts.last));
+            expect(content.center.dy, closeTo(tester.getCenter(card).dy, 0.01));
+            expect(
+              content.top - tester.getTopLeft(card).dy,
+              greaterThanOrEqualTo(8),
+            );
+          }
+          final service = tester.widget<OutlinedButton>(services[i]);
+          final choice = tester.widget<OutlinedButton>(choices[i]);
+          expect(
+            choice.style!.padding!.resolve({}),
+            service.style!.padding!.resolve({}),
+          );
+          if (i > 0) {
+            expect(
+              heroRects[i].left - heroRects[i - 1].right,
+              closeTo(serviceRects[i].left - serviceRects[i - 1].right, 0.01),
+            );
+          }
+        }
         expect(
-          choice.style!.padding!.resolve({}),
-          service.style!.padding!.resolve({}),
+          serviceRects[0].top - tester.getBottomLeft(find.text('城池情况')).dy,
+          closeTo(
+            heroRects[0].top - tester.getBottomLeft(find.text('选择英雄')).dy,
+            0.01,
+          ),
         );
-        if (i > 0) {
-          expect(
-            heroRects[i].left - heroRects[i - 1].right,
-            closeTo(serviceRects[i].left - serviceRects[i - 1].right, 0.01),
-          );
+        final infoText = tester
+            .widget<Text>(find.byKey(const ValueKey('city-reserves')))
+            .style!;
+        for (final finder in [
+          ...choices,
+          find.byKey(const ValueKey('city-stat-战斗')),
+          find.byKey(const ValueKey('city-stat-月收入')),
+        ]) {
+          for (final text in tester.widgetList<Text>(
+            find.descendant(of: finder, matching: find.byType(Text)),
+          )) {
+            expect(text.style!.fontSize, infoText.fontSize);
+            expect(text.style!.fontWeight, infoText.fontWeight);
+            expect(text.style!.height, infoText.height);
+          }
+          for (final element
+              in find
+                  .descendant(of: finder, matching: find.byType(Text))
+                  .evaluate()) {
+            expect(
+              DefaultTextStyle.of(element).style.fontFamily,
+              Theme.of(element).textTheme.bodyMedium!.fontFamily,
+            );
+          }
         }
-      }
-      expect(
-        serviceRects[0].top - tester.getBottomLeft(find.text('城池情况')).dy,
-        closeTo(
-          heroRects[0].top - tester.getBottomLeft(find.text('选择英雄')).dy,
-          0.01,
-        ),
-      );
-      final infoText = tester
-          .widget<Text>(find.byKey(const ValueKey('city-reserves')))
-          .style!;
-      for (final finder in [
-        ...choices,
-        find.byKey(const ValueKey('city-stat-战斗')),
-        find.byKey(const ValueKey('city-stat-月收入')),
-      ]) {
-        for (final text in tester.widgetList<Text>(
-          find.descendant(of: finder, matching: find.byType(Text)),
-        )) {
-          expect(text.style!.fontSize, infoText.fontSize);
-          expect(text.style!.fontWeight, infoText.fontWeight);
-          expect(text.style!.height, infoText.height);
-        }
-        for (final element
-            in find
-                .descendant(of: finder, matching: find.byType(Text))
-                .evaluate()) {
-          expect(
-            DefaultTextStyle.of(element).style.fontFamily,
-            Theme.of(element).textTheme.bodyMedium!.fontFamily,
-          );
-        }
-      }
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.android,
+        TargetPlatform.windows,
+      }),
+    );
   }
 
   testWidgets('金币紧邻国名，整块征兵并在出击时自动补兵，面板不暂停月份', (tester) async {

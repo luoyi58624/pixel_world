@@ -61,7 +61,9 @@ abstract final class CityPanelStyle {
   /// 按钮只随可用或选中状态改变强调色，几何和字号保持一致。
   static ButtonStyle button({bool selected = false, bool actionable = false}) =>
       OutlinedButton.styleFrom(
-        alignment: Alignment.topLeft,
+        alignment: Alignment.centerLeft,
+        // 桌面默认 compact 会从上下 padding 再各减 8，导致文字贴住边框。
+        visualDensity: VisualDensity.standard,
         padding: padding,
         minimumSize: const Size(0, cardHeight),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,

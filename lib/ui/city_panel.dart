@@ -267,6 +267,7 @@ class CityPanel extends StatelessWidget {
           const SizedBox(width: 5),
           Expanded(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -276,7 +277,12 @@ class CityPanel extends StatelessWidget {
                   style: CityPanelStyle.value,
                 ),
                 const SizedBox(height: CityPanelStyle.textGap),
-                Text(_heroStatus(hero), style: CityPanelStyle.label),
+                Text(
+                  _heroStatus(hero),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: CityPanelStyle.label,
+                ),
               ],
             ),
           ),
@@ -396,8 +402,10 @@ class CityPanel extends StatelessWidget {
                           (count - 1) * CityPanelStyle.gap) /
                       count,
                   padding: CityPanelStyle.padding,
+                  alignment: Alignment.centerLeft,
                   decoration: CityPanelStyle.decoration,
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(entry.$1, style: CityPanelStyle.label),

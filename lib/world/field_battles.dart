@@ -18,6 +18,9 @@ class FieldBattle extends WorldBattle {
          simulation: BattleSimulation(
            attacker: first.hero.battleArmy,
            defender: second.hero.battleArmy,
+           resultPerspective: second.hero.isPlayer
+               ? BattleSide.defender
+               : BattleSide.attacker,
            fieldTerrain: terrain,
            seed: seed,
          ),

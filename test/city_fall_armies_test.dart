@@ -205,6 +205,23 @@ void main() {
     c.tick(0.02);
     final battle = c.campaign.battles[1]!;
     c.watchBattle(battle);
+    for (
+      var i = 0;
+      i < 3000 && battle.simulation.stage != BattleStage.ending;
+      i++
+    ) {
+      c.tick(1 / 60);
+    }
+    expect(battle.simulation.stage, BattleStage.ending);
+    final levelBeforeResult = c.campaign.cities[1]!.level;
+    for (var i = 0; i < 60; i++) {
+      c.tick(1 / 60);
+    }
+    expect(c.watchedBattle, same(battle));
+    expect(battle.wave, 1);
+    expect(battle.nextWaveIn, 0);
+    expect(c.campaign.cities[1]!.level, levelBeforeResult);
+    expect(c.campaign.heroes, contains(d));
     for (var i = 0; i < 3000 && battle.wave == 1; i++) {
       c.tick(1 / 60);
     }

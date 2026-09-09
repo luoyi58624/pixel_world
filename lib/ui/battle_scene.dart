@@ -47,7 +47,10 @@ class _BattleSceneState extends State<BattleScene> {
 
   void _holdCharge(bool held) {
     _heldSimulation?.chargeHeld = false;
-    _heldSimulation = held ? widget.controller.watchedBattle?.simulation : null;
+    final simulation = widget.controller.watchedBattle?.simulation;
+    _heldSimulation = held && simulation?.acceptsCharge == true
+        ? simulation
+        : null;
     _heldSimulation?.chargeHeld = true;
   }
 
@@ -69,6 +72,12 @@ class _BattleSceneState extends State<BattleScene> {
             battle.outcome ??
             (battle is CityBattle && battle.nextWaveIn > 0
                 ? '${battle.defender.name}战败 · 下一位守将即将入场'
+                : sim.endingMessage != null
+                ? sim.endingMessage!
+                : sim.stage == BattleStage.victory
+                ? '胜方走场'
+                : sim.stage == BattleStage.falling
+                ? '败方退场'
                 : sim.forming
                 ? '双方列阵'
                 : '${battle is CityBattle ? '第 ${battle.wave} 位守将' : '野外决战'} · 拼杀 ${sim.clashes}'
@@ -279,38 +288,44 @@ class _BattleSceneState extends State<BattleScene> {
               ),
               if (battle.attacker.isPlayer && !sim.finished)
                 _overlay(
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Checkbox(
-                        value: sim.autoCharge,
-                        onChanged: (value) => widget.onAction(() {
-                          sim.autoCharge = value ?? true;
-                          sim.chargeHeld = false;
-                        }),
-                      ),
-                      const Text(
-                        '自动蓄力',
-                        style: TextStyle(color: _cream, fontSize: 12),
-                      ),
-                      const SizedBox(width: 16),
-                      Listener(
-                        key: const ValueKey('battle-hold-charge'),
-                        onPointerDown: (_) => _holdCharge(true),
-                        onPointerUp: (_) => _holdCharge(false),
-                        onPointerCancel: (_) => _holdCharge(false),
-                        child: const Tooltip(
-                          message: '按住消耗红条，在反弹阶段加强回冲',
-                          child: Padding(
-                            padding: EdgeInsets.all(10),
-                            child: Text(
-                              '按住蓄力',
-                              style: TextStyle(color: _gold, fontSize: 12),
+                  IgnorePointer(
+                    ignoring: !sim.acceptsCharge,
+                    child: Opacity(
+                      opacity: sim.acceptsCharge ? 1 : 0.4,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Checkbox(
+                            value: sim.autoCharge,
+                            onChanged: (value) => widget.onAction(() {
+                              sim.autoCharge = value ?? true;
+                              sim.chargeHeld = false;
+                            }),
+                          ),
+                          const Text(
+                            '自动蓄力',
+                            style: TextStyle(color: _cream, fontSize: 12),
+                          ),
+                          const SizedBox(width: 16),
+                          Listener(
+                            key: const ValueKey('battle-hold-charge'),
+                            onPointerDown: (_) => _holdCharge(true),
+                            onPointerUp: (_) => _holdCharge(false),
+                            onPointerCancel: (_) => _holdCharge(false),
+                            child: const Tooltip(
+                              message: '按住消耗红条，在反弹阶段加强回冲',
+                              child: Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Text(
+                                  '按住蓄力',
+                                  style: TextStyle(color: _gold, fontSize: 12),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               if (!tight)

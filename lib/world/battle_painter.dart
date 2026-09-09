@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import 'battle_simulation.dart';
+import 'nes_battle_ending.dart';
 import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
@@ -395,12 +396,18 @@ class BattlePainter extends CustomPainter {
           ..isAntiAlias = false,
       );
     }
-    if (sim.result != null) {
-      _frame(canvas, const Rect.fromLTWH(62, 78, 132, 30));
-      final message = sim.result == BattleResult.draw
-          ? '双方战败'
-          : '${sim.result == BattleResult.attackerWon ? battle.attacker.name : battle.defender.name}获胜';
-      _text(canvas, message, const Offset(70, 86), 14, width: 116);
+    final resultRow = sim.announcementIndex;
+    if (resultRow != null) {
+      _frame(canvas, nesBattleResultWindow.deflate(2));
+      final width = nesBattleResultWidths[resultRow];
+      canvas.drawImageRect(
+        assets.battleSprites['result_labels']!,
+        Rect.fromLTWH(0, resultRow * 16, width, 16),
+        nesBattleResultTextOrigin & Size(width, 16),
+        Paint()
+          ..filterQuality = FilterQuality.none
+          ..isAntiAlias = false,
+      );
     }
   }
 

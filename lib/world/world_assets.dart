@@ -177,6 +177,7 @@ class WorldAssets {
         'battle/stage_4',
         'battle/stage_5',
         'battle/hero_names',
+        'battle/result_labels',
       ].map(_image),
     );
     for (final hero in [
@@ -248,6 +249,7 @@ class WorldAssets {
       }),
       {
         'hero_names': textures[22],
+        'result_labels': textures[23],
         for (var n = 0; n < battleNames.length; n++)
           battleNames[n]: textures[11 + n],
       },

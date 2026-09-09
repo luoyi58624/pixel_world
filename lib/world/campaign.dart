@@ -350,6 +350,9 @@ class CityBattle extends WorldBattle {
          simulation: BattleSimulation(
            attacker: attacker.battleArmy,
            defender: defender.battleArmy,
+           resultPerspective: defender.isPlayer
+               ? BattleSide.defender
+               : BattleSide.attacker,
            defenderCityLevel: cityLevel,
            seed: seed,
          ),
@@ -380,6 +383,9 @@ class CityBattle extends WorldBattle {
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
+      resultPerspective: hero.isPlayer
+          ? BattleSide.defender
+          : BattleSide.attacker,
       defenderCityLevel: cityLevel,
       seed: _seed + wave,
     );

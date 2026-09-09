@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import '../game_config.dart';
 import 'field_terrain.dart';
+import 'nes_battle_ending.dart';
 import 'nes_battle_kernel.dart';
 
 /// 跨战斗保留的生命值，退出观战、撤离和换守将都不重置。
@@ -90,8 +91,8 @@ enum BattleResult { attackerWon, defenderWon, draw }
 /// 反弹减速到零后自然回冲，不插入人造冷却。
 enum BattleMotion { preparing, charging, recoiling, halted }
 
-/// 开场、拼杀、阵亡与胜方过场均由后台时钟推进。
-enum BattleStage { introduction, fighting, falling, victory, complete }
+/// 开场、拼杀、阵亡、胜方走场和结果停留均由后台时钟推进。
+enum BattleStage { introduction, fighting, falling, victory, ending, complete }
 
 /// 一支纵队共用横坐标，减员后不挪动其他槽位。
 class BattleFormation {
@@ -229,6 +230,7 @@ class BattleSimulation {
     this.defenderCityLevel = 1,
     this.fieldTerrain,
     this.autoCharge = true,
+    this.resultPerspective = BattleSide.attacker,
   }) {
     _kernel = NesBattleKernel(
       attack: [_combat(attacker), _combat(defender) + defenderAttackBonus],
@@ -275,6 +277,9 @@ class BattleSimulation {
 
   /// 野战环境，为空时表示城内。
   final FieldTerrain? fieldTerrain;
+
+  /// 胜败提示以玩家所在一侧为准，无玩家参战时默认右军。
+  final BattleSide resultPerspective;
 
   /// 自动代按蓄力，关闭后可手动操作。
   bool autoCharge;
@@ -337,6 +342,9 @@ class BattleSimulation {
   late final NesBattleKernel _kernel;
   double _accumulator = 0;
   int _ticks = 0;
+  BattleResult? _pendingResult;
+  int _endingTicks = 0;
+  int _endingCompleteAt = 0;
   final _syncedHp = <BattleSide, double>{};
 
   /// 是否结束或撤离。
@@ -344,6 +352,32 @@ class BattleSimulation {
 
   /// 是否开场介绍。
   bool get forming => stage == BattleStage.introduction;
+
+  /// 结果已经揭晓，但须等原版收尾时长结束才交给战役结算。
+  BattleResult? get announcedResult =>
+      stage == BattleStage.ending || stage == BattleStage.complete
+      ? _pendingResult
+      : null;
+
+  /// 原结果图集的行号，胜利、失败、互刺分别为 0、1、2。
+  int? get announcementIndex => announcedResult == null ? null : _resultIndex;
+
+  /// 供观战状态与读屏使用的原版结果文字。
+  String? get endingMessage => announcementIndex == null
+      ? null
+      : nesBattleResultLabels[announcementIndex!];
+
+  /// 退场开始后不再接收蓄力，避免收尾期间积压按键。
+  bool get acceptsCharge =>
+      !finished && (forming || stage == BattleStage.fighting);
+
+  int get _resultIndex {
+    if (_pendingResult == BattleResult.draw) return 2;
+    final won = resultPerspective == BattleSide.attacker
+        ? BattleResult.attackerWon
+        : BattleResult.defenderWon;
+    return _pendingResult == won ? 0 : 1;
+  }
 
   /// 当前一侧红条。
   BattleMorale morale(BattleSide side) =>
@@ -398,8 +432,21 @@ class BattleSimulation {
           _kernel.setHeroHp(_side(side), health.hp.round());
         }
       }
-      if (stage == BattleStage.victory) {
-        if (_kernel.advanceVictory(attacker.general.alive ? 0 : 1)) _complete();
+      if (stage == BattleStage.ending) {
+        _endingTicks++;
+        if (_endingTicks >= _endingCompleteAt) _complete();
+      } else if (stage == BattleStage.victory) {
+        _endingTicks++;
+        if (_kernel.advanceVictory(
+          _pendingResult == BattleResult.attackerWon ? 0 : 1,
+        )) {
+          stage = BattleStage.ending;
+          // DE4F 等的是走场开始时已播放的结束曲，不能走完后重新计时。
+          _endingCompleteAt =
+              math.max(nesBattleEndingCueFrames[_resultIndex], _endingTicks) +
+              nesBattleEndingTailFrames;
+          changed = true;
+        }
       } else {
         _kernel.step(
           chargeHeld:
@@ -410,11 +457,13 @@ class BattleSimulation {
                   _kernel.velocity(0) < 0,
         );
         if (!_kernel.generalsAlive) {
-          stage = _kernel.falling ? BattleStage.falling : BattleStage.victory;
-          if (stage == BattleStage.victory &&
-              _kernel.ram[0x7451] == 0 &&
-              _kernel.ram[0x7452] == 0) {
-            _complete();
+          chargeHeld = false;
+          if (_kernel.falling) {
+            changed |= stage != BattleStage.falling;
+            stage = BattleStage.falling;
+          } else {
+            _beginVictory();
+            changed = true;
           }
         }
       }
@@ -460,13 +509,24 @@ class BattleSimulation {
 
   int _totalHp(int side) =>
       _kernel.ram[0x12 + side] + _kernel.ram[0x7451 + side];
-  void _complete() {
-    stage = BattleStage.complete;
-    result = _kernel.ram[0x7451] == 0 && _kernel.ram[0x7452] == 0
+  void _beginVictory() {
+    _pendingResult = _kernel.ram[0x7451] == 0 && _kernel.ram[0x7452] == 0
         ? BattleResult.draw
         : _kernel.ram[0x7451] > 0
         ? BattleResult.attackerWon
         : BattleResult.defenderWon;
+    _endingTicks = 0;
+    _endingCompleteAt =
+        nesBattleEndingCueFrames[_resultIndex] + nesBattleEndingTailFrames;
+    stage = _pendingResult == BattleResult.draw
+        ? BattleStage.ending
+        : BattleStage.victory;
+  }
+
+  void _complete() {
+    stage = BattleStage.complete;
+    result = _pendingResult;
+    chargeHeld = false;
   }
 
   void _addArmy(BattleArmy army, BattleSide side) {
@@ -538,7 +598,9 @@ class BattleSimulation {
       formation.moving = distance > 0;
       formation.velocity = chargeSpeed(side);
       formation.motion =
-          stage == BattleStage.complete || stage == BattleStage.falling
+          stage == BattleStage.complete ||
+              stage == BattleStage.ending ||
+              stage == BattleStage.falling
           ? BattleMotion.halted
           : formation.velocity < 0
           ? BattleMotion.recoiling

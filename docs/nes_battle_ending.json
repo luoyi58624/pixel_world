@@ -1,0 +1,120 @@
+{
+  "romSha256": "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59",
+  "musicDriver": {
+    "bank": 0,
+    "cpuAddress": "0x8000",
+    "ticksPerSecond": 60,
+    "warmupCommand": "0x8c",
+    "warmupFrames": 300
+  },
+  "cues": {
+    "victory": {
+      "command": "0x92",
+      "frames": 194
+    },
+    "defeat": {
+      "command": "0x93",
+      "frames": 223
+    }
+  },
+  "flow": {
+    "victory": "DD77 -> E6B2 -> DE3E",
+    "defeat": "DDED -> E6C9 -> DE3E",
+    "draw": "DDFC -> DE3E",
+    "resultWait": "DE4F waits for E0=0, then DE53 waits 9 frames",
+    "cueStartsBeforeMarch": true,
+    "trailingFrames": 9
+  },
+  "window": {
+    "id": "0x22",
+    "fileOffset": "0x3ca4d",
+    "tiles": [
+      10,
+      4,
+      12,
+      4
+    ],
+    "sceneRect": [
+      80,
+      16,
+      96,
+      32
+    ],
+    "textOrigin": [
+      96,
+      24
+    ]
+  },
+  "labels": [
+    {
+      "label": "胜利！",
+      "bank": 5,
+      "cpuAddress": "0xa62d",
+      "fileOffset": "0x1663d",
+      "encoded": "315d5e5ffefefefefe081200",
+      "glyphs": [
+        [
+          15,
+          93
+        ],
+        [
+          15,
+          94
+        ],
+        [
+          15,
+          95
+        ]
+      ],
+      "width": 48
+    },
+    {
+      "label": "失败！",
+      "bank": 5,
+      "cpuAddress": "0xa639",
+      "fileOffset": "0x16649",
+      "encoded": "3160615ffefe081200",
+      "glyphs": [
+        [
+          15,
+          96
+        ],
+        [
+          15,
+          97
+        ],
+        [
+          15,
+          95
+        ]
+      ],
+      "width": 48
+    },
+    {
+      "label": "互刺··",
+      "bank": 5,
+      "cpuAddress": "0xa642",
+      "fileOffset": "0x16652",
+      "encoded": "3162636464fefefefe081200",
+      "glyphs": [
+        [
+          15,
+          98
+        ],
+        [
+          15,
+          99
+        ],
+        [
+          15,
+          100
+        ],
+        [
+          15,
+          100
+        ]
+      ],
+      "width": 64
+    }
+  ]
+}
