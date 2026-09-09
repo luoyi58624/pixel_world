@@ -132,9 +132,25 @@ extension _CountryStrategy on CampaignState {
               )
               .toList()
         : targets;
+    final strengths = _countryStrengths();
     choices.sort(
-      (a, b) => ((distances[a.id]! + 32) * (1 + difficulties[a.id]! / 40))
-          .compareTo((distances[b.id]! + 32) * (1 + difficulties[b.id]! / 40)),
+      (a, b) =>
+          ((distances[a.id]! + 32) *
+                  (1 + difficulties[a.id]! / 40) /
+                  _countryTargetWeight(
+                    hero.countryId,
+                    cities[a.id]!.ownerCountryId,
+                    strengths,
+                  ))
+              .compareTo(
+                (distances[b.id]! + 32) *
+                    (1 + difficulties[b.id]! / 40) /
+                    _countryTargetWeight(
+                      hero.countryId,
+                      cities[b.id]!.ownerCountryId,
+                      strengths,
+                    ),
+              ),
     );
     return choices.take(GameConfig.aiTargetShortlist).toList();
   }
@@ -180,12 +196,15 @@ extension _CountryStrategy on CampaignState {
       }
       return changed;
     }
+    // 弱国扩张可同时使用全部多余将领，已在外的轮攻不阻止其余部队开辟新目标。
+    if (_launchExpansionAttacks(countryId, snapshot, plan)) return true;
     if (plan._committed.any((id) {
       final march = marches[id];
       return march != null &&
           march.hero.countryId == countryId &&
           !march.returningFromRetreat &&
-          march.target?.id == plan.targetCityId;
+          march.target != null &&
+          cities[march.target!.id]!.ownerCountryId != countryId;
     })) {
       plan.phase = CountryWarPhase.attacking;
       return false;

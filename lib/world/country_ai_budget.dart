@@ -202,12 +202,21 @@ extension _CountryCashPlanning on CampaignState {
   }
 
   double _aiSiegeSeconds(CityDefinition city, {HeroMarch? march}) {
+    final center = cityBounds(city).center;
     final ahead = marches.values
         .where(
           (other) =>
               !identical(other, march) &&
+              !other.returningFromRetreat &&
               other.target?.id == city.id &&
               (other.phase == MarchPhase.fighting ||
+                  other.phase == MarchPhase.marching &&
+                      (march == null ||
+                          (other.position - center).distanceSquared <
+                              (march.position - center).distanceSquared ||
+                          (other.position - center).distanceSquared ==
+                                  (march.position - center).distanceSquared &&
+                              other.hero.id.compareTo(march.hero.id) < 0) ||
                   other.phase == MarchPhase.awaitingBattle &&
                       (march?._siegeArrival == null ||
                           (other._siegeArrival?.order ?? 0) <

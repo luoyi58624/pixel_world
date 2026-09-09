@@ -79,7 +79,7 @@ void _until(CampaignState c, bool Function() done) {
 }
 
 void main() {
-  test('各初始等级分别留守等级减一位，额外将领有兵有钱才自动出征', () {
+  test('各初始等级独立采用两位留守，强目标仍先准备而非派弱将送死', () {
     for (var level = 1; level <= 5; level++) {
       final c = _campaign(
         gold: 1000,
@@ -88,10 +88,11 @@ void main() {
         recruitment: false,
       );
       c.buySoldiers(1, 12, countryId: 1);
-      final keep = math.min(3, level - 1);
       c.advance(8);
-      expect(c.garrisonAt(1).length, keep);
-      expect(c.marches.length, 3 - keep);
+      expect(c.cities[1]!.requiredGarrison, 2);
+      expect(c.garrisonAt(1).length, greaterThanOrEqualTo(2));
+      expect(c.marches.length, 3 - c.garrisonAt(1).length);
+      if (level == 5) expect(c.marches, isEmpty);
       expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
     }
   });
@@ -114,7 +115,7 @@ void main() {
     for (var level = 1; level <= 5; level++) {
       final c = _campaign(level: level);
       expect(c.cities[0]!.recruitCapacity, level + 1);
-      expect(c.cities[0]!.requiredGarrison, level - 1);
+      expect(c.cities[0]!.requiredGarrison, 2);
     }
     final c = _campaign(gold: 1000);
     expect(c.garrisonAt(0).length, 3);
@@ -126,7 +127,7 @@ void main() {
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
     expect(c.recruitmentFull(0), isTrue);
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
-    expect(c.cities[0]!.requiredGarrison, 0);
+    expect(c.cities[0]!.requiredGarrison, 2);
     expect(c.recruitmentFull(0), isFalse);
     expect(c.drawHero(0), isNotNull);
   });

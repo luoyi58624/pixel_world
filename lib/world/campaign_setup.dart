@@ -8,6 +8,7 @@ class CitySetup {
     required this.baseIncome,
     required this.initialReserveSoldiers,
     required this.initialLevel,
+    required this.requiredGarrison,
   });
 
   /// 一级城市的基础月产出，后续升级增量沿用全局规则。
@@ -18,6 +19,9 @@ class CitySetup {
 
   /// 开局等级，影响建筑外观、收入、储备容量和守城加成。
   final int initialLevel;
+
+  /// 自动出征后本城至少保留的将领数，不随城防等级变化。
+  final int requiredGarrison;
 }
 
 /// 独立于 ROM 地形数据的玩法配置，解析后不可变。
@@ -77,6 +81,7 @@ class CampaignSetup {
           'baseIncome',
           'initialReserveSoldiers',
           'initialLevel',
+          'requiredGarrison',
         }, location);
         final cityId = _integer(row, 'id', location);
         final key = (worldId, cityId);
@@ -93,6 +98,9 @@ class CampaignSetup {
         cities[key] = CitySetup._(
           baseIncome: _integer(row, 'baseIncome', location),
           initialLevel: level,
+          requiredGarrison: row.containsKey('requiredGarrison')
+              ? _integer(row, 'requiredGarrison', location)
+              : GameConfig.defaultRequiredGarrison,
           initialReserveSoldiers: _integer(
             row,
             'initialReserveSoldiers',

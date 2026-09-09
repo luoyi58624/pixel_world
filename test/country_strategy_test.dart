@@ -11,30 +11,31 @@ import 'package:pixel_world/world/world_data.dart';
 import 'support/weapon_strategy_fixture.dart';
 
 void main() {
-  test('近处弱城只派足够的高级将领，不把所有多余将领倾巢派出', () {
+  test('开局优先扩张弱城，所有多余高级将领出击且留下配置的两位守将', () {
     final c = weaponStrategyCampaign(ai: true);
-    c.advance(8);
+    c.advance(.2);
     final marches = c.marches.values
         .where((m) => m.hero.countryId == 1)
         .toList();
-    expect(marches.length, 1);
-    expect(marches.single.hero.sourceId, 0);
-    expect(marches.single.target!.id, 2);
-    expect(marches.single.hero.weaponIds, isEmpty);
-    expect(c.garrisonAt(1).length, 3);
+    expect(marches.length, 2);
+    expect(marches.first.hero.sourceId, 0);
+    expect(marches.every((m) => m.target!.id == 2), isTrue);
+    expect(marches.every((m) => m.hero.weaponIds.isEmpty), isTrue);
+    expect(c.garrisonAt(1).length, 2);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.attacking);
     c.advance(5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
   });
 
   test('高城防高级守将：同时备齐武器、士兵与粮草，多将锁定同一目标', () {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
+      fortifiedCapital: true,
       targetHeroes: [3, 4],
       enemyStock: 8,
     );
-    c.advance(8);
+    c.advance(.2);
     final raid = c.marches.values.where((m) => m.hero.countryId == 1).toList();
     expect(raid.length, 2);
     expect(raid.map((m) => m.target!.id).toSet(), {2});
@@ -57,22 +58,29 @@ void main() {
   test('强城计划钱不够时整队等待，月结筹齐后再出兵，不提前花空国库', () {
     final c = weaponStrategyCampaign(
       ai: true,
-      gold: 40,
+      gold: 20,
       targetLevel: 5,
+      fortifiedCapital: true,
       targetHeroes: [3],
     );
-    c.advance(8);
+    c.advance(.2);
     final plan = c.warPlanFor(1)!;
     expect(plan.phase, CountryWarPhase.saving);
-    expect(plan.requiredGold, greaterThan(40));
+    expect(plan.requiredGold, greaterThan(20));
     expect(c.marches, isEmpty);
-    expect(c.goldFor(1), 40);
+    expect(c.goldFor(1), 20);
     expect(
       c.heroes.where((h) => h.countryId == 1).every((h) => h.weaponIds.isEmpty),
       isTrue,
     );
     final target = plan.targetCityId;
-    c.advance(60);
+    for (
+      var i = 0;
+      i < 10800 && c.marches.values.every((m) => m.hero.countryId != 1);
+      i++
+    ) {
+      c.advance(1 / 60);
+    }
     expect(plan.targetCityId, target);
     expect(plan.phase, CountryWarPhase.attacking);
     expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
@@ -83,15 +91,18 @@ void main() {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
+      fortifiedCapital: true,
       targetHeroes: [3, 4, 5],
       enemyStock: 12,
       easyNeighbor: true,
     );
-    c.advance(8);
+    c.advance(.2);
     expect(c.warPlanFor(1)!.targetCityId, 3);
     expect(
-      c.marches.values.where((m) => m.hero.countryId == 1).single.target!.id,
-      3,
+      c.marches.values
+          .where((m) => m.hero.countryId == 1)
+          .every((m) => m.target!.id == 3),
+      isTrue,
     );
   });
 
@@ -99,11 +110,12 @@ void main() {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
+      fortifiedCapital: true,
       targetHeroes: [3, 4, 5],
       enemyStock: 12,
       recruitment: true,
     );
-    c.advance(8);
+    c.advance(.2);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.preparing);
     expect(c.marches, isEmpty);
     expect(c.cities[1]!.level, 3);
@@ -116,7 +128,7 @@ void main() {
     final march = c.dispatch(attacker, c.world.cities[1])!;
     march.position =
         c.cityBounds(c.world.cities[1]).center + const Offset(260, 0);
-    c.advance(8);
+    c.advance(.2);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
     expect(c.weaponStorageUsed(1), 0);
     expect(c.garrisonAt(1).every((hero) => hero.weaponIds.isEmpty), isTrue);
@@ -133,6 +145,7 @@ void main() {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
+      fortifiedCapital: true,
       targetHeroes: [3],
     );
     final hero = weaponHero(c, 0);

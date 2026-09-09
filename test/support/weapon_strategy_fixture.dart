@@ -30,6 +30,7 @@ CampaignState weaponStrategyCampaign({
   int sourceLevel = 2,
   bool easyNeighbor = false,
   bool recruitment = false,
+  bool fortifiedCapital = false,
   WeaponCatalog? catalog,
 }) {
   final records = [
@@ -63,9 +64,19 @@ CampaignState weaponStrategyCampaign({
     },
     [0, 1, 2, 3],
   );
+  final heroData = jsonDecode(
+    File('assets/data/rom_heroes.json').readAsStringSync(),
+  );
+  if (fortifiedCapital) {
+    final capitalHero = (heroData['heroes'] as List).firstWhere(
+      (h) => h['id'] == 40,
+    );
+    capitalHero['combat'] = 63;
+    capitalHero['maxHp'] = 255;
+  }
   final c = CampaignState.fromRom(
     world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync())
+    decodeRomHeroes(jsonEncode(heroData))
         .where((h) => recruitment || ids.contains(h.id))
         .toList(),
     weaponCatalog: catalog ?? testWeaponCatalog(),

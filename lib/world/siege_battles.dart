@@ -17,6 +17,7 @@ extension _CitySieges on CampaignState {
           ..sort((a, b) => a.hero.id.compareTo(b.hero.id));
     // 跨帧按实际抵达先后，同帧并列时按编号稳定排序，不按派兵顺序插队。
     for (final march in arrived) {
+      _noticeSiege(march);
       march._siegeArrival = (
         cityId: march.target!.id,
         order: ++_siegeArrivalSerial,

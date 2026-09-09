@@ -12,12 +12,25 @@ extension _CountryAutonomy on CampaignState {
             .toList()
           ..sort();
     if (countries.isEmpty) return false;
-    final countryId = countries[_aiCountryCursor++ % countries.length];
+    final firstDecision = countries
+        .where((id) => !_aiStartedCountries.contains(id))
+        .firstOrNull;
+    final countryId =
+        firstDecision ?? countries[_aiCountryCursor++ % countries.length];
+    _aiStartedCountries.add(countryId);
     _aiStrategicDecisions++;
-    // 将各国五秒一次的决策错开，只在本次轮到的国家内重建战略快照。
+    // 首次逐帧启动，之后按国家错峰；每帧只构建一个国家的战略快照。
     var changed = _manageAiFieldArmies(countryId);
     changed =
         _decideCountry(countryId, _AiSnapshot(this, countryId)) || changed;
+    if (changed) {
+      final after = _AiSnapshot(this, countryId);
+      if (after.threats.isEmpty) {
+        changed =
+            _launchExpansionAttacks(countryId, after, _warPlans[countryId]!) ||
+            changed;
+      }
+    }
     return changed;
   }
 
@@ -54,29 +67,21 @@ extension _CountryAutonomy on CampaignState {
       )
       .toList();
 
-  // 预算先筛选，再按行军成本与目标国实际领地加权；不改变各国的交战关系。
+  // 预算先筛选，默认优先弱国，距离和受袭仇恨共同调整目标权重。
   CityDefinition _chooseAiTarget(
     CampaignHero hero,
     List<CityDefinition> targets, {
     HeroMarch? march,
   }) {
     if (targets.length == 1) return targets.single;
-    final territory = <int, int>{};
-    for (final city in cities.values) {
-      territory.update(
-        city.ownerCountryId,
-        (count) => count + 1,
-        ifAbsent: () => 1,
-      );
-    }
+    final strengths = _countryStrengths();
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
     final weights = [
       for (final target in targets)
-        math.min(
-              GameConfig.countryAiTerritoryWeightCap,
-              1 +
-                  (territory[cities[target.id]!.ownerCountryId]! - 1) *
-                      GameConfig.countryAiTerritoryWeightPerCity,
+        _countryTargetWeight(
+              hero.countryId,
+              cities[target.id]!.ownerCountryId,
+              strengths,
             ) /
             math.pow(
               1 +

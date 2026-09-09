@@ -15,8 +15,11 @@ abstract final class GameConfig {
   /// 其他国家是否自动经营和出征，玩家国家仍由玩家操作。
   static const countryAiEnabled = true;
 
-  /// 开局后首次国家决策的等待秒数。
-  static const countryAiInitialDelay = 8.0;
+  /// 开局即开始决策，首次各国依次占用一个逻辑帧。
+  static const countryAiInitialDelay = 0.0;
+
+  /// 未单独配置的城池默认保留两位将领，与城防等级无关。
+  static const defaultRequiredGarrison = 2;
 
   /// 国家经营和出征决策间隔，避免逐帧扫描招募和购买。
   static const countryAiInterval = 5.0;
@@ -57,11 +60,20 @@ abstract final class GameConfig {
   /// 行军时间的权重衰减指数，设为零可关闭额外的近邻偏好。
   static const countryAiTargetDistancePower = 2.0;
 
-  /// 目标国每多占一城增加的目标权重，零表示关闭额外的大国倾向。
-  static const countryAiTerritoryWeightPerCity = 0.5;
+  /// 国家军力的比较尺度，结合城防、存活将领和全国兵员。
+  static const countryAiStrengthScale = 80.0;
 
-  /// 领地规模最多提供的权重倍率，避免大国完全挤掉其他目标。
-  static const countryAiTerritoryWeightCap = 6.0;
+  /// 弱国优先权重，越大越倾向先扩张容易攻下的领土。
+  static const countryAiWeaknessPower = 2.0;
+
+  /// 每支敌军实际抵达城下，或每场野战引起的仇恨增量。
+  static const countryHatredPerAttack = 20;
+
+  /// 两国之间的仇恨上限，避免无限累积压过所有战略因素。
+  static const countryHatredMaximum = 100;
+
+  /// 每点仇恨增加的反击目标权重，满值提供三倍权重。
+  static const countryHatredWeightPerPoint = 0.02;
 
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;
@@ -225,7 +237,7 @@ abstract final class GameConfig {
 
 /// 从玩法 JSON 读取的国家开局经济。
 class CountryConfig {
-  /// 配置该国初始资金，留守人数由各城初始等级决定。
+  /// 配置该国初始资金，留守人数读取各城独立配置。
   const CountryConfig({this.initialGold = GameConfig.initialGold})
     : assert(initialGold >= 0);
 

@@ -80,7 +80,7 @@ void main() {
       expect(city.level, level);
       expect(city.defense, 100);
       expect(city.recruitCapacity, level + 1);
-      expect(city.requiredGarrison, level - 1);
+      expect(city.requiredGarrison, 2);
     }
   });
 

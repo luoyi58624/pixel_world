@@ -45,7 +45,10 @@ void main() {
       final c = CampaignState.fromRom(world, heroes(), aiEnabled: false);
       expect(c.gold, 50);
       expect(c.goldFor(1), 70);
-      expect(c.cities[1]!.requiredGarrison, c.cities[1]!.initialLevel - 1);
+      expect(
+        c.cities[1]!.requiredGarrison,
+        setup.cities[(world.id, 1)]!.requiredGarrison,
+      );
       expect(c.cities[0]!.baseIncome, 10);
       expect(c.cities[1]!.baseIncome, 20);
       for (final item in world.cities) {
@@ -171,6 +174,9 @@ void main() {
       (data) => city(data)['initialLevel'] = 0,
       (data) => city(data)['initialLevel'] = 6,
       (data) => city(data)['initialReserveSoldiers'] = -1,
+      (data) => city(data)['requiredGarrison'] = -1,
+      (data) => city(data)['requiredGarrison'] = 1.5,
+      (data) => city(data)['requiredGarrison'] = '2',
       (data) => city(data)['baseIncome'] = -1,
       (data) => city(data)['baseIncome'] = '20',
       (data) => city(data)['baseIncome'] = 2.5,

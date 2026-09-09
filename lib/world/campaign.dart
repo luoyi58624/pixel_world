@@ -23,6 +23,8 @@ part 'country_troops.dart';
 part 'battle_retreat.dart';
 part 'campaign_weapons.dart';
 part 'country_strategy.dart';
+part 'country_relations.dart';
+part 'country_expansion.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -32,11 +34,19 @@ class CitySituation {
     required this.defense,
     required this.baseIncome,
     required this.initialLevel,
+    this.requiredGarrison = GameConfig.defaultRequiredGarrison,
     int? nativeCountryId,
   }) : nativeCountryId = nativeCountryId ?? _ownerCountryId,
        _level = initialLevel {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
+    }
+    if (requiredGarrison < 0) {
+      throw ArgumentError.value(
+        requiredGarrison,
+        'requiredGarrison',
+        '留守人数不能为负数',
+      );
     }
   }
 
@@ -71,11 +81,11 @@ class CitySituation {
   /// 当前等级，始终处于 1 到 5。
   int get level => _level;
 
-  /// 开局配置等级，升级、降级和易主均不改变电脑留守基准。
+  /// 开局配置等级，与留守人数分别配置。
   final int initialLevel;
 
-  /// 自动出征后本城至少保留的将领数，一级城允许全部出征。
-  int get requiredGarrison => math.max(0, initialLevel - 1);
+  /// 自动出征后本城至少保留的将领数，零表示允许全部出征。
+  final int requiredGarrison;
 
   /// 驻军达到此人数后禁止招募，回城和开局超员均不受限制。
   int get recruitCapacity =>
@@ -258,6 +268,7 @@ class HeroMarch {
   final List<Offset> _outboundRoute;
   final List<Offset> _returnRoute = [];
   bool _returningFromRetreat = false;
+  final Set<int> _provokedCountries = {};
 
   /// 撤退后沿来路返城，返程结束前不接受新的进攻指令。
   bool get returningFromRetreat => _returningFromRetreat;
@@ -542,6 +553,8 @@ class CampaignState {
   double _aiUntilDecision = GameConfig.countryAiInitialDelay;
   double _strategyTime = 0;
   int _aiCountryCursor = 0;
+  final Set<int> _aiStartedCountries = {};
+  final Map<int, Map<int, int>> _countryHatred = {};
   final Map<int, CountryWarPlan> _warPlans = {};
   final Map<(Offset, int, int), double> _aiTravelCache = {};
   int _aiRouteEstimates = 0;
@@ -609,6 +622,9 @@ class CampaignState {
             initialLevel:
                 world.setup.cities[(world.id, city.id)]?.initialLevel ??
                 city.initialLevel,
+            requiredGarrison:
+                world.setup.cities[(world.id, city.id)]?.requiredGarrison ??
+                GameConfig.defaultRequiredGarrison,
           ),
       },
       heroes,
@@ -1690,13 +1706,22 @@ class CampaignState {
           final countries = cities.values
               .map((city) => city.ownerCountryId)
               .where((id) => id != 0)
-              .toSet()
-              .length;
-          _aiUntilDecision += math.max(
-            dt,
-            GameConfig.countryAiInterval / math.max(1, countries),
+              .toSet();
+          final opening = countries.any(
+            (id) => !_aiStartedCountries.contains(id),
           );
           changed = _runCountryDecisions() || changed;
+          final remainingOpening = countries.any(
+            (id) => !_aiStartedCountries.contains(id),
+          );
+          _aiUntilDecision += remainingOpening
+              ? dt
+              : opening
+              ? GameConfig.countryAiInterval
+              : math.max(
+                  dt,
+                  GameConfig.countryAiInterval / math.max(1, countries.length),
+                );
         }
       }
       changed = _haltUnfundedArmies() || changed;

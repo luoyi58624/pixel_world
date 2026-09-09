@@ -95,6 +95,7 @@ CampaignState _campaign(
     defense: 100,
     baseIncome: 10,
     initialLevel: 2,
+    requiredGarrison: 1,
   );
   c.countryTroops[attacker] = CountryTroops(reserveSoldiers: 4);
   if (transferExtrasTo != null) {
@@ -145,11 +146,7 @@ Map<int, int> _draws({
         c.heroes.firstWhere((hero) => hero.sourceId == 2),
         countryId: attacker,
       );
-      c.advance(
-        GameConfig.countryAiInitialDelay +
-            GameConfig.countryAiInterval -
-            1 / 60,
-      );
+      c.advance(GameConfig.countryAiInterval + .5);
     } else {
       c.advance(
         GameConfig.countryAiInitialDelay + GameConfig.countryAiInterval - .01,
@@ -185,18 +182,18 @@ void main() {
     expect(counts[0], greaterThan(0));
   });
 
-  test('多个独立国家都会优先压制领地更多的对手，不仅是多城多几个候选名额', () {
+  test('多个独立国家默认优先弱国，相同守军下较少领地的国家更容易被选择', () {
     for (final attacker in [1, 3]) {
       final counts = _draws(extras: 2, attacker: attacker);
       // 比较两座路程相同的主城，额外城池自身的选中次数不算入比较。
-      expect(counts[2], greaterThan(1.8 * counts[0]!));
+      expect(counts[0], greaterThan(counts[2]!));
       expect(counts[0], greaterThan(0));
     }
   });
 
-  test('城市易主后立即按新领地计数，玩家扩张同样引发围攻倾向', () {
+  test('城市易主后按当前国力重算偏好，玩家也适用弱国优先规则', () {
     final counts = _draws(extras: 2, transferExtrasTo: 0);
-    expect(counts[0], greaterThan(1.8 * counts[2]!));
+    expect(counts[2], greaterThan(counts[0]!));
     expect(counts[2], greaterThan(0));
   });
 

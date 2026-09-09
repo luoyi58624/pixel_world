@@ -94,7 +94,7 @@ void main() {
     final custom = _campaign(countries: overrides);
     overrides.clear();
     expect(custom.goldFor(1), 123);
-    expect(custom.cities[1]!.requiredGarrison, 1);
+    expect(custom.cities[1]!.requiredGarrison, 2);
     expect(custom.gold, 50);
   });
 
@@ -274,9 +274,9 @@ void main() {
       ..[1] = const CountryConfig(initialGold: 30);
     final c = _campaign(ai: true, countries: countries, stocks: {1: 4});
     final initial = c.garrisonAt(1).toList()..sort(_strength);
-    c.advance(GameConfig.countryAiInitialDelay - 0.01);
+    c.advance(0);
     expect(c.marches, isEmpty);
-    c.advance(0.01);
+    c.advance(1 / 60);
     expect(c.marches.length, 1);
     final march = c.marches.values.first;
     expect(march.hero, same(initial.first));
@@ -304,7 +304,7 @@ void main() {
     pick.value = c.recruitPool.indexOf(weakest.first);
     prepareRecruitmentCity(c, 1, level: 3);
     expect(c.drawHero(1, countryId: 1), isNotNull);
-    c.advance(GameConfig.countryAiInitialDelay);
+    c.advance(1 / 60);
     final newHero = c.heroes.firstWhere(
       (hero) => hero.sourceId == weakest.first.id,
     );
@@ -312,7 +312,7 @@ void main() {
     expect(newHero.soldiers, 0);
     final ranked = [...previous, newHero]..sort(_strength);
     expect(c.marches.values.map((march) => march.hero), contains(ranked.first));
-    expect(c.garrisonAt(1).length, previous.length);
+    expect(c.garrisonAt(1).length, c.cities[1]!.requiredGarrison);
     expect(c.cities[1]!.level, 3);
     expect(c.remainingHeroDraws(1), 0);
     expect(c.goldFor(1), lessThan(150 - GameConfig.heroDrawCost));
@@ -348,10 +348,9 @@ void main() {
     c.cities[4]!.ownerCountryId = 1;
     final stationed = c.garrisonAt(1);
     stationed.last.cityId = 4;
-    c.advance(GameConfig.countryAiInitialDelay);
+    c.advance(1 / 60);
     expect(c.garrisonAt(4).length, 1);
-    expect(c.garrisonAt(1).length, 1);
-    expect(c.marches.length, 1);
+    expect(c.garrisonAt(1).length, greaterThanOrEqualTo(2));
   });
 
   test('随机目标并非锁死玩家城池，相同随机种子不受帧长影响', () {
@@ -425,7 +424,7 @@ void main() {
     expect(c.battles[2]!.defender.countryId, 2);
   });
 
-  test('一级城留守为零，预算不足时仍保留无法供养的将领', () {
+  test('明确配置为零才允许一级城全员出征，预算不足仍保留无法供养的将领', () {
     final c = _campaign(
       ai: true,
       countries: _quietCountries()..[1] = const CountryConfig(initialGold: 30),
@@ -437,6 +436,7 @@ void main() {
       defense: 100,
       baseIncome: 10,
       initialLevel: 1,
+      requiredGarrison: 0,
     );
     final count = c.garrisonAt(1).length;
     _setStock(c, 1, count * 4);
@@ -444,9 +444,9 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      1,
+      2,
     );
-    expect(c.garrisonAt(1).length, count - 1);
+    expect(c.garrisonAt(1).length, count - 2);
     expect(c.cities[1]!.requiredGarrison, 0);
   });
 

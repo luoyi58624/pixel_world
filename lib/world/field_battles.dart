@@ -134,6 +134,8 @@ extension _FieldEncounters on CampaignState {
       );
       a.phase = MarchPhase.dueling;
       b.phase = MarchPhase.dueling;
+      _recordAggression(a.hero.countryId, b.hero.countryId);
+      _recordAggression(b.hero.countryId, a.hero.countryId);
       _record(
         '${a.hero.name}与${b.hero.name}在${fieldBattles[id]!.terrain.label}遭遇，展开野外决战',
       );
