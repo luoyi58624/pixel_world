@@ -170,7 +170,7 @@ void main() {
   test('同轮双方阵亡分别结算，只有被攻打城池降级', () {
     final c = _campaign();
     final attacker = _hero(c, 0);
-    final defender = c.garrisonAt(1).first;
+    final defender = c.garrisonAt(1).last;
     _makeVulnerable(attacker);
     _makeVulnerable(defender);
     _fightUntilRemoved(c, attacker);

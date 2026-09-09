@@ -113,7 +113,7 @@ void main() {
     final target = c.world.cities[1];
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
-    final guard = c.garrisonAt(1).first..hp = 1;
+    final guard = c.garrisonAt(1).last..hp = 1;
     for (final soldier in guard.squad) {
       soldier.hp = 0;
     }
@@ -136,7 +136,7 @@ void main() {
   test('守城胜利也恢复将领满血，进攻方阵亡不会复活', () {
     final c = campaign();
     final target = c.world.cities[1];
-    final guard = c.garrisonAt(1).first..hp = 20;
+    final guard = c.garrisonAt(1).last..hp = 20;
     final hero = c.heroes.firstWhere((h) => h.sourceId == 0)..hp = 1;
     for (final soldier in hero.squad) {
       soldier.hp = 0;
@@ -153,7 +153,7 @@ void main() {
     test('国家 $home 守城结束只回将领 HP，阵亡小兵和剩余兵力保持结算结果', () {
       final c = campaign();
       final target = c.world.cities[home];
-      final guard = c.garrisonAt(home).first..hp = 30;
+      final guard = c.garrisonAt(home).last..hp = 30;
       final reserve = c.cities[home]!.reserveSoldiers;
       guard.squad.last.hp = 0;
       final attacker = c

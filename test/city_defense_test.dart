@@ -82,7 +82,7 @@ void main() {
   test('守将战败降级，下一位上场时按新等级重算加成并重填士气', () {
     final c = _campaign();
     final attacker = c.garrisonAt(0).first;
-    final firstDefender = c.garrisonAt(1).first..hp = 1;
+    final firstDefender = c.garrisonAt(1).last..hp = 1;
     for (final soldier in firstDefender.squad) {
       soldier.hp = 0;
     }

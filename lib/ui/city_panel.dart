@@ -143,10 +143,8 @@ class CityPanel extends StatelessWidget {
         _section('城池情况'),
         const SizedBox(height: CityPanelStyle.headingGap),
         CityServices(controller: c, assets: assets, onAction: onAction),
-        if (situation.isPlayer) ...[
-          const SizedBox(height: CityPanelStyle.sectionGap),
-          _heroSelection(),
-        ],
+        const SizedBox(height: CityPanelStyle.sectionGap),
+        _heroSelection(),
         const SizedBox(height: CityPanelStyle.sectionGap),
         _economy(situation),
       ],
@@ -160,7 +158,7 @@ class CityPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _section('选择英雄'),
+        _section('驻守英雄'),
         const SizedBox(height: CityPanelStyle.headingGap),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -182,7 +180,7 @@ class CityPanel extends StatelessWidget {
           },
         ),
         if (heroes.isEmpty)
-          const Text('城中暂无可派遣的英雄', style: TextStyle(color: _muted)),
+          const Text('城中暂无驻守英雄', style: TextStyle(color: _muted)),
         if (hero != null) ...[
           const SizedBox(height: CityPanelStyle.sectionGap),
           Row(
@@ -234,7 +232,7 @@ class CityPanel extends StatelessWidget {
             ('月俸', '${hero.salary}'),
             ('士兵', '${hero.soldiers} / ${hero.squad.length}'),
           ], columns: 4),
-          if (c.campaign.reinforcementCount(hero) > 0) ...[
+          if (hero.isPlayer && c.campaign.reinforcementCount(hero) > 0) ...[
             const SizedBox(height: 8),
             Text(
               '出战自动补充 ${c.campaign.reinforcementCount(hero)} 人',
@@ -242,7 +240,7 @@ class CityPanel extends StatelessWidget {
               style: const TextStyle(fontSize: 11, color: _muted),
             ),
           ],
-          if (!c.campaign.canDispatch(hero))
+          if (hero.isPlayer && !c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Text(

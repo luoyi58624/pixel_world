@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/game_config.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
@@ -84,7 +85,38 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
-  test('驻军展示与接战共用原ROM名单，高级在前，不受加入列表的先后影响', () {
+  test('驻军独立排序以主角开头，波塞伊在威拉斯前，原身份编号不变', () {
+    final catalog = decodeRomHeroes(
+      File('assets/data/rom_heroes.json').readAsStringSync(),
+    );
+    final heroes =
+        catalog.reversed
+            .map((hero) => CampaignHero.fromRom(hero, cityId: 0, countryId: 0))
+            .toList()
+          ..sort(CampaignHero.compareRosterOrder);
+    expect(heroes.take(5).map((hero) => hero.name), [
+      '主角',
+      '泽拉斯',
+      '亚彭龙',
+      '波塞伊',
+      '威拉斯',
+    ]);
+    expect(heroes.take(5).map((hero) => hero.sourceId), [40, 0, 1, 3, 2]);
+    expect(
+      heroes.skip(1).take(10).every((hero) => hero.type == HeroType.advanced),
+      isTrue,
+    );
+    expect(
+      heroes.skip(11).every((hero) => hero.type == HeroType.normal),
+      isTrue,
+    );
+    expect(GameConfig.heroRosterOrder.toSet(), {
+      for (var id = 0; id <= 40; id++) id,
+    });
+    expect(GameConfig.heroRosterOrder.length, 41);
+  });
+
+  test('驻军从高到低展示、迎战从末位向前，不受加入列表的先后影响', () {
     final c = _campaign();
     final first = _hero(c, 6);
     c.heroes.remove(first);
@@ -97,8 +129,9 @@ void main() {
     c.upgradeCity(1, hero: first, countryId: 1);
     final active = _attack(c);
     final battle = c.battles[1]!;
+    final defenseOrder = roster.reversed.toList();
     for (var i = 0; i < roster.length; i++) {
-      expect(battle.defender, same(roster[i]));
+      expect(battle.defender, same(defenseOrder[i]));
       if (i == roster.length - 1) break;
       _kill(battle.defender);
       _until(c, () => battle.wave == i + 2);
@@ -107,9 +140,10 @@ void main() {
     expect(c.defeated, isFalse);
   });
 
-  test('我方城市也由当前驻军名单的第一位接战', () {
+  test('我方城市从驻军末位接战，主角留到最后', () {
     final c = _campaign();
-    final expected = c.garrisonAt(0).first;
+    expect(c.garrisonAt(0).first.sourceId, 40);
+    final expected = c.garrisonAt(0).last;
     _attack(c, id: 7, city: 0);
     expect(c.battles[0]!.defender, same(expected));
   });
@@ -121,17 +155,17 @@ void main() {
     c.heroes.insert(0, third);
     _attack(c);
     final battle = c.battles[1]!;
-    expect(battle.defender, same(_hero(c, 3)));
+    expect(battle.defender, same(_hero(c, 6)));
     final lower = _hero(c, 10)..cityId = 1;
     expect(lower.type, HeroType.normal);
     final waiter = _dispatch(c, 1);
     _arrive(c, waiter);
     c.advance(0.5);
     expect(c.battles[1], same(battle));
-    expect(battle.defender, same(_hero(c, 3)));
+    expect(battle.defender, same(_hero(c, 6)));
     _kill(battle.defender);
     _until(c, () => battle.wave == 2);
-    expect(battle.defender, same(_hero(c, 4)));
+    expect(battle.defender, same(lower));
     expect(waiter.phase, MarchPhase.awaitingBattle);
   });
 
@@ -143,7 +177,7 @@ void main() {
     c.dispatchTo(_hero(c, 3), const Offset(900, 100), countryId: 1);
     _kill(_hero(c, 4));
     _attack(c);
-    expect(c.battles[1]!.defender.sourceId, 6);
+    expect(c.battles[1]!.defender.sourceId, 9);
   });
 
   test('同城按抵达顺序逐支接战，同国等待者保持原位', () {
@@ -178,7 +212,7 @@ void main() {
     final c = _campaign();
     _attack(c);
     final battle = c.battles[1]!;
-    expect(battle.defender.sourceId, 3);
+    expect(battle.defender.sourceId, 6);
     final waiter = _dispatch(c, 1);
     _arrive(c, waiter);
     final position = waiter.position;

@@ -105,7 +105,7 @@ void main() {
   test('守城降级时缩小建筑并同步攻城站位，当前交战记录不被重建', () {
     final c = _campaign(2);
     final city = c.world.cities[1];
-    final defender = c.garrisonAt(1).first..hp = 1;
+    final defender = c.garrisonAt(1).last..hp = 1;
     for (final soldier in defender.squad) {
       soldier.hp = 0;
     }

@@ -69,7 +69,7 @@ void main() {
       [99, 15, 15, 0],
     );
     final c = _campaign();
-    expect(c.heroesAt(0).map((hero) => hero.sourceId), [0, 2, 40]);
+    expect(c.heroesAt(0).map((hero) => hero.sourceId), [40, 0, 2]);
     expect(c.soldiersAt(0), 12);
   });
 
@@ -189,7 +189,7 @@ void main() {
     final hero = _hero(c, 40)..hp = 20;
     hero.squad[0].hp = 0;
     hero.squad[1].hp = 7;
-    final defender = c.garrisonAt(1).first..hp = 1;
+    final defender = c.garrisonAt(1).last..hp = 1;
     for (final soldier in defender.squad) {
       soldier.hp = 0;
     }
@@ -243,8 +243,8 @@ void main() {
   test('二级城首位守将战败只降级，再次战败才占领并清除剩余守将', () {
     final c = _campaign();
     final defenderIds = c.garrisonAt(1).map((hero) => hero.id).toList();
-    c.garrisonAt(1).first.hp = 1;
-    for (final soldier in c.garrisonAt(1).first.squad) {
+    c.garrisonAt(1).last.hp = 1;
+    for (final soldier in c.garrisonAt(1).last.squad) {
       soldier.hp = 0;
     }
     final hero = _hero(c, 40);
@@ -257,8 +257,8 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(c.cities[1]!.isPlayer, isFalse);
     expect(c.garrisonAt(1).length, defenderIds.length - 1);
-    c.garrisonAt(1).first.hp = 1;
-    for (final soldier in c.garrisonAt(1).first.squad) {
+    c.garrisonAt(1).last.hp = 1;
+    for (final soldier in c.garrisonAt(1).last.squad) {
       soldier.hp = 0;
     }
     for (var i = 0; i < 1200 && !c.cities[1]!.isPlayer; i++) {

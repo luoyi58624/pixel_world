@@ -112,7 +112,7 @@ void main() {
       expect(c.campaign.soldiersAt(home.id), (2 - i) * 4);
     }
     await _tapCity(tester, c, home);
-    expect(find.text('城中暂无可派遣的英雄'), findsOneWidget);
+    expect(find.text('城中暂无驻守英雄'), findsOneWidget);
     expect(find.byKey(const ValueKey('hero-hp')), findsNothing);
     expect(c.selectedHero, isNull);
     expect(
@@ -170,30 +170,64 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('敌方城池只展示摘要和经济，移除经济下方的守军名单', (tester) async {
-    final c = await _load(tester, const Size(1280, 720));
-    final city = c.world.cities[1];
-    final heroes = c.campaign.garrisonAt(city.id).toList();
-    await _tapCity(tester, c, city);
-    for (final hero in heroes) {
-      expect(find.text(hero.name), findsNothing);
-    }
-    for (final hero in heroes) {
-      expect(
-        c.campaign.dispatch(hero, c.world.cities[2], countryId: hero.countryId),
-        isNotNull,
-      );
-      c.refreshUi();
-      await tester.pump();
-      expect(find.text(hero.name), findsNothing);
-    }
-    expect(find.text('守城部队'), findsNothing);
-    expect(find.byKey(const ValueKey('city-economy')), findsOneWidget);
-    expect(c.campaign.garrisonAt(city.id), isEmpty);
-    expect(c.campaign.heroesAt(city.id), heroes);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+  for (final size in [const Size(375, 812), const Size(1280, 720)]) {
+    testWidgets('敌方驻军可切换查看完整属性，不能派遣或经营，出征者从列表移除 $size', (tester) async {
+      final c = await _load(tester, size);
+      final city = c.world.cities[1];
+      final heroes = c.campaign.garrisonAt(city.id).toList();
+      await _tapCity(tester, c, city);
+      expect(find.text('驻守英雄'), findsOneWidget);
+      for (final hero in heroes) {
+        final choice = find.byKey(ValueKey('dispatch-hero-${hero.id}'));
+        expect(choice, findsOneWidget);
+        await tester.tap(choice);
+        await tester.pump();
+        expect(c.selectedHero, same(hero));
+        expect(
+          tester.widget<Text>(find.byKey(const ValueKey('hero-hp'))).data,
+          '${hero.health.label} / ${hero.maxHp}',
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('city-stat-战斗')),
+            matching: find.text('${hero.combat}'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('dispatch-confirm')), findsNothing);
+        for (final key in ['city-upgrade', 'buy-reserves', 'draw-hero']) {
+          expect(
+            tester.widget<OutlinedButton>(find.byKey(ValueKey(key))).onPressed,
+            isNull,
+          );
+        }
+        final gold = c.campaign.goldFor(hero.countryId);
+        c.prepareDispatch();
+        expect(c.pendingHero, isNull);
+        expect(c.campaign.marches, isEmpty);
+        expect(c.campaign.goldFor(hero.countryId), gold);
+      }
+      for (final hero in heroes) {
+        expect(
+          c.campaign.dispatch(
+            hero,
+            c.world.cities[2],
+            countryId: hero.countryId,
+          ),
+          isNotNull,
+        );
+        c.refreshUi();
+        await tester.pump();
+        expect(find.byKey(ValueKey('dispatch-hero-${hero.id}')), findsNothing);
+      }
+      expect(find.text('守城部队'), findsNothing);
+      expect(find.byKey(const ValueKey('city-economy')), findsOneWidget);
+      expect(c.campaign.garrisonAt(city.id), isEmpty);
+      expect(c.campaign.heroesAt(city.id), heroes);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 
   testWidgets('城池面板显示真实城名、国家国旗和高级将领类型', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
@@ -454,8 +488,8 @@ void main() {
     await _tapCity(tester, c, c.world.cities[1]);
     await _tapCity(tester, c, c.world.cities.first);
     await tester.pump();
-    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
-    expect(find.byKey(const ValueKey('dispatch-hero-rom-40')), findsOneWidget);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-40')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
     expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

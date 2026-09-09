@@ -86,9 +86,9 @@ void main() {
             .map((hero) => find.byKey(ValueKey('dispatch-hero-${hero.id}')))
             .toList();
         expect(c.campaign.garrisonAt(0).map((hero) => hero.sourceId), [
+          40,
           0,
           2,
-          40,
         ]);
         final serviceRects = services.map(tester.getRect).toList();
         final heroRects = choices.map(tester.getRect).toList();
@@ -127,7 +127,7 @@ void main() {
         expect(
           serviceRects[0].top - tester.getBottomLeft(find.text('城池情况')).dy,
           closeTo(
-            heroRects[0].top - tester.getBottomLeft(find.text('选择英雄')).dy,
+            heroRects[0].top - tester.getBottomLeft(find.text('驻守英雄')).dy,
             0.01,
           ),
         );

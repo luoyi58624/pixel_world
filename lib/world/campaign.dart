@@ -125,9 +125,11 @@ class CampaignHero {
   /// 本场景内唯一标识。
   final String id;
 
-  /// 按 ROM 名单编号排序：高级 0–9、普通 10–39、主角 40，供驻军展示和接战共用。
-  static int compareRosterOrder(CampaignHero a, CampaignHero b) =>
-      a.sourceId.compareTo(b.sourceId);
+  /// 按独立配置排列驻军，主角优先；原 ROM 编号仅用于身份和资源关联。
+  static int compareRosterOrder(CampaignHero a, CampaignHero b) => GameConfig
+      .heroRosterOrder
+      .indexOf(a.sourceId)
+      .compareTo(GameConfig.heroRosterOrder.indexOf(b.sourceId));
 
   /// 原 ROM 英雄编号。
   final int sourceId;
@@ -738,7 +740,7 @@ class CampaignState {
           .toList()
         ..sort(CampaignHero.compareRosterOrder);
 
-  /// 尚未出征的守军，沿用原 ROM 名单顺序，重新招募或进驻不会插到队尾。
+  /// 尚未出征的守军按配置从高到低展示，重新招募或进驻仍回到对应位置。
   List<CampaignHero> garrisonAt(int cityId) =>
       heroesAt(cityId).where((hero) => !marches.containsKey(hero.id)).toList();
 

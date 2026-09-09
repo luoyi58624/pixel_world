@@ -130,16 +130,16 @@ void main() {
     final home = c.world.cities.first;
     c.openCity(home);
     final selected = c.selectedHero!;
-    expect(selected.sourceId, 0);
+    expect(selected.sourceId, 40);
     c.campaign.dispatch(selected, c.world.cities[1]);
     c.upgradeSelectedCity();
     expect(c.campaign.gold, 50);
     expect(c.campaign.cities[0]!.level, 1);
     expect(c.message, contains('选择一位城内将领'));
     c.openCity(home);
-    expect(c.selectedHero!.sourceId, 2);
+    expect(c.selectedHero!.sourceId, 0);
     c.upgradeSelectedCity();
-    expect(c.campaign.gold, 23);
+    expect(c.campaign.gold, 35);
     expect(c.campaign.cities[0]!.level, 2);
   });
 }

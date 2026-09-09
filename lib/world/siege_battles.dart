@@ -96,8 +96,8 @@ extension _CitySieges on CampaignState {
                     identical(battle.defender, hero)),
           ),
     );
-    // 沿用驻军名单顺序；筛掉不能上场的人，不另作随机或类型排序。
-    return candidates.firstOrNull;
+    // 驻军界面从高到低展示，迎战从队尾开始，主角最后上场。
+    return candidates.lastOrNull;
   }
 
   CityBattle? _beginBattle(HeroMarch march) {

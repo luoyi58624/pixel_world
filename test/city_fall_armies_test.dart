@@ -90,7 +90,7 @@ void main() {
           final c = campaign();
           final hero = c.garrisonAt(home).first;
           final target = home == 0 ? 1 : 2;
-          final defender = c.garrisonAt(target).first;
+          final defender = c.garrisonAt(target).last;
           final vulnerable = wins ? defender : hero;
           vulnerable.hp = 1;
           for (final soldier in vulnerable.squad) {
@@ -195,7 +195,7 @@ void main() {
       aiEnabled: false,
     );
     final a = c.campaign.heroes.firstWhere((h) => h.sourceId == 0);
-    final d = c.campaign.garrisonAt(1).first;
+    final d = c.campaign.garrisonAt(1).last;
     d.hp = 1;
     for (final s in d.squad) {
       s.hp = 0;
@@ -246,7 +246,7 @@ void main() {
     c.cities[9]!.ownerCountryId = 0;
     c.heroes.firstWhere((hero) => hero.sourceId == 40).cityId = 9;
     final hero = c.garrisonAt(0).first;
-    final guard = c.garrisonAt(1).first..hp = 1;
+    final guard = c.garrisonAt(1).last..hp = 1;
     for (final soldier in guard.squad) {
       soldier.hp = 0;
     }
