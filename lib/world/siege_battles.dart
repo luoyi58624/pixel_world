@@ -55,7 +55,7 @@ extension _CitySieges on CampaignState {
         changed = true;
         continue;
       }
-      // 整场攻城（含换守将）都占用名额，不能每帧重抽守将或提前夺城。
+      // 整场攻城（含换守将）都占用名额，不能中途换将或提前夺城。
       if (battles[city.id]?.isActive == true || !admittedCities.add(city.id)) {
         continue;
       }
@@ -86,20 +86,18 @@ extension _CitySieges on CampaignState {
   }
 
   CampaignHero? _pickDefender(int cityId) {
-    final candidates = garrisonAt(cityId)
-        .where(
-          (hero) =>
-              hero.health.alive &&
-              !allBattles.any(
-                (battle) =>
-                    battle.isActive &&
-                    (identical(battle.attacker, hero) ||
-                        identical(battle.defender, hero)),
-              ),
-        )
-        .toList();
-    if (candidates.isEmpty) return null;
-    return candidates[_defenderRandom.nextInt(candidates.length)];
+    final candidates = garrisonAt(cityId).where(
+      (hero) =>
+          hero.health.alive &&
+          !allBattles.any(
+            (battle) =>
+                battle.isActive &&
+                (identical(battle.attacker, hero) ||
+                    identical(battle.defender, hero)),
+          ),
+    );
+    // 沿用驻军名单顺序；筛掉不能上场的人，不另作随机或类型排序。
+    return candidates.firstOrNull;
   }
 
   CityBattle? _beginBattle(HeroMarch march) {

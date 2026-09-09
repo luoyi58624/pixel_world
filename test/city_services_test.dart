@@ -67,6 +67,79 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  for (final size in [
+    const Size(320, 720),
+    const Size(375, 812),
+    const Size(1280, 720),
+  ]) {
+    testWidgets('城池、英雄和属性方块在 $size 共用字号、间距与高度', (tester) async {
+      final c = await _load(tester, size, _RandomValue());
+      final services = [
+        'city-upgrade',
+        'buy-reserves',
+        'draw-hero',
+      ].map((key) => find.byKey(ValueKey(key))).toList();
+      final choices = c.campaign
+          .garrisonAt(0)
+          .map((hero) => find.byKey(ValueKey('dispatch-hero-${hero.id}')))
+          .toList();
+      expect(c.campaign.garrisonAt(0).map((hero) => hero.sourceId), [0, 2, 40]);
+      final serviceRects = services.map(tester.getRect).toList();
+      final heroRects = choices.map(tester.getRect).toList();
+      for (var i = 0; i < 3; i++) {
+        expect(heroRects[i].width, closeTo(serviceRects[i].width, 0.01));
+        expect(heroRects[i].height, serviceRects[i].height);
+        expect(heroRects[i].top, heroRects[0].top);
+        final service = tester.widget<OutlinedButton>(services[i]);
+        final choice = tester.widget<OutlinedButton>(choices[i]);
+        expect(
+          choice.style!.padding!.resolve({}),
+          service.style!.padding!.resolve({}),
+        );
+        if (i > 0) {
+          expect(
+            heroRects[i].left - heroRects[i - 1].right,
+            closeTo(serviceRects[i].left - serviceRects[i - 1].right, 0.01),
+          );
+        }
+      }
+      expect(
+        serviceRects[0].top - tester.getBottomLeft(find.text('城池情况')).dy,
+        closeTo(
+          heroRects[0].top - tester.getBottomLeft(find.text('选择英雄')).dy,
+          0.01,
+        ),
+      );
+      final infoText = tester
+          .widget<Text>(find.byKey(const ValueKey('city-reserves')))
+          .style!;
+      for (final finder in [
+        ...choices,
+        find.byKey(const ValueKey('city-stat-战斗')),
+        find.byKey(const ValueKey('city-stat-月收入')),
+      ]) {
+        for (final text in tester.widgetList<Text>(
+          find.descendant(of: finder, matching: find.byType(Text)),
+        )) {
+          expect(text.style!.fontSize, infoText.fontSize);
+          expect(text.style!.fontWeight, infoText.fontWeight);
+          expect(text.style!.height, infoText.height);
+        }
+        for (final element
+            in find
+                .descendant(of: finder, matching: find.byType(Text))
+                .evaluate()) {
+          expect(
+            DefaultTextStyle.of(element).style.fontFamily,
+            Theme.of(element).textTheme.bodyMedium!.fontFamily,
+          );
+        }
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('金币紧邻国名，整块征兵并在出击时自动补兵，面板不暂停月份', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     final hero = c.selectedHero!;
@@ -274,7 +347,6 @@ void main() {
       c.world,
       painter.assets.heroCatalog,
       aiEnabled: false,
-      defenderRandom: _RandomValue(),
     );
     // 让一支仍可出征的非玩家部队抵达敌国，使用真实后台交战入口。
     final hero = c.campaign.heroes.firstWhere(

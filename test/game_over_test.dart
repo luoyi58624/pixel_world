@@ -10,10 +10,7 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
-import 'support/first_random.dart';
-
 CampaignState _campaign() => CampaignState.fromRom(
-  defenderRandom: FirstRandom(),
   aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
@@ -221,7 +218,10 @@ void main() {
       expect(c.campaign.defeated, isFalse);
       expect(c.campaign.gold, 50);
       expect(c.campaign.cities[0]!.isPlayer, isTrue);
-      expect(c.campaign.garrisonAt(0).first.hp, 99);
+      expect(
+        c.campaign.heroes.firstWhere((hero) => hero.sourceId == 40).hp,
+        99,
+      );
       expect(c.campaign.battles, isEmpty);
       expect(c.campaign.marches, isEmpty);
       expect(tester.takeException(), isNull);

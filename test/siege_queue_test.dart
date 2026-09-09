@@ -1,27 +1,9 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
-
-class _Picks implements math.Random {
-  _Picks([this.values = const [0]]);
-  final List<int> values;
-  final List<int> limits = [];
-  @override
-  int nextInt(int max) {
-    final value = values[limits.length % values.length];
-    limits.add(max);
-    return value % max;
-  }
-
-  @override
-  bool nextBool() => false;
-  @override
-  double nextDouble() => 0;
-}
 
 WorldDefinition _world() => WorldDefinition.fromJson(
   {
@@ -53,14 +35,12 @@ WorldDefinition _world() => WorldDefinition.fromJson(
   [0, 1, 2, 3],
 );
 
-CampaignState _campaign({_Picks? random, WorldDefinition? world}) =>
-    CampaignState.fromRom(
-      world ?? _world(),
-      decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-      aiEnabled: false,
-      startingGold: 1000,
-      defenderRandom: random ?? _Picks(),
-    );
+CampaignState _campaign({WorldDefinition? world}) => CampaignState.fromRom(
+  world ?? _world(),
+  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+  aiEnabled: false,
+  startingGold: 1000,
+);
 
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -104,31 +84,66 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
-  test('每位可用守将都能随机被选中，等待和时间推进不重抽', () {
-    for (var index = 0; index < 3; index++) {
-      final random = _Picks([index]);
-      final c = _campaign(random: random);
-      final guards = c.garrisonAt(1).toList();
-      _attack(c);
-      final battle = c.battles[1]!;
-      expect(battle.defender, same(guards[index]));
-      final waiter = _dispatch(c, 1);
-      _arrive(c, waiter);
-      c.advance(0.5);
-      expect(c.battles[1], same(battle));
-      expect(waiter.phase, MarchPhase.awaitingBattle);
-      expect(random.limits, [3]);
+  test('驻军展示与接战共用原ROM名单，高级在前，不受加入列表的先后影响', () {
+    final c = _campaign();
+    final first = _hero(c, 6);
+    c.heroes.remove(first);
+    c.heroes.insert(0, first);
+    _hero(c, 10).cityId = 1;
+    final roster = c.garrisonAt(1).toList();
+    expect(roster.map((hero) => hero.sourceId), [3, 4, 6, 10]);
+    expect(roster.last.type, HeroType.normal);
+    expect(roster.first.type, HeroType.advanced);
+    c.upgradeCity(1, hero: first, countryId: 1);
+    final active = _attack(c);
+    final battle = c.battles[1]!;
+    for (var i = 0; i < roster.length; i++) {
+      expect(battle.defender, same(roster[i]));
+      if (i == roster.length - 1) break;
+      _kill(battle.defender);
+      _until(c, () => battle.wave == i + 2);
     }
+    expect(active.phase, MarchPhase.fighting);
+    expect(c.defeated, isFalse);
   });
 
-  test('随机守将不包含出征或阵亡将领，也不包含别城驻军', () {
-    final random = _Picks([99]);
-    final c = _campaign(random: random);
+  test('我方城市也由当前驻军名单的第一位接战', () {
+    final c = _campaign();
+    final expected = c.garrisonAt(0).first;
+    _attack(c, id: 7, city: 0);
+    expect(c.battles[0]!.defender, same(expected));
+  });
+
+  test('新增驻军不会顶替当前守将，下一场继续沿用剩余名单顺序', () {
+    final c = _campaign();
+    final third = _hero(c, 6);
+    c.heroes.remove(third);
+    c.heroes.insert(0, third);
+    _attack(c);
+    final battle = c.battles[1]!;
+    expect(battle.defender, same(_hero(c, 3)));
+    final lower = _hero(c, 10)..cityId = 1;
+    expect(lower.type, HeroType.normal);
+    final waiter = _dispatch(c, 1);
+    _arrive(c, waiter);
+    c.advance(0.5);
+    expect(c.battles[1], same(battle));
+    expect(battle.defender, same(_hero(c, 3)));
+    _kill(battle.defender);
+    _until(c, () => battle.wave == 2);
+    expect(battle.defender, same(_hero(c, 4)));
+    expect(waiter.phase, MarchPhase.awaitingBattle);
+  });
+
+  test('跳过出征或阵亡将领，别城驻军不会被选为守将', () {
+    final c = _campaign();
+    _hero(c, 10).cityId = 1;
+    _hero(c, 9).cityId = 1;
+    _kill(_hero(c, 10));
     c.dispatchTo(_hero(c, 3), const Offset(900, 100), countryId: 1);
     _kill(_hero(c, 4));
     _attack(c);
     expect(c.battles[1]!.defender.sourceId, 6);
-    expect(random.limits, [1]);
   });
 
   test('同城按抵达顺序逐支接战，同国等待者保持原位', () {
@@ -159,26 +174,23 @@ void main() {
     expect([first.phase, second.phase], everyElement(MarchPhase.fighting));
   });
 
-  test('换守将仍锁定城池，下一位从剩余驻军重新随机抽选', () {
-    final random = _Picks([1, 1]);
-    final c = _campaign(random: random);
+  test('换守将仍锁定城池，下一位按名单顺序上场', () {
+    final c = _campaign();
     _attack(c);
     final battle = c.battles[1]!;
-    expect(battle.defender.sourceId, 4);
+    expect(battle.defender.sourceId, 3);
     final waiter = _dispatch(c, 1);
     _arrive(c, waiter);
     final position = waiter.position;
     _kill(battle.defender);
     _until(c, () => battle.nextWaveIn > 0);
     expect(waiter.phase, MarchPhase.awaitingBattle);
-    expect(random.limits, [3]);
     expect(c.cities[1]!.ownerCountryId, 1);
     c.advance(0.5);
     expect(c.battles[1], same(battle));
     expect(waiter.position, position);
     _until(c, () => battle.wave == 2);
-    expect(battle.defender.sourceId, 6);
-    expect(random.limits, [3, 2]);
+    expect(battle.defender.sourceId, 4);
     expect(waiter.phase, MarchPhase.awaitingBattle);
   });
 

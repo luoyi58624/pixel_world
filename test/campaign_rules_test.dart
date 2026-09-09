@@ -6,14 +6,11 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
-import 'support/first_random.dart';
-
 List<RomHeroDefinition> _catalog() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 CampaignState _campaign({int gold = 300}) => CampaignState.fromRom(
-  defenderRandom: FirstRandom(),
   aiEnabled: false,
   _worlds().first,
   _catalog(),
@@ -72,7 +69,7 @@ void main() {
       [99, 15, 15, 0],
     );
     final c = _campaign();
-    expect(c.heroesAt(0).map((hero) => hero.sourceId), [40, 0, 2]);
+    expect(c.heroesAt(0).map((hero) => hero.sourceId), [0, 2, 40]);
     expect(c.soldiersAt(0), 12);
   });
 

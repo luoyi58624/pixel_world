@@ -10,10 +10,7 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
-import 'support/first_random.dart';
-
 CampaignState _campaign([int map = 0]) => CampaignState.fromRom(
-  defenderRandom: FirstRandom(),
   aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),

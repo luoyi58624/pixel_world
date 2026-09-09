@@ -6,13 +6,10 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
-import 'support/first_random.dart';
-
 import 'package:pixel_world/world/world_controller.dart';
 
 CampaignState campaign({bool spareCapital = true}) {
   final c = CampaignState.fromRom(
-    defenderRandom: FirstRandom(),
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
     aiEnabled: false,
@@ -196,7 +193,6 @@ void main() {
       worlds.first,
       catalog,
       aiEnabled: false,
-      defenderRandom: FirstRandom(),
     );
     final a = c.campaign.heroes.firstWhere((h) => h.sourceId == 0);
     final d = c.campaign.garrisonAt(1).first;
@@ -229,12 +225,7 @@ void main() {
     final catalog = decodeRomHeroes(
       File('assets/data/rom_heroes.json').readAsStringSync(),
     );
-    final c = CampaignState.fromRom(
-      worlds.first,
-      catalog,
-      aiEnabled: false,
-      defenderRandom: FirstRandom(),
-    );
+    final c = CampaignState.fromRom(worlds.first, catalog, aiEnabled: false);
     c.cities[9]!.ownerCountryId = 0;
     c.heroes.firstWhere((hero) => hero.sourceId == 40).cityId = 9;
     final hero = c.garrisonAt(0).first;

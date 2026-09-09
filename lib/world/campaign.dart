@@ -123,6 +123,10 @@ class CampaignHero {
   /// 本场景内唯一标识。
   final String id;
 
+  /// 按 ROM 名单编号排序：高级 0–9、普通 10–39、主角 40，供驻军展示和接战共用。
+  static int compareRosterOrder(CampaignHero a, CampaignHero b) =>
+      a.sourceId.compareTo(b.sourceId);
+
   /// 原 ROM 英雄编号。
   final int sourceId;
 
@@ -412,7 +416,6 @@ class CampaignState {
     this._economyRandom,
     this._recruitmentRandom,
     this._aiRandom,
-    this._defenderRandom,
     this.aiEnabled,
     this.countryConfigs,
   ) : _protagonist = heroes
@@ -426,7 +429,6 @@ class CampaignState {
   final math.Random _recruitmentRandom;
   final Map<int, RomHeroDefinition> _heroPool = {};
   final math.Random _aiRandom;
-  final math.Random _defenderRandom;
   int _siegeArrivalSerial = 0;
 
   /// 是否运行非玩家国家的自动经营；测试可以单独关闭以隔离原有规则。
@@ -442,7 +444,6 @@ class CampaignState {
       countryConfigs[countryId] ?? const CountryConfig();
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
-  /// 守将抽选使用独立随机源，测试可通过 defenderRandom 固定抽选结果。
   factory CampaignState.fromRom(
     WorldDefinition world,
     List<RomHeroDefinition> catalog, {
@@ -452,7 +453,6 @@ class CampaignState {
     math.Random? economyRandom,
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
-    math.Random? defenderRandom,
   }) {
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
@@ -462,22 +462,17 @@ class CampaignState {
         placement[id] = city.id;
       }
     }
-    final heroes =
-        [
-          for (final definition in catalog)
-            if (placement.containsKey(definition.id))
-              CampaignHero.fromRom(
-                definition,
-                cityId: placement[definition.id]!,
-                countryId: world.cities
-                    .firstWhere((city) => city.id == placement[definition.id])
-                    .initialOwnerId,
-              ),
-        ]..sort(
-          (a, b) => (a.sourceId == 40 ? -1 : a.sourceId).compareTo(
-            b.sourceId == 40 ? -1 : b.sourceId,
+    final heroes = [
+      for (final definition in catalog)
+        if (placement.containsKey(definition.id))
+          CampaignHero.fromRom(
+            definition,
+            cityId: placement[definition.id]!,
+            countryId: world.cities
+                .firstWhere((city) => city.id == placement[definition.id])
+                .initialOwnerId,
           ),
-        );
+    ]..sort(CampaignHero.compareRosterOrder);
     final campaign = CampaignState._(
       world,
       {
@@ -517,7 +512,6 @@ class CampaignState {
       economyRandom ?? math.Random(),
       recruitmentRandom ?? math.Random(),
       aiRandom ?? math.Random(),
-      defenderRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
     );
@@ -714,15 +708,17 @@ class CampaignState {
   }
 
   /// 归属本城的英雄，包含在外部队以继续计算月俸；驻城名单使用 garrisonAt。
-  List<CampaignHero> heroesAt(int cityId) => heroes
-      .where(
-        (hero) =>
-            hero.cityId == cityId &&
-            hero.countryId == cities[cityId]!.ownerCountryId,
-      )
-      .toList();
+  List<CampaignHero> heroesAt(int cityId) =>
+      heroes
+          .where(
+            (hero) =>
+                hero.cityId == cityId &&
+                hero.countryId == cities[cityId]!.ownerCountryId,
+          )
+          .toList()
+        ..sort(CampaignHero.compareRosterOrder);
 
-  /// 尚未出征的守军。
+  /// 尚未出征的守军，沿用原 ROM 名单顺序，重新招募或进驻不会插到队尾。
   List<CampaignHero> garrisonAt(int cityId) =>
       heroesAt(cityId).where((hero) => !marches.containsKey(hero.id)).toList();
 

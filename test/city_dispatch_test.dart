@@ -454,8 +454,8 @@ void main() {
     await _tapCity(tester, c, c.world.cities[1]);
     await _tapCity(tester, c, c.world.cities.first);
     await tester.pump();
-    expect(find.byKey(const ValueKey('dispatch-hero-rom-40')), findsNothing);
-    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-40')), findsOneWidget);
     expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());

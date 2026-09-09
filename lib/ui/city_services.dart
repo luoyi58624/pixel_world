@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../game_config.dart';
+import 'city_panel_style.dart';
 import '../world/campaign.dart';
 import '../world/hero_sprite.dart';
 import '../world/rom_hero.dart';
@@ -8,9 +9,9 @@ import '../world/recruitment.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 
-const _cream = Color(0xffece7d1);
-const _gold = Color(0xffd6bd7c);
-const _muted = Color(0xffa7b5a4);
+const _cream = CityPanelStyle.ink;
+const _gold = CityPanelStyle.gold;
+const _muted = CityPanelStyle.muted;
 
 /// 城防、征兵和英雄招募使用整块点击，抽取结果直接在招募方块下展示。
 class CityServices extends StatelessWidget {
@@ -74,7 +75,7 @@ class CityServices extends StatelessWidget {
                       : null,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: CityPanelStyle.gap),
               Expanded(
                 child: _card(
                   key: 'buy-reserves',
@@ -91,7 +92,7 @@ class CityServices extends StatelessWidget {
                       : null,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: CityPanelStyle.gap),
               Expanded(
                 child: _card(
                   key: 'draw-hero',
@@ -145,30 +146,13 @@ class CityServices extends StatelessWidget {
     child: OutlinedButton(
       key: ValueKey(key),
       onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        alignment: Alignment.topLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-        minimumSize: const Size(0, 52),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        backgroundColor: const Color(0xff1e291e),
-        foregroundColor: _gold,
-        disabledForegroundColor: _muted,
-        side: BorderSide(
-          color: onTap == null
-              ? const Color(0xff2b3628)
-              : _gold.withValues(alpha: 0.35),
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
+      style: CityPanelStyle.button(actionable: onTap != null),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(color: _muted, fontSize: 10, height: 1.4),
-          ),
-          const SizedBox(height: 5),
+          Text(title, style: CityPanelStyle.label),
+          const SizedBox(height: CityPanelStyle.textGap),
           Row(
             children: [
               Expanded(
@@ -178,12 +162,9 @@ class CityServices extends StatelessWidget {
                     Text(
                       value,
                       key: valueKey == null ? null : ValueKey(valueKey),
-                      style: const TextStyle(
-                        color: _cream,
-                        fontSize: 10,
-                        height: 1.4,
-                        fontWeight: FontWeight.w400,
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: CityPanelStyle.value,
                     ),
                   ],
                 ),
@@ -194,10 +175,7 @@ class CityServices extends StatelessWidget {
                   action,
                   key: actionKey == null ? null : ValueKey(actionKey),
                   textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 10,
-                    height: 1.4,
-                    fontWeight: FontWeight.w400,
+                  style: CityPanelStyle.text.copyWith(
                     color: onTap == null ? _muted : _gold,
                   ),
                 ),
@@ -271,7 +249,7 @@ class CityServices extends StatelessWidget {
                 child: const Text('放弃'),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: CityPanelStyle.gap),
             Expanded(
               child: FilledButton(
                 key: const ValueKey('sign-recruit'),
