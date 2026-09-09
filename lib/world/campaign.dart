@@ -12,6 +12,7 @@ import 'world_movement.dart';
 import 'economy.dart';
 import 'recruitment.dart';
 import 'field_terrain.dart';
+import 'weapon.dart';
 
 part 'country_ai.dart';
 part 'country_ai_budget.dart';
@@ -20,6 +21,8 @@ part 'siege_battles.dart';
 part 'field_supplies.dart';
 part 'country_troops.dart';
 part 'battle_retreat.dart';
+part 'campaign_weapons.dart';
+part 'country_strategy.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -193,6 +196,10 @@ class CampaignHero {
 
   /// 出征或当前守城战携带的小兵，空闲驻城时兵员归入城市。
   final List<BattleHealth> squad;
+  final List<int> _weaponIds = [];
+
+  /// 随身一次性武器，最多三件；外出时不与国家库存重复计数。
+  List<int> get weaponIds => List.unmodifiable(_weaponIds);
 
   // 未满一金币的粮草累计保留在英雄身上，进城或改令不能抹去已用粮草。
   double _supplyDue = 0;
@@ -356,6 +363,7 @@ abstract class WorldBattle {
   String? outcome;
   bool _settled = false;
   int _lastAiRetreatClash = 0;
+  double _nextAiWeaponDecision = 0;
 
   /// 战斗记录，用于显示过程与结果。
   final List<String> events = [];
@@ -447,6 +455,7 @@ class CityBattle extends WorldBattle {
     nextWaveIn = 0;
     _settled = false;
     _lastAiRetreatClash = 0;
+    _nextAiWeaponDecision = 0;
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
@@ -499,6 +508,7 @@ class CampaignState {
     this._retreatRandom,
     this.aiEnabled,
     this.countryConfigs,
+    this.weaponCatalog,
   ) : _protagonist = heroes
           .where((hero) => hero.isPlayer && hero.type == HeroType.protagonist)
           .firstOrNull;
@@ -521,8 +531,27 @@ class CampaignState {
 
   /// 本局国家配置快照，未配置的国家采用默认值。
   final Map<int, CountryConfig> countryConfigs;
+
+  /// 已加载的静态武器目录，各国适用相同的价格与效果。
+  final WeaponCatalog weaponCatalog;
+  final Map<int, Map<int, int>> _weaponStock = {};
   final Map<int, RecruitmentOffer> _recruitmentOffers = {};
   double _aiUntilDecision = GameConfig.countryAiInitialDelay;
+  double _strategyTime = 0;
+  int _aiCountryCursor = 0;
+  final Map<int, CountryWarPlan> _warPlans = {};
+  final Map<(Offset, int, int), double> _aiTravelCache = {};
+  int _aiRouteEstimates = 0;
+  int _aiStrategicDecisions = 0;
+
+  /// 已执行的单国战略决策次数，用于验证错峰调度，不影响游戏规则。
+  int get aiStrategicDecisions => _aiStrategicDecisions;
+
+  /// 战略决策读取的路线精算总次数，便于性能回归检查。
+  int get aiRouteEstimates => _aiRouteEstimates;
+
+  /// 查看电脑当前的目标与筹备状态，不改变其决策时钟。
+  CountryWarPlan? warPlanFor(int countryId) => _warPlans[countryId];
 
   /// 读取国家的初始资金配置。
   CountryConfig configFor(int countryId) =>
@@ -543,6 +572,7 @@ class CampaignState {
     math.Random? aiRandom,
     math.Random? siegeRandom,
     math.Random? retreatRandom,
+    WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
@@ -600,7 +630,11 @@ class CampaignState {
       retreatRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
+      weaponCatalog,
     );
+    for (final entry in weaponCatalog.initialCountryStock.entries) {
+      campaign._weaponStock[entry.key] = Map.of(entry.value);
+    }
     for (final city in world.cities) {
       final contribution =
           world.setup.cities[(world.id, city.id)]?.initialReserveSoldiers ??
@@ -757,7 +791,10 @@ class CampaignState {
     if (dismissalBlockReason(hero, countryId: countryId) != null) return null;
     final reward = dismissalGold(hero);
     // 城内配兵先归还，野外随军直接离队；都不凭空生成新的兵员。
-    if (!marches.containsKey(hero.id)) _returnSoldiers(hero);
+    if (!marches.containsKey(hero.id)) {
+      _returnSoldiers(hero);
+      _returnWeapons(hero);
+    }
     marches.remove(hero.id);
     heroes.remove(hero);
     hero.hp = 0;
@@ -1142,6 +1179,7 @@ class CampaignState {
   }
 
   void _recycleHero(CampaignHero hero, {bool dismissed = false}) {
+    hero._weaponIds.clear();
     _disbandAfterBattle.remove(hero.id);
     final definition = _catalog[hero.sourceId];
     if ((dismissed || GameConfig.recycleDefeatedHeroes) &&
@@ -1568,6 +1606,7 @@ class CampaignState {
     const dt = BattleSimulation.fixedStep;
     while (_simulationFraction >= dt - 1e-9) {
       _simulationFraction = math.max(0, _simulationFraction - dt);
+      _strategyTime += dt;
       changed = _advanceSupplies(dt) || changed;
       changed = _advanceRetreatReturns() || changed;
       final previousPositions = {
@@ -1632,7 +1671,15 @@ class CampaignState {
       if (aiEnabled) {
         _aiUntilDecision -= dt;
         if (_aiUntilDecision <= 1e-9) {
-          _aiUntilDecision += math.max(dt, GameConfig.countryAiInterval);
+          final countries = cities.values
+              .map((city) => city.ownerCountryId)
+              .where((id) => id != 0)
+              .toSet()
+              .length;
+          _aiUntilDecision += math.max(
+            dt,
+            GameConfig.countryAiInterval / math.max(1, countries),
+          );
           changed = _runCountryDecisions() || changed;
         }
       }
@@ -1647,6 +1694,7 @@ class CampaignState {
       if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
       if (!battle.isActive) continue;
+      if (!closingOnly && aiEnabled) changed = _tryAiWeapon(battle) || changed;
       if (!closingOnly && aiEnabled) changed = _tryAiRetreat(battle) || changed;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;
@@ -1826,6 +1874,7 @@ class CampaignState {
     march.hero.cityId = march.target!.id;
     march.hero.hp = march.hero.maxHp;
     final returned = _returnSoldiers(march.hero);
+    _returnWeapons(march.hero);
     _record(
       '${march.hero.name}已进驻${cityName(march.target!.id)}，$returned 名士兵归营',
     );

@@ -137,6 +137,15 @@ class NesBattleKernel {
     }
   }
 
+  /// 执行原版切札调用的 E40C，直接扣整队兵力并将溢出交给将领。
+  void applyWeaponDamage(int side, int damage) {
+    if (side < 0 || side > 1 || damage < 0 || damage > 255) {
+      throw ArgumentError('武器伤害超出原版范围');
+    }
+    _a = damage;
+    _call(0xe40c, x: side);
+  }
+
   /// E6B2/E6C9 的胜方过场：整队每帧走一像素，抵达对侧后才显示结果。
   bool advanceVictory(int side) {
     ram[0x0e] = 255;

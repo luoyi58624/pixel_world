@@ -99,6 +99,30 @@ abstract final class GameConfig {
   /// 生命低于此比例或兵数落后时，允许电脑在明显劣势下冒险撤退。
   static const aiRetreatHealthRatio = 0.5;
 
+  /// 武器演出的总时长与命中时刻；仅当前战斗短暂停下普通碰撞。
+  static const weaponAnimationSeconds = 1.0;
+
+  /// 动作开始后命中所需秒数。
+  static const weaponImpactSeconds = 0.55;
+
+  /// 电脑武器决策的最短间隔，不逐帧遍历背包。
+  static const aiWeaponDecisionSeconds = 0.5;
+
+  /// 已接近本国城池的敌军警戒距离，单位为地图原生像素。
+  static const aiThreatDistance = 320.0;
+
+  /// 一次轮攻最多投入的将领数，始终先扣除各城留守名额。
+  static const aiMaximumRaidHeroes = 4;
+
+  /// 每次选择目标最多精算的路线数，其余先用距离与守军做粗筛。
+  static const aiTargetShortlist = 3;
+
+  /// 路线估时缓存上限，长时间运行不会无限增长。
+  static const aiTravelCacheSize = 256;
+
+  /// 失败远征后重新筹备的间隔，避免立刻重复派兵送死。
+  static const aiRaidRetrySeconds = 15.0;
+
   /// 丰收时每座城额外增加的收入。
   static const abundantBonusPerCity = 5;
 

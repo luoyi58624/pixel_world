@@ -5,6 +5,7 @@ import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import 'hero_dismiss_button.dart';
 import 'hero_retreat_button.dart';
+import 'weapon_loadout.dart';
 
 const _cream = Color(0xffece7d1);
 const _muted = Color(0xffa7b5a4);
@@ -142,6 +143,7 @@ class UnitPanel extends StatelessWidget {
             _stat('士兵', '${hero.soldiers} 人'),
           ],
         ),
+        WeaponLoadout(controller: c, hero: hero, onAction: onAction),
         if (hero.isPlayer) ...[
           const SizedBox(height: 16),
           Row(

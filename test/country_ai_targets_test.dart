@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -19,9 +20,19 @@ class _Roll implements math.Random {
   bool nextBool() => false;
 }
 
-final _heroes = decodeRomHeroes(
-  File('assets/data/rom_heroes.json').readAsStringSync(),
-).where((hero) => {40, 0, 2, 18}.contains(hero.id)).toList();
+// 两侧使用相同属性的普通守将，单独检验距离和领地权重，不混入守军强弱偏好。
+final _heroes = (() {
+  final data = jsonDecode(
+    File('assets/data/rom_heroes.json').readAsStringSync(),
+  );
+  final a = (data['heroes'] as List).firstWhere((h) => h['id'] == 18);
+  final b = (data['heroes'] as List).firstWhere((h) => h['id'] == 19);
+  b['combat'] = a['combat'];
+  b['maxHp'] = a['maxHp'];
+  return decodeRomHeroes(jsonEncode(data))
+      .where((hero) => {0, 2, 18, 19}.contains(hero.id))
+      .toList();
+})();
 
 CampaignState _campaign(
   double roll, {
@@ -45,9 +56,9 @@ CampaignState _campaign(
       ],
       'cities': [
         for (final (id, x, y, owner, units) in [
-          (0, left, 30, 0, [40]),
+          (0, left, 30, 0, [18]),
           (1, 50, 30, attacker, [0, 2]),
-          (2, right, 30, 2, [18]),
+          (2, right, 30, 2, [19]),
           for (var i = 0; i < extras; i++)
             (i + 3, 120, 3 + i * 6, extraOwner, <int>[]),
         ])
@@ -134,13 +145,22 @@ Map<int, int> _draws({
         c.heroes.firstWhere((hero) => hero.sourceId == 2),
         countryId: attacker,
       );
-      c.advance(GameConfig.countryAiInitialDelay - 1 / 60);
+      c.advance(
+        GameConfig.countryAiInitialDelay +
+            GameConfig.countryAiInterval -
+            1 / 60,
+      );
     } else {
-      c.advance(GameConfig.countryAiInitialDelay);
+      c.advance(
+        GameConfig.countryAiInitialDelay + GameConfig.countryAiInterval - .01,
+      );
     }
     final march = c.marches.values.single;
     final target = march.target!;
-    expect(c.cities[target.id]!.ownerCountryId, isNot(attacker));
+    expect(
+      c.cities[target.id]!.ownerCountryId,
+      recovering ? attacker : isNot(attacker),
+    );
     counts.update(target.id, (count) => count + 1, ifAbsent: () => 1);
   }
   return counts;
@@ -186,14 +206,13 @@ void main() {
       left: 60,
       right: 110,
       extras: 4,
-      gold: 12,
+      gold: 16,
     );
     expect(counts, {0: 60});
   });
 
-  test('营地恢复进攻也按部队当前位置加权，沿用同一套目标策略', () {
+  test('营地恢复补给后先返回友城整备，不立即再次盲目进攻', () {
     final counts = _draws(samples: 180, recovering: true);
-    expect(counts[0], greaterThan(2 * counts[2]!));
-    expect(counts[2], greaterThan(0));
+    expect(counts, {1: 180});
   });
 }

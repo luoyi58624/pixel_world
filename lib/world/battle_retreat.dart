@@ -141,6 +141,12 @@ extension BattleRetreatCommands on CampaignState {
           retreatBlockReason(hero.id, countryId: hero.countryId) != null) {
         continue;
       }
+      // 已备好的安全武器先用完，不能刚发现劣势就带着整包武器逃走。
+      if (hero._weaponIds.any(
+        (id) => weaponCatalog.weapons[id]?.selfDamage == 0,
+      )) {
+        continue;
+      }
       final other = side == BattleSide.attacker
           ? battle.defender
           : battle.attacker;

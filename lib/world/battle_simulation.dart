@@ -5,6 +5,7 @@ import '../game_config.dart';
 import 'field_terrain.dart';
 import 'nes_battle_ending.dart';
 import 'nes_battle_kernel.dart';
+import 'weapon.dart';
 
 /// 跨战斗保留的生命值，退出观战、撤离和换守将都不重置。
 class BattleHealth {
@@ -97,6 +98,7 @@ enum BattleStage {
   fighting,
   falling,
   victory,
+  weapon,
   retreating,
   ending,
   complete,
@@ -364,6 +366,36 @@ class BattleSimulation {
   int _endingTicks = 0;
   int _endingCompleteAt = 0;
   final _syncedHp = <BattleSide, double>{};
+  WeaponStrike? _weaponStrike;
+
+  /// 当前武器演出，伤害只在命中时计算一次。
+  WeaponStrike? get weaponStrike => _weaponStrike;
+
+  /// 双方存活且在普通拼杀阶段时才能发动武器。
+  bool get canUseWeapon =>
+      !finished &&
+      stage == BattleStage.fighting &&
+      _retreat == null &&
+      _weaponStrike == null &&
+      attacker.general.alive &&
+      defender.general.alive;
+
+  /// 锁定一个武器动作，保留原版直接伤害及死枪反噬。
+  bool useWeapon(BattleSide side, WeaponDefinition weapon) {
+    if (!canUseWeapon) return false;
+    _weaponStrike = WeaponStrike(
+      weapon,
+      attackingSide: side == BattleSide.attacker,
+      startedAt: elapsed,
+    );
+    stage = BattleStage.weapon;
+    for (final formation in formations.values) {
+      formation.moving = false;
+      formation.motion = BattleMotion.halted;
+    }
+    return true;
+  }
+
   BattleRetreat? _retreat;
   double _retreatElapsed = 0;
 
@@ -481,6 +513,34 @@ class BattleSimulation {
       _accumulator = math.max(0, _accumulator - fixedStep);
       elapsed += fixedStep;
       _ticks++;
+      if (_weaponStrike != null) {
+        final strike = _weaponStrike!;
+        final age = elapsed - strike.startedAt;
+        if (!strike.applied && age + 1e-9 >= GameConfig.weaponImpactSeconds) {
+          strike.applied = true;
+          _kernel.applyWeaponDamage(
+            strike.attackingSide ? 1 : 0,
+            strike.weapon.damage,
+          );
+          if (strike.weapon.selfDamage > 0) {
+            _kernel.applyWeaponDamage(
+              strike.attackingSide ? 0 : 1,
+              strike.weapon.selfDamage,
+            );
+          }
+          _syncHealth();
+          changed = true;
+        }
+        if (age + 1e-9 >= GameConfig.weaponAnimationSeconds) {
+          _weaponStrike = null;
+          stage = _kernel.generalsAlive
+              ? BattleStage.fighting
+              : BattleStage.falling;
+          changed = true;
+        }
+        changed = _ticks % 6 == 0 || changed;
+        continue;
+      }
       if (_retreat?.succeeded == true) {
         final previousStage = stage;
         _advanceRetreat();

@@ -277,15 +277,15 @@ void main() {
     c.advance(GameConfig.countryAiInitialDelay - 0.01);
     expect(c.marches, isEmpty);
     c.advance(0.01);
-    expect(c.marches.length, 2);
+    expect(c.marches.length, 1);
     final march = c.marches.values.first;
     expect(march.hero, same(initial.first));
-    expect(c.garrisonAt(1).length, 1);
+    expect(c.garrisonAt(1).length, initial.length - 1);
     expect(c.cities[march.target!.id]!.ownerCountryId, isNot(1));
     expect(c.hasDispatched, isFalse);
     expect(c.gold, 50);
     c.advance(GameConfig.countryAiInterval);
-    expect(c.marches.length, 2);
+    expect(c.marches.length, 1);
   });
 
   test('新招将领配兵后由最强者出击，经营升级和兵员都真实扣款', () {
@@ -302,6 +302,8 @@ void main() {
     final weakest = c.recruitPool.toList()
       ..sort((a, b) => a.combat.compareTo(b.combat));
     pick.value = c.recruitPool.indexOf(weakest.first);
+    prepareRecruitmentCity(c, 1, level: 3);
+    expect(c.drawHero(1, countryId: 1), isNotNull);
     c.advance(GameConfig.countryAiInitialDelay);
     final newHero = c.heroes.firstWhere(
       (hero) => hero.sourceId == weakest.first.id,
@@ -310,7 +312,7 @@ void main() {
     expect(newHero.soldiers, 0);
     final ranked = [...previous, newHero]..sort(_strength);
     expect(c.marches.values.map((march) => march.hero), contains(ranked.first));
-    expect(c.garrisonAt(1).length, 1);
+    expect(c.garrisonAt(1).length, previous.length);
     expect(c.cities[1]!.level, 3);
     expect(c.remainingHeroDraws(1), 0);
     expect(c.goldFor(1), lessThan(150 - GameConfig.heroDrawCost));
@@ -442,9 +444,9 @@ void main() {
     expect(c.cities[1]!.level, 1);
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      count - 1,
+      1,
     );
-    expect(c.garrisonAt(1).length, 1);
+    expect(c.garrisonAt(1).length, count - 1);
     expect(c.cities[1]!.requiredGarrison, 0);
   });
 

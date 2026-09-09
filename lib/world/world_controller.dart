@@ -13,6 +13,7 @@ import 'world_camera.dart';
 import 'world_data.dart';
 import 'world_movement.dart';
 import 'recruitment.dart';
+import 'weapon.dart';
 
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
@@ -23,11 +24,13 @@ class WorldController extends ChangeNotifier {
     int? startingGold,
     Map<int, CountryConfig>? countryConfigs,
     bool aiEnabled = GameConfig.countryAiEnabled,
+    WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
        _countryConfigs = countryConfigs == null
            ? null
            : Map.unmodifiable(countryConfigs),
        _aiEnabled = aiEnabled,
+       _weaponCatalog = weaponCatalog,
        camera = WorldCamera(worlds.first.pixelSize),
        campaigns = worlds
            .map(
@@ -37,6 +40,7 @@ class WorldController extends ChangeNotifier {
                startingGold: startingGold,
                countryConfigs: countryConfigs,
                aiEnabled: aiEnabled,
+               weaponCatalog: weaponCatalog,
              ),
            )
            .toList() {
@@ -60,6 +64,7 @@ class WorldController extends ChangeNotifier {
   final List<RomHeroDefinition> _heroCatalog;
   final Map<int, CountryConfig>? _countryConfigs;
   final bool _aiEnabled;
+  final WeaponCatalog _weaponCatalog;
   bool _gameOverShown = false;
 
   /// 当前场景的城池与部队状态。
@@ -356,6 +361,7 @@ class WorldController extends ChangeNotifier {
       _heroCatalog,
       countryConfigs: _countryConfigs,
       aiEnabled: _aiEnabled,
+      weaponCatalog: _weaponCatalog,
     );
     time = 0;
     appearance = HeroAppearance.protagonist;
@@ -749,6 +755,27 @@ class WorldController extends ChangeNotifier {
   void retreatHero(String heroId) {
     final result = campaign.retreatHero(heroId);
     if (result == null) return;
+    message = campaign.lastEvent;
+    refreshUi();
+  }
+
+  /// 为驻城将领取用或购买一件武器，所有检查由战役统一执行。
+  void equipHeroWeapon(CampaignHero hero, int weaponId) {
+    if (!campaign.equipWeapon(hero, weaponId)) return;
+    message = campaign.lastEvent;
+    refreshUi();
+  }
+
+  /// 驻城将领把未使用的武器交回本国库存。
+  void returnHeroWeapon(CampaignHero hero, int slot) {
+    if (!campaign.unequipWeapon(hero, slot)) return;
+    message = campaign.lastEvent;
+    refreshUi();
+  }
+
+  /// 在当前交战中使用随身武器，切换观战不会复制或重新装备。
+  void useHeroWeapon(CampaignHero hero, int slot) {
+    if (!campaign.useWeapon(hero, slot)) return;
     message = campaign.lastEvent;
     refreshUi();
   }

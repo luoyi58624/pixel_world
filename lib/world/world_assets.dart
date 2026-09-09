@@ -8,6 +8,7 @@ import 'rom_hero.dart';
 import 'world_data.dart';
 import 'field_terrain.dart';
 import 'campaign_setup.dart';
+import 'weapon.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
 class WorldAssets {
@@ -24,6 +25,7 @@ class WorldAssets {
     this.battleSprites,
     this.battleScenes,
     this.fieldScenes,
+    this.weaponCatalog,
   );
 
   /// 三个场景的独立地图定义。
@@ -31,6 +33,9 @@ class WorldAssets {
 
   /// 从 ROM 提取的正式英雄静态目录。
   final List<RomHeroDefinition> heroCatalog;
+
+  /// 原版一次性武器目录与可调价格。
+  final WeaponCatalog weaponCatalog;
 
   /// 原版 8×8 国旗和特殊地点标记图集。
   final ui.Image flags;
@@ -258,6 +263,12 @@ class WorldAssets {
         for (var i = 0; i < FieldTerrain.values.length; i++)
           FieldTerrain.values[i]: fieldImages[i],
       },
+      WeaponCatalog.decode(
+        await rootBundle.loadString(
+          'assets/data/rom_weapons.json',
+          cache: false,
+        ),
+      ),
     );
   }
 

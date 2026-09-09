@@ -37,6 +37,8 @@ extension _CountryCashPlanning on CampaignState {
     CityDefinition? destination,
     int extraSalary = 0,
     double? horizon,
+    List<CampaignHero> raid = const [],
+    CityDefinition? raidTarget,
   }) {
     final owned = cities.values.where(
       (city) => city.ownerCountryId == countryId,
@@ -118,6 +120,33 @@ extension _CountryCashPlanning on CampaignState {
       ));
       outstanding += departing._supplyDue;
     }
+    if (raidTarget != null) {
+      final guards = math.max(
+        1,
+        math.min(
+          cities[raidTarget.id]!.level,
+          garrisonAt(raidTarget.id).length,
+        ),
+      );
+      for (var i = 0; i < raid.length; i++) {
+        final hero = raid[i];
+        final source = world.cities.firstWhere(
+          (city) => city.id == hero.cityId,
+        );
+        final travel = _aiTravelTo(
+          _departurePoint(source, cityBounds(raidTarget).center),
+          raidTarget,
+        );
+        final commitment =
+            travel + (i + 1) * guards * GameConfig.countryAiBattleBudgetSeconds;
+        duration = math.max(duration, commitment);
+        supplies.add((
+          rate: 1 / GameConfig.fieldSupplySecondsPerGold,
+          until: commitment,
+        ));
+        outstanding += hero._supplyDue;
+      }
+    }
     duration = horizon ?? duration;
     double costBetween(double from, double to) => supplies.fold(
       0.0,
@@ -156,11 +185,21 @@ extension _CountryCashPlanning on CampaignState {
     );
   }
 
-  double _aiTravelTo(Offset from, CityDefinition city) => estimateMarchSeconds(
-    world,
-    from,
-    _contactPoint(from, cityBounds(city).center, city),
-  );
+  double _aiTravelTo(Offset from, CityDefinition city) {
+    final key = (from, city.id, cities[city.id]!.level);
+    final cached = _aiTravelCache[key];
+    if (cached != null) return cached;
+    final seconds = estimateMarchSeconds(
+      world,
+      from,
+      _contactPoint(from, cityBounds(city).center, city),
+    );
+    if (_aiTravelCache.length >= GameConfig.aiTravelCacheSize) {
+      _aiTravelCache.remove(_aiTravelCache.keys.first);
+    }
+    _aiRouteEstimates++;
+    return _aiTravelCache[key] = seconds;
+  }
 
   double _aiSiegeSeconds(CityDefinition city, {HeroMarch? march}) {
     final ahead = marches.values
@@ -176,7 +215,13 @@ extension _CountryCashPlanning on CampaignState {
         )
         .length;
     return (1 + ahead) *
-        cities[city.id]!.level *
+        math.max(
+          1,
+          math.min(
+            cities[city.id]!.level,
+            garrisonAt(city.id).where((hero) => hero.health.alive).length,
+          ),
+        ) *
         GameConfig.countryAiBattleBudgetSeconds;
   }
 

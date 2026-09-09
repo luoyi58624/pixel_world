@@ -9,6 +9,7 @@ import 'package:pixel_world/world/campaign_setup.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_movement.dart';
+import 'package:pixel_world/world/weapon.dart';
 
 class _Poor implements math.Random {
   int calls = 0;
@@ -125,6 +126,9 @@ void main() {
       final c = CampaignState.fromRom(
         world,
         heroes,
+        weaponCatalog: WeaponCatalog.decode(
+          File('assets/data/rom_weapons.json').readAsStringSync(),
+        ),
         economyRandom: math.Random(17),
         aiRandom: math.Random(7),
         retreatRandom: math.Random(31),
@@ -249,8 +253,8 @@ void main() {
   test('先保护既有远征，连续经营经过欠收月结仍有粮草，资金充足也确实派兵', () {
     final c = _campaign(salary: 2);
     c.advance(8);
-    expect(c.marches.length, 2);
-    expect(c.garrisonAt(1).length, 1);
+    expect(c.marches.length, 1);
+    expect(c.garrisonAt(1).length, 2);
     for (var second = 0; second < 60; second++) {
       c.advance(1);
       expect(
@@ -273,9 +277,15 @@ void main() {
       gold: 50,
       stock: 0,
       recruitment: true,
-      hireSalary: 30,
+      hireSalary: 60,
+      level: 3,
     );
-    final cheap = _campaign(gold: 50, stock: 0, recruitment: true);
+    final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 3);
+    for (final c in [expensive, cheap]) {
+      final march = c.dispatch(_hero(c, 40), c.world.cities[1])!;
+      march.position =
+          c.cityBounds(c.world.cities[1]).center + const Offset(140, 0);
+    }
     final count = expensive.heroes.length;
     expensive.advance(13);
     cheap.advance(13);

@@ -9,6 +9,7 @@ import 'hero_sprite.dart';
 import 'world_assets.dart';
 import 'world_controller.dart';
 import 'campaign.dart';
+import '../game_config.dart';
 
 /// 直接使用原 ROM 战斗图集，并缓存当前缩放下的动作帧。
 class BattleArt {
@@ -164,6 +165,63 @@ class BattlePainter extends CustomPainter {
         Rect.fromLTWH(0, 0, imageSize, imageSize),
         Paint()..filterQuality = FilterQuality.none,
       );
+      canvas.restore();
+    }
+    final strike = sim.weaponStrike;
+    if (strike != null) {
+      canvas.save();
+      canvas.translate(origin.dx, origin.dy);
+      canvas.scale(camera.scale);
+      final progress =
+          ((sim.elapsed - strike.startedAt) / GameConfig.weaponImpactSeconds)
+              .clamp(0.0, 1.0);
+      final from = strike.attackingSide
+          ? sim.formations[BattleSide.attacker]!.frontX
+          : sim.formations[BattleSide.defender]!.frontX;
+      final to = strike.attackingSide
+          ? sim.formations[BattleSide.defender]!.frontX
+          : sim.formations[BattleSide.attacker]!.frontX;
+      final x = (from + (to - from) * progress).roundToDouble();
+      final paint = Paint()
+        ..color = const Color(0xffffdc70)
+        ..isAntiAlias = false;
+      for (var row = 0; row < 4; row++) {
+        final y = 48.0 + row * 24;
+        if (!strike.applied) {
+          canvas.drawRect(
+            Rect.fromCenter(center: Offset(x, y), width: 12, height: 2),
+            paint,
+          );
+          canvas.drawRect(
+            Rect.fromCenter(
+              center: Offset(x + (strike.attackingSide ? -6 : 6), y),
+              width: 3,
+              height: 6,
+            ),
+            paint,
+          );
+        } else {
+          final spread =
+              4 +
+              ((sim.elapsed -
+                          strike.startedAt -
+                          GameConfig.weaponImpactSeconds) *
+                      16)
+                  .roundToDouble();
+          for (final d in [
+            Offset(spread, 0),
+            Offset(-spread, 0),
+            Offset(0, spread),
+            Offset(0, -spread),
+          ]) {
+            canvas.drawRect(
+              Rect.fromCenter(center: Offset(to, y) + d, width: 3, height: 3),
+              paint,
+            );
+          }
+        }
+      }
+      _text(canvas, strike.weapon.name, const Offset(16, 12), 9, width: 180);
       canvas.restore();
     }
     canvas.restore();

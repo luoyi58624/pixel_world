@@ -9,6 +9,7 @@ import '../world/world_controller.dart';
 import 'country_flag.dart';
 import 'city_services.dart';
 import 'city_panel_style.dart';
+import 'weapon_loadout.dart';
 import 'hero_dismiss_button.dart';
 
 const _ink = Color(0xff141b17);
@@ -232,6 +233,7 @@ class CityPanel extends StatelessWidget {
             ('内政', '${hero.politics}'),
             ('月俸', '${hero.salary}'),
           ], columns: 3),
+          WeaponLoadout(controller: c, hero: hero, onAction: onAction),
           if (hero.isPlayer && !c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),

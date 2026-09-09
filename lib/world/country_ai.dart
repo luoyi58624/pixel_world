@@ -4,74 +4,20 @@ part of 'campaign.dart';
 extension _CountryAutonomy on CampaignState {
   bool _runCountryDecisions() {
     if (defeated) return false;
-    var changed = _manageAiFieldArmies();
-    // 每轮打乱城池次序，避免共享英雄池总被编号较小的国家先抽空。
-    final order =
-        world.cities.where((city) => !cities[city.id]!.isPlayer).toList()
-          ..shuffle(_aiRandom);
-    for (final city in order) {
-      final state = cities[city.id]!;
-      final countryId = state.ownerCountryId;
-      if (battles[city.id]?.isActive == true) continue;
-      changed = _sendAiArmies(city, countryId) || changed;
-      final pending = recruitmentOfferFor(countryId);
-      if (pending != null) {
-        // 热重载时兼容旧版本遗留的待签约结果，钱不够便释放锁定。
-        final available = _planAiBudget(
-          countryId,
-          extraSalary: salaryFor(pending.hero),
-        ).spendableGold;
-        if (pending.signingFee > available ||
-            signHero(pending, countryId: countryId) == null) {
-          declineHero(pending, countryId: countryId);
-        }
-        changed = true;
-      }
-      if (recruitmentOfferFor(countryId) == null) {
-        changed = _supplyAiCity(city.id, countryId) || changed;
-        final signingBudget = _heroPool.isEmpty
-            ? 0
-            : _heroPool.values.map(_signingFee).reduce(math.max);
-        final salaryBudget = _heroPool.isEmpty
-            ? 0
-            : _heroPool.values.map(salaryFor).reduce(math.max);
-        final offer =
-            _planAiBudget(countryId, extraSalary: salaryBudget).spendableGold >=
-                GameConfig.heroDrawCost + signingBudget
-            ? drawHero(city.id, countryId: countryId)
-            : null;
-        if (offer != null) {
-          changed = true;
-          changed = _supplyAiCity(city.id, countryId) || changed;
-        }
-        final governors =
-            garrisonAt(city.id)
-                .where(
-                  (hero) =>
-                      upgradeCostFor(city.id, hero, countryId: countryId) !=
-                      null,
-                )
-                .toList()
-              ..sort((a, b) => b.politics.compareTo(a.politics));
-        if (recruitmentOfferFor(countryId) == null &&
-            governors.isNotEmpty &&
-            _planAiBudget(countryId).spendableGold >=
-                upgradeCostFor(
-                  city.id,
-                  governors.first,
-                  countryId: countryId,
-                )!) {
-          changed =
-              upgradeCity(
-                city.id,
-                hero: governors.first,
-                countryId: countryId,
-              ) ||
-              changed;
-        }
-      }
-      changed = _sendAiArmies(city, countryId) || changed;
-    }
+    final countries =
+        cities.values
+            .map((city) => city.ownerCountryId)
+            .where((id) => id != 0)
+            .toSet()
+            .toList()
+          ..sort();
+    if (countries.isEmpty) return false;
+    final countryId = countries[_aiCountryCursor++ % countries.length];
+    _aiStrategicDecisions++;
+    // 将各国五秒一次的决策错开，只在本次轮到的国家内重建战略快照。
+    var changed = _manageAiFieldArmies(countryId);
+    changed =
+        _decideCountry(countryId, _AiSnapshot(this, countryId)) || changed;
     return changed;
   }
 
@@ -97,43 +43,10 @@ extension _CountryAutonomy on CampaignState {
     return reserves > 0 && buySoldiers(cityId, reserves, countryId: countryId);
   }
 
-  bool _sendAiArmies(CityDefinition source, int countryId) {
-    var changed = false;
-    final keep = cities[source.id]!.requiredGarrison;
-    while (garrisonAt(source.id).where((hero) => hero.health.alive).length >
-        keep) {
-      final candidates =
-          garrisonAt(source.id)
-              .where(
-                (hero) =>
-                    canDispatch(hero, countryId: countryId) &&
-                    hero.soldiers +
-                            reinforcementCount(hero, countryId: countryId) >=
-                        math.min(
-                          hero.squad.length,
-                          GameConfig.countryAiMinimumSoldiers,
-                        ),
-              )
-              .toList()
-            ..sort(_compareAiStrength);
-      if (candidates.isEmpty) break;
-      final hero = candidates.first;
-      final targets = _fundedAiTargets(hero);
-      if (targets.isEmpty) break;
-      final target = _chooseAiTarget(hero, targets);
-      if (dispatch(hero, target, countryId: countryId) == null) break;
-      _record(
-        '${world.countryName(countryId)}国派出${hero.name}进攻${cityName(target.id)}',
-      );
-      changed = true;
-    }
-    return changed;
-  }
-
   List<CityDefinition> _fundedAiTargets(
     CampaignHero hero, {
     HeroMarch? march,
-  }) => world.cities
+  }) => _targetShortlist(hero, from: march?.position)
       .where(
         (city) =>
             cities[city.id]!.ownerCountryId != hero.countryId &&
@@ -174,7 +87,8 @@ extension _CountryAutonomy on CampaignState {
                       ) /
                       GameConfig.countryAiTargetTravelScale,
               GameConfig.countryAiTargetDistancePower,
-            ),
+            ) /
+            (1 + _targetDifficulty(target) / 40),
     ];
     var roll =
         _aiRandom.nextDouble() *
@@ -187,11 +101,12 @@ extension _CountryAutonomy on CampaignState {
   }
 
   // 先逐队核算旧部队，不能一有收入就让所有营地同时恢复全速耗粮。
-  bool _manageAiFieldArmies() {
+  bool _manageAiFieldArmies(int planningCountryId) {
     var changed = false;
     for (final march in marches.values.toList()) {
       final countryId = march.hero.countryId;
-      if (march.hero.isPlayer ||
+      if (countryId != planningCountryId ||
+          march.hero.isPlayer ||
           march.returningFromRetreat ||
           !march.hero.health.alive ||
           goldFor(countryId) == 0 ||
@@ -214,17 +129,7 @@ extension _CountryAutonomy on CampaignState {
           changed = true;
         }
       } else if (march.supplyHalted && march.phase == MarchPhase.camped) {
-        final targets = _fundedAiTargets(march.hero, march: march);
-        if (targets.isEmpty) {
-          changed = _returnAiArmy(march) || changed;
-          continue;
-        }
-        final target = _chooseAiTarget(march.hero, targets, march: march);
-        march.moveTo(
-          _contactPoint(march.position, cityBounds(target).center, target),
-          city: target,
-        );
-        changed = true;
+        changed = _returnAiArmy(march) || changed;
       }
     }
     return changed;
@@ -266,6 +171,10 @@ extension _CountryAutonomy on CampaignState {
 
   // “最厉害”按战斗属性优先，同值按生命上限、当前生命及原版编号稳定排序。
   int _compareAiStrength(CampaignHero a, CampaignHero b) {
+    if (a.type != b.type) {
+      if (a.type == HeroType.advanced) return -1;
+      if (b.type == HeroType.advanced) return 1;
+    }
     final combat = b.combat.compareTo(a.combat);
     if (combat != 0) return combat;
     final maximum = b.maxHp.compareTo(a.maxHp);
