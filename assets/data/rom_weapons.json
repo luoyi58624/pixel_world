@@ -25,7 +25,8 @@
         "price": 98489,
         "packedEffect": 98504,
         "damage": 92534
-      }
+      },
+      "animationFrames": 118
     },
     {
       "id": 1,
@@ -49,7 +50,8 @@
         "price": 98490,
         "packedEffect": 98505,
         "damage": 92535
-      }
+      },
+      "animationFrames": 209
     },
     {
       "id": 2,
@@ -76,7 +78,8 @@
         "price": 98491,
         "packedEffect": 98506,
         "damage": 92536
-      }
+      },
+      "animationFrames": 90
     },
     {
       "id": 3,
@@ -104,7 +107,8 @@
         "price": 98492,
         "packedEffect": 98507,
         "damage": 92537
-      }
+      },
+      "animationFrames": 98
     },
     {
       "id": 4,
@@ -132,7 +136,8 @@
         "price": 98493,
         "packedEffect": 98508,
         "damage": 92538
-      }
+      },
+      "animationFrames": 132
     },
     {
       "id": 5,
@@ -159,7 +164,8 @@
         "price": 98494,
         "packedEffect": 98509,
         "damage": 92539
-      }
+      },
+      "animationFrames": 79
     },
     {
       "id": 6,
@@ -185,7 +191,8 @@
         "price": 98495,
         "packedEffect": 98510,
         "damage": 92540
-      }
+      },
+      "animationFrames": 142
     },
     {
       "id": 7,
@@ -212,7 +219,8 @@
         "price": 98496,
         "packedEffect": 98511,
         "damage": 92541
-      }
+      },
+      "animationFrames": 219
     },
     {
       "id": 8,
@@ -241,7 +249,8 @@
         "price": 98497,
         "packedEffect": 98512,
         "damage": 92542
-      }
+      },
+      "animationFrames": 118
     },
     {
       "id": 9,
@@ -267,7 +276,8 @@
         "price": 98498,
         "packedEffect": 98513,
         "damage": 92543
-      }
+      },
+      "animationFrames": 177
     },
     {
       "id": 10,
@@ -293,7 +303,8 @@
         "price": 98499,
         "packedEffect": 98514,
         "damage": 92544
-      }
+      },
+      "animationFrames": 253
     },
     {
       "id": 11,
@@ -320,7 +331,8 @@
         "price": 98500,
         "packedEffect": 98515,
         "damage": 92545
-      }
+      },
+      "animationFrames": 211
     },
     {
       "id": 12,
@@ -347,7 +359,8 @@
         "price": 98501,
         "packedEffect": 98516,
         "damage": 92546
-      }
+      },
+      "animationFrames": 227
     },
     {
       "id": 13,
@@ -374,7 +387,8 @@
         "price": 98502,
         "packedEffect": 98517,
         "damage": 92547
-      }
+      },
+      "animationFrames": 106
     },
     {
       "id": 14,
@@ -401,7 +415,8 @@
         "price": 98503,
         "packedEffect": 98518,
         "damage": 92548
-      }
+      },
+      "animationFrames": 195
     }
   ],
   "initialCountryStock": {},

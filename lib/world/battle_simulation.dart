@@ -387,11 +387,29 @@ class BattleSimulation {
   /// 锁定一个武器动作，保留原版直接伤害及死枪反噬。
   bool useWeapon(BattleSide side, WeaponDefinition weapon) {
     if (!canUseWeaponFor(side)) return false;
+    _kernel.ram[0x0d] = 0;
     _weaponStrike = WeaponStrike(
       weapon,
       attackingSide: side == BattleSide.attacker,
       startedAt: elapsed,
+      visibleActors: [
+        for (var actor = 0; actor < 10; actor++)
+          if (_kernel.ram[0x570 +
+                      (side == BattleSide.attacker
+                          ? actor
+                          : (actor + 5) % 10)] &
+                  128 !=
+              0)
+            1 << actor,
+      ].fold<int>(0, (a, b) => a | b),
     );
+    if (_kernel.ram[0x81] == 200 &&
+        _kernel.ram[0x83] == 16 &&
+        !_kernel.falling) {
+      _kernel.advanceWithdrawal([200, 16]);
+      _syncMotion(_kernel.wallHits);
+      _weaponStrike!.frame = 0;
+    }
     stage = BattleStage.weapon;
     for (final formation in formations.values) {
       formation.moving = false;
@@ -514,8 +532,25 @@ class BattleSimulation {
       _ticks++;
       if (_weaponStrike != null) {
         final strike = _weaponStrike!;
-        final age = elapsed - strike.startedAt;
-        if (!strike.applied && age + 1e-9 >= GameConfig.weaponImpactSeconds) {
+        if (strike.frame < 0) {
+          // 原 E690 在切札前把双方每帧退一像素回阵位，已有阵亡动作继续完成。
+          final next = [
+            for (var side = 0; side < 2; side++)
+              _kernel.ram[0x81 + side * 2] +
+                  (NesBattleKernel.initialFormationX[side] -
+                          _kernel.ram[0x81 + side * 2])
+                      .sign,
+          ];
+          _kernel.advanceWithdrawal(next);
+          _syncMotion(_kernel.wallHits);
+          if (next[0] == 200 && next[1] == 16 && !_kernel.falling) {
+            strike.frame = 0;
+          }
+          changed = changed || _ticks % 6 == 0;
+          continue;
+        }
+        strike.frame++;
+        if (!strike.applied && strike.frame >= strike.weapon.animationFrames) {
           strike.applied = true;
           _kernel.applyWeaponDamage(
             strike.attackingSide ? 1 : 0,
@@ -528,9 +563,6 @@ class BattleSimulation {
             );
           }
           _syncHealth();
-          changed = true;
-        }
-        if (age + 1e-9 >= GameConfig.weaponAnimationSeconds) {
           _weaponStrike = null;
           stage = _kernel.generalsAlive
               ? BattleStage.fighting

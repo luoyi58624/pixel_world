@@ -32,6 +32,7 @@ CampaignState weaponStrategyCampaign({
   bool recruitment = false,
   bool fortifiedCapital = false,
   WeaponCatalog? catalog,
+  math.Random? weaponRandom,
 }) {
   final records = [
     (0, 75, 42, 0, 5, [40]),
@@ -80,6 +81,7 @@ CampaignState weaponStrategyCampaign({
         .where((h) => recruitment || ids.contains(h.id))
         .toList(),
     weaponCatalog: catalog ?? testWeaponCatalog(),
+    weaponRandom: weaponRandom,
     aiEnabled: ai,
     countryConfigs: {
       0: const CountryConfig(initialGold: 1000),

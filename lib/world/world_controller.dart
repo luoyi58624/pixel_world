@@ -834,13 +834,6 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 在当前交战中使用随身武器，切换观战不会复制或重新装备。
-  void useHeroWeapon(CampaignHero hero, int slot) {
-    if (!campaign.useWeapon(hero, slot)) return;
-    message = campaign.lastEvent;
-    refreshUi();
-  }
-
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(WorldBattle battle) {
     if (campaign.defeated) return;

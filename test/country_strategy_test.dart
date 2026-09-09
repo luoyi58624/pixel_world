@@ -165,7 +165,9 @@ void main() {
     expect(battle.simulation.weaponStrike, isNotNull);
     expect(hero.weaponIds.length, 2);
     expect(battle.simulation.retreat, isNull);
-    c.advance(.6);
+    while (battle.simulation.weaponStrike != null) {
+      c.advance(1 / 60);
+    }
     expect(battle.defender.squad.fold<double>(0, (n, s) => n + s.hp), 55);
   });
 

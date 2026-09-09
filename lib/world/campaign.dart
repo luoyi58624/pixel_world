@@ -377,7 +377,9 @@ abstract class WorldBattle {
   String? outcome;
   bool _settled = false;
   int _lastAiRetreatClash = 0;
-  double _nextAiWeaponDecision = 0;
+  final Set<String> _weaponOpeningDone = {};
+  final Set<String> _pendingWeapons = {};
+  int _lastWeaponClash = 0;
 
   /// 战斗记录，用于显示过程与结果。
   final List<String> events = [];
@@ -469,7 +471,9 @@ class CityBattle extends WorldBattle {
     nextWaveIn = 0;
     _settled = false;
     _lastAiRetreatClash = 0;
-    _nextAiWeaponDecision = 0;
+    _weaponOpeningDone.clear();
+    _pendingWeapons.clear();
+    _lastWeaponClash = 0;
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
@@ -520,6 +524,7 @@ class CampaignState {
     this._aiRandom,
     this._siegeRandom,
     this._retreatRandom,
+    this._weaponRandom,
     this.aiEnabled,
     this.countryConfigs,
     this.weaponCatalog,
@@ -536,6 +541,7 @@ class CampaignState {
   final math.Random _aiRandom;
   final math.Random _siegeRandom;
   final math.Random _retreatRandom;
+  final math.Random _weaponRandom;
   // 成功脱战的双方在拉开接触距离前不重复开打，其他敌军仍可拦截。
   final Set<(String, String)> _retreatSeparations = {};
   int _siegeArrivalSerial = 0;
@@ -588,6 +594,7 @@ class CampaignState {
     math.Random? aiRandom,
     math.Random? siegeRandom,
     math.Random? retreatRandom,
+    math.Random? weaponRandom,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
     final home = world.cities.first.id;
@@ -647,6 +654,7 @@ class CampaignState {
       aiRandom ?? math.Random(),
       siegeRandom ?? math.Random(),
       retreatRandom ?? math.Random(),
+      weaponRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
       weaponCatalog,
@@ -1735,7 +1743,7 @@ class CampaignState {
       if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
       if (!battle.isActive) continue;
-      if (!closingOnly && aiEnabled) changed = _tryAiWeapon(battle) || changed;
+      if (!closingOnly) changed = _tryAutomaticWeapons(battle) || changed;
       if (!closingOnly && aiEnabled) changed = _tryAiRetreat(battle) || changed;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;

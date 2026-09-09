@@ -9,6 +9,13 @@ class WeaponDefinition {
       price = _number(data, 'price', 0, 9999),
       damage = _number(data, 'damage', 1, 255),
       selfDamage = _number(data, 'selfDamage', 0, 255),
+      effectId = _number({'effectId': data['id'], ...data}, 'effectId', 0, 14),
+      animationFrames = _number(
+        {'animationFrames': 60, ...data},
+        'animationFrames',
+        1,
+        3000,
+      ),
       minimumCities = _number(data, 'minimumCities', 1, 16),
       shopEnabled = data['shopEnabled'] as bool {
     if (name.trim().isEmpty) throw const FormatException('武器名称不能为空');
@@ -28,6 +35,12 @@ class WeaponDefinition {
 
   /// 使用后对己方整队造成的反噬，死枪原值为 255。
   final int selfDamage;
+
+  /// 对应原 ROM 的动画脚本编号。
+  final int effectId;
+
+  /// 原动画从开始到结算伤害的帧数，不含回到阵位的准备动作。
+  final int animationFrames;
 
   /// 商店解锁所需的本国城池数。
   final int minimumCities;
@@ -117,6 +130,7 @@ class WeaponStrike {
     this.weapon, {
     required this.attackingSide,
     required this.startedAt,
+    required this.visibleActors,
   });
 
   /// 实际使用的武器定义。
@@ -127,6 +141,12 @@ class WeaponStrike {
 
   /// 战斗时钟中的开始秒数。
   final double startedAt;
+
+  /// 开始演出时的存活槽位，避免原脚本把已经阵亡的小兵画回来。
+  final int visibleActors;
+
+  /// -1 表示双方正在退回阵位，非负值对应原动画时间线。
+  int frame = -1;
 
   /// 是否已经结算，防止跨帧重复伤害。
   bool applied = false;

@@ -90,8 +90,8 @@ def main():
         previous=json.loads(out.read_text(encoding='utf8'))
         old={w['id']:w for w in previous['weapons']}
         for weapon in catalog['weapons']:
-            for key in ['price','damage','selfDamage','minimumCities','shopEnabled']:
-                if weapon['id'] in old: weapon[key]=old[weapon['id']][key]
+            for key in ['price','damage','selfDamage','minimumCities','shopEnabled','animationFrames']:
+                if weapon['id'] in old and key in old[weapon['id']]: weapon[key]=old[weapon['id']][key]
         catalog['initialCountryStock']=previous.get('initialCountryStock',{})
     out.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     Path('docs/nes_weapons_evidence.json').write_text(json.dumps(

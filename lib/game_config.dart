@@ -111,14 +111,8 @@ abstract final class GameConfig {
   /// 生命严格低于四分之一且胜算渺茫时，高级电脑将领才考虑撤退。
   static const aiRetreatHealthRatio = 0.25;
 
-  /// 武器演出的总时长与命中时刻；仅当前战斗短暂停下普通碰撞。
-  static const weaponAnimationSeconds = 1.0;
-
-  /// 动作开始后命中所需秒数。
-  static const weaponImpactSeconds = 0.55;
-
-  /// 电脑武器决策的最短间隔，不逐帧遍历背包。
-  static const aiWeaponDecisionSeconds = 0.5;
+  /// 每次双方碰撞拼杀结束后，独立判定使用下一件武器的概率。
+  static const weaponChanceAfterClash = 0.5;
 
   /// 已接近本国城池的敌军警戒距离，单位为地图原生像素。
   static const aiThreatDistance = 320.0;

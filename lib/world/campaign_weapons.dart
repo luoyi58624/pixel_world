@@ -118,6 +118,47 @@ extension CampaignWeapons on CampaignState {
     return true;
   }
 
+  // 玩家和电脑共用事件驱动判定；只在开场及新的碰撞之后检查，绝不逐帧掷骰。
+  bool _tryAutomaticWeapons(WorldBattle battle) {
+    final sim = battle.simulation;
+    if (!sim.canUseWeapon) return false;
+    if (battle._weaponOpeningDone.length == (battle is FieldBattle ? 2 : 1) &&
+        battle._lastWeaponClash == sim.clashes &&
+        battle._pendingWeapons.isEmpty) {
+      return false;
+    }
+    final armies = [
+      battle.attacker,
+      if (battle is FieldBattle) battle.defender,
+    ];
+    final opening = <String>{};
+    for (final hero in armies) {
+      if (battle._weaponOpeningDone.add(hero.id)) {
+        opening.add(hero.id);
+        if (hero.weaponIds.isNotEmpty) battle._pendingWeapons.add(hero.id);
+      }
+    }
+    if (sim.clashes > battle._lastWeaponClash) {
+      battle._lastWeaponClash = sim.clashes;
+      for (final hero in armies) {
+        if (!opening.contains(hero.id) &&
+            hero.weaponIds.isNotEmpty &&
+            _weaponRandom.nextDouble() < GameConfig.weaponChanceAfterClash) {
+          battle._pendingWeapons.add(hero.id);
+        }
+      }
+    }
+    for (final hero in armies) {
+      if (battle._pendingWeapons.contains(hero.id) &&
+          hero.weaponIds.isNotEmpty &&
+          useWeapon(hero, 0, countryId: hero.countryId)) {
+        battle._pendingWeapons.remove(hero.id);
+        return true;
+      }
+    }
+    return false;
+  }
+
   void _returnWeapons(CampaignHero hero) {
     final stock = _weaponStock.putIfAbsent(hero.countryId, () => {});
     for (final id in hero._weaponIds) {

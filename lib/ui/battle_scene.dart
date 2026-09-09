@@ -44,19 +44,12 @@ class _BattleSceneState extends State<BattleScene> {
   Offset _anchor = Offset.zero;
   double _scale = 1;
   bool _gestureScaled = false;
-  bool _hasWeaponBar = false;
 
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
     final battle = c.watchedBattle!;
     final sim = battle.simulation;
-    final playerHero = battle.attacker.isPlayer
-        ? battle.attacker
-        : battle is FieldBattle && battle.defender.isPlayer
-        ? battle.defender
-        : null;
-    _hasWeaponBar = _hasWeaponBar || playerHero?.weaponIds.isNotEmpty == true;
     final retreatHero = battle.attacker.isPlayer
         ? battle.attacker
         : battle is FieldBattle && battle.defender.isPlayer
@@ -76,6 +69,8 @@ class _BattleSceneState extends State<BattleScene> {
             sim.retreatMessage ??
             (battle is CityBattle && battle.nextWaveIn > 0
                 ? '${battle.defender.name}战败 · 下一位守将即将入场'
+                : sim.weaponStrike != null
+                ? '${sim.weaponStrike!.attackingSide ? battle.attacker.name : battle.defender.name}使用${sim.weaponStrike!.weapon.name}'
                 : sim.endingMessage != null
                 ? sim.endingMessage!
                 : sim.stage == BattleStage.victory
@@ -99,7 +94,7 @@ class _BattleSceneState extends State<BattleScene> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${battle.locationLabel} · 观战',
+                        '${battle.locationLabel} · ${sim.weaponStrike == null ? '观战' : '自动使用${sim.weaponStrike!.weapon.name}'}',
                         style: TextStyle(
                           color: _cream,
                           fontSize: tight ? 13 : 16,
@@ -158,6 +153,7 @@ class _BattleSceneState extends State<BattleScene> {
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapUp: (details) {
+                                  if (sim.weaponStrike != null) return;
                                   final point = camera.toWorld(
                                     details.localPosition,
                                   );
@@ -290,55 +286,6 @@ class _BattleSceneState extends State<BattleScene> {
                     '$status。${battle.defender.name} HP ${battle.defender.hp}，${battle.attacker.name} HP ${battle.attacker.hp}',
                 child: const SizedBox.shrink(),
               ),
-              if (_hasWeaponBar && playerHero != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  child: SizedBox(
-                    height: 40,
-                    child: Row(
-                      key: const ValueKey('battle-weapons'),
-                      children: [
-                        if (playerHero.weaponIds.isEmpty)
-                          const Expanded(
-                            child: Text(
-                              '无可用武器',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: _gold, fontSize: 12),
-                            ),
-                          ),
-                        for (
-                          var slot = 0;
-                          slot < playerHero.weaponIds.length;
-                          slot++
-                        ) ...[
-                          if (slot > 0) const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              key: ValueKey('battle-weapon-$slot'),
-                              onPressed:
-                                  c.campaign.canUseWeapon(playerHero, slot)
-                                  ? () => widget.onAction(
-                                      () => c.useHeroWeapon(playerHero, slot),
-                                    )
-                                  : null,
-                              child: Text(
-                                c
-                                    .campaign
-                                    .weaponCatalog
-                                    .weapons[playerHero.weaponIds[slot]]!
-                                    .name,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
               if (sim.retreatMessage != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(

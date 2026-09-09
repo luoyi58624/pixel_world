@@ -9,6 +9,7 @@ import 'world_data.dart';
 import 'field_terrain.dart';
 import 'campaign_setup.dart';
 import 'weapon.dart';
+import 'weapon_animation.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
 class WorldAssets {
@@ -26,6 +27,7 @@ class WorldAssets {
     this.battleScenes,
     this.fieldScenes,
     this.weaponCatalog,
+    this.weaponAnimations,
   );
 
   /// 三个场景的独立地图定义。
@@ -36,6 +38,9 @@ class WorldAssets {
 
   /// 原版一次性武器目录与可调价格。
   final WeaponCatalog weaponCatalog;
+
+  /// 从原动画脚本离线提取的逐帧精灵数据。
+  final WeaponAnimations weaponAnimations;
 
   /// 原版 8×8 国旗和特殊地点标记图集。
   final ui.Image flags;
@@ -183,6 +188,7 @@ class WorldAssets {
         'battle/stage_5',
         'battle/hero_names',
         'battle/result_labels',
+        'battle/weapon_effects',
       ].map(_image),
     );
     for (final hero in [
@@ -253,6 +259,7 @@ class WorldAssets {
         HeroAppearance.protagonist: textures[8],
       }),
       {
+        'weapon_effects': textures[24],
         'hero_names': textures[22],
         'result_labels': textures[23],
         for (var n = 0; n < battleNames.length; n++)
@@ -267,6 +274,15 @@ class WorldAssets {
         await rootBundle.loadString(
           'assets/data/rom_weapons.json',
           cache: false,
+        ),
+      ),
+      WeaponAnimations.decode(
+        await rootBundle.loadString(
+          'assets/data/weapon_animations.json',
+          cache: false,
+        ),
+        Uint8List.sublistView(
+          await rootBundle.load('assets/data/weapon_animations.bin'),
         ),
       ),
     );

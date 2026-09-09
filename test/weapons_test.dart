@@ -56,7 +56,10 @@ void main() {
         expect(sim.useWeapon(side, w), isTrue);
         expect(sim.useWeapon(side, w), isFalse);
         expect(sim.canRetreat, isFalse);
-        sim.advance(GameConfig.weaponImpactSeconds - .02);
+        while (sim.weaponStrike!.frame < 0) {
+          sim.advance(1 / 60);
+        }
+        sim.advance(w.animationFrames / 60 - .02);
         expect(target.general.hp, 95);
         sim.advance(.02);
         final pool = target.soldiers.fold<double>(0, (n, s) => n + s.hp);
@@ -176,11 +179,13 @@ void main() {
     expect(c.useWeapon(hero, 0, countryId: 1), isFalse);
     c.advance(2.8);
     final battle = c.battles[2]!;
-    expect(c.useWeapon(hero, 0, countryId: 1), isTrue);
+    expect(battle.simulation.weaponStrike, isNotNull);
     expect(c.useWeapon(hero, 0, countryId: 1), isFalse);
     expect(c.useWeapon(hero, 0), isFalse);
     final before = battle.defender.squad.fold<double>(0, (n, s) => n + s.hp);
-    c.advance(.6);
+    while (battle.simulation.weaponStrike != null) {
+      c.advance(1 / 60);
+    }
     expect(
       battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
       before - 20,

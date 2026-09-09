@@ -13,6 +13,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
   addTearDown(tester.view.resetDevicePixelRatio);
   rootBundle.evict('assets/maps/worlds.json');
   rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/weapon_animations.json');
   await tester.pumpWidget(const PixelWorldApp());
   final canvas = find.byKey(const ValueKey('world-canvas'));
   for (var i = 0; i < 200 && canvas.evaluate().isEmpty; i++) {
@@ -21,6 +22,14 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
     );
     await tester.pump();
   }
+  expect(
+    canvas,
+    findsOneWidget,
+    reason: tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.data)
+        .join(' | '),
+  );
   final painter = tester.widget<CustomPaint>(canvas).painter! as WorldPainter;
   final c = painter.controller;
   c.campaigns[0] = CampaignState.fromRom(
@@ -126,14 +135,8 @@ void main() {
       final battle = c.campaign.battles[1]!;
       c.watchBattle(battle);
       await tester.pump();
-      expect(
-        tester
-            .widget<OutlinedButton>(
-              find.byKey(const ValueKey('battle-weapon-0')),
-            )
-            .onPressed,
-        isNull,
-      );
+      expect(find.byKey(const ValueKey('battle-weapons')), findsNothing);
+      expect(find.byKey(const ValueKey('battle-weapon-0')), findsNothing);
       final other = c.campaign.garrisonAt(0).first;
       final walking = c.campaign.dispatchTo(
         other,
@@ -143,9 +146,11 @@ void main() {
       await tester.pump();
       final before = walking.position;
       final pool = battle.defender.squad.fold<double>(0, (n, s) => n + s.hp);
-      await _tap(tester, 'battle-weapon-0');
+      expect(battle.simulation.weaponStrike, isNotNull);
       expect(hero.weaponIds.length, 2);
-      c.tick(.6);
+      while (battle.simulation.weaponStrike != null) {
+        c.tick(1 / 60);
+      }
       await tester.pump();
       expect(walking.position, isNot(before));
       expect(
