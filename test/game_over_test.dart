@@ -218,7 +218,7 @@ void main() {
       expect(c.campaign.defeated, isFalse);
       expect(c.campaign.gold, 50);
       expect(c.campaign.cities[0]!.isPlayer, isTrue);
-      expect(c.previewHero!.hp, 99);
+      expect(c.campaign.garrisonAt(0).first.hp, 99);
       expect(c.campaign.battles, isEmpty);
       expect(c.campaign.marches, isEmpty);
       expect(tester.takeException(), isNull);

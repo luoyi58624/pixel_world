@@ -98,17 +98,6 @@ class WorldPainter extends CustomPainter {
     }
 
     canvas.restore();
-    if (!c.campaign.hasDispatched) {
-      _drawHero(
-        canvas,
-        size,
-        c.heroPosition,
-        c.direction,
-        c.appearance,
-        c.animationStep,
-        friendly: true,
-      );
-    }
     {
       final marches = c.campaign.marches.values.toList()
         ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
@@ -339,7 +328,6 @@ class MinimapPainter extends CustomPainter {
       );
     }
     final positions = [
-      if (!c.campaign.hasDispatched) c.heroPosition,
       ...c.campaign.marches.values.map((march) => march.position),
     ];
     for (final position in positions) {

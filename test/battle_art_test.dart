@@ -14,7 +14,10 @@ void main() {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
-      final march = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
+      final march = c.campaign.dispatch(
+        c.campaign.garrisonAt(0).first,
+        c.world.cities[1],
+      )!;
       march.position = march.destination;
       c.tick(0.02);
       final battle = c.campaign.battles[1]!;

@@ -134,7 +134,7 @@ void main() {
       c.campaign.marches.values.any((march) => !march.hero.isPlayer),
       isTrue,
     );
-    expect(c.previewHero, isNotNull);
+    expect(c.campaign.garrisonAt(0), isNotEmpty);
     // 让一支仍可出征的非玩家部队抵达敌国，使用真实后台交战入口。
     final hero = c.campaign.heroes.firstWhere(
       (hero) =>

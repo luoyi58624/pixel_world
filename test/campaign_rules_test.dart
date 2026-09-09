@@ -151,7 +151,7 @@ void main() {
         .map((hero) => hero.id)
         .toList();
     c.dispatch(_hero(c, 40), c.world.cities[1]);
-    expect(c.canDispatch(_hero(c, 2)), isFalse);
+    expect(c.canDispatch(_hero(c, 2)), isTrue);
     final result = c.defeatHero(
       'rom-2',
       winnerCountryId: 1,

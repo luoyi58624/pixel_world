@@ -84,6 +84,116 @@ Future<void> _tapCity(
 }
 
 void main() {
+  testWidgets('一级城连续派出全部三位将领，面板只留驻军，回城后重新出现', (tester) async {
+    final c = await _load(tester, const Size(1280, 720));
+    final home = c.world.cities.first;
+    final heroes = c.campaign.garrisonAt(home.id).toList();
+    final salary = c.campaign.salaryAt(home.id);
+    expect(heroes.length, 3);
+    expect(c.campaign.cities[home.id]!.level, 1);
+    for (var i = 0; i < heroes.length; i++) {
+      await _tapCity(tester, c, home);
+      for (var j = 0; j < heroes.length; j++) {
+        expect(
+          find.byKey(ValueKey('dispatch-hero-${heroes[j].id}')),
+          j < i ? findsNothing : findsOneWidget,
+        );
+      }
+      final choice = find.byKey(ValueKey('dispatch-hero-${heroes[i].id}'));
+      await tester.ensureVisible(choice);
+      await tester.tap(choice);
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('dispatch-confirm')));
+      await tester.pump();
+      expect(c.pendingHero, same(heroes[i]));
+      c.confirmPosition(c.heroPosition + Offset(100 + i * 32, 48 + i * 16));
+      await tester.pump();
+      expect(c.campaign.marches.length, i + 1);
+      expect(c.campaign.soldiersAt(home.id), (2 - i) * 4);
+    }
+    await _tapCity(tester, c, home);
+    expect(find.text('城中暂无可派遣的英雄'), findsOneWidget);
+    expect(find.byKey(const ValueKey('hero-hp')), findsNothing);
+    expect(c.selectedHero, isNull);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('dispatch-confirm')))
+          .onPressed,
+      isNull,
+    );
+    expect(c.campaign.heroesAt(home.id), containsAll(heroes));
+    expect(c.campaign.salaryAt(home.id), salary);
+    expect(
+      c.campaign.marches.values
+          .map((march) => march.destination)
+          .toSet()
+          .length,
+      3,
+    );
+    for (final hero in heroes) {
+      expect(c.campaign.dispatchTo(hero, c.heroPosition), isNull);
+      c.selectHero(hero.id);
+      expect(c.selectedHero, isNull);
+    }
+    final destinations = c.campaign.marches.values
+        .map((m) => m.destination)
+        .toList();
+    final positions = c.campaign.marches.values.map((m) => m.position).toList();
+    c.tick(0.25);
+    expect(
+      c.campaign.marches.values.map((m) => m.position).toList(),
+      isNot(positions),
+    );
+    expect(
+      c.campaign.marches.values.map((m) => m.destination).toList(),
+      destinations,
+    );
+    c.campaign.moveTo(heroes.first.id, c.campaign.cityBounds(home).center);
+    for (
+      var i = 0;
+      i < 120 && c.campaign.marches.containsKey(heroes.first.id);
+      i++
+    ) {
+      c.tick(1 / 60);
+    }
+    await _tapCity(tester, c, home);
+    expect(
+      find.byKey(ValueKey('dispatch-hero-${heroes.first.id}')),
+      findsOneWidget,
+    );
+    for (final hero in heroes.skip(1)) {
+      expect(find.byKey(ValueKey('dispatch-hero-${hero.id}')), findsNothing);
+    }
+    expect(c.campaign.garrisonAt(home.id), [heroes.first]);
+    expect(c.campaign.soldiersAt(home.id), 4);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('敌方城池也只展示当前驻军，外出将领不残留在守城名单', (tester) async {
+    final c = await _load(tester, const Size(1280, 720));
+    final city = c.world.cities[1];
+    final heroes = c.campaign.garrisonAt(city.id).toList();
+    await _tapCity(tester, c, city);
+    for (final hero in heroes) {
+      expect(find.text(hero.name), findsOneWidget);
+    }
+    for (final hero in heroes) {
+      expect(
+        c.campaign.dispatch(hero, c.world.cities[2], countryId: hero.countryId),
+        isNotNull,
+      );
+      c.refreshUi();
+      await tester.pump();
+      expect(find.text(hero.name), findsNothing);
+    }
+    expect(find.text('守军 0 人'), findsOneWidget);
+    expect(c.campaign.garrisonAt(city.id), isEmpty);
+    expect(c.campaign.heroesAt(city.id), heroes);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('城池面板显示真实城名、国家国旗和高级将领类型', (tester) async {
     final c = await _load(tester, const Size(1280, 720));
     await _tapCity(tester, c, c.world.cities.first);
@@ -215,19 +325,13 @@ void main() {
     c.dispose();
   });
 
-  test('升级后可让不同英雄独立出征，地图点击不会改写进攻命令', () {
+  test('一级城可让不同英雄独立出征，地图点击不会改写已有命令', () {
     final c = WorldController(
       _worlds(),
       heroCatalog: _heroCatalog(),
       startingGold: 300,
     );
-    expect(
-      c.campaign.upgradeCity(
-        c.world.cities.first.id,
-        hero: c.campaign.garrisonAt(c.world.cities.first.id).first,
-      ),
-      isTrue,
-    );
+    expect(c.campaign.cities[0]!.level, 1);
     _prepare(c, 'rom-40');
     c.confirmTarget(c.world.cities[1]);
     c.tick(1);
@@ -331,7 +435,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('小窗口中详情可滚动，出击取消按钮始终可见且已出征英雄不能重复出击', (tester) async {
+  testWidgets('小窗口已出征英雄移出城内面板，其余英雄仍可出击', (tester) async {
     final c = await _load(tester, const Size(600, 360));
     await _tapCity(tester, c, c.world.cities.first);
     await tester.pump();
@@ -345,11 +449,9 @@ void main() {
     await _tapCity(tester, c, c.world.cities[1]);
     await _tapCity(tester, c, c.world.cities.first);
     await tester.pump();
-    final unavailable = find.byKey(const ValueKey('dispatch-hero-rom-40'));
-    await tester.ensureVisible(unavailable);
-    await tester.tap(unavailable);
-    await tester.pump();
-    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-40')), findsNothing);
+    expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

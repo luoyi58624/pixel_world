@@ -113,7 +113,7 @@ class CityPanel extends StatelessWidget {
   ], columns: 3);
 
   Widget _information(CitySituation situation) {
-    final heroes = controller.campaign.heroesAt(controller.selectedCity!.id);
+    final heroes = controller.campaign.garrisonAt(controller.selectedCity!.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -181,7 +181,7 @@ class CityPanel extends StatelessWidget {
 
   Widget _heroSelection() {
     final c = controller;
-    final heroes = c.campaign.heroesAt(c.selectedCity!.id);
+    final heroes = c.campaign.garrisonAt(c.selectedCity!.id);
     final hero = c.selectedHero;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

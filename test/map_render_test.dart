@@ -50,13 +50,73 @@ Offset _topLeft(List<Offset> pixels) => Offset(
 );
 
 void main() {
+  testWidgets('开局主图和小地图没有城外预览人物，出征再回城后恢复相同画面', (tester) async {
+    await tester.runAsync(() async {
+      final assets = await WorldAssets.load();
+      final c = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+        aiEnabled: false,
+      );
+      c.camera.resize(const Size(400, 400));
+      Future<List<int>> render({bool minimap = false}) async {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        final size = minimap ? const Size(180, 160) : const Size(400, 400);
+        if (minimap) {
+          MinimapPainter(c, assets).paint(canvas, size);
+        } else {
+          WorldPainter(c, assets).paint(canvas, size);
+        }
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(
+          size.width.toInt(),
+          size.height.toInt(),
+        );
+        final bytes = (await image.toByteData())!.buffer.asUint8List().toList();
+        image.dispose();
+        picture.dispose();
+        return bytes;
+      }
+
+      for (var index = 0; index < c.worlds.length; index++) {
+        c.switchWorld(index);
+        final home = c.world.cities.first;
+        final hero = c.campaign.garrisonAt(home.id).first;
+        expect(c.campaign.marches, isEmpty);
+        c.openUnit(hero.id);
+        expect(c.selectedUnitId, isNull);
+        c.tap(c.camera.toScreen(c.heroPosition));
+        expect(c.selectedUnitId, isNull);
+        expect(c.campaign.marches, isEmpty);
+        final initialMap = await render();
+        final initialMinimap = await render(minimap: true);
+        c.campaign.dispatchTo(hero, c.heroPosition + const Offset(80, 32));
+        expect(await render(), isNot(initialMap));
+        expect(c.campaign.garrisonAt(home.id), isNot(contains(hero)));
+        c.campaign.moveTo(hero.id, c.campaign.cityBounds(home).center);
+        c.tick(0.05);
+        expect(c.campaign.marches, isEmpty);
+        expect(c.campaign.garrisonAt(home.id), contains(hero));
+        expect(
+          await render(),
+          initialMap,
+          reason: '地图 $index：回城前后都只有城池，没有额外人物',
+        );
+        expect(await render(minimap: true), initialMinimap);
+      }
+      c.dispose();
+      assets.dispose();
+    });
+  });
+
   testWidgets('鼠标悬停、选城和更换行军目标不再画出方框、路线或目的地标记', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
       c.camera.resize(const Size(400, 400));
       final march = c.campaign.dispatchTo(
-        c.previewHero!,
+        c.campaign.garrisonAt(0).first,
         c.heroPosition + const Offset(80, 32),
       )!;
       Future<List<int>> render() async {
@@ -88,7 +148,7 @@ void main() {
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
       c.camera.resize(const Size(160, 160));
       c.camera.scale = 3;
-      final hero = c.previewHero!;
+      final hero = c.campaign.garrisonAt(0).first;
       final unit = c.campaign.dispatchTo(hero, c.heroPosition)!;
       c.camera.center = unit.position;
       expect(unit.phase, MarchPhase.camped);
@@ -115,12 +175,20 @@ void main() {
   testWidgets('人物完整帧以所在格子中心定位，不再向上偏移三个原生像素', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
-      final c = WorldController(assets.worlds);
+      final c = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+        aiEnabled: false,
+      );
+      final unit = c.campaign.dispatch(
+        c.campaign.garrisonAt(0).first,
+        c.world.cities[1],
+      )!..phase = MarchPhase.awaitingBattle;
       c.camera.resize(const Size(160, 160));
-      c.heroPosition = const Offset(248, 808);
-      c.camera.center = c.heroPosition;
+      unit.position = const Offset(248, 808);
+      c.camera.center = unit.position;
       c.camera.scale = 3;
-      c.direction = HeroDirection.south;
+      unit.direction = HeroDirection.south;
       for (final ratio in [1.0, 1.75, 2.0]) {
         final side = (16 * 3 * ratio).round();
         final frame = assets.heroFrame(c.appearance, 0, side);
@@ -154,7 +222,15 @@ void main() {
   testWidgets('斜向跟随时人物锚点及像素形状稳定，包括 175% 屏幕缩放', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
-      final controller = WorldController(assets.worlds);
+      final controller = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+        aiEnabled: false,
+      );
+      final unit = controller.campaign.dispatch(
+        controller.campaign.garrisonAt(0).first,
+        controller.world.cities[1],
+      )!..phase = MarchPhase.awaitingBattle;
       controller.camera.resize(const Size(160, 160));
       for (final ratio in [1.0, 1.75, 2.0]) {
         for (final scale in [2.37, 3.0]) {
@@ -163,14 +239,11 @@ void main() {
             HeroDirection.northEast,
             HeroDirection.northWest,
           ]) {
-            controller.direction = direction;
+            unit.direction = direction;
             List<Offset>? first;
             for (var frame = 0; frame < 8; frame++) {
-              controller.heroPosition = Offset(
-                248 + frame * 0.17,
-                808 + frame * 0.113,
-              );
-              controller.camera.center = controller.heroPosition;
+              unit.position = Offset(248 + frame * 0.17, 808 + frame * 0.113);
+              controller.camera.center = unit.position;
               final pixels = await _heroPixels(controller, assets, ratio);
               first ??= pixels;
               expect(
@@ -190,10 +263,18 @@ void main() {
   testWidgets('固定镜头斜走按物理像素平移，图案不变形且没有地图像素级跳动', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
-      final controller = WorldController(assets.worlds);
+      final controller = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+        aiEnabled: false,
+      );
+      final unit = controller.campaign.dispatch(
+        controller.campaign.garrisonAt(0).first,
+        controller.world.cities[1],
+      )!..phase = MarchPhase.awaitingBattle;
       controller.camera.resize(const Size(160, 160));
       controller.camera.center = const Offset(248, 808);
-      controller.direction = HeroDirection.southEast;
+      unit.direction = HeroDirection.southEast;
       for (final ratio in [1.0, 1.75, 2.0]) {
         for (final scale in [2.37, 3.0]) {
           controller.camera.scale = scale;
@@ -201,7 +282,7 @@ void main() {
           Offset? origin;
           for (var frame = 0; frame < 8; frame++) {
             final travel = Offset(frame * 0.17, frame * 0.113);
-            controller.heroPosition = const Offset(248, 808) + travel;
+            unit.position = const Offset(248, 808) + travel;
             final pixels = await _heroPixels(controller, assets, ratio);
             final topLeft = _topLeft(pixels);
             final normalized = pixels.map((p) => p - topLeft).toList();
@@ -229,7 +310,11 @@ void main() {
         expect(image.width, 96);
         expect(image.height, 16);
       }
-      final controller = WorldController(assets.worlds);
+      final controller = WorldController(
+        assets.worlds,
+        heroCatalog: assets.heroCatalog,
+        aiEnabled: false,
+      );
       controller.camera.resize(const ui.Size(30, 30));
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
@@ -282,14 +367,7 @@ void main() {
     await tester.pump();
     expect(find.text('长河之境'), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byKey(const ValueKey('hero-picker')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text('普通将领').last);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byTooltip('选择英雄：普通将领'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('hero-picker')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

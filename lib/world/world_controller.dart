@@ -95,18 +95,12 @@ class WorldController extends ChangeNotifier {
   CampaignHero? get selectedMapHero =>
       campaign.heroes.where((hero) => hero.id == selectedUnitId).firstOrNull;
 
-  /// 首次派兵前，城门人物代表实际驻城主角。
-  CampaignHero? get previewHero => campaign.hasDispatched || campaign.defeated
-      ? null
-      : campaign.heroes.where((hero) => hero.isPlayer).firstOrNull;
-
   /// 角色可以接收行军指令，已经在外的部队允许中途改道。
   bool get canMoveSelected =>
       !campaign.defeated &&
       selectedMapHero?.isPlayer == true &&
-      selectedUnit?.phase != MarchPhase.dueling &&
-      (selectedUnit != null ||
-          (selectedMapHero != null && campaign.canDispatch(selectedMapHero!)));
+      selectedUnit != null &&
+      selectedUnit!.phase != MarchPhase.dueling;
 
   String? _targetReturnUnitId;
   Offset? _pointer;
@@ -123,7 +117,11 @@ class WorldController extends ChangeNotifier {
 
   /// 当前选中的英雄详情。
   CampaignHero? get selectedHero =>
-      campaign.heroes.where((hero) => hero.id == selectedHeroId).firstOrNull;
+      (selectedCity == null
+              ? campaign.heroes
+              : campaign.garrisonAt(selectedCity!.id))
+          .where((hero) => hero.id == selectedHeroId)
+          .firstOrNull;
 
   /// 用于低频界面更新的版本号。
   final ValueNotifier<int> uiRevision = ValueNotifier(0);
@@ -140,7 +138,7 @@ class WorldController extends ChangeNotifier {
   /// 鼠标或触摸指示的格子。
   TileCoord? cursor;
 
-  /// 角色当前的世界位置。
+  /// 无英雄目录时的地图路径预览位置；战役英雄位置只来自 marches。
   Offset heroPosition = Offset.zero;
 
   /// 角色当前所在的格子，行军过程中也持续更新。
@@ -217,7 +215,7 @@ class WorldController extends ChangeNotifier {
     camera.scale = 3;
     camera.center = campaign.cityBounds(world.cities.first).center;
     camera.constrain();
-    message = '点击角色下达指令，拖拽移动镜头';
+    message = '点击我方城池选择英雄出征，拖拽移动镜头';
     refreshUi();
   }
 
@@ -311,9 +309,7 @@ class WorldController extends ChangeNotifier {
       message = '该英雄已结束行军，请重新选择';
       changed = true;
     }
-    if (selectedUnitId != null &&
-        selectedUnit == null &&
-        previewHero?.id != selectedUnitId) {
+    if (selectedUnitId != null && selectedUnit == null) {
       selectedUnitId = null;
       changed = true;
     }
@@ -392,7 +388,7 @@ class WorldController extends ChangeNotifier {
       selectedCity = null;
       selectedUnitId = null;
       watchedBattle = null;
-      if (campaign.heroes.isEmpty && !campaign.hasDispatched) {
+      if (_heroCatalog.isEmpty && !campaign.hasDispatched) {
         walkTo(cell);
       } else {
         refreshUi();
@@ -400,10 +396,10 @@ class WorldController extends ChangeNotifier {
     }
   }
 
-  /// 从当前精确位置直线前往目标，途中改点时立即转向。
+  /// 为未加载英雄目录的地图预览计算路径，战役中必须从城池派出实际英雄。
   void walkTo(TileCoord destination) {
     if (campaign.defeated) return;
-    if (campaign.hasDispatched) {
+    if (_heroCatalog.isNotEmpty || campaign.hasDispatched) {
       message = '点击我方城池查看情况或派遣英雄';
       refreshUi();
       return;
@@ -438,7 +434,7 @@ class WorldController extends ChangeNotifier {
     selectedUnitId = null;
     watchedBattle = null;
     selectedCity = city;
-    final heroes = campaign.heroesAt(city.id);
+    final heroes = campaign.garrisonAt(city.id);
     selectedHeroId =
         (heroes
                     .where(
@@ -456,7 +452,7 @@ class WorldController extends ChangeNotifier {
   /// 只切换详情，不提前改变驻军或地图上的角色。
   void selectHero(String id) {
     if (selectedCity == null ||
-        !campaign.heroesAt(selectedCity!.id).any((hero) => hero.id == id)) {
+        !campaign.garrisonAt(selectedCity!.id).any((hero) => hero.id == id)) {
       return;
     }
     selectedHeroId = id;
@@ -596,14 +592,14 @@ class WorldController extends ChangeNotifier {
     }
   }
 
-  /// 镜头跟随最近派出的部队，尚未派兵时跟随探索角色。
+  /// 镜头跟随选中的或最近派出的部队，没有在外部队时回到据点。
   Offset get focusPosition =>
       selectedUnit?.position ??
       campaign.marches.values
           .where((march) => march.hero.isPlayer)
           .lastOrNull
           ?.position ??
-      heroPosition;
+      campaign.cityBounds(world.cities.first).center;
 
   /// 地图底部的行军说明，只在界面状态变化时重建。
   String get statusMessage {
@@ -679,14 +675,6 @@ class WorldController extends ChangeNotifier {
         return unit.hero;
       }
     }
-    if (previewHero != null &&
-        Rect.fromCenter(
-          center: heroPosition,
-          width: radius * 2,
-          height: radius * 2,
-        ).contains(point)) {
-      return previewHero;
-    }
     return null;
   }
 
@@ -708,8 +696,7 @@ class WorldController extends ChangeNotifier {
   /// 打开角色操作面板，不停止正在执行的行军或交战。
   void openUnit(String id) {
     if (campaign.defeated) return;
-    if (choosingTarget ||
-        (!campaign.marches.containsKey(id) && previewHero?.id != id)) {
+    if (choosingTarget || !campaign.marches.containsKey(id)) {
       return;
     }
     selectedUnitId = id;
@@ -725,11 +712,7 @@ class WorldController extends ChangeNotifier {
     final hero = selectedMapHero;
     if (hero == null || !canMoveSelected) return;
     _targetReturnUnitId = hero.id;
-    if (selectedUnit != null) {
-      movingHeroId = hero.id;
-    } else {
-      pendingHero = hero;
-    }
+    movingHeroId = hero.id;
     selectedUnitId = null;
     message = '为${hero.name}选择目的地 · 点击地图任意位置';
     refreshUi();

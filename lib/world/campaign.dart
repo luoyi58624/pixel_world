@@ -680,7 +680,7 @@ class CampaignState {
     return true;
   }
 
-  /// 本城所属英雄；失城后已出征的原阵营英雄不列入新驻军。
+  /// 归属本城的英雄，包含在外部队以继续计算月俸；驻城名单使用 garrisonAt。
   List<CampaignHero> heroesAt(int cityId) => heroes
       .where(
         (hero) =>
@@ -916,7 +916,7 @@ class CampaignState {
     settledMonths++;
   }
 
-  /// 无法出击时给出原因，一级城只允许同时派出一位英雄。
+  /// 按单个英雄验证出击，不以城池等级限制同时出征的将领数量。
   String? dispatchBlockReason(CampaignHero hero, {int countryId = 0}) {
     if (defeated) return '游戏已结束，请重新开始';
     if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
@@ -929,10 +929,6 @@ class CampaignState {
       (battle) => battle.isActive && battle.defender == hero,
     )) {
       return '这位英雄正在守城交战';
-    }
-    if (cities[hero.cityId]!.level == 1 &&
-        marches.values.any((march) => march.hero.cityId == hero.cityId)) {
-      return '一级城池只能同时派出一位英雄，升级后可继续出击';
     }
     return null;
   }

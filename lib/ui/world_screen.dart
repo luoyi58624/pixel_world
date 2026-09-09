@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 
 import '../game_config.dart';
 
-import '../world/hero_sprite.dart';
 import '../world/world_assets.dart';
 import '../world/world_controller.dart';
 import '../world/world_painter.dart';
@@ -426,7 +425,7 @@ class _WorldScreenState extends State<WorldScreen>
                                             ),
                                             SizedBox(width: 16),
                                             Text(
-                                              '松手轻滑  ·  点击角色下令',
+                                              '松手轻滑  ·  点击城池出征',
                                               style: TextStyle(
                                                 fontSize: 12,
                                                 color: Color(0xffa8b2a6),
@@ -715,23 +714,6 @@ class _WorldScreenState extends State<WorldScreen>
             c.camera.constrain();
           }
         }, active: c.followHero),
-        SizedBox(
-          width: 40,
-          height: 38,
-          child: PopupMenuButton<HeroAppearance>(
-            key: const ValueKey('hero-picker'),
-            tooltip: '选择英雄：${c.appearance.label}',
-            initialValue: c.appearance,
-            icon: const Icon(Icons.person_outline, size: 19, color: _cream),
-            enabled: !c.campaign.hasDispatched,
-            onSelected: (hero) => _action(() => c.appearance = hero),
-            itemBuilder: (_) => HeroAppearance.values
-                .map(
-                  (hero) => PopupMenuItem(value: hero, child: Text(hero.label)),
-                )
-                .toList(),
-          ),
-        ),
       ],
     ),
   );

@@ -373,7 +373,7 @@ void main() {
     expect(c.battles[2]!.defender.countryId, 2);
   });
 
-  test('一级城即使留守配置为零，也只能同时派出一位将领', () {
+  test('一级城按留守配置派兵，留守为零允许全部将领出征', () {
     final c = _campaign(
       ai: true,
       countries: _quietCountries()
@@ -381,13 +381,14 @@ void main() {
     );
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
-    c.advance(20);
+    final count = c.garrisonAt(1).length;
+    c.advance(8);
     expect(c.cities[1]!.level, 1);
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      1,
+      count,
     );
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.garrisonAt(1), isEmpty);
   });
 
   test('三张地图多国经营交战持续模拟，英雄不重复、资金和储备不越界，结束后停止AI', () {
@@ -442,14 +443,14 @@ void main() {
     }
   });
 
-  test('NPC部队可查看，但玩家不能移动或扎营；出兵不隐藏城门主角', () {
+  test('NPC部队可查看但不能操控，NPC出兵不改变我方城内驻军', () {
     final c = WorldController(
       _worlds(),
       heroCatalog: _catalog(),
       aiEnabled: false,
     );
     addTearDown(c.dispose);
-    final original = c.previewHero;
+    final original = c.campaign.garrisonAt(0).toList();
     final hero = c.campaign.garrisonAt(1).first;
     final march = c.campaign.dispatch(hero, c.world.cities[2], countryId: 1)!;
     c.openUnit(hero.id);
@@ -459,6 +460,6 @@ void main() {
     c.campSelected();
     expect(c.choosingTarget, isFalse);
     expect(march.phase, MarchPhase.marching);
-    expect(c.previewHero, same(original));
+    expect(c.campaign.garrisonAt(0), original);
   });
 }

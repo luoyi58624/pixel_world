@@ -58,11 +58,13 @@ void main() {
   test('任意空地出击、到达驻留、重新指定目标与扎营保留同一英雄身份', () {
     final c = _controller();
     addTearDown(c.dispose);
-    final hero = c.previewHero!;
+    final hero = c.campaign.garrisonAt(0).first;
     final point = c.heroPosition + const Offset(80, 32);
     c.openUnit(hero.id);
-    expect(c.selectedMapHero, same(hero));
-    c.prepareMove();
+    expect(c.selectedMapHero, isNull);
+    c.openCity(c.world.cities.first);
+    c.selectHero(hero.id);
+    c.prepareDispatch();
     expect(c.choosingTarget, isTrue);
     expect(c.campaign.soldiersAt(0), 12);
     c.confirmPosition(point);
@@ -123,7 +125,7 @@ void main() {
   test('移动可以选择我方城池，进驻后恢复驻军且不生成第二个英雄', () {
     final c = _controller();
     addTearDown(c.dispose);
-    final hero = c.previewHero!;
+    final hero = c.campaign.garrisonAt(0).first;
     final unit = c.campaign.dispatchTo(
       hero,
       c.heroPosition + const Offset(48, 16),
@@ -145,7 +147,7 @@ void main() {
     final city = c.world.cities[1];
     final start = city.bounds.centerLeft - const Offset(10, 0);
     final end = city.bounds.centerRight + const Offset(48, 0);
-    final unit = c.campaign.dispatchTo(c.previewHero!, end)!;
+    final unit = c.campaign.dispatchTo(c.campaign.garrisonAt(0).first, end)!;
     unit.position = start;
     c.campaign.moveTo(unit.hero.id, end);
     c.tick(0.2);
@@ -242,7 +244,7 @@ void main() {
   test('选点期间英雄战败会清除过期命令，不会出现幽灵部队', () {
     final c = _controller();
     addTearDown(c.dispose);
-    final hero = c.previewHero!;
+    final hero = c.campaign.garrisonAt(0).first;
     c.campaign.dispatch(hero, c.world.cities[1]);
     c.openUnit(hero.id);
     c.prepareMove();
@@ -257,7 +259,15 @@ void main() {
     final c = await _load(tester, const Size(1280, 720));
     final canvas = find.byKey(const ValueKey('world-canvas'));
     final origin = tester.getTopLeft(canvas);
-    await tester.tapAt(origin + c.camera.toScreen(c.heroPosition));
+    final deployed = c.campaign.dispatchTo(
+      c.campaign.garrisonAt(0).first,
+      c.heroPosition + const Offset(80, 32),
+    )!;
+    deployed.position = c.heroPosition;
+    deployed.camp();
+    c.refreshUi();
+    await tester.pump();
+    await tester.tapAt(origin + c.camera.toScreen(deployed.position));
     await tester.pump();
     expect(find.byKey(const ValueKey('unit-panel')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('unit-info')));
@@ -304,7 +314,7 @@ void main() {
     final origin = tester.getTopLeft(
       find.byKey(const ValueKey('world-canvas')),
     );
-    c.openUnit(c.previewHero!.id);
+    c.openCity(c.world.cities.first);
     await tester.pump();
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: origin + const Offset(900, 300));
@@ -336,7 +346,10 @@ void main() {
 
   testWidgets('地图与战场的鼠标拖拽都有短惯性，再次按住可立即截停', (tester) async {
     final c = await _load(tester, const Size(1000, 700));
-    final march = c.campaign.dispatch(c.previewHero!, c.world.cities[1])!;
+    final march = c.campaign.dispatch(
+      c.campaign.garrisonAt(0).first,
+      c.world.cities[1],
+    )!;
     march.position = march.destination;
     c.tick(0.02);
     final battle = c.campaign.battles[1]!;
@@ -399,7 +412,7 @@ void main() {
   testWidgets('战场可以缩放拖动，后台部队继续行军，返回和重进不重置战斗', (tester) async {
     final c = await _load(tester, const Size(1000, 700));
     c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
-    final hero = c.previewHero!;
+    final hero = c.campaign.garrisonAt(0).first;
     final march = c.campaign.dispatch(hero, c.world.cities[1])!;
     final other = c.campaign.dispatchTo(
       c.campaign.garrisonAt(0).first,
