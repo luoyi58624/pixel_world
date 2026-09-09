@@ -84,11 +84,8 @@ CampaignState _campaign(
     defense: 100,
     baseIncome: 10,
     initialLevel: 2,
-    initialReserveSoldiers: 4,
-    countOwnedHeroes: (owner) => c.heroes
-        .where((hero) => hero.cityId == 1 && hero.countryId == owner)
-        .length,
   );
+  c.countryTroops[attacker] = CountryTroops(reserveSoldiers: 4);
   if (transferExtrasTo != null) {
     for (var id = 3; id < 3 + extras; id++) {
       c.cities[id]!.ownerCountryId = transferExtrasTo;

@@ -79,9 +79,12 @@ class CityServices extends StatelessWidget {
                 child: _card(
                   key: 'buy-reserves',
                   title: '士兵数量',
-                  value: '${city.reserveSoldiers}/${city.reserveCapacity}',
+                  value:
+                      '${campaign.soldiersAt(cityId)}/${campaign.soldierCapacityAt(cityId)}',
                   valueKey: 'city-reserves',
-                  action: city.reserveSoldiers >= city.reserveCapacity
+                  action:
+                      campaign.soldiersAt(cityId) >=
+                          campaign.soldierCapacityAt(cityId)
                       ? '已满'
                       : city.isPlayer
                       ? '${quantity * GameConfig.soldierRecruitCost}金币'

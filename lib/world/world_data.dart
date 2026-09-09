@@ -108,7 +108,7 @@ class CityDefinition {
   /// 当前地图内的城池编号。
   final int id;
 
-  /// 城池的固定汉化名称，占领后不改名。
+  /// 原始汉化城名，游戏中的当前国名由 CampaignState 根据占领方提供。
   final String name;
 
   /// 开局时占有城池的国家编号。
@@ -135,7 +135,7 @@ class CityDefinition {
   /// 初始化数据中关联的单位编号。
   final List<int> unitIds;
 
-  /// 对用户显示真实城名，编号仅用于内部关联。
+  /// 原始地图标签，用于地图资料与尚未关联战役的编辑预览。
   String get label => name;
 
   /// 建筑在原生地图上的占用范围。

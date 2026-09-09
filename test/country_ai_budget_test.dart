@@ -92,26 +92,17 @@ CampaignState _campaign({
     recruitmentRandom: math.Random(3),
     aiRandom: math.Random(7),
   );
+  var initialTroops = 0;
   for (final id in [1, if (secondCity) 3]) {
+    initialTroops += math.min(stock, level * 4 + c.heroesAt(id).length * 4);
     c.cities[id] = CitySituation(
       ownerCountryId: 1,
       defense: 100,
       baseIncome: income,
       initialLevel: level,
-      initialReserveSoldiers: math.min(
-        stock,
-        level * 4 + c.heroesAt(id).length * 4,
-      ),
-      countOwnedHeroes: (country) => c.heroes
-          .where(
-            (hero) =>
-                hero.cityId == id &&
-                hero.countryId == country &&
-                hero.health.alive,
-          )
-          .length,
     );
   }
+  c.countryTroops[1] = CountryTroops(reserveSoldiers: initialTroops);
   return c;
 }
 

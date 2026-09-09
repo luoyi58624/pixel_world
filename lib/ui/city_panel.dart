@@ -81,7 +81,7 @@ class CityPanel extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        '${city.label}国',
+                        '${c.campaign.cityName(city.id)}国',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

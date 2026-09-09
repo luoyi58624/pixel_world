@@ -449,7 +449,7 @@ class WorldController extends ChangeNotifier {
                     .firstOrNull ??
                 heroes.firstOrNull)
             ?.id;
-    message = '已选中${city.label}';
+    message = '已选中${campaign.cityName(city.id)}';
     refreshUi();
   }
 
@@ -503,7 +503,7 @@ class WorldController extends ChangeNotifier {
     final city = campaign.cityAt(point);
     message =
         '${hero.name}率 ${hero.soldiers} 名士兵前往 '
-        '${city?.label ?? '(${(point.dx / 16).floor()}, ${(point.dy / 16).floor()})'}';
+        '${city == null ? '(${(point.dx / 16).floor()}, ${(point.dy / 16).floor()})' : campaign.cityName(city.id)}';
     refreshUi();
   }
 
@@ -635,7 +635,7 @@ class WorldController extends ChangeNotifier {
         .where((march) => march.phase == MarchPhase.fighting)
         .firstOrNull;
     if (battle != null && pendingHero == null && selectedCity == null) {
-      return '${battle.hero.name}正在进攻${battle.target!.label} · HP ${battle.hero.health.label}/${battle.hero.maxHp}';
+      return '${battle.hero.name}正在进攻${campaign.cityName(battle.target!.id)} · HP ${battle.hero.health.label}/${battle.hero.maxHp}';
     }
     final march = campaign.marches.values
         .where((march) => march.phase == MarchPhase.marching)
@@ -645,7 +645,7 @@ class WorldController extends ChangeNotifier {
     }
     if (march != null) {
       final terrain = world.movementTerrainAt(cellAt(world, march.position));
-      return '${march.hero.name} → ${march.target?.label ?? '目的地'} · ${terrain.label} ${(terrain.speedFactor * 100).round()}%速度';
+      return '${march.hero.name} → ${march.target == null ? '目的地' : campaign.cityName(march.target!.id)} · ${terrain.label} ${(terrain.speedFactor * 100).round()}%速度';
     }
     return walking
         ? '$message · ${movementTerrain.label} ${(movementTerrain.speedFactor * 100).round()}%速度'

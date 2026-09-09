@@ -190,11 +190,11 @@ void main() {
 
   test('解雇后的储备遵守减少后的容量，已签约的本月招募机会不会重置', () {
     final c = _campaign();
-    c.buySoldiers(0, c.cities[0]!.reserveCapacity);
+    c.buySoldiers(0, c.soldierCapacityAt(0));
     final hero = _hero(c, 18);
     c.dismissHero(hero);
-    expect(c.cities[0]!.reserveCapacity, 20);
-    expect(c.soldiersAt(0), 20);
+    expect(c.soldierCapacityAt(0), 36);
+    expect(c.soldiersAt(0), 36);
     final recruited = c.signHero(c.drawHero(0)!)!;
     c.dismissHero(recruited);
     expect(c.remainingHeroDraws(0), 0);

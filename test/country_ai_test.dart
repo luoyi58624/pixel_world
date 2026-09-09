@@ -65,17 +65,8 @@ CampaignState _campaign({
 }
 
 void _setStock(CampaignState c, int cityId, int count) {
-  final old = c.cities[cityId]!;
-  c.cities[cityId] = CitySituation(
-    ownerCountryId: old.ownerCountryId,
-    defense: old.defense,
-    baseIncome: old.baseIncome,
-    initialLevel: old.level,
-    initialReserveSoldiers: count,
-    countOwnedHeroes: (country) => c
-        .heroesAt(cityId)
-        .where((hero) => hero.health.alive && hero.countryId == country)
-        .length,
+  c.countryTroops[c.cities[cityId]!.ownerCountryId] = CountryTroops(
+    reserveSoldiers: count,
   );
 }
 
@@ -115,7 +106,7 @@ void main() {
     expect(c.goldFor(1), 96);
     expect(c.reinforceHero(governor), 0);
     expect(c.reinforceHero(governor, countryId: 1), 4);
-    expect(c.cities[1]!.reserveSoldiers, 0);
+    expect(c.soldiersAt(1), 0);
     final price = c.upgradeCostFor(1, governor, countryId: 1)!;
     expect(price, 80 - governor.politics);
     expect(c.upgradeCity(1, hero: governor), isFalse);
@@ -438,6 +429,12 @@ void main() {
     );
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
+    c.cities[1] = CitySituation(
+      ownerCountryId: 1,
+      defense: 100,
+      baseIncome: 10,
+      initialLevel: 1,
+    );
     final count = c.garrisonAt(1).length;
     _setStock(c, 1, count * 4);
     c.advance(8);
@@ -481,8 +478,12 @@ void main() {
         for (final entry in c.cities.entries) {
           final city = entry.value;
           expect(city.level, inInclusiveRange(1, 5));
-          expect(city.reserveSoldiers, greaterThanOrEqualTo(0));
-          if (city.reserveSoldiers >= city.reserveCapacity) {
+          expect(
+            c.reserveSoldiersFor(city.ownerCountryId),
+            greaterThanOrEqualTo(0),
+          );
+          if (c.reserveSoldiersFor(city.ownerCountryId) >=
+              c.reserveCapacityFor(city.ownerCountryId)) {
             expect(
               c.maxSoldierPurchase(entry.key, countryId: city.ownerCountryId),
               0,

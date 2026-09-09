@@ -99,7 +99,7 @@ void main() {
     expect(a.hero.soldiers, 4);
     expect(b.hero.soldiers, 2);
     expect(c.soldiersAt(0), 0);
-    expect(c.cities[0]!.reserveCapacity, 20);
+    expect(c.soldierCapacityAt(0), 32);
     expect(c.dispatch(a.hero, c.world.cities[1]), isNull);
     expect(c.soldiersAt(0), 0);
   });
@@ -129,7 +129,7 @@ void main() {
     final c = _campaign();
     final hero = _hero(c, 0);
     final march = _leave(c, hero);
-    final capacity = c.cities[0]!.reserveCapacity;
+    final capacity = c.soldierCapacityAt(0);
     c.buySoldiers(0, capacity - c.soldiersAt(0));
     hero.squad.first.hp = 0;
     _return(c, march, 0);
@@ -211,7 +211,7 @@ void main() {
     expect(c.soldiersAt(1), 10);
   });
 
-  test('占领清空旧守军库存，只接收随军三名生还者；升级只扩容不赠兵', () {
+  test('占领不继承敌国库存，原全国储备加随军生还者；升级只扩容不赠兵', () {
     final c = _campaign();
     c.heroes.removeWhere((hero) => hero.cityId == 1);
     final hero = _hero(c, 0);
@@ -220,28 +220,28 @@ void main() {
     _arrive(c, march);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.level, 1);
-    expect(c.soldiersAt(1), 3);
+    expect(c.soldiersAt(1), 9);
     expect(hero.soldiers, 0);
-    expect(c.soldiersAt(0), 6);
-    final capacity = c.cities[1]!.reserveCapacity;
+    expect(c.soldiersAt(0), 9);
+    final capacity = c.soldierCapacityAt(1);
     c.upgradeCity(1, hero: hero);
-    expect(c.cities[1]!.reserveCapacity, capacity + 4);
-    expect(c.soldiersAt(1), 3);
+    expect(c.soldierCapacityAt(1), capacity + 4);
+    expect(c.soldiersAt(1), 9);
     c.cities[1]!.ownerCountryId = 0;
-    expect(c.soldiersAt(1), 3);
+    expect(c.soldiersAt(1), 9);
   });
 
-  test('转城、阵亡及降级降低容量时立即舍弃超额库存', () {
+  test('同国转城不降低容量，阵亡及降级按全国上限裁减', () {
     final c = _campaign();
     final hero = _hero(c, 0);
     final march = _leave(c, hero, target: 2);
-    c.buySoldiers(0, c.cities[0]!.reserveCapacity - c.soldiersAt(0));
+    c.buySoldiers(0, c.soldierCapacityAt(0) - c.soldiersAt(0));
     _return(c, march, 2);
-    expect(c.cities[0]!.reserveCapacity, 16);
-    expect(c.soldiersAt(0), 16);
-    expect(c.soldiersAt(2), 4);
+    expect(c.soldierCapacityAt(0), 32);
+    expect(c.soldiersAt(0), 32);
+    expect(c.soldiersAt(2), 32);
     c.defeatHero(_hero(c, 2).id, winnerCountryId: 1, defendedCityId: 0);
-    expect(c.cities[0]!.reserveCapacity, 8);
-    expect(c.soldiersAt(0), 8);
+    expect(c.soldierCapacityAt(0), 24);
+    expect(c.soldiersAt(0), 24);
   });
 }

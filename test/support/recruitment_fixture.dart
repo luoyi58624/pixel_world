@@ -12,10 +12,5 @@ void prepareRecruitmentCity(
     defense: previous.defense,
     baseIncome: previous.baseIncome,
     initialLevel: level,
-    initialReserveSoldiers: previous.reserveSoldiers,
-    countOwnedHeroes: (country) => campaign
-        .heroesAt(cityId)
-        .where((hero) => hero.health.alive && hero.countryId == country)
-        .length,
   );
 }

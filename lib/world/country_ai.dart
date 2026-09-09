@@ -78,9 +78,15 @@ extension _CountryAutonomy on CampaignState {
   bool _supplyAiCity(int cityId, int countryId) {
     // 驻军共用库存，不提前把士兵分给每位将领；真正离城或迎战时才领取。
     final desired = math.min(
-      cities[cityId]!.reserveCapacity,
-      garrisonAt(cityId).where((hero) => hero.health.alive).length *
-          GameConfig.heroSoldierLimit,
+      reserveCapacityFor(countryId),
+      heroes
+          .where(
+            (hero) =>
+                hero.countryId == countryId &&
+                hero.health.alive &&
+                !marches.containsKey(hero.id),
+          )
+          .fold<int>(0, (sum, hero) => sum + hero.squad.length - hero.soldiers),
     );
     final reserves = [
       maxSoldierPurchase(cityId, countryId: countryId),
@@ -117,7 +123,7 @@ extension _CountryAutonomy on CampaignState {
       final target = _chooseAiTarget(hero, targets);
       if (dispatch(hero, target, countryId: countryId) == null) break;
       _record(
-        '${world.countryName(countryId)}国派出${hero.name}进攻${target.label}',
+        '${world.countryName(countryId)}国派出${hero.name}进攻${cityName(target.id)}',
       );
       changed = true;
     }
@@ -253,7 +259,7 @@ extension _CountryAutonomy on CampaignState {
       _contactPoint(march.position, cityBounds(target).center, target),
       city: target,
     );
-    _record('${march.hero.name}收缩兵力，返回${target.label}');
+    _record('${march.hero.name}收缩兵力，返回${cityName(target.id)}');
     return true;
   }
 

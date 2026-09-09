@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "玩法配置：地图0/1/2对应地图一/二/三。name仅用于定位阅读，按id关联原地图。baseIncome为一级城的基础月产出，initialReserveSoldiers为储备兵而非英雄带兵；国家初始金币只初始化一次，不按城池数累加。修改后热重启，开局时读取配置。",
+  "description": "玩法配置：地图0/1/2对应地图一/二/三。name仅用于定位阅读，按id关联原地图。baseIncome为一级城的基础月产出，initialReserveSoldiers为本城开局贡献的兵员，同国各城汇总至一份全国库存，而非英雄带兵；国家初始金币只初始化一次，不按城池数累加。修改后热重启，开局时读取配置。",
   "countries": [
     {
       "id": 0,

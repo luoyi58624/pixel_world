@@ -13,7 +13,7 @@ class CitySetup {
   /// 一级城市的基础月产出，后续升级增量沿用全局规则。
   final int baseIncome;
 
-  /// 开局城内全部兵员，将领出征或迎战时再从中领取。
+  /// 本城开局贡献给全国储备的兵员，不为驻城将领另送免费兵。
   final int initialReserveSoldiers;
 
   /// 开局等级，影响建筑外观、收入、储备容量和守城加成。

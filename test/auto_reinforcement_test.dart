@@ -40,14 +40,14 @@ void main() {
         final expected = stock.clamp(0, 4);
         expect(hero.soldiers, expected);
         expect(hero.hp, 7);
-        expect(c.cities[country]!.reserveSoldiers, stock - expected);
+        expect(c.soldiersAt(country), stock - expected);
         expect(c.goldFor(country), gold);
         expect(c.garrisonAt(country), isNot(contains(hero)));
         expect(c.dispatch(hero, target, countryId: country), isNull);
-        expect(c.cities[country]!.reserveSoldiers, stock - expected);
+        expect(c.soldiersAt(country), stock - expected);
         march.moveTo(march.position + const Offset(32, 0));
         c.advance(0.02);
-        expect(c.cities[country]!.reserveSoldiers, stock - expected);
+        expect(c.soldiersAt(country), stock - expected);
       });
     }
   }
@@ -66,7 +66,7 @@ void main() {
     expect(hero.squad[1], same(wounded));
     expect(wounded.hp, 5);
     expect(hero.hp, 9);
-    expect(c.cities[0]!.reserveSoldiers, 7);
+    expect(c.soldiersAt(0), 7);
   });
 
   test('多英雄连续离城共享同一库存，后出发者带走剩余兵员', () {
@@ -80,7 +80,7 @@ void main() {
       c.dispatch(hero, c.world.cities[1]);
     }
     expect(heroes.map((hero) => hero.soldiers), [4, 2, 0]);
-    expect(c.cities[0]!.reserveSoldiers, 0);
+    expect(c.soldiersAt(0), 0);
     expect(c.marches.length, 3);
   });
 
@@ -100,16 +100,16 @@ void main() {
     c.prepareDispatch();
     expect(hero.soldiers, 0);
     c.cancelCityAction();
-    expect(c.campaign.cities[0]!.reserveSoldiers, 2);
+    expect(c.campaign.soldiersAt(0), 2);
     c.prepareDispatch();
     c.confirmPosition(const Offset(-1, -1));
     c.confirmPosition(c.campaign.cityBounds(c.world.cities[0]).center);
     expect(c.pendingHero, same(hero));
     expect(hero.soldiers, 0);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 2);
+    expect(c.campaign.soldiersAt(0), 2);
     c.confirmTarget(c.world.cities[1]);
     expect(hero.soldiers, 2);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 0);
+    expect(c.campaign.soldiersAt(0), 0);
     expect(c.campaign.marches.length, 1);
     c.confirmTarget(c.world.cities[1]);
     expect(c.campaign.marches.length, 1);
@@ -128,10 +128,10 @@ void main() {
     // 按钮展示后国库发生消费，实际点击不能沿用过期报价。
     c.campaign.buySoldiers(0, 2);
     c.buyCitySoldiers();
-    expect(c.campaign.cities[0]!.reserveSoldiers, 7);
+    expect(c.campaign.soldiersAt(0), 7);
     expect(c.campaign.gold, 0);
     c.buyCitySoldiers();
-    expect(c.campaign.cities[0]!.reserveSoldiers, 7);
+    expect(c.campaign.soldiersAt(0), 7);
     final rich = _campaign(gold: 1000);
     final hero = rich.garrisonAt(0).first;
     rich.upgradeCity(0, hero: hero);

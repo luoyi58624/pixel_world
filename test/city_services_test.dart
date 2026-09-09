@@ -69,6 +69,42 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('同国城池显示全国兵员，易主后标题立即换为当前占领国', (tester) async {
+    final c = await _load(tester, const Size(375, 812), _RandomValue());
+    final target = c.world.cities[1];
+    c.campaign.heroes.removeWhere((hero) => hero.cityId == target.id);
+    final hero = c.campaign.heroes.firstWhere((hero) => hero.sourceId == 0);
+    final march = c.campaign.dispatch(hero, target)!;
+    march.position = march.destination;
+    c.tick(.02);
+    c.openCity(target);
+    await tester.pump();
+    final amount = find.byKey(const ValueKey('city-reserves'));
+    expect(find.text('阿尔马国'), findsOneWidget);
+    expect(find.text('奥尔梅国'), findsNothing);
+    expect(tester.widget<Text>(amount).data, '10/20');
+    await _tap(tester, 'buy-reserves');
+    expect(tester.widget<Text>(amount).data, '20/20');
+    c.openCity(c.world.cities.first);
+    await tester.pump();
+    expect(tester.widget<Text>(amount).data, '20/20');
+    c.campaign.defeatHero(
+      hero.id,
+      winnerCountryId: 2,
+      defendedCityId: target.id,
+    );
+    c.openCity(target);
+    await tester.pump();
+    expect(find.text('${c.world.countryName(2)}国'), findsOneWidget);
+    expect(find.text('阿尔马国'), findsNothing);
+    expect(
+      tester.widget<Text>(amount).data,
+      '${c.campaign.reserveSoldiersFor(2)}/${c.campaign.reserveCapacityFor(2)}',
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final size in [const Size(320, 720), const Size(1280, 720)]) {
     testWidgets('解雇在 $size 使用错误色并返款，城内选择与野外面板同步清理', (tester) async {
       final c = await _load(tester, size, _RandomValue());
@@ -328,7 +364,7 @@ void main() {
     expect(hero.soldiers, 0);
     c.confirmTarget(c.world.cities[1]);
     expect(hero.soldiers, 4);
-    expect(c.campaign.cities[0]!.reserveSoldiers, 6);
+    expect(c.campaign.soldiersAt(0), 6);
     expect(c.campaign.gold, 50);
     c.campaign.camp(hero.id);
     c.openCity(c.world.cities[0]);
@@ -344,7 +380,7 @@ void main() {
     await tester.ensureVisible(card);
     await tester.tapAt(tester.getTopLeft(card) + const Offset(14, 18));
     await tester.pump();
-    expect(c.campaign.cities[0]!.reserveSoldiers, 16);
+    expect(c.campaign.soldiersAt(0), 16);
     expect(c.campaign.gold, 40);
     expect(find.text('已满'), findsOneWidget);
     await tester.pump(const Duration(seconds: 60));
@@ -379,7 +415,7 @@ void main() {
       findsOneWidget,
     );
     await _tap(tester, 'buy-reserves');
-    expect(c.campaign.cities[0]!.reserveSoldiers, 15);
+    expect(c.campaign.soldiersAt(0), 15);
     expect(c.campaign.gold, 0);
     expect(
       tester

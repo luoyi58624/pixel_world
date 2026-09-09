@@ -246,7 +246,7 @@ void main() {
     c.refreshUi();
     await tester.pump();
     expect(tester.widget<CountryFlag>(flag).countryId, 4);
-    expect(find.text('阿尔马国'), findsOneWidget);
+    expect(find.text('${c.world.countryName(4)}国'), findsOneWidget);
     expect(find.textContaining('Lv.'), findsNothing);
     expect(find.textContaining('敌方'), findsNothing);
     expect(find.byKey(const ValueKey('dispatch-confirm')), findsNothing);

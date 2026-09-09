@@ -50,10 +50,7 @@ void main() {
       expect(c.cities[1]!.baseIncome, 20);
       for (final item in world.cities) {
         final initial = setup.cities[(world.id, item.id)]!;
-        expect(
-          c.cities[item.id]!.reserveSoldiers,
-          initial.initialReserveSoldiers,
-        );
+        expect(c.soldiersAt(item.id), initial.initialReserveSoldiers);
         expect(c.cities[item.id]!.level, initial.initialLevel);
         expect(
           c.cities[item.id]!.income,
@@ -88,7 +85,7 @@ void main() {
     expect(c.gold, 123);
     expect(c.cities[0]!.income, 37);
     expect(c.cities[0]!.level, 3);
-    expect(c.cities[0]!.reserveSoldiers, 17);
+    expect(c.soldiersAt(0), 17);
     expect(c.cityBounds(c.world.cities.first).width, 48);
     expect(c.world.cities.first.initialLevel, 1);
     final monthly = CampaignState.fromRom(
@@ -102,14 +99,14 @@ void main() {
     expect(monthly.lastSettlementFor(0)!.baseIncome, 37);
     controller.switchWorld(1);
     expect(controller.campaign.cities[0]!.level, 5);
-    expect(controller.campaign.cities[0]!.reserveSoldiers, 30);
+    expect(controller.campaign.soldiersAt(0), 30);
     expect(controller.campaign.cities[0]!.income, 51);
     controller.campaign.heroes.firstWhere((hero) => hero.sourceId == 40).hp = 0;
     controller.tick(0.02);
     controller.restartCampaign();
     expect(controller.campaign.gold, 123);
     expect(controller.campaign.cities[0]!.level, 5);
-    expect(controller.campaign.cities[0]!.reserveSoldiers, 30);
+    expect(controller.campaign.soldiersAt(0), 30);
   });
 
   test('国家初始货币不按拥有城数重复累加，显式测试覆盖不改写JSON配置', () {
@@ -145,7 +142,7 @@ void main() {
       );
       expect(controller.campaign.cities[1]!.baseIncome, 20);
       expect(controller.campaign.cities[1]!.income, 25);
-      expect(controller.campaign.cities[0]!.reserveSoldiers, 10);
+      expect(controller.campaign.soldiersAt(0), 10);
       expect(controller.campaign.goldFor(3), 80);
       controller.dispose();
       assets.dispose();
@@ -164,7 +161,7 @@ void main() {
     );
     expect(c.gold, 0);
     expect(c.cities[0]!.income, 0);
-    expect(c.cities[0]!.reserveSoldiers, 0);
+    expect(c.soldiersAt(0), 0);
     expect(() => setup.countries.clear(), throwsUnsupportedError);
     expect(() => setup.cities.clear(), throwsUnsupportedError);
   });
@@ -218,8 +215,8 @@ void main() {
       decodeWorlds(mapJson(), setup: setup).first,
       heroes(),
     );
-    expect(c.cities[0]!.reserveSoldiers, 16);
-    expect(c.cities[0]!.reserveCapacity, 16);
+    expect(c.soldiersAt(0), 16);
+    expect(c.soldierCapacityAt(0), 16);
     city(data)['initialReserveSoldiers'] = 17;
     final invalid = CampaignSetup.decode(jsonEncode(data));
     expect(

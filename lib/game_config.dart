@@ -96,13 +96,13 @@ abstract final class GameConfig {
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
   static const List<int> cityUpgradeCosts = [30, 80, 150, 300];
 
-  /// 每一级城防提供的储备兵员容量，一级四人、二级八人。
+  /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;
 
-  /// 每名所属存活英雄提供的储备容量，包含已出征但尚未转城的英雄。
+  /// 每名本国存活英雄贡献的全国容量，出征和同国转城不影响计数。
   static const cityReserveCapacityPerHero = 4;
 
-  /// 未加载玩法 JSON 的简化地图默认储备兵员，正式开局按每座城的配置读取。
+  /// 简化地图每座城的开局兵员贡献，正式开局汇总各城 JSON 配置至国家库存。
   static const initialCityReserves = 0;
 
   /// 征募一个储备兵员的价格。

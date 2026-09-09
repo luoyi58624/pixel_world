@@ -18,43 +18,31 @@ part 'country_ai_budget.dart';
 part 'field_battles.dart';
 part 'siege_battles.dart';
 part 'field_supplies.dart';
+part 'country_troops.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
-  /// 按配置初始化；countOwnedHeroes 实时统计该城所属国的存活将领，含出征部队。
+  /// 按配置初始化城防与收入，兵员由国家统一管理。
   CitySituation({
     required this._ownerCountryId,
     required this.defense,
     required this.baseIncome,
     required this.initialLevel,
-    int initialReserveSoldiers = GameConfig.initialCityReserves,
-    this._countOwnedHeroes,
   }) : _level = initialLevel {
     if (initialLevel < 1 || initialLevel > maxLevel) {
       throw ArgumentError.value(initialLevel, 'initialLevel', '等级必须为 1 到 5');
     }
-    if (initialReserveSoldiers < 0 ||
-        initialReserveSoldiers > reserveCapacity) {
-      throw ArgumentError.value(
-        initialReserveSoldiers,
-        'initialReserveSoldiers',
-        '初始储备超过城防等级与所属英雄提供的容量',
-      );
-    }
-    _reserveSoldiers = initialReserveSoldiers;
   }
 
-  /// 易主时重置一级并清空旧守军库存，生还进攻部队入城时另行归还携带兵员。
+  /// 易主时城防重置一级；国家兵员的容量变化由战役统一结算。
   int get ownerCountryId => _ownerCountryId;
   set ownerCountryId(int value) {
     if (value == _ownerCountryId) return;
     _ownerCountryId = value;
     _level = 1;
-    _reserveSoldiers = 0;
   }
 
   int _ownerCountryId;
-  final int Function(int countryId)? _countOwnedHeroes;
 
   /// 编号 0 是玩家国家。
   bool get isPlayer => ownerCountryId == 0;
@@ -90,29 +78,14 @@ class CitySituation {
   /// 城池最高等级。
   static const maxLevel = GameConfig.maxCityLevel;
 
-  int _reserveSoldiers = GameConfig.initialCityReserves;
   int _recruitmentMonth = -1;
   int _recruitmentDraws = 0;
   int _recruitmentSignedMonth = -1;
-
-  /// 当前城内可调拨兵员，不包含出征或正在迎战的部队。
-  int get reserveSoldiers => _reserveSoldiers;
-
-  /// 动态征兵上限：城防等级乘四加所属存活英雄数乘四，出征不减少名额。
-  /// 降级或失去英雄后裁掉超额库存，回城兵员也只能填到该上限。
-  int get reserveCapacity =>
-      level * GameConfig.cityReserveCapacityPerLevel +
-      (_countOwnedHeroes?.call(ownerCountryId) ?? 0) *
-          GameConfig.cityReserveCapacityPerHero;
-
-  void _trimReserves() {
-    _reserveSoldiers = math.min(_reserveSoldiers, reserveCapacity);
-  }
 }
 
 /// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
 class CampaignHero {
-  /// 驻城将领默认不占兵，兵员由城池库存统一管理。
+  /// 驻城将领默认不占兵，兵员由国家库存统一管理。
   CampaignHero.fromRom(
     RomHeroDefinition definition, {
     required this.cityId,
@@ -372,6 +345,7 @@ class CityBattle extends WorldBattle {
     CampaignHero defender, {
     required int cityLevel,
     int seed = 1,
+    this._locationName,
   }) : _seed = seed,
        initialCityLevel = cityLevel,
        defendingCountryId = defender.countryId,
@@ -392,6 +366,7 @@ class CityBattle extends WorldBattle {
 
   /// 战斗所在城池。
   final CityDefinition city;
+  final String Function()? _locationName;
 
   /// 本场开打时的城防等级，同时决定连续获胜多少轮可以占领。
   final int initialCityLevel;
@@ -410,7 +385,7 @@ class CityBattle extends WorldBattle {
   bool _damageSettled = false;
 
   @override
-  String get locationLabel => '${city.label}国';
+  String get locationLabel => '${_locationName?.call() ?? city.label}国';
 
   @override
   Offset markerPosition(CampaignState campaign) =>
@@ -545,14 +520,6 @@ class CampaignState {
         for (final city in world.cities)
           city.id: CitySituation(
             ownerCountryId: city.initialOwnerId,
-            countOwnedHeroes: (countryId) => heroes
-                .where(
-                  (hero) =>
-                      hero.cityId == city.id &&
-                      hero.countryId == countryId &&
-                      hero.health.alive,
-                )
-                .length,
             defense: city.id == home ? 100 : 80 + city.id % 3 * 20,
             baseIncome:
                 world.setup.cities[(world.id, city.id)]?.baseIncome ??
@@ -560,12 +527,6 @@ class CampaignState {
             initialLevel:
                 world.setup.cities[(world.id, city.id)]?.initialLevel ??
                 city.initialLevel,
-            initialReserveSoldiers:
-                world
-                    .setup
-                    .cities[(world.id, city.id)]
-                    ?.initialReserveSoldiers ??
-                GameConfig.initialCityReserves,
           ),
       },
       heroes,
@@ -590,6 +551,22 @@ class CampaignState {
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
     );
+    for (final city in world.cities) {
+      final contribution =
+          world.setup.cities[(world.id, city.id)]?.initialReserveSoldiers ??
+          GameConfig.initialCityReserves;
+      campaign.countryTroops
+              .putIfAbsent(city.initialOwnerId, () => CountryTroops())
+              ._reserveSoldiers +=
+          contribution;
+    }
+    for (final entry in campaign.countryTroops.entries) {
+      if (entry.value.reserveSoldiers < 0 ||
+          entry.value.reserveSoldiers >
+              campaign.reserveCapacityFor(entry.key)) {
+        throw ArgumentError('国家 ${entry.key} 的初始兵员超过全国兵力上限');
+      }
+    }
     for (final hero in catalog) {
       if (hero.type != HeroType.protagonist &&
           !heroes.any((active) => active.sourceId == hero.id)) {
@@ -659,6 +636,30 @@ class CampaignState {
   /// 派兵后即使部队全灭，也不重新生成探索人物。
   bool hasDispatched = false;
   final Map<int, int> _countryGold;
+
+  /// 每国只有一份库存，同国城池共用，不随某座城池易主而转送敌军。
+  final Map<int, CountryTroops> countryTroops = {};
+
+  /// 全国可调拨的士兵，不包含在外或正迎战的随军兵员。
+  int reserveSoldiersFor(int countryId) =>
+      countryTroops[countryId]?.reserveSoldiers ?? 0;
+
+  /// 全国上限为城防等级总和乘四加存活将领数乘四，无城国家不能保留储备。
+  int reserveCapacityFor(int countryId) {
+    final owned = cities.values.where(
+      (city) => city.ownerCountryId == countryId,
+    );
+    if (owned.isEmpty) return 0;
+    return owned.fold<int>(0, (sum, city) => sum + city.level) *
+            GameConfig.cityReserveCapacityPerLevel +
+        heroes
+                .where(
+                  (hero) => hero.countryId == countryId && hero.health.alive,
+                )
+                .length *
+            GameConfig.cityReserveCapacityPerHero;
+  }
+
   final Map<int, MonthlySettlement> _settlements = {};
 
   /// 当前金币。
@@ -712,7 +713,7 @@ class CampaignState {
     heroes.remove(hero);
     hero.hp = 0;
     _clearSquad(hero);
-    cities[hero.cityId]!._trimReserves();
+    _trimCountryTroops(hero.countryId);
     _recycleHero(hero, dismissed: true);
     _countryGold[countryId] = goldFor(countryId) + reward;
     _record('已解雇${hero.name}，获得 $reward 金币');
@@ -844,8 +845,15 @@ class CampaignState {
   List<CampaignHero> garrisonAt(int cityId) =>
       heroesAt(cityId).where((hero) => !marches.containsKey(hero.id)).toList();
 
-  /// 城内尚未分配给出征或迎战部队的兵员总数。
-  int soldiersAt(int cityId) => cities[cityId]?.reserveSoldiers ?? 0;
+  /// 当前城池所属国家可调拨的兵员，同国所有城池读取同一库存。
+  int soldiersAt(int cityId) => cities[cityId] == null
+      ? 0
+      : reserveSoldiersFor(cities[cityId]!.ownerCountryId);
+
+  /// 当前城池所属国家的兵员上限。
+  int soldierCapacityAt(int cityId) => cities[cityId] == null
+      ? 0
+      : reserveCapacityFor(cities[cityId]!.ownerCountryId);
 
   /// 本城英雄报酬。
   int salaryAt(int cityId) => GameConfig.chargeHeroSalary
@@ -859,7 +867,7 @@ class CampaignState {
     return math.max(
       0,
       math.min(
-        city.reserveCapacity - city.reserveSoldiers,
+        reserveCapacityFor(countryId) - reserveSoldiersFor(countryId),
         goldFor(countryId) ~/ GameConfig.soldierRecruitCost,
       ),
     );
@@ -871,7 +879,7 @@ class CampaignState {
     maxSoldierPurchase(cityId, countryId: countryId),
   );
 
-  /// 购买城池储备兵员，一次操作统一验证并扣款，不接受超额或负数。
+  /// 在本国城池征兵，统一扣国库并加入全国储备，不接受超额或负数。
   bool buySoldiers(int cityId, int count, {int countryId = 0}) {
     if (count <= 0 ||
         count > maxSoldierPurchase(cityId, countryId: countryId)) {
@@ -879,7 +887,10 @@ class CampaignState {
     }
     final cost = count * GameConfig.soldierRecruitCost;
     _countryGold[countryId] = goldFor(countryId) - cost;
-    cities[cityId]!._reserveSoldiers += count;
+    countryTroops
+            .putIfAbsent(countryId, () => CountryTroops())
+            ._reserveSoldiers +=
+        count;
     _record('${_cityName(cityId)}征募 $count 名储备兵，花费 $cost 金币');
     return true;
   }
@@ -900,12 +911,12 @@ class CampaignState {
       return 0;
     }
     return math.min(
-      city.reserveSoldiers,
+      reserveSoldiersFor(countryId),
       hero.squad.where((soldier) => !soldier.alive).length,
     );
   }
 
-  /// 从城市调拨新兵填充空槽；只在确认出征或一场守城战开打前调用。
+  /// 从全国储备调拨新兵填充空槽，只在确认出征或守城开战前调用。
   int reinforceHero(CampaignHero hero, {int countryId = 0}) {
     final count = reinforcementCount(hero, countryId: countryId);
     if (count == 0) return 0;
@@ -918,7 +929,7 @@ class CampaignState {
         remaining--;
       }
     }
-    cities[hero.cityId]!._reserveSoldiers -= count;
+    countryTroops[countryId]!._reserveSoldiers -= count;
     _record('${hero.name}补充 $count 名士兵');
     return count;
   }
@@ -929,7 +940,7 @@ class CampaignState {
     }
   }
 
-  // 先清空随军记录保证幂等，再把实际生还者归入本国城市；超员永久丢弃。
+  // 先清空随军记录保证幂等，再把实际生还者归入国家储备；超员永久丢弃。
   int _returnSoldiers(CampaignHero hero) {
     final count = hero.soldiers;
     _clearSquad(hero);
@@ -941,12 +952,15 @@ class CampaignState {
         city.ownerCountryId != hero.countryId) {
       return 0;
     }
-    city._trimReserves();
+    _trimCountryTroops(hero.countryId);
     final returned = math.min(
       count,
-      city.reserveCapacity - city.reserveSoldiers,
+      reserveCapacityFor(hero.countryId) - reserveSoldiersFor(hero.countryId),
     );
-    city._reserveSoldiers += returned;
+    countryTroops
+            .putIfAbsent(hero.countryId, () => CountryTroops())
+            ._reserveSoldiers +=
+        returned;
     return returned;
   }
 
@@ -1367,7 +1381,7 @@ class CampaignState {
     final city = cities[cityId]!;
     final before = city.level;
     city._level = math.max(1, before - damage);
-    city._trimReserves();
+    _trimCountryTroops(city.ownerCountryId);
     if (city.level != before) _refreshCityApproaches(cityId);
     return before - city.level;
   }
@@ -1381,8 +1395,8 @@ class CampaignState {
     }
     battle.defenseLoss = _damageCity(battle.city.id, battle.victories);
     final message = battle.defenseLoss == 0
-        ? '${battle.city.label}攻城结束，城防保持 ${cities[battle.city.id]!.level} 级'
-        : '${battle.city.label}攻城结束，城防降低 ${battle.defenseLoss} 级';
+        ? '${cityName(battle.city.id)}攻城结束，城防保持 ${cities[battle.city.id]!.level} 级'
+        : '${cityName(battle.city.id)}攻城结束，城防降低 ${battle.defenseLoss} 级';
     battle.record(message);
     _record(message);
   }
@@ -1425,6 +1439,7 @@ class CampaignState {
     }
     final city = cities[hero.cityId]!;
     final oldLevel = city.level;
+    final previousName = cityName(hero.cityId);
     final removed = <String>[hero.id];
     final march = marches[hero.id];
     if (march != null) _endBattle(march, '${hero.name}战败');
@@ -1443,10 +1458,10 @@ class CampaignState {
         _damageCity(hero.cityId, 1);
       }
     }
-    city._trimReserves();
+    _trimCountryTroops(hero.countryId);
     _record(
       captured
-          ? '${hero.name}战败，${_cityName(hero.cityId)}失守，未出战英雄已移除'
+          ? '${hero.name}战败，$previousName失守，未出战英雄已移除'
           : defendedCityId != null
           ? '${hero.name}守城战败'
           : '${hero.name}进攻战败，出征部队已损失',
@@ -1523,8 +1538,8 @@ class CampaignState {
       if (_finishDefeat() || defeated) return true;
       changed = _advanceBattles(dt) || changed;
       // 战斗中的阵亡也会降低容量，不能把超额库存留到下一次招兵时再处理。
-      for (final city in cities.values) {
-        city._trimReserves();
+      for (final country in countryTroops.keys.toList()) {
+        _trimCountryTroops(country);
       }
       if (_finishDefeat() || defeated) return true;
       _monthSeconds += dt;
@@ -1625,6 +1640,7 @@ class CampaignState {
   }
 
   List<String> _captureCity(int cityId, int winnerCountryId) {
+    final previousOwner = cities[cityId]!.ownerCountryId;
     final departed = heroes
         .where(
           (hero) =>
@@ -1658,6 +1674,8 @@ class CampaignState {
       }
     }
     cities[cityId]!.ownerCountryId = winnerCountryId;
+    _trimCountryTroops(previousOwner);
+    _trimCountryTroops(winnerCountryId);
     for (final offer in _recruitmentOffers.values.toList()) {
       if (offer.cityId == cityId && offer.countryId != winnerCountryId) {
         _releaseOffer(offer.countryId);
@@ -1708,24 +1726,26 @@ class CampaignState {
     marches.remove(hero.id);
     heroes.remove(hero);
     _clearSquad(hero);
-    cities[hero.cityId]!._trimReserves();
+    _trimCountryTroops(hero.countryId);
     _recycleHero(hero);
     _record('${hero.name}的出发城已失守，部队消失');
   }
 
   void _station(HeroMarch march) {
-    _endBattle(march, '${march.hero.name}已进驻${march.target!.label}');
+    _endBattle(march, '${march.hero.name}已进驻${cityName(march.target!.id)}');
     marches.remove(march.hero.id);
-    final sourceCityId = march.hero.cityId;
     march.hero.cityId = march.target!.id;
     march.hero.hp = march.hero.maxHp;
-    cities[sourceCityId]!._trimReserves();
     final returned = _returnSoldiers(march.hero);
-    _record('${march.hero.name}已进驻${march.target!.label}，$returned 名士兵归营');
+    _record(
+      '${march.hero.name}已进驻${cityName(march.target!.id)}，$returned 名士兵归营',
+    );
   }
 
-  String _cityName(int id) =>
-      world.cities.firstWhere((city) => city.id == id).label;
+  /// 城池展示所属国家名称，易主立即更新，静态地图名仅保留作来源记录。
+  String cityName(int id) => world.countryName(cities[id]!.ownerCountryId);
+
+  String _cityName(int id) => cityName(id);
   void _record(String event) {
     lastEvent = event;
     journal.add(event);

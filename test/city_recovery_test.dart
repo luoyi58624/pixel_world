@@ -33,14 +33,14 @@ void main() {
       final home = c.world.cities[country];
       final hero = c.garrisonAt(home.id).first..hp = 3;
       final health = hero.health;
-      final reserves = c.cities[home.id]!.reserveSoldiers;
+      final reserves = c.soldiersAt(home.id);
       final march = c.dispatchTo(
         hero,
         c.cityBounds(home).centerRight + const Offset(100, 0),
         countryId: country,
       )!;
       expect(hero.soldiers, 4);
-      expect(c.cities[home.id]!.reserveSoldiers, reserves - 4);
+      expect(c.soldiersAt(home.id), reserves - 4);
       hero.squad.first.hp = 5;
       hero.squad.last.hp = 0; // 一兵阵亡，只归还三名生还者。
       // NPC 与玩家使用同一到达处理，直接把最后一段路线落到本国城池边缘。
@@ -50,7 +50,7 @@ void main() {
       expect(hero.health, same(health));
       expect(hero.hp, hero.maxHp);
       expect(hero.soldiers, 0);
-      expect(c.cities[home.id]!.reserveSoldiers, reserves - 1);
+      expect(c.soldiersAt(home.id), reserves - 1);
     });
   }
 
@@ -73,14 +73,10 @@ void main() {
     final stock = c.cities[1]!;
     expect(stock.level, 4);
     expect(
-      c.buySoldiers(
-        1,
-        stock.reserveCapacity - stock.reserveSoldiers,
-        countryId: 1,
-      ),
+      c.buySoldiers(1, c.soldierCapacityAt(1) - c.soldiersAt(1), countryId: 1),
       isTrue,
     );
-    expect(stock.reserveSoldiers, stock.reserveCapacity);
+    expect(c.soldiersAt(1), c.soldierCapacityAt(1));
     c.heroes.removeWhere((hero) => hero.cityId == 1);
     final hero = c.garrisonAt(0).first..hp = 7;
     hero.squad.first.hp = 0;
@@ -90,7 +86,7 @@ void main() {
     c.advance(0.02);
     expect(stock.ownerCountryId, 0);
     expect(stock.level, 1);
-    expect(stock.reserveSoldiers, 3);
+    expect(c.soldiersAt(1), 9);
     expect(hero.hp, hero.maxHp);
     expect(hero.cityId, target.id);
     expect(hero.soldiers, 0);
@@ -99,9 +95,9 @@ void main() {
     second.position = second.destination;
     c.advance(0.02);
     expect(reinforcement.hp, reinforcement.maxHp);
-    expect(stock.reserveSoldiers, 7);
+    expect(c.soldiersAt(1), 9);
     stock.ownerCountryId = 0;
-    expect(stock.reserveSoldiers, 7);
+    expect(c.soldiersAt(1), 9);
   });
 
   test('实际打下一级城后满血，只接收战斗生还兵员，重复结算不重复入库', () {
@@ -109,6 +105,7 @@ void main() {
     final target = c.world.cities[1];
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
+    c.countryTroops[1] = CountryTroops();
     final guard = c.garrisonAt(1).last..hp = 1;
     for (final soldier in guard.squad) {
       soldier.hp = 0;
@@ -122,10 +119,10 @@ void main() {
     expect(battle.simulation.result, BattleResult.attackerWon);
     expect(hero.hp, hero.maxHp);
     final survivors = battle.simulation.survivors(BattleSide.attacker);
-    expect(c.cities[1]!.reserveSoldiers, survivors);
+    expect(c.soldiersAt(1), 6 + survivors);
     expect(hero.soldiers, 0);
     c.advance(1);
-    expect(c.cities[1]!.reserveSoldiers, survivors);
+    expect(c.soldiersAt(1), 6 + survivors);
   });
 
   test('守城胜利也恢复将领满血，进攻方阵亡不会复活', () {
@@ -149,7 +146,7 @@ void main() {
       final c = campaign();
       final target = c.world.cities[home];
       final guard = c.garrisonAt(home).last..hp = 30;
-      final reserve = c.cities[home]!.reserveSoldiers;
+      final reserve = c.soldiersAt(home);
       guard.squad.last.hp = 0;
       final attacker = c
           .garrisonAt(home == 0 ? 1 : 0)
@@ -182,7 +179,7 @@ void main() {
         remaining,
       );
       expect(
-        c.cities[home]!.reserveSoldiers,
+        c.soldiersAt(home),
         reserve - 4 + remaining.where((hp) => hp > 0).length,
       );
       expect(attacker.hp, 0);

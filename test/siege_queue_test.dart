@@ -342,7 +342,7 @@ void main() {
     _until(c, () => !battle.isActive);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.garrisonAt(1), contains(active.hero));
-    expect(c.cities[1]!.reserveSoldiers, 0);
+    expect(c.soldiersAt(1), 0);
   });
 
   test('城堡降级时等待者不瞬移，到轮次后步行贴城且不会被插队', () {

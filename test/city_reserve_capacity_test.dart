@@ -44,101 +44,88 @@ CampaignState _campaign({bool duplicatePlacement = false}) =>
     );
 
 void main() {
-  test('城防每级四兵，加每位所属英雄四兵，二级三将上限二十', () {
+  test('全国上限汇总所有城防和将领，升级只扩容不生成士兵', () {
     final c = _campaign();
-    final city = c.cities[0]!;
-    expect(city.level, 2);
-    expect(c.heroesAt(0).length, 3);
-    expect(city.reserveCapacity, 20);
+    expect(c.reserveCapacityFor(0), 36);
     for (var level = 3; level <= 5; level++) {
       expect(c.upgradeCity(0, hero: c.garrisonAt(0).first), isTrue);
-      expect(city.reserveCapacity, level * 4 + 12);
-      expect(city.reserveSoldiers, 0); // 扩容不等于免费生成新兵。
+      expect(c.reserveCapacityFor(0), (level + 3) * 4 + 16);
+      expect(c.soldiersAt(0), 0);
+      expect(c.soldierCapacityAt(2), c.soldierCapacityAt(0));
     }
-    for (var level = 1; level <= 5; level++) {
-      final empty = CitySituation(
-        ownerCountryId: 0,
-        defense: 100,
-        baseIncome: 10,
-        initialLevel: level,
-      );
-      expect(empty.reserveCapacity, level * 4);
-    }
+    c.heroes.removeWhere((hero) => hero.countryId == 1);
+    expect(c.reserveCapacityFor(1), 8);
   });
 
-  test('多城容量分别计算，国家合计只把城防和每名英雄计入一次', () {
+  test('同国两城读取同一库存与上限，重复英雄归属不重复提供容量', () {
     final c = _campaign();
-    expect(c.cities[0]!.reserveCapacity, 20);
-    expect(c.cities[2]!.reserveCapacity, 16);
-    expect(
-      c.cities.values
-          .where((city) => city.isPlayer)
-          .fold<int>(0, (n, city) => n + city.reserveCapacity),
-      36,
-    );
-    expect(c.cities[1]!.reserveCapacity, 16);
+    expect(c.soldierCapacityAt(0), 36);
+    expect(c.soldierCapacityAt(2), 36);
+    expect(c.reserveCapacityFor(1), 16);
+    c.buySoldiers(0, 20);
+    expect(c.soldiersAt(0), 20);
+    expect(c.soldiersAt(2), 20);
+    expect(c.reserveSoldiersFor(0), 20);
     final duplicate = _campaign(duplicatePlacement: true);
     expect(duplicate.heroes.where((hero) => hero.sourceId == 2).length, 1);
-    expect(duplicate.cities[0]!.reserveCapacity, 16);
-    expect(duplicate.cities[2]!.reserveCapacity, 20);
+    expect(duplicate.reserveCapacityFor(0), 36);
   });
 
-  test('出征和扎营不减容量，进驻另一座本国城池后名额随英雄转移', () {
+  test('出征扣全国库存，跨城返回恢复同一库存，转城不减少全国上限', () {
     final c = _campaign();
     final hero = c.garrisonAt(0).first;
-    c.buySoldiers(0, 20);
+    c.buySoldiers(0, 36);
     final march = c.dispatch(hero, c.world.cities[1])!;
-    expect(c.garrisonAt(0).length, 2);
-    expect(c.cities[0]!.reserveCapacity, 20);
+    expect(c.soldiersAt(0), 32);
+    expect(c.soldiersAt(2), 32);
     c.camp(hero.id);
-    expect(c.cities[0]!.reserveCapacity, 20);
-    expect(c.moveTo(hero.id, c.cityBounds(c.world.cities[2]).center), isTrue);
+    expect(c.reserveCapacityFor(0), 36);
+    c.moveTo(hero.id, c.cityBounds(c.world.cities[2]).center);
     march.position = march.destination;
     c.advance(1 / 60);
     expect(hero.cityId, 2);
-    expect(c.cities[0]!.reserveCapacity, 16);
-    expect(c.cities[2]!.reserveCapacity, 20);
-    expect(c.cities[0]!.reserveSoldiers, 16);
+    expect(c.reserveCapacityFor(0), 36);
+    expect(c.soldiersAt(0), 36);
+    expect(c.soldiersAt(2), 36);
     expect(c.maxSoldierPurchase(0), 0);
   });
 
-  test('预留和放弃不扩容，签约增加名额，阵亡后裁掉超额库存', () {
+  test('签约给国家增加四兵容量，阵亡后裁掉超额库存', () {
     final c = _campaign();
-    // 先让空兵将领离城，释放招募名额但不改变所属英雄贡献的储备容量。
     c.dispatchTo(c.garrisonAt(0).last, const Offset(300, 40))!.camp();
-    c.buySoldiers(0, 20);
+    c.buySoldiers(0, 36);
     final declined = c.drawHero(0)!;
-    expect(c.cities[0]!.reserveCapacity, 20);
+    expect(c.reserveCapacityFor(0), 36);
     c.declineHero(declined);
-    expect(c.cities[0]!.reserveCapacity, 20);
     final hero = c.signHero(c.drawHero(0)!)!;
-    expect(c.cities[0]!.reserveCapacity, 24);
-    expect(c.cities[0]!.reserveSoldiers, 20);
-    expect(c.buySoldiers(0, 5), isFalse);
-    expect(c.buySoldiers(0, 4), isTrue);
+    expect(c.reserveCapacityFor(0), 40);
+    expect(c.soldiersAt(2), 36);
+    expect(c.buySoldiers(2, 5), isFalse);
+    expect(c.buySoldiers(2, 4), isTrue);
     c.defeatHero(hero.id, winnerCountryId: 1);
     expect(c.cities[0]!.level, 2);
-    expect(c.cities[0]!.reserveCapacity, 20);
-    expect(c.cities[0]!.reserveSoldiers, 20);
-    expect(c.maxSoldierPurchase(0), 0);
+    expect(c.reserveCapacityFor(0), 36);
+    expect(c.reserveSoldiersFor(0), 36);
   });
 
-  test('守将战败减少城防和英雄容量，超额兵员立即舍弃', () {
+  test('守将战败按全国容量裁减，仍由所有友城共同使用', () {
     final c = _campaign();
-    c.buySoldiers(0, 20);
+    c.buySoldiers(0, 36);
     c.defeatHero(
-      c.garrisonAt(0).first.id,
+      c.garrisonAt(0).last.id,
       winnerCountryId: 1,
       defendedCityId: 0,
     );
     expect(c.cities[0]!.level, 1);
-    expect(c.cities[0]!.reserveCapacity, 12);
-    expect(c.cities[0]!.reserveSoldiers, 12);
-    expect(c.maxSoldierPurchase(0), 0);
+    expect(c.reserveCapacityFor(0), 28);
+    expect(c.soldiersAt(0), 28);
+    expect(c.soldiersAt(2), 28);
   });
 
-  test('空兵部队占城不生成奖励兵，一级一将上限八，征兵只能买到上限', () {
+  test('占领空城只扩全国容量，不接收敌国库存、不生成奖励兵', () {
     final c = _campaign();
+    c.buySoldiers(0, 8);
+    c.buySoldiers(1, 16, countryId: 1);
     c.heroes.removeWhere((hero) => hero.cityId == 1);
     final hero = c.garrisonAt(0).first;
     final march = c.dispatch(hero, c.world.cities[1])!;
@@ -146,16 +133,11 @@ void main() {
     c.advance(1 / 60);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.level, 1);
-    expect(hero.cityId, 1);
-    expect(c.cities[1]!.reserveCapacity, 8);
-    expect(c.cities[1]!.reserveSoldiers, 0);
-    expect(hero.soldiers, 0);
-    expect(c.maxSoldierPurchase(1), 8);
-    c.buySoldiers(1, 7);
-    expect(c.cities[1]!.reserveSoldiers, 7);
-    expect(c.maxSoldierPurchase(1), 1);
-    expect(c.buySoldiers(1, 2), isFalse);
-    expect(c.buySoldiers(1, 1), isTrue);
-    expect(c.cities[1]!.reserveSoldiers, 8);
+    expect(c.reserveCapacityFor(0), 40);
+    expect(c.soldiersAt(0), 8);
+    expect(c.soldiersAt(1), 8);
+    expect(c.soldiersAt(2), 8);
+    expect(c.reserveSoldiersFor(1), 0);
+    expect(c.reserveCapacityFor(1), 0);
   });
 }
