@@ -378,7 +378,7 @@ void main() {
     expect(find.byKey(const ValueKey('city-information')), findsNothing);
     expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
     expect(find.text('月收入'), findsOneWidget);
-    expect(find.text('驻守士兵'), findsOneWidget);
+    expect(find.text('士兵数量'), findsOneWidget);
     expect(find.text('士兵'), findsOneWidget);
     expect(find.text('王牌'), findsNothing);
     final cancel = find.byKey(const ValueKey('city-cancel'));

@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../game_config.dart';
 
 import 'battle_simulation.dart';
+import 'city_contact.dart';
 import 'hero_sprite.dart';
 import 'rom_hero.dart';
 import 'world_data.dart';
@@ -549,7 +550,7 @@ class CampaignState {
   /// 城池玩法状态。
   final Map<int, CitySituation> cities;
 
-  /// 建筑外观、点击及部队接触共用当前等级范围，左下基座保持在原地图位置。
+  /// 建筑绘制与点击共用当前等级图块范围，左下基座保持在原地图位置。
   Rect cityBounds(CityDefinition city) {
     final appearance = city.appearanceAt(cities[city.id]!.level);
     final width = appearance.width * 16.0;
@@ -1147,18 +1148,16 @@ class CampaignState {
       point.dy.isFinite &&
       (Offset.zero & world.pixelSize).contains(point);
 
-  // 地图人物本体为 16×16，中心距城池边缘八像素时即贴城。
+  CityContact _cityContact(CityDefinition city) =>
+      CityContact.forAppearance(city.appearanceAt(cities[city.id]!.level));
+
+  // 绘制图块中包含旗杆和草地，行军必须使用实体轮廓而非点击外框。
   Offset _departurePoint(CityDefinition source, Offset toward) {
-    final rect = cityBounds(source).inflate(8);
-    final delta = toward - rect.center;
-    if (delta.distance < 1e-9) return rect.centerRight;
-    final factor = math.min(
-      delta.dx.abs() < 1e-9 ? double.infinity : rect.width / 2 / delta.dx.abs(),
-      delta.dy.abs() < 1e-9
-          ? double.infinity
-          : rect.height / 2 / delta.dy.abs(),
-    );
-    final point = rect.center + delta * factor;
+    final rect = cityBounds(source);
+    final point =
+        rect.topLeft +
+        _cityContact(source)
+            .departure(rect.size.center(Offset.zero), toward - rect.topLeft);
     return Offset(
       point.dx.clamp(8.0, world.pixelSize.width - 8),
       point.dy.clamp(8.0, world.pixelSize.height - 8),
@@ -1166,29 +1165,8 @@ class CampaignState {
   }
 
   Offset _contactPoint(Offset from, Offset aim, CityDefinition city) {
-    final rect = cityBounds(city).inflate(8);
-    final fraction = _entryFraction(from, aim, rect);
-    return fraction == null
-        ? _nearestEdge(from, rect)
-        : from + (aim - from) * fraction;
-  }
-
-  Offset _nearestEdge(Offset from, Rect rect) {
-    final point = Offset(
-      from.dx.clamp(rect.left, rect.right),
-      from.dy.clamp(rect.top, rect.bottom),
-    );
-    final edges = [
-      Offset(rect.left, point.dy),
-      Offset(rect.right, point.dy),
-      Offset(point.dx, rect.top),
-      Offset(point.dx, rect.bottom),
-    ];
-    edges.sort(
-      (a, b) =>
-          (a - from).distanceSquared.compareTo((b - from).distanceSquared),
-    );
-    return edges.first;
+    final origin = cityBounds(city).topLeft;
+    return origin + _cityContact(city).approach(from - origin, aim - origin);
   }
 
   // 建筑变化时更新在途目标；已经交战的部队只调整贴城位置，不重开战斗。
@@ -1209,8 +1187,9 @@ class CampaignState {
         );
         march._resumeToward(point, city: target);
       } else {
-        final rect = cityBounds(target).inflate(8);
-        march.position = _nearestEdge(march.position, rect);
+        final origin = cityBounds(target).topLeft;
+        march.position =
+            origin + _cityContact(target).nearest(march.position - origin);
         march.destination = march.position;
       }
     }
@@ -1328,11 +1307,9 @@ class CampaignState {
             if (cities[city.id]!.ownerCountryId == march.hero.countryId) {
               continue;
             }
-            final fraction = _entryFraction(
-              previous,
-              march.position,
-              cityBounds(city).inflate(8),
-            );
+            final origin = cityBounds(city).topLeft;
+            final fraction = _cityContact(city)
+                .entryFraction(previous - origin, march.position - origin);
             if (fraction != null && fraction < nearest) {
               nearest = fraction;
               encountered = city;
@@ -1526,29 +1503,6 @@ class CampaignState {
     march.hero.cityId = march.target!.id;
     march.hero.hp = march.hero.maxHp;
     _record('${march.hero.name}已进驻${march.target!.label}');
-  }
-
-  // 只拦截从城外进入的线段；已在城边的部队可以接收撤离指令。
-  double? _entryFraction(Offset start, Offset end, Rect bounds) {
-    if (bounds.inflate(0.001).contains(start)) return null;
-    var enter = 0.0;
-    var leave = 1.0;
-    final delta = end - start;
-    for (final axis in [
-      (start.dx, delta.dx, bounds.left, bounds.right),
-      (start.dy, delta.dy, bounds.top, bounds.bottom),
-    ]) {
-      if (axis.$2.abs() < 1e-9) {
-        if (axis.$1 < axis.$3 || axis.$1 > axis.$4) return null;
-      } else {
-        final a = (axis.$3 - axis.$1) / axis.$2;
-        final b = (axis.$4 - axis.$1) / axis.$2;
-        enter = math.max(enter, math.min(a, b));
-        leave = math.min(leave, math.max(a, b));
-        if (enter > leave) return null;
-      }
-    }
-    return enter;
   }
 
   String _cityName(int id) =>

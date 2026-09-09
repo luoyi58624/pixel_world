@@ -79,7 +79,7 @@ class CityServices extends StatelessWidget {
               Expanded(
                 child: _card(
                   key: 'buy-reserves',
-                  title: '驻守士兵',
+                  title: '士兵数量',
                   value: '${city.reserveSoldiers}/${city.reserveCapacity}',
                   valueKey: 'city-reserves',
                   action: city.reserveSoldiers >= city.reserveCapacity

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/city_appearance.dart';
+import 'package:pixel_world/world/city_contact.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_assets.dart';
 import 'package:pixel_world/world/world_controller.dart';
@@ -119,9 +120,12 @@ void main() {
     }
     expect(c.cities[1]!.level, 3);
     expect(c.cityBounds(city).size, const ui.Size(48, 48));
-    final contact = c.cityBounds(city).inflate(8);
-    expect(contact.inflate(0.001).contains(march.position), isTrue);
-    expect(contact.deflate(0.001).contains(march.position), isFalse);
+    final contact = CityContact.forAppearance(city.appearanceAt(3));
+    final localPosition = march.position - c.cityBounds(city).topLeft;
+    expect(
+      (contact.nearest(localPosition) - localPosition).distance,
+      lessThan(1e-7),
+    );
     expect(battle.simulation, same(simulation));
     expect(battle.nextWaveIn, greaterThan(0));
   });
