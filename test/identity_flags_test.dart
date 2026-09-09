@@ -59,7 +59,7 @@ void main() {
 
   test('进攻马易失败不改变阿尔马城的归属、国旗和城名', () {
     final world = _worlds().first;
-    final campaign = CampaignState.fromRom(world, _heroes());
+    final campaign = CampaignState.fromRom(world, _heroes(), aiEnabled: false);
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40)
       ..hp = 1;
     for (final soldier in hero.squad) {
@@ -79,7 +79,7 @@ void main() {
 
   test('占领后改挂玩家国旗，保留原城名，其他国家旗帜不变', () {
     final world = _worlds().first;
-    final campaign = CampaignState.fromRom(world, _heroes());
+    final campaign = CampaignState.fromRom(world, _heroes(), aiEnabled: false);
     campaign.garrisonAt(2).first.hp = 1;
     for (final soldier in campaign.garrisonAt(2).first.squad) {
       soldier.hp = 0;

@@ -107,7 +107,10 @@ class UnitPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _fighter(hero, '${hero.type.label} · $status'),
+        _fighter(
+          hero,
+          '${c.world.countryName(hero.countryId)}国 · ${hero.type.label} · $status',
+        ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -125,7 +128,7 @@ class UnitPanel extends StatelessWidget {
                 'unit-camp',
                 '扎营',
                 Icons.terrain_outlined,
-                unit != null && unit.phase != MarchPhase.camped
+                hero.isPlayer && unit != null && unit.phase != MarchPhase.camped
                     ? c.campSelected
                     : null,
               ),

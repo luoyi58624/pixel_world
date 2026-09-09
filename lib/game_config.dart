@@ -9,8 +9,43 @@ abstract final class GameConfig {
   /// 每月持续的真实秒数。
   static const secondsPerMonth = 60.0;
 
-  /// 每个国家的初始金币。
+  /// 未单独配置的国家使用的初始金币。
   static const initialGold = 50;
+
+  /// 各国开局资金与每城留守人数；资金为新游戏平衡配置，不是 ROM 提取值。
+  static const countries = <int, CountryConfig>{
+    0: CountryConfig(initialGold: 50, garrisonHeroes: 1), // 阿尔马（玩家）
+    1: CountryConfig(initialGold: 70, garrisonHeroes: 2), // 奥尔梅
+    2: CountryConfig(initialGold: 60, garrisonHeroes: 1), // 马易
+    3: CountryConfig(initialGold: 80, garrisonHeroes: 2), // 鲍罗布
+    4: CountryConfig(initialGold: 45, garrisonHeroes: 1), // 墨尔
+    5: CountryConfig(initialGold: 55, garrisonHeroes: 1), // 托洛诺
+    6: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 列穆
+    7: CountryConfig(initialGold: 50, garrisonHeroes: 1), // 迪麦
+    8: CountryConfig(initialGold: 45, garrisonHeroes: 1), // 索朗
+    9: CountryConfig(initialGold: 80, garrisonHeroes: 2), // 本塔
+    10: CountryConfig(initialGold: 65, garrisonHeroes: 1), // 洛埃
+    11: CountryConfig(initialGold: 60, garrisonHeroes: 1), // 贝尔
+    12: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 艾布林
+    13: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 格商尔
+    14: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 格林福
+    15: CountryConfig(initialGold: 40, garrisonHeroes: 1), // 沃塔
+  };
+
+  /// 其他国家是否自动经营和出征，玩家国家仍由玩家操作。
+  static const countryAiEnabled = true;
+
+  /// 开局后首次国家决策的等待秒数。
+  static const countryAiInitialDelay = 8.0;
+
+  /// 国家经营和出征决策间隔，避免逐帧扫描招募和购买。
+  static const countryAiInterval = 5.0;
+
+  /// 自动出征至少携带的小兵数，默认配满四兵再出发。
+  static const countryAiMinimumSoldiers = 4;
+
+  /// 每座城每月可抽取将领的次数，易主和放弃签约均不重置次数。
+  static const heroDrawsPerCityPerMonth = 1;
 
   /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
   static const normalHarvestWeight = 50;
@@ -122,4 +157,20 @@ abstract final class GameConfig {
 
   /// 退步终点的准备时间。
   static const chargePreparationTime = 0.22;
+}
+
+/// 国家的开局经济与自动出征策略，城池等级和初始英雄仍由地图数据提供。
+class CountryConfig {
+  /// 配置该国初始资金和每座城至少留下的将领人数。
+  const CountryConfig({
+    this.initialGold = GameConfig.initialGold,
+    this.garrisonHeroes = 1,
+  }) : assert(initialGold >= 0),
+       assert(garrisonHeroes >= 0);
+
+  /// 国家初始金币，多座城共用同一个国库。
+  final int initialGold;
+
+  /// 自动出征后每座城至少保留的存活将领数。
+  final int garrisonHeroes;
 }

@@ -11,6 +11,7 @@ List<RomHeroDefinition> _catalog() =>
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 CampaignState _campaign({int gold = 300}) => CampaignState.fromRom(
+  aiEnabled: false,
   _worlds().first,
   _catalog(),
   startingGold: gold,

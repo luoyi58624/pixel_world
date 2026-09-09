@@ -24,6 +24,7 @@ CampaignState _campaign({
   math.Random? economy,
   math.Random? recruitment,
 }) => CampaignState.fromRom(
+  aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: gold,
@@ -237,7 +238,8 @@ void main() {
     expect(c.gold, 45);
     expect(c.signHero(offer), isNotNull);
     expect(c.gold, 35);
-    final declined = c.drawHero(0)!;
+    c.cities[2]!.ownerCountryId = 0;
+    final declined = c.drawHero(2)!;
     expect(c.gold, 30);
     expect(c.declineHero(declined), isTrue);
     expect(c.gold, 30);
@@ -303,6 +305,7 @@ void main() {
     final c = _campaign(gold: 10000);
     while (c.recruitPool.isNotEmpty) {
       c.signHero(c.drawHero(0)!);
+      c.advance(60);
     }
     final before = c.gold;
     expect(c.drawHero(0), isNull);

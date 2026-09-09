@@ -133,7 +133,8 @@ class _CityServicesState extends State<CityServices> {
         _title('英雄商店'),
         const SizedBox(height: 10),
         Text(
-          '回收池 ${campaign.recruitPool.length} 位英雄',
+          '回收池 ${campaign.recruitPool.length} 位英雄 · 本月可抽 ${campaign.remainingHeroDraws(cityId)} 次',
+          key: const ValueKey('city-recruit-quota'),
           style: const TextStyle(color: _muted, fontSize: 11),
         ),
         const SizedBox(height: 8),

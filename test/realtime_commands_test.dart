@@ -13,6 +13,7 @@ import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
 WorldController _controller() => WorldController(
+  aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()),
   heroCatalog: decodeRomHeroes(
     File('assets/data/rom_heroes.json').readAsStringSync(),
@@ -45,6 +46,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
           as WorldPainter);
   final c = painter.controller;
   c.campaigns[0] = CampaignState.fromRom(
+    aiEnabled: false,
     c.world,
     painter.assets.heroCatalog,
     startingGold: 300,

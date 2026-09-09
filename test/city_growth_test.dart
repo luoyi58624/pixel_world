@@ -11,6 +11,7 @@ import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
 CampaignState _campaign([int map = 0]) => CampaignState.fromRom(
+  aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: 10000,
@@ -130,6 +131,7 @@ void main() {
       final assets = await WorldAssets.load();
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
       c.campaigns[0] = CampaignState.fromRom(
+        aiEnabled: false,
         c.world,
         assets.heroCatalog,
         startingGold: 10000,

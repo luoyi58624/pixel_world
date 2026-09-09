@@ -11,6 +11,7 @@ import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
 CampaignState _campaign() => CampaignState.fromRom(
+  aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: 10000,

@@ -397,7 +397,7 @@ class _BattleSceneState extends State<BattleScene> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${hero.name} · ${side == BattleSide.attacker ? '进攻' : '守城'}',
+                    '${hero.name} · ${widget.controller.world.countryName(hero.countryId)}国 · ${side == BattleSide.attacker ? '进攻' : '守城'}',
                     style: TextStyle(color: _cream, fontSize: tight ? 11 : 14),
                     overflow: TextOverflow.ellipsis,
                   ),

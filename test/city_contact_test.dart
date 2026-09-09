@@ -7,6 +7,7 @@ import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
 CampaignState _campaign() => CampaignState.fromRom(
+  aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
 );

@@ -108,7 +108,8 @@ class WorldPainter extends CustomPainter {
         c.animationStep,
         friendly: true,
       );
-    } else {
+    }
+    {
       final marches = c.campaign.marches.values.toList()
         ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
       for (final march in marches) {
@@ -337,9 +338,10 @@ class MinimapPainter extends CustomPainter {
           ..isAntiAlias = false,
       );
     }
-    final positions = !c.campaign.hasDispatched
-        ? [c.heroPosition]
-        : c.campaign.marches.values.map((march) => march.position);
+    final positions = [
+      if (!c.campaign.hasDispatched) c.heroPosition,
+      ...c.campaign.marches.values.map((march) => march.position),
+    ];
     for (final position in positions) {
       final hero = Offset(position.dx * sx, position.dy * sy);
       canvas.drawCircle(hero, 3, Paint()..color = const Color(0xff111018));

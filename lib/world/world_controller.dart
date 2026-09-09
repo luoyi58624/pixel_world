@@ -20,8 +20,12 @@ class WorldController extends ChangeNotifier {
   WorldController(
     this.worlds, {
     List<RomHeroDefinition> heroCatalog = const [],
-    int startingGold = GameConfig.initialGold,
+    int? startingGold,
+    Map<int, CountryConfig> countryConfigs = GameConfig.countries,
+    bool aiEnabled = GameConfig.countryAiEnabled,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
+       _countryConfigs = Map.unmodifiable(countryConfigs),
+       _aiEnabled = aiEnabled,
        camera = WorldCamera(worlds.first.pixelSize),
        campaigns = worlds
            .map(
@@ -29,6 +33,8 @@ class WorldController extends ChangeNotifier {
                world,
                heroCatalog,
                startingGold: startingGold,
+               countryConfigs: countryConfigs,
+               aiEnabled: aiEnabled,
              ),
            )
            .toList() {
@@ -50,6 +56,8 @@ class WorldController extends ChangeNotifier {
   /// 各场景的独立玩法状态，切换地图不重置出征记录。
   final List<CampaignState> campaigns;
   final List<RomHeroDefinition> _heroCatalog;
+  final Map<int, CountryConfig> _countryConfigs;
+  final bool _aiEnabled;
   bool _gameOverShown = false;
 
   /// 当前场景的城池与部队状态。
@@ -95,6 +103,7 @@ class WorldController extends ChangeNotifier {
   /// 角色可以接收行军指令，已经在外的部队允许中途改道。
   bool get canMoveSelected =>
       !campaign.defeated &&
+      selectedMapHero?.isPlayer == true &&
       (selectedUnit != null ||
           (selectedMapHero != null && campaign.canDispatch(selectedMapHero!)));
 
@@ -328,7 +337,12 @@ class WorldController extends ChangeNotifier {
   /// 重新创建当前地图的战役，恢复主角、城池和经济，不沿用失败进度。
   void restartCampaign() {
     if (!campaign.defeated) return;
-    campaigns[index] = CampaignState.fromRom(world, _heroCatalog);
+    campaigns[index] = CampaignState.fromRom(
+      world,
+      _heroCatalog,
+      countryConfigs: _countryConfigs,
+      aiEnabled: _aiEnabled,
+    );
     time = 0;
     appearance = HeroAppearance.protagonist;
     followHero = false;
@@ -570,7 +584,10 @@ class WorldController extends ChangeNotifier {
   /// 镜头跟随最近派出的部队，尚未派兵时跟随探索角色。
   Offset get focusPosition =>
       selectedUnit?.position ??
-      campaign.marches.values.lastOrNull?.position ??
+      campaign.marches.values
+          .where((march) => march.hero.isPlayer)
+          .lastOrNull
+          ?.position ??
       heroPosition;
 
   /// 地图底部的行军说明，只在界面状态变化时重建。
@@ -697,7 +714,7 @@ class WorldController extends ChangeNotifier {
 
   /// 仅让当前角色原地扎营，地图时间与其他单位保持运行。
   void campSelected() {
-    if (selectedUnitId == null) return;
+    if (selectedUnitId == null || selectedMapHero?.isPlayer != true) return;
     if (selectedUnit != null) campaign.camp(selectedUnitId!);
     message = '${selectedMapHero?.name ?? '英雄'}已原地扎营';
     refreshUi();

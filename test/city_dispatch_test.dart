@@ -61,6 +61,7 @@ Future<WorldController> _load(
           as WorldPainter;
   final c = painter.controller;
   c.campaigns[0] = CampaignState.fromRom(
+    aiEnabled: false,
     c.world,
     painter.assets.heroCatalog,
     startingGold: startingGold,
