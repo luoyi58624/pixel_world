@@ -77,9 +77,6 @@ class WorldController extends ChangeNotifier {
   /// 地图角色面板当前选择的英雄。
   String? selectedUnitId;
 
-  /// 是否展开角色的完整属性。
-  bool showUnitDetails = false;
-
   /// 正在查看的实时交战记录，结束后仍保留结果。
   WorldBattle? watchedBattle;
 
@@ -295,7 +292,6 @@ class WorldController extends ChangeNotifier {
     if (watchedBattle != null && !watchedBattle!.isActive) {
       // 整场交战结束才退出；连续守将的短暂换人仍属于同一场攻城。
       final outcome = watchedBattle!.outcome;
-      watchedBattle!.simulation.chargeHeld = false;
       watchedBattle = null;
       battleCamera.cancelMotion();
       if (outcome != null) message = outcome;
@@ -330,7 +326,6 @@ class WorldController extends ChangeNotifier {
   void _showDefeat() {
     if (_gameOverShown) return;
     _gameOverShown = true;
-    watchedBattle?.simulation.chargeHeld = false;
     watchedBattle = null;
     camera.cancelMotion();
     battleCamera.cancelMotion();
@@ -702,7 +697,6 @@ class WorldController extends ChangeNotifier {
     selectedUnitId = id;
     selectedCity = null;
     watchedBattle = null;
-    showUnitDetails = false;
     message = '已选中${selectedMapHero!.name}';
     refreshUi();
   }
@@ -724,12 +718,6 @@ class WorldController extends ChangeNotifier {
     if (selectedUnit?.phase == MarchPhase.dueling) return;
     if (selectedUnit != null) campaign.camp(selectedUnitId!);
     message = '${selectedMapHero?.name ?? '英雄'}已原地扎营';
-    refreshUi();
-  }
-
-  /// 展开同一角色面板中的详细属性。
-  void inspectUnit() {
-    showUnitDetails = !showUnitDetails;
     refreshUi();
   }
 

@@ -39,7 +39,6 @@ void main() {
         final sim = _battle(attackerWins: rightWins, perspective: perspective);
         _until(sim, BattleStage.falling);
         expect(sim.announcedResult, isNull);
-        expect(sim.acceptsCharge, isFalse);
         _until(sim, BattleStage.victory);
         final cueStarted = sim.elapsed;
         expect(sim.result, isNull);

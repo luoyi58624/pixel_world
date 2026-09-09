@@ -6,6 +6,8 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/fixed_siege_random.dart';
+
 CampaignState _campaign({
   int level = 2,
   int homeStock = 10,
@@ -50,6 +52,7 @@ CampaignState _campaign({
     world,
     decodeRomHeroes(jsonEncode(json)),
     aiEnabled: false,
+    siegeRandom: const FixedSiegeRandom(),
     startingGold: 10000,
   );
   if (homeStock > 0) expect(c.buySoldiers(0, homeStock), isTrue);

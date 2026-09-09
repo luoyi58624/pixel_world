@@ -30,6 +30,7 @@ CampaignState _campaign({
   startingGold: gold,
   economyRandom: economy ?? _RandomValue(),
   recruitmentRandom: recruitment ?? _RandomValue(),
+  siegeRandom: _RandomValue(),
 );
 
 CampaignHero _hero(CampaignState c, int id) =>

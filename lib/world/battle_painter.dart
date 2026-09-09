@@ -120,7 +120,7 @@ class BattlePainter extends CustomPainter {
     canvas.drawImage(
       battle is FieldBattle
           ? assets.fieldScenes[battle.terrain]!
-          : art.background(sim.defenderCityLevel),
+          : art.background(sim.cityAppearanceLevel ?? sim.defenderCityLevel),
       Offset.zero,
       Paint()..filterQuality = FilterQuality.none,
     );

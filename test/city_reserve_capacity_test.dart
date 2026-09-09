@@ -5,6 +5,8 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/fixed_siege_random.dart';
+
 CampaignState _campaign({bool duplicatePlacement = false}) =>
     CampaignState.fromRom(
       WorldDefinition.fromJson(
@@ -38,6 +40,7 @@ CampaignState _campaign({bool duplicatePlacement = false}) =>
       decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
       startingGold: 1000,
       aiEnabled: false,
+      siegeRandom: const FixedSiegeRandom(),
     );
 
 void main() {

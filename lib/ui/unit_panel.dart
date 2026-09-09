@@ -113,46 +113,43 @@ class UnitPanel extends StatelessWidget {
           '${c.world.countryName(hero.countryId)}国 · ${hero.type.label} · $status',
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 24,
+          runSpacing: 12,
           children: [
-            Expanded(
-              child: _command(
-                'unit-move',
-                '移动',
-                Icons.open_with,
-                c.canMoveSelected ? c.prepareMove : null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _command(
-                'unit-camp',
-                '扎营',
-                Icons.terrain_outlined,
-                hero.isPlayer &&
-                        unit != null &&
-                        unit.phase != MarchPhase.camped &&
-                        unit.phase != MarchPhase.dueling
-                    ? c.campSelected
-                    : null,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _command(
-                'unit-info',
-                '情况',
-                Icons.info_outline,
-                c.inspectUnit,
-              ),
-            ),
+            _stat('战斗', '${hero.combat}'),
+            _stat('内政', '${hero.politics}'),
+            _stat('月俸', '${hero.salary}'),
+            _stat('士兵', '${hero.soldiers} 人'),
           ],
         ),
-        if (unit?.phase == MarchPhase.marching) ...[
-          const SizedBox(height: 14),
-          Text(
-            '目的地：${unit!.target?.label ?? '(${(unit.destination.dx / 16).floor()}, ${(unit.destination.dy / 16).floor()})'}',
-            style: const TextStyle(color: _muted, fontSize: 12),
+        if (hero.isPlayer) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _command(
+                  'unit-move',
+                  '移动',
+                  Icons.open_with,
+                  c.canMoveSelected ? c.prepareMove : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _command(
+                  'unit-camp',
+                  '扎营',
+                  Icons.terrain_outlined,
+                  hero.isPlayer &&
+                          unit != null &&
+                          unit.phase != MarchPhase.camped &&
+                          unit.phase != MarchPhase.dueling
+                      ? c.campSelected
+                      : null,
+                ),
+              ),
+            ],
           ),
         ],
         if (battle?.isActive == true) ...[
@@ -164,19 +161,6 @@ class UnitPanel extends StatelessWidget {
               onPressed: () => onAction(() => c.watchBattle(battle!)),
               child: const Text('进入观战'),
             ),
-          ),
-        ],
-        if (c.showUnitDetails) ...[
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 24,
-            runSpacing: 12,
-            children: [
-              _stat('战斗', '${hero.combat}'),
-              _stat('内政', '${hero.politics}'),
-              _stat('月俸', '${hero.salary}'),
-              _stat('士兵', '${hero.soldiers} 人'),
-            ],
           ),
         ],
       ],
@@ -194,11 +178,12 @@ class UnitPanel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
     ),
     onPressed: action == null ? null : () => onAction(action),
-    child: Column(
+    child: Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, size: 18),
-        const SizedBox(height: 6),
+        const SizedBox(width: 8),
         Text(label, style: const TextStyle(fontSize: 13)),
       ],
     ),

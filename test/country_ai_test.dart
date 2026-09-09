@@ -394,7 +394,7 @@ void main() {
     // 将目标重置一级，城中原有第二国英雄继续守城。
     c.cities[2]!.ownerCountryId = 1;
     c.cities[2]!.ownerCountryId = 2;
-    final defender = c.garrisonAt(2).first..hp = 1;
+    final defender = c.garrisonAt(2).last..hp = 1;
     for (final soldier in defender.squad) {
       soldier.hp = 0;
     }

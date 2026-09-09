@@ -253,6 +253,7 @@ class _WorldScreenState extends State<WorldScreen>
                     builder: (context, constraints) {
                       final size = constraints.biggest;
                       final compact = size.width < 700;
+                      final minimapWidth = compact ? 126.0 : 192.0;
                       if (c.camera.viewport != size) c.camera.resize(size);
                       return ValueListenableBuilder(
                         valueListenable: c.uiRevision,
@@ -368,35 +369,13 @@ class _WorldScreenState extends State<WorldScreen>
                                   ),
                                 ),
                               ),
-                              Positioned(
-                                left: 18,
-                                top: 18,
-                                child: IgnorePointer(
-                                  child: ValueListenableBuilder(
-                                    valueListenable: c.uiRevision,
-                                    builder: (context, value, child) =>
-                                        !c.choosingTarget
-                                        ? _locationBadge(c)
-                                        : const SizedBox.shrink(),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 16,
-                                top: 16,
-                                child: ValueListenableBuilder(
-                                  valueListenable: c.uiRevision,
-                                  builder: (context, value, child) =>
-                                      _mapOverlay(c, _mapTools(c)),
-                                ),
-                              ),
                               if (_showMinimap)
                                 Positioned(
                                   right: 16,
-                                  bottom: 16,
+                                  top: 16,
                                   child: _mapOverlay(
                                     c,
-                                    _minimap(c, assets, compact ? 126 : 192),
+                                    _minimap(c, assets, minimapWidth),
                                   ),
                                 ),
                               if (!compact)
@@ -439,7 +418,7 @@ class _WorldScreenState extends State<WorldScreen>
                                 ),
                               Positioned(
                                 left: compact ? 12 : 18,
-                                top: compact ? 12 : 88,
+                                top: compact ? 12 : 18,
                                 right: compact ? 12 : null,
                                 child: ValueListenableBuilder(
                                   valueListenable: c.uiRevision,
@@ -459,7 +438,7 @@ class _WorldScreenState extends State<WorldScreen>
                                                     maxHeight: math.max(
                                                       0,
                                                       size.height -
-                                                          (compact ? 24 : 104),
+                                                          (compact ? 24 : 36),
                                                     ),
                                                     onAction: _action,
                                                   )
@@ -469,7 +448,7 @@ class _WorldScreenState extends State<WorldScreen>
                                                     maxHeight: math.max(
                                                       0,
                                                       size.height -
-                                                          (compact ? 24 : 104),
+                                                          (compact ? 24 : 36),
                                                     ),
                                                     onAction: _action,
                                                   ),
@@ -478,9 +457,15 @@ class _WorldScreenState extends State<WorldScreen>
                                 ),
                               ),
                               Positioned(
-                                left: compact ? 12 : 180,
-                                right: compact ? 64 : 80,
-                                top: compact ? 12 : 18,
+                                left: compact ? 12 : 18,
+                                right: compact
+                                    ? 12
+                                    : _showMinimap
+                                    ? minimapWidth + 38
+                                    : 18,
+                                // 手机选点提示放到底部，桌面留出右上角小地图的宽度。
+                                top: compact ? null : 18,
+                                bottom: compact ? 12 : null,
                                 child: ValueListenableBuilder(
                                   valueListenable: c.uiRevision,
                                   builder: (context, value, child) =>
@@ -653,89 +638,6 @@ class _WorldScreenState extends State<WorldScreen>
     },
   );
 
-  Widget _locationBadge(WorldController c) => _panel(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            ['群岛之境', '长河之境', '山海之境'][c.index],
-            style: const TextStyle(
-              color: _cream,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            '${c.world.cities.length} 座城池  ·  点击城池指挥',
-            style: const TextStyle(color: Color(0xffb2b9a8), fontSize: 10),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _mapTools(WorldController c) => _panel(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _tool(
-          '放大',
-          Icons.add,
-          () => c.camera.zoomTo(
-            c.camera.scale * 1.25,
-            c.camera.viewport.center(Offset.zero),
-          ),
-        ),
-        _tool(
-          '缩小',
-          Icons.remove,
-          () => c.camera.zoomTo(
-            c.camera.scale / 1.25,
-            c.camera.viewport.center(Offset.zero),
-          ),
-        ),
-        Container(width: 22, height: 1, color: _line),
-        _tool('查看全图 · F', Icons.map_outlined, c.camera.overview),
-        _tool('回到据点 · 空格', Icons.home_outlined, c.home),
-        _tool(
-          '网格 · G',
-          Icons.grid_4x4,
-          () => c.showGrid = !c.showGrid,
-          active: c.showGrid,
-        ),
-        _tool('跟随角色', Icons.person_pin_circle_outlined, () {
-          c.followHero = !c.followHero;
-          if (c.followHero) {
-            c.camera.center = c.focusPosition;
-            c.camera.constrain();
-          }
-        }, active: c.followHero),
-      ],
-    ),
-  );
-
-  Widget _tool(
-    String label,
-    IconData icon,
-    VoidCallback action, {
-    bool active = false,
-  }) => SizedBox(
-    width: 40,
-    height: 38,
-    child: IconButton(
-      tooltip: label,
-      onPressed: () => _action(action),
-      padding: EdgeInsets.zero,
-      iconSize: 19,
-      color: active ? _gold : _cream,
-      icon: Icon(icon),
-    ),
-  );
-
   Widget _minimap(WorldController c, WorldAssets assets, double width) =>
       _panel(
         child: Padding(
@@ -861,7 +763,7 @@ class _WorldScreenState extends State<WorldScreen>
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
         content: Text(
-          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　移动、扎营、情况\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、储备、招募和经济\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n守将战败　守城城池降一级\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　每城每月限抽 ${GameConfig.heroDrawsPerCityPerMonth} 次，放弃可继续、签约后当月停止，每次 ${GameConfig.heroDrawCost} 金币，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n其他国家　自动经营，留足驻军后随机进攻\n主角无月俸，其他将领按新标准结算\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、储备、招募和经济\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　守方临时加成逐轮减少4点\n攻城结束　未占领时，每胜一轮50%概率降一级\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　每城每月限抽 ${GameConfig.heroDrawsPerCityPerMonth} 次，放弃可继续、签约后当月停止，每次 ${GameConfig.heroDrawCost} 金币，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n其他国家　自动经营，留足驻军后随机进攻\n主角无月俸，其他将领按新标准结算\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
           style: const TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [

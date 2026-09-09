@@ -68,6 +68,9 @@ class NesBattleKernel {
   /// 最近碰撞投入的红条积累，顺序为右、左。
   final committed = [0, 0];
 
+  int _attackerChargePhase = 0;
+  int _attackerChargeClock = 0;
+
   /// 双方将领是否都存活，从而允许继续普通拼杀。
   bool get generalsAlive => ram[0x574] & ram[0x579] & 128 != 0;
 
@@ -80,11 +83,15 @@ class NesBattleKernel {
   }
 
   /// 按主循环 DCE5 的顺序更新双方运动、死亡动画及 OAM 位置。
-  void step({bool chargeHeld = false}) {
+  void step({bool chargeHeld = false, bool autoCharge = false}) {
     ram[0x42] = chargeHeld ? 128 : 0;
     if (generalsAlive) {
       // 首帧承接 E1C4 的 CLC；之后 DD08 的 ASL 将存活位移入进位。
       _p = frames == 0 ? 0x30 : 0x31;
+      if (autoCharge) {
+        _advanceAttackerCharge();
+        ram[0x42] = 0;
+      }
       _call(0xe4c4);
       _call(0xe55c);
     }
@@ -92,6 +99,26 @@ class NesBattleKernel {
     _call(0xe758, x: 0);
     _call(0xe758, x: 1);
     frames++;
+  }
+
+  // 复用原左军 E55C–E586 的随机节奏与扣除指令，临时映射到右军独立状态。
+  // 左军仍执行完整原代码；不改写 ROM，也不额外叠加按键带来的三点积累。
+  void _advanceAttackerCharge() {
+    final phase = ram[0x17], clock = ram[0x18];
+    final accumulated = ram[0x19], remaining = ram[0xaf];
+    ram[0x17] = _attackerChargePhase;
+    ram[0x18] = _attackerChargeClock;
+    ram[0x19] = ram[0x0f];
+    ram[0xaf] = ram[0xae];
+    _call(0xe55c, stopBefore: 0xe587);
+    _attackerChargePhase = ram[0x17];
+    _attackerChargeClock = ram[0x18];
+    ram[0x0f] = ram[0x19];
+    ram[0xae] = ram[0xaf];
+    ram[0x17] = phase;
+    ram[0x18] = clock;
+    ram[0x19] = accumulated;
+    ram[0xaf] = remaining;
   }
 
   /// 将原版速度字解释为有符号 8.8 定点数。
@@ -199,14 +226,14 @@ class NesBattleKernel {
   void _bit(int value) =>
       _p = (_p & ~0xc2) | (value & 0xc0) | (_a & value == 0 ? 2 : 0);
 
-  void _call(int address, {int? x}) {
+  void _call(int address, {int? x, int? stopBefore}) {
     if (x != null) _x = x;
     _pc = address;
     _sp = 255;
     _push(0x5f);
     _push(0xff);
     for (var budget = 0; budget < 40000; budget++) {
-      if (_pc == 0x6000) return;
+      if (_pc == 0x6000 || _pc == stopBefore) return;
       if (_pc == 0xcf49 || _pc == 0xe8f3) {
         // 战役归属由 Campaign 管理；OAM 绘制由 Flutter 读取同一份槽位状态。
         _pc = (_pop() | _pop() << 8) + 1;

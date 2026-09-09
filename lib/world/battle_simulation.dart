@@ -222,12 +222,13 @@ typedef BattleClash = ({double attackerDamage, double defenderDamage});
 
 /// 原版普通拼杀与战役共享生命的适配；观战读取后台同一场战斗。
 class BattleSimulation {
-  /// 固定种子控制原随机源，自动蓄力只代替玩家按键。
+  /// 固定种子驱动原随机源，双方自动采用原版电脑的士气节奏。
   BattleSimulation({
     required this.attacker,
     required this.defender,
     required int seed,
     this.defenderCityLevel = 1,
+    this.cityAppearanceLevel,
     this.fieldTerrain,
     this.autoCharge = true,
     this.resultPerspective = BattleSide.attacker,
@@ -275,17 +276,17 @@ class BattleSimulation {
   /// 开场读取的城市等级。
   final int defenderCityLevel;
 
+  /// 建筑背景使用的真实等级，连续攻城的临时加成变化不改变城堡外观。
+  final int? cityAppearanceLevel;
+
   /// 野战环境，为空时表示城内。
   final FieldTerrain? fieldTerrain;
 
   /// 胜败提示以玩家所在一侧为准，无玩家参战时默认右军。
   final BattleSide resultPerspective;
 
-  /// 自动代按蓄力，关闭后可手动操作。
-  bool autoCharge;
-
-  /// 右军蓄力按键状态。
-  bool chargeHeld = false;
+  /// 是否为右军启用原版电脑士气节奏，关闭仅用于原 ROM 无按键对照。
+  final bool autoCharge;
 
   /// 野战对英雄属性的倍率，小兵不受影响。
   double get heroAttackFactor => fieldTerrain?.heroAttackFactor ?? 1;
@@ -367,10 +368,6 @@ class BattleSimulation {
       ? null
       : nesBattleResultLabels[announcementIndex!];
 
-  /// 退场开始后不再接收蓄力，避免收尾期间积压按键。
-  bool get acceptsCharge =>
-      !finished && (forming || stage == BattleStage.fighting);
-
   int get _resultIndex {
     if (_pendingResult == BattleResult.draw) return 2;
     final won = resultPerspective == BattleSide.attacker
@@ -448,16 +445,8 @@ class BattleSimulation {
           changed = true;
         }
       } else {
-        _kernel.step(
-          chargeHeld:
-              chargeHeld ||
-              autoCharge &&
-                  _kernel.frames % GameConfig.battleAutoChargePulseFrames ==
-                      0 &&
-                  _kernel.velocity(0) < 0,
-        );
+        _kernel.step(autoCharge: autoCharge);
         if (!_kernel.generalsAlive) {
-          chargeHeld = false;
           if (_kernel.falling) {
             changed |= stage != BattleStage.falling;
             stage = BattleStage.falling;
@@ -500,7 +489,6 @@ class BattleSimulation {
   /// 撤离时停止当前战斗，保留生命和兵力。
   void stop() {
     stopped = true;
-    chargeHeld = false;
     for (final formation in formations.values) {
       formation.moving = false;
       formation.motion = BattleMotion.halted;
@@ -526,7 +514,6 @@ class BattleSimulation {
   void _complete() {
     stage = BattleStage.complete;
     result = _pendingResult;
-    chargeHeld = false;
   }
 
   void _addArmy(BattleArmy army, BattleSide side) {

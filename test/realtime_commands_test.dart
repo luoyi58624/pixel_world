@@ -64,6 +64,53 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
 }
 
 void main() {
+  for (final size in [const Size(375, 812), const Size(1280, 720)]) {
+    testWidgets('将领默认展示属性，我方指令横排，敌方隐藏全部指令 $size', (tester) async {
+      final c = await _load(tester, size);
+      for (final country in [0, 1]) {
+        final hero = c.campaign.garrisonAt(country).first;
+        final march = c.campaign.dispatchTo(
+          hero,
+          c.campaign.cityBounds(c.world.cities[country]).center +
+              const Offset(80, 32),
+          countryId: country,
+        )!;
+        c.openUnit(hero.id);
+        await tester.pump();
+        expect(find.byKey(const ValueKey('unit-info')), findsNothing);
+        for (final name in ['战斗', '内政', '月俸', '士兵']) {
+          expect(find.text(name), findsOneWidget);
+        }
+        final move = find.byKey(const ValueKey('unit-move'));
+        final camp = find.byKey(const ValueKey('unit-camp'));
+        if (country == 0) {
+          expect(move, findsOneWidget);
+          expect(camp, findsOneWidget);
+          expect(tester.getCenter(move).dy, tester.getCenter(camp).dy);
+          final icon = find.descendant(
+            of: move,
+            matching: find.byIcon(Icons.open_with),
+          );
+          expect(
+            tester.getCenter(icon).dy,
+            closeTo(tester.getCenter(find.text('移动')).dy, 1),
+          );
+          final before = march.position;
+          c.tick(0.2);
+          expect(march.position, isNot(before));
+        } else {
+          expect(move, findsNothing);
+          expect(camp, findsNothing);
+          expect(c.canMoveSelected, isFalse);
+        }
+        c.cancelCityAction();
+        await tester.pump();
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   test('任意空地出击、到达驻留、重新指定目标与扎营保留同一英雄身份', () {
     final c = _controller();
     expect(c.campaign.buySoldiers(0, 12), isTrue);
@@ -281,8 +328,7 @@ void main() {
     await tester.tapAt(origin + c.camera.toScreen(deployed.position));
     await tester.pump();
     expect(find.byKey(const ValueKey('unit-panel')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('unit-info')));
-    await tester.pump();
+    expect(find.byKey(const ValueKey('unit-info')), findsNothing);
     expect(find.text('王牌'), findsNothing);
     expect(find.text('召唤蛋'), findsNothing);
     expect(find.text('内政'), findsOneWidget);
@@ -474,14 +520,10 @@ void main() {
     expect(battle.simulation, same(simulation));
     expect(simulation.elapsed, greaterThanOrEqualTo(elapsed));
     expect(simulation.attackerMorale.remaining, lessThanOrEqualTo(morale));
-    final hold = await tester.startGesture(
-      tester.getCenter(find.byKey(const ValueKey('battle-hold-charge'))),
-    );
-    expect(simulation.chargeHeld, isTrue);
+    expect(find.byKey(const ValueKey('battle-hold-charge')), findsNothing);
+    expect(find.text('自动蓄力'), findsNothing);
     c.cancelCityAction();
     await tester.pump();
-    expect(simulation.chargeHeld, isFalse);
-    await hold.up();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

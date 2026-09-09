@@ -148,8 +148,8 @@ abstract final class GameConfig {
   /// 原版进入提示 20 帧及介绍等待 143 帧。
   static const battleFormationFrames = 163;
 
-  /// 自动观战时每五帧在反弹阶段代按一次 A。
-  static const battleAutoChargePulseFrames = 5;
+  /// 整场未攻下的城池，进攻方每赢一轮独立触发一次降级的概率。
+  static const cityDamageChancePerVictory = 0.5;
 }
 
 /// 从玩法 JSON 读取的国家开局经济与自动出征策略。

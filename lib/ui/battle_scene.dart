@@ -43,16 +43,6 @@ class _BattleSceneState extends State<BattleScene> {
   Offset _anchor = Offset.zero;
   double _scale = 1;
   bool _gestureScaled = false;
-  BattleSimulation? _heldSimulation;
-
-  void _holdCharge(bool held) {
-    _heldSimulation?.chargeHeld = false;
-    final simulation = widget.controller.watchedBattle?.simulation;
-    _heldSimulation = held && simulation?.acceptsCharge == true
-        ? simulation
-        : null;
-    _heldSimulation?.chargeHeld = true;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -286,48 +276,6 @@ class _BattleSceneState extends State<BattleScene> {
                     '$status。${battle.defender.name} HP ${battle.defender.hp}，${battle.attacker.name} HP ${battle.attacker.hp}',
                 child: const SizedBox.shrink(),
               ),
-              if (battle.attacker.isPlayer && !sim.finished)
-                _overlay(
-                  IgnorePointer(
-                    ignoring: !sim.acceptsCharge,
-                    child: Opacity(
-                      opacity: sim.acceptsCharge ? 1 : 0.4,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Checkbox(
-                            value: sim.autoCharge,
-                            onChanged: (value) => widget.onAction(() {
-                              sim.autoCharge = value ?? true;
-                              sim.chargeHeld = false;
-                            }),
-                          ),
-                          const Text(
-                            '自动蓄力',
-                            style: TextStyle(color: _cream, fontSize: 12),
-                          ),
-                          const SizedBox(width: 16),
-                          Listener(
-                            key: const ValueKey('battle-hold-charge'),
-                            onPointerDown: (_) => _holdCharge(true),
-                            onPointerUp: (_) => _holdCharge(false),
-                            onPointerCancel: (_) => _holdCharge(false),
-                            child: const Tooltip(
-                              message: '按住消耗红条，在反弹阶段加强回冲',
-                              child: Padding(
-                                padding: EdgeInsets.all(10),
-                                child: Text(
-                                  '按住蓄力',
-                                  style: TextStyle(color: _gold, fontSize: 12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
               if (!tight)
                 _overlay(
                   Container(
@@ -383,7 +331,6 @@ class _BattleSceneState extends State<BattleScene> {
 
   @override
   void dispose() {
-    _holdCharge(false);
     _art.dispose();
     super.dispose();
   }

@@ -16,6 +16,7 @@ CampaignState _campaign({int gold = 300}) => CampaignState.fromRom(
   _catalog(),
   startingGold: gold,
   economyRandom: _NormalRandom(),
+  siegeRandom: _NormalRandom(),
 );
 
 class _NormalRandom implements math.Random {
@@ -119,7 +120,7 @@ void main() {
     expect(c.gold, 296);
   });
 
-  test('守将阵亡降一级且立即减产，同一战败不能重复降级', () {
+  test('单场已结束的守城战败命中降级判定，同一事件不能重复结算', () {
     final c = _campaign(gold: 2000);
     c.upgradeCity(0, hero: _hero(c, 40));
     c.upgradeCity(0, hero: _hero(c, 40));
@@ -196,10 +197,11 @@ void main() {
     }
     final march = c.dispatch(hero, c.world.cities[1])!;
     march.position = march.destination;
-    for (var i = 0; i < 1200 && c.cities[1]!.level == 2; i++) {
+    c.advance(1 / 60);
+    final battle = c.battles[1]!;
+    for (var i = 0; i < 1200 && battle.nextWaveIn == 0; i++) {
       c.advance(0.05);
     }
-    final battle = c.battles[1]!;
     expect(battle.nextWaveIn, greaterThan(0));
     final hp = hero.hp;
     final soldiers = hero.squad.map((soldier) => soldier.hp).toList();
@@ -241,7 +243,7 @@ void main() {
     expect(c.journal.last, contains('游戏结束'));
   });
 
-  test('二级城首位守将战败只降级，再次战败才占领并清除剩余守将', () {
+  test('二级城首胜仅降低临时加成，第二胜占领并清除剩余守将', () {
     final c = _campaign();
     final defenderIds = c.garrisonAt(1).map((hero) => hero.id).toList();
     c.garrisonAt(1).last.hp = 1;
@@ -252,10 +254,12 @@ void main() {
     final march = c.dispatch(hero, c.world.cities[1])!;
     march.position = march.destination;
     march.phase = MarchPhase.awaitingBattle;
-    for (var i = 0; i < 1200 && c.cities[1]!.level == 2; i++) {
+    c.advance(1 / 60);
+    final battle = c.battles[1]!;
+    for (var i = 0; i < 1200 && battle.victories == 0; i++) {
       c.advance(0.05);
     }
-    expect(c.cities[1]!.level, 1);
+    expect(c.cities[1]!.level, 2);
     expect(c.cities[1]!.isPlayer, isFalse);
     expect(c.garrisonAt(1).length, defenderIds.length - 1);
     c.garrisonAt(1).last.hp = 1;

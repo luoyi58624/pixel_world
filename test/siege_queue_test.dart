@@ -6,6 +6,8 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/fixed_siege_random.dart';
+
 WorldDefinition _world() => WorldDefinition.fromJson(
   {
     'id': 0,
@@ -40,6 +42,7 @@ CampaignState _campaign({WorldDefinition? world}) => CampaignState.fromRom(
   world ?? _world(),
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   aiEnabled: false,
+  siegeRandom: const FixedSiegeRandom(),
   startingGold: 1000,
 );
 
@@ -360,9 +363,10 @@ void main() {
     final oldPosition = first.position;
     _kill(c.battles[1]!.defender);
     _until(c, () => c.battles[1]!.nextWaveIn > 0);
-    expect(c.cities[1]!.level, 3);
+    expect(c.cities[1]!.level, 4);
     expect(first.position, oldPosition);
     _withdraw(c, active);
+    expect(c.cities[1]!.level, 3);
     c.advance(1 / 60);
     expect(first.position, oldPosition);
     expect(first.phase, MarchPhase.marching);

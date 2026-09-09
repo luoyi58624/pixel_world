@@ -10,8 +10,11 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
+import 'support/fixed_siege_random.dart';
+
 CampaignState _campaign() => CampaignState.fromRom(
   aiEnabled: false,
+  siegeRandom: const FixedSiegeRandom(),
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: 10000,
@@ -153,7 +156,7 @@ void main() {
     expect(c.canDispatch(_hero(c, 40)), isFalse);
   });
 
-  test('主角守城阵亡仍按守城规则降级，随后结束本局', () {
+  test('主角守城阵亡，单场结束命中降级后结束本局', () {
     final c = _campaign();
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
     final result = c.defeatHero(
@@ -167,7 +170,7 @@ void main() {
     expect(c.heroesAt(0).map((hero) => hero.sourceId), [0, 2]);
   });
 
-  test('同轮双方阵亡分别结算，只有被攻打城池降级', () {
+  test('同轮双方阵亡分别结算，未取得胜轮不造成城防降级', () {
     final c = _campaign();
     final attacker = _hero(c, 0);
     final defender = c.garrisonAt(1).last;
@@ -177,7 +180,7 @@ void main() {
     expect(c.heroes, isNot(contains(defender)));
     expect(c.cities[0]!.level, 1);
     expect(c.cities[0]!.isPlayer, isTrue);
-    expect(c.cities[1]!.level, 1);
+    expect(c.cities[1]!.level, 2);
     expect(c.cities[1]!.isPlayer, isFalse);
     expect(c.battles[1]!.outcome, '双方将领阵亡');
     expect(c.defeated, isFalse);

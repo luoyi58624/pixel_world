@@ -352,6 +352,8 @@ class CityBattle extends WorldBattle {
     required int cityLevel,
     int seed = 1,
   }) : _seed = seed,
+       initialCityLevel = cityLevel,
+       defendingCountryId = defender.countryId,
        super(
          attacker,
          defender,
@@ -362,12 +364,29 @@ class CityBattle extends WorldBattle {
                ? BattleSide.defender
                : BattleSide.attacker,
            defenderCityLevel: cityLevel,
+           cityAppearanceLevel: cityLevel,
            seed: seed,
          ),
        );
 
   /// 战斗所在城池。
   final CityDefinition city;
+
+  /// 本场开打时的城防等级，同时决定连续获胜多少轮可以占领。
+  final int initialCityLevel;
+
+  /// 开战时的守方国家，结束时不把损伤结算给已易主的城市。
+  final int defendingCountryId;
+
+  /// 本场进攻军已经击败的守将数，双方同归于尽不计为胜利。
+  int victories = 0;
+
+  /// 当前轮次使用的临时城防等级，真实城池等级等整场结束后再结算。
+  int get effectiveDefenseLevel => math.max(1, initialCityLevel - victories);
+
+  /// 整场结束后实际降低的城防等级，未触发或已占领时为零。
+  int defenseLoss = 0;
+  bool _damageSettled = false;
 
   @override
   String get locationLabel => '${city.label}国';
@@ -383,7 +402,7 @@ class CityBattle extends WorldBattle {
   double nextWaveIn = 0;
   final int _seed;
 
-  void _nextDefender(CampaignHero hero, int cityLevel) {
+  void _nextDefender(CampaignHero hero) {
     defender = hero;
     wave++;
     nextWaveIn = 0;
@@ -394,7 +413,8 @@ class CityBattle extends WorldBattle {
       resultPerspective: hero.isPlayer
           ? BattleSide.defender
           : BattleSide.attacker,
-      defenderCityLevel: cityLevel,
+      defenderCityLevel: effectiveDefenseLevel,
+      cityAppearanceLevel: initialCityLevel,
       seed: _seed + wave,
     );
     record('${hero.name}接替守城');
@@ -435,6 +455,7 @@ class CampaignState {
     this._economyRandom,
     this._recruitmentRandom,
     this._aiRandom,
+    this._siegeRandom,
     this.aiEnabled,
     this.countryConfigs,
   ) : _protagonist = heroes
@@ -448,6 +469,7 @@ class CampaignState {
   final math.Random _recruitmentRandom;
   final Map<int, RomHeroDefinition> _heroPool = {};
   final math.Random _aiRandom;
+  final math.Random _siegeRandom;
   int _siegeArrivalSerial = 0;
 
   /// 是否运行非玩家国家的自动经营；测试可以单独关闭以隔离原有规则。
@@ -472,6 +494,7 @@ class CampaignState {
     math.Random? economyRandom,
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
+    math.Random? siegeRandom,
   }) {
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
@@ -539,6 +562,7 @@ class CampaignState {
       economyRandom ?? math.Random(),
       recruitmentRandom ?? math.Random(),
       aiRandom ?? math.Random(),
+      siegeRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
     );
@@ -730,6 +754,7 @@ class CampaignState {
       if (battle is CityBattle) {
         battle.nextWaveIn = 0;
         _releaseDefender(battle);
+        _settleSiegeDamage(battle);
       }
       battle.simulation.stop();
     }
@@ -1244,12 +1269,45 @@ class CampaignState {
     final battle = battles[march.target?.id];
     if (battle != null && battle.isActive && battle.attacker == march.hero) {
       battle.outcome = outcome;
+      battle.nextWaveIn = 0;
       battle.simulation.stop();
       _releaseDefender(battle);
+      _settleSiegeDamage(battle);
     }
   }
 
-  /// 移除战败英雄；只有明确指定其实际守城时，才降低该城等级或令其易主。
+  // 每一胜轮独立掷一次，最低一级；即使达到下限也完成本场全部判定。
+  int _damageCity(int cityId, int victories) {
+    var damage = 0;
+    for (var round = 0; round < victories; round++) {
+      if (_siegeRandom.nextDouble() < GameConfig.cityDamageChancePerVictory) {
+        damage++;
+      }
+    }
+    final city = cities[cityId]!;
+    final before = city.level;
+    city._level = math.max(1, before - damage);
+    city._trimReserves();
+    if (city.level != before) _refreshCityApproaches(cityId);
+    return before - city.level;
+  }
+
+  void _settleSiegeDamage(CityBattle battle) {
+    if (battle._damageSettled) return;
+    battle._damageSettled = true;
+    if (cities[battle.city.id]!.ownerCountryId != battle.defendingCountryId ||
+        battle.victories == 0) {
+      return;
+    }
+    battle.defenseLoss = _damageCity(battle.city.id, battle.victories);
+    final message = battle.defenseLoss == 0
+        ? '${battle.city.label}攻城结束，城防保持 ${cities[battle.city.id]!.level} 级'
+        : '${battle.city.label}攻城结束，城防降低 ${battle.defenseLoss} 级';
+    battle.record(message);
+    _record(message);
+  }
+
+  /// 单次已结束的战败事件；守城失败按一次胜轮结算破坏，一级城则失守。
   DefeatResult? defeatHero(
     String heroId, {
     required int winnerCountryId,
@@ -1269,6 +1327,7 @@ class CampaignState {
     String heroId, {
     required int winnerCountryId,
     int? defendedCityId,
+    bool settleCityDefense = true,
   }) {
     final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
     if (hero == null ||
@@ -1295,13 +1354,13 @@ class CampaignState {
     _clearSquad(hero);
     _recycleHero(hero);
     var captured = false;
-    if (defendedCityId != null) {
-      if (city.level > 1) {
-        city._level--;
-        _refreshCityApproaches(hero.cityId);
-      } else {
+    if (defendedCityId != null && settleCityDefense) {
+      if (city.level == 1 ||
+          !garrisonAt(hero.cityId).any((h) => h.health.alive)) {
         captured = true;
         removed.addAll(_captureCity(hero.cityId, winnerCountryId));
+      } else {
+        _damageCity(hero.cityId, 1);
       }
     }
     city._trimReserves();
@@ -1309,7 +1368,7 @@ class CampaignState {
       captured
           ? '${hero.name}战败，${_cityName(hero.cityId)}失守，未出战英雄已移除'
           : defendedCityId != null
-          ? '${hero.name}守城战败，${_cityName(hero.cityId)}降至 ${city.level} 级'
+          ? '${hero.name}守城战败'
           : '${hero.name}进攻战败，出征部队已损失',
     );
     return (
@@ -1418,6 +1477,9 @@ class CampaignState {
           _settleBattle(battle as CityBattle);
         }
         _disbandFinishedArmies(battle);
+        if (battle is CityBattle && !battle.isActive) {
+          _settleSiegeDamage(battle);
+        }
         changed = true;
         if (!closingOnly && (_finishDefeat() || defeated)) break;
       } else if (battle is CityBattle && battle.nextWaveIn > 0) {
@@ -1426,7 +1488,7 @@ class CampaignState {
           final next = _pickDefender(battle.city.id);
           if (next != null) {
             reinforceHero(next, countryId: next.countryId);
-            battle._nextDefender(next, cities[battle.city.id]!.level);
+            battle._nextDefender(next);
           } else if (!garrisonAt(battle.city.id)
               .any((hero) => hero.health.alive)) {
             _finishOccupation(battle);
@@ -1445,6 +1507,7 @@ class CampaignState {
     final defender = battle.defender;
     final lostAttacker = !attacker.health.alive;
     final lostDefender = !defender.health.alive;
+    if (lostDefender && !lostAttacker) battle.victories++;
     if (lostAttacker) {
       _removeDefeatedHero(attacker.id, winnerCountryId: defender.countryId);
     }
@@ -1453,6 +1516,7 @@ class CampaignState {
         defender.id,
         winnerCountryId: attacker.countryId,
         defendedCityId: battle.city.id,
+        settleCityDefense: false,
       );
       battle.record('${defender.name}战败');
     }
@@ -1463,7 +1527,8 @@ class CampaignState {
       return;
     }
     final city = cities[battle.city.id]!;
-    if (city.ownerCountryId == attacker.countryId ||
+    if (battle.victories >= battle.initialCityLevel ||
+        city.ownerCountryId == attacker.countryId ||
         !garrisonAt(battle.city.id).any((hero) => hero.health.alive)) {
       _finishOccupation(battle);
     } else {
@@ -1534,6 +1599,7 @@ class CampaignState {
     battle.outcome =
         '${battle.outcome ?? '交战结束'} · 出发城失守，${marked.map((hero) => hero.name).join('、')}部队已消失';
     battle.simulation.stop();
+    if (battle is CityBattle) _settleSiegeDamage(battle);
   }
 
   void _disbandHero(CampaignHero hero, {bool endBattle = true}) {
@@ -1545,6 +1611,7 @@ class CampaignState {
         if (battle is CityBattle) {
           battle.nextWaveIn = 0;
           _releaseDefender(battle);
+          _settleSiegeDamage(battle);
         }
         battle.simulation.stop();
       }

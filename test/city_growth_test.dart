@@ -11,11 +11,14 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
+import 'support/fixed_siege_random.dart';
+
 CampaignState _campaign([int map = 0]) => CampaignState.fromRom(
   aiEnabled: false,
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   startingGold: 10000,
+  siegeRandom: const FixedSiegeRandom(),
 );
 
 void main() {
@@ -102,7 +105,7 @@ void main() {
     expect(c.cities[1]!.level, 3);
   });
 
-  test('守城降级时缩小建筑并同步攻城站位，当前交战记录不被重建', () {
+  test('连续交战不缩小建筑，进攻结束后才按判定降级并同步接触位置', () {
     final c = _campaign(2);
     final city = c.world.cities[1];
     final defender = c.garrisonAt(1).last..hp = 1;
@@ -115,9 +118,12 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     final simulation = battle.simulation;
-    for (var i = 0; i < 1200 && c.cities[1]!.level == 4; i++) {
+    for (var i = 0; i < 1200 && battle.nextWaveIn == 0; i++) {
       c.advance(1 / 60);
     }
+    expect(c.cities[1]!.level, 4);
+    expect(c.cityBounds(city).size, const ui.Size(48, 64));
+    c.camp(hero.id);
     expect(c.cities[1]!.level, 3);
     expect(c.cityBounds(city).size, const ui.Size(48, 48));
     final contact = CityContact.forAppearance(city.appearanceAt(3));
@@ -127,7 +133,8 @@ void main() {
       lessThan(1e-7),
     );
     expect(battle.simulation, same(simulation));
-    expect(battle.nextWaveIn, greaterThan(0));
+    expect(battle.nextWaveIn, 0);
+    expect(battle.isActive, isFalse);
   });
 
   testWidgets('五级原版建筑各不相同，降级和易主还原画面且不残留旧城堡', (tester) async {
@@ -136,6 +143,7 @@ void main() {
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
       c.campaigns[0] = CampaignState.fromRom(
         aiEnabled: false,
+        siegeRandom: const FixedSiegeRandom(),
         c.world,
         assets.heroCatalog,
         startingGold: 10000,

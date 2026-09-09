@@ -79,7 +79,7 @@ void main() {
     );
   });
 
-  test('守将战败降级，下一位上场时按新等级重算加成并重填士气', () {
+  test('换守将只降低本场临时等级并重填士气，真实城防暂不变化', () {
     final c = _campaign();
     final attacker = c.garrisonAt(0).first;
     final firstDefender = c.garrisonAt(1).last..hp = 1;
@@ -96,7 +96,7 @@ void main() {
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
     }
-    expect(c.cities[1]!.level, 1);
+    expect(c.cities[1]!.level, 2);
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
