@@ -120,16 +120,19 @@ void main() {
     expect(c.drawHero(0, countryId: 1), isNotNull);
   });
 
-  test('各国签约预留独立，共享池不重复，不能冒领其他国家的将领', () {
+  test('玩家预留不被其他国家抽到，NPC抽取后立即签约且不能重复领取', () {
     final c = _campaign(gold: 100);
     final player = c.drawHero(0)!;
     final foreign = c.drawHero(1, countryId: 1)!;
     expect(player.hero.id, isNot(foreign.hero.id));
     expect(c.recruitmentOffer, same(player));
-    expect(c.recruitmentOfferFor(1), same(foreign));
+    expect(c.recruitmentOfferFor(1), isNull);
     expect(c.signHero(foreign), isNull);
     expect(c.declineHero(foreign), isFalse);
-    final signed = c.signHero(foreign, countryId: 1)!;
+    expect(c.signHero(foreign, countryId: 1), isNull);
+    final signed = c.heroes.firstWhere(
+      (hero) => hero.sourceId == foreign.hero.id,
+    );
     expect(signed.countryId, 1);
     expect(signed.cityId, 1);
     expect(signed.soldiers, 0);
@@ -141,6 +144,72 @@ void main() {
     expect(c.defeated, isTrue);
     expect(c.recruitmentOffer, isNull);
     expect(c.recruitPool.any((hero) => hero.id == player.hero.id), isTrue);
+  });
+
+  test('唯一候选被玩家锁定后所有国家都抽不到，放弃后可被NPC立即签走', () {
+    final c = _campaign(gold: 10000);
+    while (c.recruitPool.length > 1) {
+      c.signHero(c.drawHero(0)!);
+      c.advance(60);
+    }
+    final reserved = c.drawHero(0)!;
+    final before = c.goldFor(1);
+    expect(c.recruitPool, isEmpty);
+    expect(c.drawHero(1, countryId: 1), isNull);
+    expect(c.goldFor(1), before);
+    expect(c.remainingHeroDraws(1), 1);
+    expect(c.heroes.any((hero) => hero.sourceId == reserved.hero.id), isFalse);
+    c.declineHero(reserved);
+    final taken = c.drawHero(1, countryId: 1)!;
+    expect(taken.hero.id, reserved.hero.id);
+    expect(c.recruitmentOfferFor(1), isNull);
+    expect(
+      c.heroes
+          .where((hero) => hero.sourceId == reserved.hero.id)
+          .single
+          .countryId,
+      1,
+    );
+    expect(c.signHero(reserved), isNull);
+    expect(c.recruitPool, isEmpty);
+    expect(c.drawHero(2, countryId: 2), isNull);
+  });
+
+  test('NPC先备足抽取和可能的签约费用，钱不够不锁人、不扣钱、不占月次数', () {
+    final c = _campaign(gold: 14);
+    expect(c.recruitPool.any((hero) => hero.type == HeroType.advanced), isTrue);
+    final before = c.recruitPool.map((hero) => hero.id).toList();
+    expect(c.drawHero(1, countryId: 1), isNull);
+    expect(c.recruitPool.map((hero) => hero.id), before);
+    expect(c.goldFor(1), 14);
+    expect(c.remainingHeroDraws(1), 1);
+    expect(c.recruitmentOfferFor(1), isNull);
+    // 玩家仍然可以只付抽取费，保留结果再选择是否签约。
+    expect(c.drawHero(0), isNotNull);
+    expect(c.gold, 9);
+    expect(c.recruitmentOffer, isNotNull);
+  });
+
+  test('NPC高级将领立即扣10签约，普通将领不扣预备的高级签约费', () {
+    for (final type in [HeroType.advanced, HeroType.normal]) {
+      final pick = _Pick();
+      final c = _campaign(gold: 15, recruit: pick);
+      pick.value = c.recruitPool.indexWhere((hero) => hero.type == type);
+      expect(pick.value, greaterThanOrEqualTo(0));
+      final offer = c.drawHero(1, countryId: 1)!;
+      expect(offer.hero.type, type);
+      expect(c.goldFor(1), type == HeroType.advanced ? 0 : 10);
+      expect(c.recruitmentOfferFor(1), isNull);
+      expect(
+        c.heroes
+            .where((hero) => hero.sourceId == offer.hero.id)
+            .single
+            .countryId,
+        1,
+      );
+      expect(c.recruitPool.any((hero) => hero.id == offer.hero.id), isFalse);
+      expect(c.remainingHeroDraws(1), 0);
+    }
   });
 
   test('签约跨月保留原结果，失败不扣次数，新月可再抽且跨年不混淆', () {
@@ -337,6 +406,7 @@ void main() {
         for (final id in GameConfig.countries.keys) {
           expect(c.goldFor(id), greaterThanOrEqualTo(0));
           final offer = c.recruitmentOfferFor(id);
+          if (id != 0) expect(offer, isNull);
           if (offer != null) expect(reserved.add(offer.hero.id), isTrue);
         }
         expect(active.length, c.heroes.length);

@@ -521,7 +521,7 @@ class CampaignState {
   /// 尚未处理的签约结果。
   RecruitmentOffer? get recruitmentOffer => recruitmentOfferFor(0);
 
-  /// 每个国家独立保留一个待签约结果，抽取时即从共享英雄池中预留。
+  /// 读取指定国家的临时预留，非玩家国家抽取后会同步签约并清除预留。
   RecruitmentOffer? recruitmentOfferFor(int countryId) =>
       _recruitmentOffers[countryId];
 
@@ -710,11 +710,22 @@ class CampaignState {
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
     if (remainingHeroDraws(cityId) == 0) return '本城本月已抽取，下月可再次招募';
     if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';
-    if (goldFor(countryId) < GameConfig.heroDrawCost) return '金币不足';
+    final budget =
+        GameConfig.heroDrawCost +
+        (countryId == 0
+            ? 0
+            : _heroPool.values.map(_signingFee).reduce(math.max));
+    if (goldFor(countryId) < budget) {
+      return countryId == 0 ? '金币不足' : '抽取及签约资金不足，需要 $budget 金币';
+    }
     return null;
   }
 
-  /// 支付抽取费并消耗本城当月次数，关面板、签约和放弃均不返还次数。
+  int _signingFee(RomHeroDefinition hero) => hero.type == HeroType.advanced
+      ? GameConfig.advancedSigningFee
+      : GameConfig.normalSigningFee;
+
+  /// 从全国家共享池预留英雄；玩家等待签约，其他国家同次调用立即签约归队。
   RecruitmentOffer? drawHero(int cityId, {int countryId = 0}) {
     if (recruitmentBlockReason(cityId, countryId: countryId) != null) {
       return null;
@@ -733,12 +744,15 @@ class CampaignState {
       hero: hero,
       cityId: cityId,
       countryId: countryId,
-      signingFee: hero.type == HeroType.advanced
-          ? GameConfig.advancedSigningFee
-          : GameConfig.normalSigningFee,
+      signingFee: _signingFee(hero),
     );
     _recruitmentOffers[countryId] = offer;
-    _record('${_cityName(cityId)}抽到${hero.name}，等待签约');
+    // 所有操作同步完成，抽取前已备足最高签约费，中途不会被其他国家抽走。
+    if (countryId == 0) {
+      _record('${_cityName(cityId)}抽到${hero.name}，等待签约');
+    } else {
+      signHero(offer, countryId: countryId);
+    }
     return offer;
   }
 

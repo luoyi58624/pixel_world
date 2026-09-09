@@ -15,18 +15,18 @@ extension _CountryAutonomy on CampaignState {
       if (battles[city.id]?.isActive == true) continue;
       final pending = recruitmentOfferFor(countryId);
       if (pending != null) {
-        changed = signHero(pending, countryId: countryId) != null || changed;
+        // 热重载时兼容旧版本遗留的待签约结果，钱不够便释放锁定。
+        if (signHero(pending, countryId: countryId) == null) {
+          declineHero(pending, countryId: countryId);
+        }
+        changed = true;
       }
-      // 尚未凑够高级将领签约费时先存钱，避免其他开销永远抢走签约资金。
       if (recruitmentOfferFor(countryId) == null) {
         changed = _supplyAiCity(city.id, countryId) || changed;
         final offer = drawHero(city.id, countryId: countryId);
         if (offer != null) {
           changed = true;
-          signHero(offer, countryId: countryId);
-          if (recruitmentOfferFor(countryId) == null) {
-            changed = _supplyAiCity(city.id, countryId) || changed;
-          }
+          changed = _supplyAiCity(city.id, countryId) || changed;
         }
         final governors =
             garrisonAt(city.id)
