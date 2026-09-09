@@ -53,7 +53,9 @@ extension _FieldEncounters on CampaignState {
               (march) =>
                   march.hero.health.alive &&
                   (march.phase == MarchPhase.marching ||
-                      march.phase == MarchPhase.camped),
+                      march.phase == MarchPhase.camped ||
+                      march.phase == MarchPhase.awaitingBattle) &&
+                  activeBattleForHero(march.hero.id) == null,
             )
             .toList()
           ..sort((a, b) => a.hero.id.compareTo(b.hero.id));
@@ -165,7 +167,7 @@ extension _FieldEncounters on CampaignState {
       return;
     }
     final target = march.target;
-    march.moveTo(
+    march._resumeToward(
       target == null
           ? march.destination
           : _contactPoint(march.position, cityBounds(target).center, target),

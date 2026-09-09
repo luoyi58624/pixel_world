@@ -117,6 +117,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 出城位置沿目标方向取城池边缘，不再固定为南侧城门。以 16×16 人物本体接触城堡为准，从任一侧贴城即停步并触发进驻或交战；途中碰到其他敌城同样生效。
 
+攻城时从目标城当前存活、驻城且未交战的将领中等概率抽选守将；换守将时重新抽选剩余可用驻军。每座城独立处理一场攻城（包含连续守将和换人间隙），其他部队按实际抵达顺序原地等候，城堡升级或降级也不会把等待者瞬移。城下待战部队遭遇其他国家将领时会转入野战；正在交战的双方不会参与第二场战斗，同国队伍不互斗。队首正在野战时允许后续队伍先攻城，胜者继续原目标并保留原等候顺序；主动改道或扎营则退出队列。详情见 [攻城队列与随机守将](docs/siege_queue.md)。
+
 普通拼杀现已使用从原 ROM 提取的计算片段：逐帧加速、双向反弹、红条输入、随机伤害、共享兵力、随机减员和弹地退场。没有沿用旧版固定冷却与百分比平移。小兵为整队提供 20 兵力和 2 点碰撞强度；英雄战斗 15、4 兵且无修正时，一次普通接触造成 7–13 点整队伤害，而非给每名小兵各扣一遍。守城修正按当前平衡为每级 +4（一级 +4、五级 +20），红条按战斗属性初始化，上限 63；场地修正只在开场读取。
 
 观战采用原版固定纵队、黑底双白边框、姓名、HP 数字和红条，阵亡角色可以飞过下方信息框，不旋转淡出，不显示伤害飘字、小兵血条或受伤变色。默认自动代按蓄力，玩家进攻时可以改为手动按住蓄力。整场交战结束自动返回地图，连续守将之间不退出。
@@ -145,6 +147,7 @@ flutter analyze
 flutter test test/navigation_test.dart test/hero_sprite_test.dart test/map_render_test.dart
 flutter test test/city_dispatch_test.dart
 flutter test test/campaign_rules_test.dart test/city_defense_test.dart test/field_battle_test.dart test/field_battle_ui_test.dart
+flutter test test/siege_queue_test.dart
 flutter test test/identity_flags_test.dart
 flutter test test/game_over_test.dart
 flutter test test/city_growth_test.dart

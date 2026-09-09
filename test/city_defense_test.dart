@@ -6,6 +6,8 @@ import 'package:pixel_world/world/campaign.dart';
 import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/first_random.dart';
+
 BattleArmy _army(String id, {int hp = 60, int attack = 10}) => BattleArmy(
   id: id,
   name: id,
@@ -15,6 +17,7 @@ BattleArmy _army(String id, {int hp = 60, int attack = 10}) => BattleArmy(
 );
 
 CampaignState _campaign() => CampaignState.fromRom(
+  defenderRandom: FirstRandom(),
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
   decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
   aiEnabled: false,

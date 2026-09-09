@@ -12,14 +12,26 @@ import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 import 'package:pixel_world/world/world_painter.dart';
 
-WorldController _controller() => WorldController(
-  aiEnabled: false,
-  decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()),
-  heroCatalog: decodeRomHeroes(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
-  ),
-  startingGold: 300,
-);
+import 'support/first_random.dart';
+
+WorldController _controller() {
+  final c = WorldController(
+    aiEnabled: false,
+    decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()),
+    heroCatalog: decodeRomHeroes(
+      File('assets/data/rom_heroes.json').readAsStringSync(),
+    ),
+    startingGold: 300,
+  );
+  c.campaigns[0] = CampaignState.fromRom(
+    c.world,
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    aiEnabled: false,
+    startingGold: 300,
+    defenderRandom: FirstRandom(),
+  );
+  return c;
+}
 
 Future<WorldController> _load(WidgetTester tester, Size size) async {
   rootBundle.evict('assets/maps/worlds.json');
@@ -46,6 +58,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
           as WorldPainter);
   final c = painter.controller;
   c.campaigns[0] = CampaignState.fromRom(
+    defenderRandom: FirstRandom(),
     aiEnabled: false,
     c.world,
     painter.assets.heroCatalog,

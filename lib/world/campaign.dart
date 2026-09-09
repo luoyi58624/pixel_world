@@ -14,6 +14,7 @@ import 'field_terrain.dart';
 
 part 'country_ai.dart';
 part 'field_battles.dart';
+part 'siege_battles.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -244,12 +245,16 @@ class HeroMarch {
   /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
 
+  // 抵达城下后持有顺序号；暂时转入野战不丢失原来的等候顺序。
+  ({int cityId, int order})? _siegeArrival;
+
   /// 动画步频随移动速度变化。
   int get animationStep =>
       phase == MarchPhase.marching ? (walkDistance / 6).floor() % 2 : 0;
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(Offset point, {CityDefinition? city}) {
+    _siegeArrival = null;
     target = city;
     destination = point;
     if (point != position) {
@@ -262,9 +267,16 @@ class HeroMarch {
 
   /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
   void camp() {
+    _siegeArrival = null;
     target = null;
     destination = position;
     phase = MarchPhase.camped;
+  }
+
+  void _resumeToward(Offset point, {CityDefinition? city}) {
+    final arrival = _siegeArrival;
+    moveTo(point, city: city);
+    if (arrival?.cityId == city?.id) _siegeArrival = arrival;
   }
 
   /// 推进行军，抵达后由战役规则决定何时交战。
@@ -408,6 +420,7 @@ class CampaignState {
     this._economyRandom,
     this._recruitmentRandom,
     this._aiRandom,
+    this._defenderRandom,
     this.aiEnabled,
     this.countryConfigs,
   ) : _protagonist = heroes
@@ -421,6 +434,8 @@ class CampaignState {
   final math.Random _recruitmentRandom;
   final Map<int, RomHeroDefinition> _heroPool = {};
   final math.Random _aiRandom;
+  final math.Random _defenderRandom;
+  int _siegeArrivalSerial = 0;
 
   /// 是否运行非玩家国家的自动经营；测试可以单独关闭以隔离原有规则。
   final bool aiEnabled;
@@ -435,6 +450,7 @@ class CampaignState {
       countryConfigs[countryId] ?? const CountryConfig();
 
   /// 按 ROM 城池关联编号配置驻军，重复编号采用最后一次初始化位置。
+  /// 守将抽选使用独立随机源，测试可通过 defenderRandom 固定抽选结果。
   factory CampaignState.fromRom(
     WorldDefinition world,
     List<RomHeroDefinition> catalog, {
@@ -444,6 +460,7 @@ class CampaignState {
     math.Random? economyRandom,
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
+    math.Random? defenderRandom,
   }) {
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
@@ -508,6 +525,7 @@ class CampaignState {
       economyRandom ?? math.Random(),
       recruitmentRandom ?? math.Random(),
       aiRandom ?? math.Random(),
+      defenderRandom ?? math.Random(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
     );
@@ -1158,7 +1176,10 @@ class CampaignState {
     for (final march in marches.values.where(
       (march) => march.target?.id == cityId,
     )) {
-      if (march.phase == MarchPhase.dueling) continue;
+      if (march.phase == MarchPhase.dueling ||
+          march.phase == MarchPhase.awaitingBattle) {
+        continue;
+      }
       final target = march.target!;
       if (march.phase == MarchPhase.marching) {
         final point = _contactPoint(
@@ -1166,7 +1187,7 @@ class CampaignState {
           cityBounds(target).center,
           target,
         );
-        march.moveTo(point, city: target);
+        march._resumeToward(point, city: target);
       } else {
         final rect = cityBounds(target).inflate(8);
         march.position = _nearestEdge(march.position, rect);
@@ -1315,6 +1336,7 @@ class CampaignState {
             terrain != world.movementTerrainAt(cellAt(world, march.position)) ||
             changed;
       }
+      _markSiegeArrivals();
       changed = _resolveFieldEncounters(previousPositions) || changed;
       changed = _resolveArrivals() || changed;
       if (_finishDefeat() || defeated) return true;
@@ -1333,41 +1355,6 @@ class CampaignState {
           changed = _runCountryDecisions() || changed;
         }
       }
-    }
-    return changed;
-  }
-
-  bool _resolveArrivals() {
-    var changed = false;
-    for (final march in marches.values.toList()) {
-      if (!marches.containsKey(march.hero.id) ||
-          march.target == null ||
-          (march.phase != MarchPhase.awaitingBattle &&
-              march.phase != MarchPhase.fighting)) {
-        continue;
-      }
-      final city = march.target!;
-      final target = cities[city.id]!;
-      if (target.ownerCountryId == march.hero.countryId) {
-        _station(march);
-        changed = true;
-        continue;
-      }
-      final active = battles[city.id];
-      if (active != null && active.isActive && active.attacker != march.hero) {
-        continue;
-      }
-      final defender = garrisonAt(city.id).firstOrNull;
-      if (defender == null) {
-        _captureCity(city.id, march.hero.countryId);
-        _station(march);
-        changed = true;
-        if (defeated) break;
-        continue;
-      }
-      final wasFighting = march.phase == MarchPhase.fighting;
-      _beginBattle(march);
-      changed = !wasFighting && march.phase == MarchPhase.fighting || changed;
     }
     return changed;
   }
@@ -1391,9 +1378,14 @@ class CampaignState {
       } else if (battle is CityBattle && battle.nextWaveIn > 0) {
         battle.nextWaveIn = math.max(0, battle.nextWaveIn - dt);
         if (battle.nextWaveIn == 0) {
-          final next = garrisonAt(battle.city.id).firstOrNull;
+          final next = _pickDefender(battle.city.id);
           if (next != null) {
             battle._nextDefender(next, cities[battle.city.id]!.level);
+          } else if (!garrisonAt(battle.city.id)
+              .any((hero) => hero.health.alive)) {
+            _finishOccupation(battle);
+          } else {
+            battle.nextWaveIn = BattleSimulation.fixedStep;
           }
           changed = true;
         }
@@ -1425,10 +1417,8 @@ class CampaignState {
     }
     final city = cities[battle.city.id]!;
     if (city.ownerCountryId == attacker.countryId ||
-        garrisonAt(battle.city.id).isEmpty) {
-      _captureCity(battle.city.id, attacker.countryId);
-      final march = marches[attacker.id];
-      if (march != null) _station(march);
+        !garrisonAt(battle.city.id).any((hero) => hero.health.alive)) {
+      _finishOccupation(battle);
     } else {
       battle.nextWaveIn = 1.2;
     }
@@ -1518,28 +1508,6 @@ class CampaignState {
     march.hero.cityId = march.target!.id;
     march.hero.hp = march.hero.maxHp;
     _record('${march.hero.name}已进驻${march.target!.label}');
-  }
-
-  CityBattle? _beginBattle(HeroMarch march) {
-    final city = march.target;
-    if (city == null ||
-        cities[city.id]!.ownerCountryId == march.hero.countryId) {
-      return null;
-    }
-    final defender = garrisonAt(city.id).firstOrNull;
-    if (defender == null) return null;
-    final existing = battles[city.id];
-    if (existing != null && existing.isActive) {
-      return existing.attacker == march.hero ? existing : null;
-    }
-    march.phase = MarchPhase.fighting;
-    return battles[city.id] = CityBattle(
-      city,
-      march.hero,
-      defender,
-      cityLevel: cities[city.id]!.level,
-      seed: (++_battleSerial * 1009) + city.id * 41 + march.hero.sourceId,
-    );
   }
 
   // 只拦截从城外进入的线段；已在城边的部队可以接收撤离指令。

@@ -8,6 +8,8 @@ import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/first_random.dart';
+
 List<RomHeroDefinition> _heroes() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 List<WorldDefinition> _worlds() =>
@@ -59,7 +61,12 @@ void main() {
 
   test('进攻马易失败不改变阿尔马城的归属、国旗和城名', () {
     final world = _worlds().first;
-    final campaign = CampaignState.fromRom(world, _heroes(), aiEnabled: false);
+    final campaign = CampaignState.fromRom(
+      world,
+      _heroes(),
+      aiEnabled: false,
+      defenderRandom: FirstRandom(),
+    );
     final hero = campaign.heroes.firstWhere((hero) => hero.sourceId == 40)
       ..hp = 1;
     for (final soldier in hero.squad) {
@@ -79,7 +86,12 @@ void main() {
 
   test('占领后改挂玩家国旗，保留原城名，其他国家旗帜不变', () {
     final world = _worlds().first;
-    final campaign = CampaignState.fromRom(world, _heroes(), aiEnabled: false);
+    final campaign = CampaignState.fromRom(
+      world,
+      _heroes(),
+      aiEnabled: false,
+      defenderRandom: FirstRandom(),
+    );
     campaign.garrisonAt(2).first.hp = 1;
     for (final soldier in campaign.garrisonAt(2).first.squad) {
       soldier.hp = 0;

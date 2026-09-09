@@ -9,6 +9,8 @@ import 'package:pixel_world/world/rom_hero.dart';
 import 'package:pixel_world/world/world_controller.dart';
 import 'package:pixel_world/world/world_data.dart';
 
+import 'support/first_random.dart';
+
 class _Pick implements math.Random {
   int value = 0;
   @override
@@ -41,6 +43,7 @@ CampaignState _campaign({
   math.Random? random,
   math.Random? recruit,
 }) => CampaignState.fromRom(
+  defenderRandom: FirstRandom(),
   _worlds().first,
   _catalog(),
   aiEnabled: ai,
