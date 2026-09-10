@@ -46,11 +46,11 @@ void main() {
     }
   });
 
-  test('读取 41 位正式英雄，主角姓名与固定汉化姓名区分', () {
+  test('读取原版与扩展英雄，主角姓名与固定汉化姓名区分', () {
     final catalog = _catalog();
     final heroes = {for (final hero in catalog) hero.id: hero};
     expect(catalog.first.id, 40);
-    expect(heroes.length, 41);
+    expect(heroes.length, 51);
     expect(heroes[0]!.name, '泽拉斯');
     expect(
       [

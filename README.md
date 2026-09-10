@@ -48,7 +48,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `assets/images/hero/advanced.png`、`normal.png`、`protagonist.png`：高级、普通、主角三套独立的 96×16 图集，六帧固定为正面 A/B、背面 A/B、左侧面 A/B。
 - `lib/features/heroes/domain/hero_sprite.dart`：八方向判定、角色外观及六帧动画选择。
 - `lib/features/campaign/domain/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
-- `assets/data/rom_heroes.json`：41 位英雄的属性、月俸与展示顺序，原版报酬另存 `romSalary`，保留姓名编码和来源偏移。
+- `assets/data/rom_heroes.json`：51 位英雄（原版 41 位及扩展 10 位）的属性、月俸与展示顺序；原版记录保留 `romSalary`、姓名编码和来源偏移。
 - `lib/features/heroes/data/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
 - `assets/data/rom_countries.json`、`assets/images/flags.png`：原版城名、国家及国旗，来源见 [核对报告](docs/nes_cities_flags.md)。
 - `lib/features/world_map/domain/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
@@ -87,7 +87,9 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 英雄目录已替换为从 ROM 提取的 41 位正式英雄：40 个固定姓名，以及一位玩家命名的主角。姓名按原字模转写，HP、战斗、内政和报酬按实际读取代码定位。初始据点使用原编号 40、0、2，即主角、泽拉斯、威拉斯。其余城池也按 ROM 关联编号配置驻军，未出现在当前地图的英雄留在目录中，不凭空生成。详情、来源偏移及边界见 [英雄提取报告](docs/nes_heroes.md)，完整数据见 [CSV](docs/nes_heroes.csv)。
 
-英雄类型现为独立的 `HeroType`：编号 0–9（含希列洛）为高级将领，10–39 为普通将领，主角保留独立类型。三种类型分别使用对应行军图集，初始地图探索人物也默认使用主角外观。
+另补充 10 位神话音译风格的原创将领：高级将领为阿瑞斯、雅典娜、阿波罗；普通将领为赫克托、埃阿斯、伊阿宋、卡德摩、涅柔斯、阿斯忒、忒勒马。扩展编号为 100–109，以 `nameSource: original_extension` 标记，数值为游戏配置，未伪造 ROM 来源。新开局全部加入公共招募池，无专属国家，原有开局驻军不变。
+
+英雄类型现为独立的 `HeroType`：原版编号 0–9（含希列洛）为高级将领，10–39 为普通将领，主角保留独立类型；扩展将领按配置类型选择已有外观。三种类型分别使用对应行军图集，初始地图探索人物也默认使用主角外观。
 
 城池界面显示当前占领国名，并与国旗保持一致。每次易主立即改名，即使原国家还有其他城池也会更新；再次易主继续使用新的占领国名。原始汉化城名仍留在地图资料中，用于编辑与来源核对，不随战役改写。国旗在小地图和城池面板显示，大地图没有额外悬浮国旗；已在外的英雄仍保留原国家身份。
 

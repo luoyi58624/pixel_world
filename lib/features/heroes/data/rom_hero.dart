@@ -2,10 +2,10 @@ import 'dart:convert';
 
 /// 将领类型是独立领域数据，不能以主角编号或图片文件名代替。
 enum HeroType {
-  /// 原版编号 0–9 的高级将领。
+  /// 高级将领，包含原版编号 0–9 和扩展将领。
   advanced('高级将领'),
 
-  /// 原版编号 10–39 的普通将领。
+  /// 普通将领，包含原版编号 10–39 和扩展将领。
   normal('普通将领'),
 
   /// 有独立初始化类型位的玩家主角。
@@ -35,7 +35,7 @@ class RomHeroDefinition {
       eggCapable = json['eggCapable'] as bool,
       soldierLimit = json['soldierLimit'] as int;
 
-  /// 原 ROM 编号，40 为主角。
+  /// 唯一身份编号，原版为 0–40，扩展目录使用 100 起的编号。
   final int id;
 
   /// 第三张地图开局确定的专属国家；未登场英雄可没有专属归属。
@@ -50,10 +50,10 @@ class RomHeroDefinition {
   /// 文件数组中的位置，只用于展示和守将选择，不替代英雄身份编号。
   final int rosterOrder;
 
-  /// 字模转写的名字，主角的固定 ROM 名字为空。
+  /// 原版字模转写或扩展配置的名字，主角固定名字为空。
   final String? name;
 
-  /// 从原版类型初始化流程提取的将领类型。
+  /// 原版提取或扩展配置的将领类型，与身份编号独立。
   final HeroType type;
 
   /// 生命上限。
@@ -102,7 +102,7 @@ int _readMorale(Map<String, dynamic> json) {
   return value;
 }
 
-/// 读取 41 位正式英雄，拒绝重复编号和无效生命值。
+/// 读取原版及扩展英雄，保留基础目录并拒绝重复编号和无效生命值。
 List<RomHeroDefinition> decodeRomHeroes(String source) {
   final json = jsonDecode(source) as Map<String, dynamic>;
   final rows = json['heroes'] as List;
@@ -113,10 +113,19 @@ List<RomHeroDefinition> decodeRomHeroes(String source) {
         rosterOrder: index,
       ),
   ];
-  if (heroes.length != 41 ||
-      heroes.map((hero) => hero.id).toSet().length != 41 ||
-      heroes.any((hero) => hero.id < 0 || hero.id > 40 || hero.maxHp <= 0)) {
-    throw const FormatException('英雄目录应包含 41 个有效的唯一编号');
+  final ids = heroes.map((hero) => hero.id).toSet();
+  if (ids.length != heroes.length ||
+      !List.generate(41, (id) => id).every(ids.contains) ||
+      heroes.any(
+        (hero) =>
+            hero.id < 0 ||
+            (hero.id >= 41 && hero.id <= 45) ||
+            hero.maxHp <= 0 ||
+            (hero.type == HeroType.protagonist) != (hero.id == 40),
+      )) {
+    throw const FormatException(
+      '英雄目录须保留 0–40，扩展编号不得重复或占用 41–45 特殊槽，且生命须有效、主角须唯一',
+    );
   }
   return List.unmodifiable([
     ...heroes.where((hero) => hero.type == HeroType.protagonist),

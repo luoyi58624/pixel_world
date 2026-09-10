@@ -32,6 +32,34 @@ CampaignState _campaign({int gold = 500, _Pick? random}) {
 }
 
 void main() {
+  test('十位扩展将领可逐个抽取签约，使用配置姓名、类型和月俸', () {
+    final random = _Pick();
+    final c = _campaign(random: random);
+    addTearDown(c.dispose);
+    final added = c.recruitPool.where((hero) => hero.id >= 100).toList();
+    expect(added.length, 10);
+    expect(added.where((hero) => hero.type == HeroType.advanced).length, 3);
+    expect(added.where((hero) => hero.type == HeroType.normal).length, 7);
+    expect(added.map((hero) => hero.name).toSet().length, 10);
+    for (final definition in added) {
+      expect(definition.nativeCountryId, isNull);
+      random.index = c.recruitPool.indexWhere(
+        (hero) => hero.id == definition.id,
+      );
+      final offer = c.drawHero(0)!;
+      expect(offer.hero.id, definition.id);
+      final hero = c.signHero(offer)!;
+      expect(hero.name, definition.name);
+      expect(hero.type, definition.type);
+      expect(hero.salary, definition.salary);
+      expect(c.recruitPool.any((item) => item.id == definition.id), isFalse);
+      expect(
+        c.heroes.where((item) => item.sourceId == definition.id).length,
+        1,
+      );
+    }
+  });
+
   test('连续放弃超过三次仍可抽取，不能重复签约或重复退还英雄', () {
     final c = _campaign();
     addTearDown(c.dispose);
