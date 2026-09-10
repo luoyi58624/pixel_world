@@ -6,6 +6,25 @@ class CountryAiSchedule {
   /// 各国有独立时钟，开局立即从资源阶段开始。
   CountryAiSchedule(this.tuning);
 
+  /// 保存已完成阶段的期限，未完成的后台请求在读档后重新计算。
+  List<num?> saveState() => [
+    _resourceAt,
+    _defenseAt,
+    _attackAt,
+    _retryAt,
+    _defenseAlarmTick,
+  ];
+
+  /// 恢复调度期限并丢弃旧进程中的请求身份。
+  void restoreState(List<dynamic> data) {
+    _resourceAt = (data[0] as num).toDouble();
+    _defenseAt = (data[1] as num).toDouble();
+    _attackAt = (data[2] as num).toDouble();
+    _retryAt = (data[3] as num).toDouble();
+    _defenseAlarmTick = data[4] as int?;
+    _pending = null;
+  }
+
   /// 资源和哨兵的可配置周期。
   final AiTuning tuning;
   double _resourceAt = 0, _defenseAt = 0, _attackAt = 0, _retryAt = 0;

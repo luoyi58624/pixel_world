@@ -14,7 +14,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
   rootBundle.evict('assets/maps/worlds.json');
   rootBundle.evict('assets/data/rom_heroes.json');
   rootBundle.evict('assets/data/weapon_animations.json');
-  await tester.pumpWidget(const PixelWorldApp());
+  await tester.pumpWidget(const PixelWorldApp(persistenceEnabled: false));
   await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
   await tester.tap(find.byKey(const ValueKey('start-game')));
   await tester.pump();

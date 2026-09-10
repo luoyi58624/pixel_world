@@ -29,6 +29,16 @@ class GameClock {
   /// 尚待处理的游戏秒数。
   double get pending => _pending;
 
+  /// 保存固定步长零头，避免读档多结算或少结算一帧。
+  List<num> saveState() => [_speed, _pending, _elapsed];
+
+  /// 恢复已经验证版本的本地时钟状态。
+  void restoreState(List<dynamic> data) {
+    speed = data[0] as int;
+    _pending = (data[1] as num).toDouble();
+    _elapsed = (data[2] as num).toDouble();
+  }
+
   /// 暂停或重开时清除尚未推进的时间，不补算暂停时长。
   void clearPending() => _pending = 0;
 

@@ -1,12 +1,12 @@
 {
-    "name": "像素远征 · 世界地图",
-    "short_name": "像素远征",
+    "name": "龙珠英雄",
+    "short_name": "龙珠英雄",
     "start_url": ".",
-    "display": "standalone",
+    "display": "fullscreen",
     "background_color": "#141b17",
     "theme_color": "#141b17",
     "description": "探索像素世界，穿过河流与山林，寻找城池。",
-    "orientation": "any",
+    "orientation": "landscape",
     "prefer_related_applications": false,
     "icons": [
         {

@@ -83,6 +83,12 @@ abstract final class HeroAnimation {
 class HeroWalkAnimation {
   double _time = 0;
 
+  /// 当前步态时钟，存档与回放使用同一个时间位置。
+  double get savedTime => _time;
+
+  /// 恢复步态时钟，不推进角色位置。
+  void restoreTime(double value) => _time = value;
+
   /// 当前步态；微小容差避免累加误差让整帧边界晚切换一次。
   int get step => (_time / GameConfig.heroWalkFrameSeconds + 1e-9).floor() % 2;
 

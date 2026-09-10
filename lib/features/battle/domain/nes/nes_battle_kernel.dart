@@ -4,6 +4,62 @@ import 'nes_battle_bytes.dart';
 
 /// 执行从 ROM 提取的普通拼杀片段；不模拟整台 NES，也不依赖外部模拟器。
 class NesBattleKernel {
+  static final _romImage = () {
+    final bytes = Uint8List(65536);
+    for (final entry in nesBattleBlocks.entries) {
+      for (var i = 0; i < entry.value.length; i += 2) {
+        bytes[entry.key + i ~/ 2] = int.parse(
+          entry.value.substring(i, i + 2),
+          radix: 16,
+        );
+      }
+    }
+    return bytes;
+  }();
+
+  /// 只记录可变内存与寄存器，不在每个回放帧中重复保存 ROM。
+  Map<String, dynamic> saveState() => {
+    'ram': {
+      for (var i = 0; i < ram.length; i++)
+        if (ram[i] != _romImage[i]) '$i': ram[i],
+    },
+    'registers': [
+      frames,
+      clashes,
+      ...wallHits,
+      ...committed,
+      _attackerChargePhase,
+      _attackerChargeClock,
+      _a,
+      _x,
+      _y,
+      _p,
+      _pc,
+      _sp,
+    ],
+  };
+
+  /// 原位恢复战斗内核，单位继续引用同一个内存对象。
+  void restoreState(Map<String, dynamic> data) {
+    ram.setAll(0, _romImage);
+    (data['ram'] as Map).forEach((key, value) {
+      ram[int.parse(key as String)] = value as int;
+    });
+    final r = (data['registers'] as List).cast<int>();
+    frames = r[0];
+    clashes = r[1];
+    wallHits.setAll(0, r.sublist(2, 4));
+    committed.setAll(0, r.sublist(4, 6));
+    _attackerChargePhase = r[6];
+    _attackerChargeClock = r[7];
+    _a = r[8];
+    _x = r[9];
+    _y = r[10];
+    _p = r[11];
+    _pc = r[12];
+    _sp = r[13];
+  }
+
   /// ROM 固定的每兵共享生命，对应 E4B5 减员阈值。
   static const soldierHp = 20;
 

@@ -40,7 +40,7 @@ Future<WorldController> _load(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(const PixelWorldApp());
+  await tester.pumpWidget(const PixelWorldApp(persistenceEnabled: false));
   await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
   await tester.tap(find.byKey(const ValueKey('start-game')));
   await tester.pump();

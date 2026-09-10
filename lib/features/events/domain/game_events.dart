@@ -1,6 +1,8 @@
 import 'dart:collection';
 import 'dart:convert';
 
+part 'event_snapshot.dart';
+
 /// 事件属于实际操作、国家决策、战况、经济还是运行状态。
 enum GameEventCategory { action, decision, battle, economy, lifecycle }
 
@@ -331,6 +333,13 @@ class CountryEventLog {
 
 /// 一张地图的国家事件目录；只做观察，绝不反馈给 AI 决策或消耗游戏随机数。
 class CampaignEvents {
+  /// 保存有界日志和连续编号，读档后月结与决策记录不断档。
+  Map<String, dynamic> saveState() => _saveEvents(this);
+
+  /// 恢复日志，不重新触发监听器或重复产生游戏事件。
+  static CampaignEvents restoreState(Map<String, dynamic> data) =>
+      _restoreEvents(data);
+
   /// 模拟可提供逐事件接收器写完整日志，正式游戏仅在内存保留有界记录。
   CampaignEvents({
     required this.worldId,

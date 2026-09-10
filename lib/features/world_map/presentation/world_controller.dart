@@ -18,6 +18,8 @@ import '../../heroes/domain/recruitment.dart';
 import '../../weapons/domain/weapon.dart';
 import '../../ai/runtime/worker.dart';
 
+part 'world_snapshot.dart';
+
 /// 管理探索状态；连续动画只触发绘制，界面文字仅在状态变化时更新。
 class WorldController extends ChangeNotifier {
   /// 使用已加载地图创建探索会话。

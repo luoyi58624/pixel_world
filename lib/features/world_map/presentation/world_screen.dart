@@ -2,6 +2,10 @@ import 'package:pixel_world/core/geometry/flutter_geometry.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
 
 import 'dart:math' as math;
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -18,7 +22,12 @@ import '../../cities/presentation/city_panel.dart';
 import '../../battle/presentation/battle_scene.dart';
 import '../../heroes/presentation/unit_panel.dart';
 import '../../app/presentation/game_over_panel.dart';
-import '../../app/presentation/game_pause_overlay.dart';
+
+import '../../app/data/game_archive.dart';
+import '../../app/data/replay_reader.dart';
+import '../../ai/runtime/build_stamp.dart';
+
+part 'world_session.dart';
 
 const _ink = Color(0xff141b17);
 const _line = Color(0xff354138);
@@ -28,11 +37,29 @@ const _gold = Color(0xffd6bd7c);
 /// 可拖动、缩放并指挥角色行走的地图界面。
 class WorldScreen extends StatefulWidget {
   /// 创建地图探索界面。
-  const WorldScreen({super.key, this.initialWorldIndex = 0})
-    : assert(initialWorldIndex >= 0 && initialWorldIndex < 3);
+  const WorldScreen({
+    super.key,
+    this.initialWorldIndex = 0,
+    this.archive,
+    this.entry,
+    this.replay = false,
+    this.onHome,
+  }) : assert(initialWorldIndex >= 0 && initialWorldIndex < 3);
 
   /// 从开始界面选择的地图索引。
   final int initialWorldIndex;
+
+  /// 自动存档和手动回放共用的持久化服务。
+  final GameArchive? archive;
+
+  /// 继续游戏或观看回放时的历史记录。
+  final ArchiveEntry? entry;
+
+  /// 回放只读取已记录状态，禁止游戏输入和 AI 推进。
+  final bool replay;
+
+  /// 成功保存并释放游戏资源后返回主页面。
+  final VoidCallback? onHome;
 
   @override
   State<WorldScreen> createState() => _WorldScreenState();
@@ -52,6 +79,29 @@ class _WorldScreenState extends State<WorldScreen>
   GamePoint _gestureAnchor = GamePoint.zero;
   double _gestureScale = 1;
   bool _gestureScaled = false;
+  SessionRecording? _recording;
+  ReplayReader? _reader;
+  Timer? _saveTimer;
+  Object? _saveError;
+  bool _leaving = false, _savingReplay = false, _seeking = false;
+  double _recordFraction = 0, _playhead = 0, _replayFraction = 0;
+  int _replaySpeed = 1, _seekVersion = 0;
+  bool _replayPlaying = true;
+  bool _displayDefaultsApplied = false;
+  bool _showPlaybackControls = false;
+  bool _confirmingExit = false;
+  bool get _phoneLayout => MediaQuery.sizeOf(context).height < 500;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_displayDefaultsApplied) {
+      _displayDefaultsApplied = true;
+      _showMinimap = true;
+    }
+  }
+
+  void _sessionChanged(VoidCallback change) => setState(change);
 
   @override
   void initState() {
@@ -74,6 +124,18 @@ class _WorldScreenState extends State<WorldScreen>
         weaponCatalog: assets.weaponCatalog,
       );
       controller.switchWorld(widget.initialWorldIndex);
+      try {
+        await _openSession(controller);
+      } catch (_) {
+        controller.dispose();
+        assets.dispose();
+        rethrow;
+      }
+      if (!mounted) {
+        controller.dispose();
+        assets.dispose();
+        return;
+      }
       setState(() {
         _assets = assets;
         _controller = controller;
@@ -86,7 +148,12 @@ class _WorldScreenState extends State<WorldScreen>
           _skipFirstTick = false;
           return;
         }
-        controller.tick(delta);
+        if (widget.replay) {
+          _tickReplay(delta);
+        } else {
+          controller.tick(delta);
+          _tickRecording(delta);
+        }
       });
       _bindGameTicker();
       _focus.requestFocus();
@@ -107,7 +174,11 @@ class _WorldScreenState extends State<WorldScreen>
   void _syncTicker() {
     final ticker = _ticker;
     if (ticker == null) return;
-    if (_controller?.isPaused == true) {
+    if (_leaving || _confirmingExit) {
+      ticker.stop();
+      return;
+    }
+    if (!widget.replay && _controller?.isPaused == true) {
       ticker.stop();
     } else if (!ticker.isActive) {
       _previousTick = Duration.zero;
@@ -121,11 +192,16 @@ class _WorldScreenState extends State<WorldScreen>
     if (controller == null || controller.campaign.defeated) return;
     _clearKeys();
     controller.setPaused(!controller.isPaused);
+    _captureSession(flush: true);
     _focus.requestFocus();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      _captureSession();
+      unawaited(_flushSession());
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached ||
@@ -139,6 +215,7 @@ class _WorldScreenState extends State<WorldScreen>
   @override
   void reassemble() {
     super.reassemble();
+    if (_phoneLayout) _showMinimap = true;
     _controller?.campaign.pauseAi();
     _bindGameTicker();
   }
@@ -152,14 +229,17 @@ class _WorldScreenState extends State<WorldScreen>
   }
 
   void _action(VoidCallback action) {
+    if (widget.replay || _leaving) return;
     if (_controller?.isPaused == true) return;
     _controller?.activeCamera.cancelMotion();
     action();
     _controller?.refreshUi();
+    _captureSession(flush: true);
     _focus.requestFocus();
   }
 
   KeyEventResult _key(FocusNode node, KeyEvent event) {
+    if (widget.replay || _leaving) return KeyEventResult.handled;
     final c = _controller;
     if (c == null) return KeyEventResult.ignored;
     if (c.campaign.defeated) return KeyEventResult.handled;
@@ -228,6 +308,74 @@ class _WorldScreenState extends State<WorldScreen>
 
   @override
   Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmExit();
+      },
+      child: _phoneLayout
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                AbsorbPointer(
+                  absorbing: widget.replay || _leaving,
+                  child: _buildWorld(context),
+                ),
+                Positioned(
+                  top: MediaQuery.viewPaddingOf(context).top + 8,
+                  bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
+                  right: MediaQuery.viewPaddingOf(context).right + 8,
+                  child: Center(
+                    child: SingleChildScrollView(child: _mobileControls()),
+                  ),
+                ),
+                if (widget.replay &&
+                    _controller != null &&
+                    _showPlaybackControls)
+                  Positioned(left: 0, right: 0, bottom: 0, child: _replayBar()),
+              ],
+            )
+          : Column(
+              children: [
+                if (_controller != null)
+                  ValueListenableBuilder(
+                    valueListenable: _controller!.uiRevision,
+                    builder: (context, value, child) => Material(
+                      color: _ink,
+                      child: SafeArea(
+                        bottom: false,
+                        child: _toolbar(_controller!),
+                      ),
+                    ),
+                  )
+                else if (widget.onHome != null)
+                  Material(
+                    color: _ink,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          key: const ValueKey('exit-game'),
+                          onPressed: _confirmExit,
+                          child: const Text('返回主页面'),
+                        ),
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: AbsorbPointer(
+                    absorbing: widget.replay || _leaving,
+                    child: _buildWorld(context),
+                  ),
+                ),
+                if (widget.replay && _controller != null) _replayBar(),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildWorld(BuildContext context) {
     final c = _controller;
     final assets = _assets;
     if (c == null || assets == null) {
@@ -273,6 +421,10 @@ class _WorldScreenState extends State<WorldScreen>
       child: Scaffold(
         backgroundColor: _ink,
         body: SafeArea(
+          top: !_phoneLayout,
+          bottom: !_phoneLayout,
+          left: !_phoneLayout,
+          right: !_phoneLayout,
           child: ValueListenableBuilder(
             valueListenable: c.uiRevision,
             builder: (context, value, child) => Stack(
@@ -285,33 +437,25 @@ class _WorldScreenState extends State<WorldScreen>
                     child: child,
                   ),
                 ),
-                if (c.isPaused)
-                  GamePauseOverlay(
-                    key: const ValueKey('game-paused'),
-                    onResume: _togglePause,
-                  ),
                 if (c.campaign.defeated)
                   GameOverPanel(
                     reason: c.campaign.defeatReason!,
-                    onRestart: () => _action(() {
-                      _clearKeys();
-                      c.restartCampaign();
-                    }),
+                    onRestart: _restartSession,
                   ),
               ],
             ),
             child: Column(
               children: [
-                ValueListenableBuilder(
-                  valueListenable: c.uiRevision,
-                  builder: (context, value, child) => _toolbar(c),
-                ),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final size = constraints.biggest;
                       final compact = size.width < 700;
-                      final minimapWidth = compact ? 126.0 : 192.0;
+                      final minimapWidth = _phoneLayout
+                          ? 88.0
+                          : compact
+                          ? 126.0
+                          : 192.0;
                       if (c.camera.viewport != size.toGame) {
                         c.camera.resize((size).toGame);
                       }
@@ -376,8 +520,10 @@ class _WorldScreenState extends State<WorldScreen>
                                       onExit: (_) => c.leaveMap(),
                                       child: GestureDetector(
                                         behavior: HitTestBehavior.opaque,
-                                        onTapUp: (details) => c.tap(
-                                          (details.localPosition).toGame,
+                                        onTapUp: (details) => _action(
+                                          () => c.tap(
+                                            (details.localPosition).toGame,
+                                          ),
                                         ),
                                         onSecondaryTapUp: (_) =>
                                             _action(c.cancelCityAction),
@@ -433,14 +579,21 @@ class _WorldScreenState extends State<WorldScreen>
                               ),
                               if (_showMinimap)
                                 Positioned(
-                                  right: 16,
-                                  top: 16,
+                                  left: _phoneLayout
+                                      ? MediaQuery.viewPaddingOf(context).left +
+                                            8
+                                      : null,
+                                  right: _phoneLayout ? null : 16,
+                                  top: _phoneLayout
+                                      ? MediaQuery.viewPaddingOf(context).top +
+                                            8
+                                      : 16,
                                   child: _mapOverlay(
                                     c,
                                     _minimap(c, assets, minimapWidth),
                                   ),
                                 ),
-                              if (!compact)
+                              if (!compact && !_phoneLayout)
                                 Positioned(
                                   left: 18,
                                   bottom: 18,
@@ -585,7 +738,7 @@ class _WorldScreenState extends State<WorldScreen>
                     },
                   ),
                 ),
-                _statusBar(c),
+                if (!_phoneLayout) _statusBar(c),
               ],
             ),
           ),
@@ -603,9 +756,15 @@ class _WorldScreenState extends State<WorldScreen>
 
   Widget _toolbar(WorldController c) => LayoutBuilder(
     builder: (context, constraints) {
-      final compact = constraints.maxWidth < 620;
+      final compact =
+          constraints.maxWidth < 620 || MediaQuery.sizeOf(context).height < 500;
       return Container(
-        height: compact ? 58 : 68,
+        key: const ValueKey('game-toolbar'),
+        height: _phoneLayout
+            ? 48
+            : compact
+            ? 58
+            : 68,
         padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 22),
         decoration: const BoxDecoration(
           color: _ink,
@@ -618,85 +777,133 @@ class _WorldScreenState extends State<WorldScreen>
               const SizedBox(width: 10),
             ],
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '龙珠英雄',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: compact ? 16 : 19,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 2,
-                      color: _cream,
-                    ),
-                  ),
-                  Text(
-                    '${c.campaign.dateLabel} · 金币 ${c.campaign.gold}',
-                    key: const ValueKey('campaign-calendar'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Color(0xff8f9d91),
-                      letterSpacing: compact ? 0 : 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(width: compact ? 4 : 20),
-            PopupMenuButton<int>(
-              key: const ValueKey('game-speed'),
-              tooltip: '游戏速度',
-              initialValue: c.gameSpeed,
-              onSelected: (speed) => _action(() => c.setGameSpeed(speed)),
-              itemBuilder: (_) => [
-                for (final speed in GameClock.speeds)
-                  PopupMenuItem(
-                    value: speed,
-                    child: Row(
+              child: _phoneLayout
+                  ? Row(
                       children: [
-                        Text('$speed×${speed == 1 ? ' 正常' : ''}'),
-                        const Spacer(),
-                        if (c.gameSpeed == speed)
-                          const Icon(Icons.check, size: 16, color: _gold),
+                        const Text(
+                          '龙珠英雄',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _cream,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Flexible(
+                          child: Text(
+                            '${c.campaign.dateLabel} · 金币 ${c.campaign.gold}',
+                            key: const ValueKey('campaign-calendar'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xffa7b5a4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '龙珠英雄',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: compact ? 16 : 19,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 2,
+                            color: _cream,
+                          ),
+                        ),
+                        Text(
+                          '${c.campaign.dateLabel} · 金币 ${c.campaign.gold}',
+                          key: const ValueKey('campaign-calendar'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: Color(0xff8f9d91),
+                            letterSpacing: compact ? 0 : 1.4,
+                          ),
+                        ),
                       ],
                     ),
+            ),
+            SizedBox(width: compact ? 4 : 20),
+            if (!widget.replay)
+              PopupMenuButton<int>(
+                key: const ValueKey('game-speed'),
+                tooltip: '游戏速度',
+                initialValue: c.gameSpeed,
+                onSelected: (speed) => _action(() => c.setGameSpeed(speed)),
+                itemBuilder: (_) => [
+                  for (final speed in GameClock.speeds)
+                    PopupMenuItem(
+                      value: speed,
+                      child: Row(
+                        children: [
+                          Text('$speed×${speed == 1 ? ' 正常' : ''}'),
+                          const Spacer(),
+                          if (c.gameSpeed == speed)
+                            const Icon(Icons.check, size: 16, color: _gold),
+                        ],
+                      ),
+                    ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 12,
                   ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 12,
-                ),
-                child: Text(
-                  '${c.gameSpeed}×',
-                  style: const TextStyle(
-                    color: _gold,
-                    fontWeight: FontWeight.w600,
+                  child: Text(
+                    '${c.gameSpeed}×',
+                    style: const TextStyle(
+                      color: _gold,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
-            IconButton(
-              key: const ValueKey('game-pause'),
-              tooltip: '暂停游戏（P）',
-              onPressed: _togglePause,
-              icon: const Icon(Icons.pause_rounded, size: 24, color: _gold),
-            ),
-            IconButton(
-              key: const ValueKey('game-settings'),
-              tooltip: '设置',
-              onPressed: _settings,
-              icon: const Icon(
-                Icons.settings_outlined,
-                size: 20,
-                color: Color(0xffadb8ac),
+            if (!widget.replay)
+              IconButton(
+                key: const ValueKey('game-pause'),
+                tooltip: c.isPaused ? '继续游戏（P）' : '暂停游戏（P）',
+                onPressed: _togglePause,
+                icon: Icon(c.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 24, color: _gold),
               ),
-            ),
+            if (_saveError != null)
+              IconButton(
+                key: const ValueKey('save-error'),
+                tooltip: '保存失败，点击重试',
+                onPressed: () {
+                  if (widget.replay) {
+                    _seekReplay(_playhead);
+                  } else {
+                    _captureSession(flush: true);
+                  }
+                },
+                icon: const Icon(
+                  Icons.error_outline,
+                  color: Colors.orangeAccent,
+                ),
+              ),
+            if (!widget.replay)
+              IconButton(
+                key: const ValueKey('toggle-minimap'),
+                tooltip: _showMinimap ? '收起小地图' : '展开小地图',
+                onPressed: () {
+                  setState(() => _showMinimap = !_showMinimap);
+                  _captureSession(flush: true);
+                },
+                icon: Icon(
+                  Icons.map_outlined,
+                  color: _showMinimap ? _gold : const Color(0xffadb8ac),
+                ),
+              ),
+            _sessionMenu(),
           ],
         ),
       );
@@ -710,24 +917,28 @@ class _WorldScreenState extends State<WorldScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: width,
-                height: 23,
-                child: const Row(
-                  children: [
-                    SizedBox(width: 3),
-                    Icon(Icons.explore_outlined, size: 12, color: _gold),
-                    SizedBox(width: 6),
-                    Text('世界一览', style: TextStyle(fontSize: 10, color: _cream)),
-                    Spacer(),
-                    Text(
-                      '点击定位',
-                      style: TextStyle(fontSize: 9, color: Color(0xff9baa98)),
-                    ),
-                    SizedBox(width: 3),
-                  ],
+              if (!_phoneLayout)
+                SizedBox(
+                  width: width,
+                  height: 23,
+                  child: const Row(
+                    children: [
+                      SizedBox(width: 3),
+                      Icon(Icons.explore_outlined, size: 12, color: _gold),
+                      SizedBox(width: 6),
+                      Text(
+                        '世界一览',
+                        style: TextStyle(fontSize: 10, color: _cream),
+                      ),
+                      Spacer(),
+                      Text(
+                        '点击定位',
+                        style: TextStyle(fontSize: 9, color: Color(0xff9baa98)),
+                      ),
+                      SizedBox(width: 3),
+                    ],
+                  ),
                 ),
-              ),
               GestureDetector(
                 key: const ValueKey('minimap'),
                 onTapDown: (details) =>
@@ -819,52 +1030,7 @@ class _WorldScreenState extends State<WorldScreen>
     child: child,
   );
 
-  void _settings() {
-    _clearKeys();
-    final c = _controller!;
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: _ink,
-          title: const Text('设置', style: TextStyle(color: _cream)),
-          content: SizedBox(
-            width: 340,
-            child: SwitchListTile.adaptive(
-              key: const ValueKey('territory-border-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                '显示国土边界',
-                style: TextStyle(color: _cream, fontSize: 14),
-              ),
-              subtitle: const Text(
-                '城池易主后，边界自动更新',
-                style: TextStyle(color: Color(0xffadb8ac), fontSize: 12),
-              ),
-              value: c.showTerritoryBorders,
-              onChanged: (value) =>
-                  setDialogState(() => c.setTerritoryBorders(value)),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _help();
-              },
-              child: const Text('操作说明'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('关闭'),
-            ),
-          ],
-        ),
-      ),
-    ).then((_) {
-      if (mounted) _focus.requestFocus();
-    });
-  }
+  void _settings() => _openSettings();
 
   void _help() {
     _clearKeys();
@@ -892,6 +1058,8 @@ class _WorldScreenState extends State<WorldScreen>
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
+    _seekVersion++;
     WidgetsBinding.instance.removeObserver(this);
     _controller?.uiRevision.removeListener(_syncTicker);
     _ticker?.dispose();

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'dart:async';
+
 import '../../world_map/presentation/world_screen.dart';
+import '../data/game_archive.dart';
+import 'mobile_display.dart';
 
 const _gold = Color(0xffd6bd7c);
 const _cream = Color(0xffece7d1);
@@ -9,7 +13,17 @@ const _names = ['燃烧的热情', '辽阔的土地', '抵上命也***'];
 /// 选择远征地图，确认后才创建游戏会话。
 class GameStartScreen extends StatefulWidget {
   /// 创建游戏开始界面。
-  const GameStartScreen({super.key});
+  const GameStartScreen({
+    super.key,
+    this.archive,
+    this.persistenceEnabled = true,
+  });
+
+  /// 主页面与当前游戏共用的历史存储。
+  final GameArchive? archive;
+
+  /// 独立界面测试可关闭持久化。
+  final bool persistenceEnabled;
 
   @override
   State<GameStartScreen> createState() => _GameStartScreenState();
@@ -18,15 +32,87 @@ class GameStartScreen extends StatefulWidget {
 class _GameStartScreenState extends State<GameStartScreen> {
   int _selected = 0;
   bool _starting = false;
+  late final GameArchive? _archive = widget.persistenceEnabled
+      ? widget.archive ?? GameArchive()
+      : null;
+  List<ArchiveEntry> _saves = [], _replays = [];
+  ArchiveEntry? _entry;
+  bool _replay = false, _loadingHistory = true;
+  Object? _historyError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _loadingHistory = true;
+      _historyError = null;
+    });
+    try {
+      final saves = await _archive?.list() ?? <ArchiveEntry>[];
+      final replays = await _archive?.list(replays: true) ?? <ArchiveEntry>[];
+      if (mounted) {
+        setState(() {
+          _saves = saves;
+          _replays = replays;
+          _loadingHistory = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _historyError = error;
+          _loadingHistory = false;
+        });
+      }
+    }
+  }
+
+  void _open(ArchiveEntry entry, {bool replay = false}) {
+    unawaited(requestMobileFullscreen());
+    setState(() {
+      _entry = entry;
+      _replay = replay;
+      _selected = entry.mapIndex;
+      _starting = true;
+    });
+  }
+
+  void _home() {
+    setState(() {
+      _starting = false;
+      _entry = null;
+      _replay = false;
+    });
+    _loadHistory();
+  }
 
   void _start() {
-    if (_starting) return;
+    if (_starting ||
+        (_archive != null && (_loadingHistory || _historyError != null))) {
+      return;
+    }
+    unawaited(requestMobileFullscreen());
+    _entry = null;
+    _replay = false;
     setState(() => _starting = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_starting) return WorldScreen(initialWorldIndex: _selected);
+    final short = MediaQuery.sizeOf(context).height < 500;
+    if (_starting) {
+      return WorldScreen(
+        initialWorldIndex: _selected,
+        archive: _archive,
+        entry: _entry,
+        replay: _replay,
+        onHome: _home,
+      );
+    }
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(
@@ -45,23 +131,24 @@ class _GameStartScreenState extends State<GameStartScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.fort, size: 40, color: _gold),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '像素远征',
+                    if (!short) const Icon(Icons.fort, size: 40, color: _gold),
+                    if (!short) const SizedBox(height: 12),
+                    Text(
+                      '龙珠英雄',
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: short ? 26 : 36,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 6,
                         color: _cream,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      '选择一片土地，开启你的征程',
-                      style: TextStyle(color: Color(0xffa8b8a8)),
-                    ),
-                    const SizedBox(height: 32),
+                    if (!short) const SizedBox(height: 10),
+                    if (!short)
+                      const Text(
+                        '选择一片土地，开启你的征程',
+                        style: TextStyle(color: Color(0xffa8b8a8)),
+                      ),
+                    SizedBox(height: short ? 12 : 32),
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final narrow = constraints.maxWidth < 660;
@@ -74,16 +161,21 @@ class _GameStartScreenState extends State<GameStartScreen> {
                                 width: narrow
                                     ? constraints.maxWidth
                                     : (constraints.maxWidth - 32) / 3,
-                                child: _mapCard(i, narrow),
+                                child: _mapCard(i, narrow, short: short),
                               ),
                           ],
                         );
                       },
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: short ? 12 : 28),
                     FilledButton.icon(
                       key: const ValueKey('start-game'),
-                      onPressed: _starting ? null : _start,
+                      onPressed:
+                          _starting ||
+                              (_archive != null &&
+                                  (_loadingHistory || _historyError != null))
+                          ? null
+                          : _start,
                       style: FilledButton.styleFrom(
                         backgroundColor: _gold,
                         foregroundColor: const Color(0xff141b17),
@@ -101,6 +193,23 @@ class _GameStartScreenState extends State<GameStartScreen> {
                         ),
                       ),
                     ),
+                    if (_archive != null) ...[
+                      const SizedBox(height: 24),
+                      if (_loadingHistory) const LinearProgressIndicator(),
+                      if (_historyError != null) ...[
+                        Text(
+                          '历史记录读取失败：$_historyError',
+                          style: const TextStyle(color: Colors.orangeAccent),
+                        ),
+                        TextButton(
+                          onPressed: _loadHistory,
+                          child: const Text('重试读取'),
+                        ),
+                      ],
+                      _historySection('自动存档', _saves, false),
+                      const SizedBox(height: 16),
+                      _historySection('已保存的回放', _replays, true),
+                    ],
                   ],
                 ),
               ),
@@ -111,12 +220,16 @@ class _GameStartScreenState extends State<GameStartScreen> {
     );
   }
 
-  Widget _mapCard(int index, bool narrow) {
+  Widget _mapCard(int index, bool narrow, {bool short = false}) {
     final selected = index == _selected;
     final preview = Image.asset(
       'assets/images/minimap_$index.png',
       width: narrow ? 88 : double.infinity,
-      height: narrow ? 72 : 170,
+      height: narrow
+          ? 72
+          : short
+          ? 70
+          : 170,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.none,
       excludeFromSemantics: true,
@@ -174,4 +287,48 @@ class _GameStartScreenState extends State<GameStartScreen> {
       ),
     );
   }
+
+  Widget _historySection(
+    String title,
+    List<ArchiveEntry> entries,
+    bool replay,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        title,
+        style: const TextStyle(
+          color: _gold,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 8),
+      if (entries.isEmpty)
+        Text(
+          replay ? '在游戏内点击“保存回放”后，这里就会出现记录。' : '游戏进度会自动保存，退出后可在这里继续。',
+          style: const TextStyle(color: Color(0xffa8b8a8)),
+        ),
+      for (final entry in entries)
+        Card(
+          child: ListTile(
+            title: Text(_names[entry.mapIndex]),
+            subtitle: Text(
+              '${entry.dateLabel} · ${entry.updated.toString().split('.').first}${entry.ended ? ' · 已结束' : ''}',
+            ),
+            trailing: TextButton(
+              key: ValueKey('${replay ? 'replay' : 'resume'}-${entry.id}'),
+              onPressed: () => _open(entry, replay: replay),
+              child: Text(
+                replay
+                    ? '回放'
+                    : entry.ended
+                    ? '查看'
+                    : '继续',
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }

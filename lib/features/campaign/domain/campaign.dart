@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../../core/geometry/geometry.dart';
 
 import '../../../core/config/game_config.dart';
+import '../../../core/persistence/state_random.dart';
 
 import '../../battle/domain/battle_simulation.dart';
 import '../../battle/domain/combat_rules.dart';
@@ -49,6 +50,7 @@ part 'ai/ai_executor.dart';
 part 'ai/ai_runtime_bridge.dart';
 part 'ai/ai_march_recovery.dart';
 part 'events/campaign_events.dart';
+part 'campaign_snapshot.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -126,6 +128,23 @@ class CitySituation {
 
 /// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
 class CampaignHero {
+  CampaignHero._saved({
+    required this.id,
+    required this.rosterOrder,
+    required this.sourceId,
+    required this.name,
+    required this.type,
+    required this.appearance,
+    required this.cityId,
+    required this.countryId,
+    required this.health,
+    required this.combat,
+    required this.morale,
+    required this.politics,
+    required this.salary,
+    required this.squad,
+  });
+
   /// 驻城将领默认不占兵，兵员由国家库存统一管理。
   CampaignHero.fromRom(
     RomHeroDefinition definition, {
@@ -259,6 +278,14 @@ enum MarchPhase {
 
 /// 一支已确认出发的部队，地图移动与战斗保留同一英雄身份。
 class HeroMarch {
+  HeroMarch._saved({
+    required this.hero,
+    required this.departureCityId,
+    required this.position,
+    required this.destination,
+    required this.direction,
+  }) : _outboundRoute = [];
+
   /// 从所属城门出发。
   HeroMarch({
     required this.hero,
@@ -292,6 +319,7 @@ class HeroMarch {
   bool _departurePending = false;
   double _departureAt = 0;
   bool _trafficBlocked = false;
+  bool _arrivalWaitLogged = false;
 
   /// 暂时避让时仍保留原行军任务，不能当作主动扎营或抵达目的地。
   bool get waitingForTraffic => _trafficBlocked;
@@ -335,6 +363,7 @@ class HeroMarch {
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(GamePoint point, {CityDefinition? city}) {
+    _arrivalWaitLogged = false;
     _trafficBlocked = false;
     _trafficRoute.clear();
     _rememberPosition();
@@ -430,6 +459,17 @@ abstract class WorldBattle {
 
 /// 一支进攻部队与城池守军的连续交战。
 class CityBattle extends WorldBattle {
+  CityBattle._saved(
+    this.city,
+    super.attacker,
+    super.defender, {
+    required super.simulation,
+    required this.initialCityLevel,
+    required this.defendingCountryId,
+    required this._seed,
+    this._locationName,
+  });
+
   /// 按当前城池等级记录一支部队与当前守将的交战。
   CityBattle(
     this.city,
@@ -727,11 +767,11 @@ class CampaignState {
           ),
       },
       {for (final hero in catalog) hero.id: hero},
-      economyRandom ?? math.Random(),
-      recruitmentRandom ?? math.Random(),
-      aiRandom ?? math.Random(),
-      siegeRandom ?? math.Random(),
-      retreatRandom ?? math.Random(),
+      economyRandom ?? StateRandom(),
+      recruitmentRandom ?? StateRandom(),
+      aiRandom ?? StateRandom(),
+      siegeRandom ?? StateRandom(),
+      retreatRandom ?? StateRandom(),
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
       weaponCatalog,

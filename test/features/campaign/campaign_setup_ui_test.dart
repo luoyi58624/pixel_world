@@ -8,7 +8,7 @@ import 'package:pixel_world/features/world_map/presentation/world_painter.dart';
 void main() {
   testWidgets('正式资源加载将玩法JSON接入控制器，未传额外参数也会生效', (tester) async {
     rootBundle.clear();
-    await tester.pumpWidget(const PixelWorldApp());
+    await tester.pumpWidget(const PixelWorldApp(persistenceEnabled: false));
     await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
     await tester.tap(find.byKey(const ValueKey('start-game')));
     await tester.pump();

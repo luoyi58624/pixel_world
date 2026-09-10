@@ -9,7 +9,7 @@ void main() {
   for (var index = 0; index < 3; index++) {
     testWidgets('选中地图 $index 后点击开始才进入对应战役', (tester) async {
       rootBundle.clear();
-      await tester.pumpWidget(const PixelWorldApp());
+      await tester.pumpWidget(const PixelWorldApp(persistenceEnabled: false));
       expect(find.text('燃烧的热情'), findsOneWidget);
       expect(find.text('辽阔的土地'), findsOneWidget);
       expect(find.text('抵上命也***'), findsOneWidget);
@@ -58,7 +58,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     tester.platformDispatcher.textScaleFactorTestValue = 1.5;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    await tester.pumpWidget(const PixelWorldApp());
+    await tester.pumpWidget(const PixelWorldApp(persistenceEnabled: false));
     final third = find.byKey(const ValueKey('start-map-2'));
     await tester.ensureVisible(third);
     await tester.tap(third);

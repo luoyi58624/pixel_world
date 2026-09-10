@@ -2,6 +2,17 @@ part of '../campaign.dart';
 
 /// 敌对将领在地图上相遇的一对一野战，无城池归属与等级影响。
 class FieldBattle extends WorldBattle {
+  FieldBattle._saved(
+    super.attacker,
+    super.defender, {
+    required super.simulation,
+    required this.id,
+    required this.position,
+    required this.terrain,
+    required this.attackerWasCamped,
+    required this.defenderWasCamped,
+  });
+
   /// 锁定相遇地点的地形，并记录交战前的行军或驻扎状态。
   FieldBattle({
     required this.id,

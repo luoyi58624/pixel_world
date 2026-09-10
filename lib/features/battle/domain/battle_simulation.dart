@@ -10,6 +10,8 @@ import 'nes/nes_battle_ending.dart';
 import 'nes/nes_battle_kernel.dart';
 import '../../weapons/domain/weapon.dart';
 
+part 'battle_snapshot.dart';
+
 /// 跨战斗保留的生命值，退出观战、撤离和换守将都不重置。
 class BattleHealth {
   /// 创建满血单位，或恢复已有生命值。
@@ -338,7 +340,7 @@ class BattleSimulation {
   int get defenderMoraleBonus => 0;
 
   /// 双方红条显示快照。
-  late final BattleMorale attackerMorale, defenderMorale;
+  late BattleMorale attackerMorale, defenderMorale;
 
   /// 两支队伍的横向状态。
   final formations = {
