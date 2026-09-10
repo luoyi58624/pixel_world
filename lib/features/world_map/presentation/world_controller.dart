@@ -883,15 +883,17 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 点击库存选择一件，同类可多选；满额或已选完该类型时再次点击减一。
+  /// 选择库存武器，满额时替换最早选择的一件，已选完该类型时再次点击减一。
   void selectWeapon(int weaponId) {
     final hero = selectedHero;
     if (selectedCity == null || hero == null || !campaign.canDispatch(hero)) {
       return;
     }
     final count = selectedWeaponCountFor(weaponId);
-    if (selectedWeaponCount < campaign.weaponCatalog.carryLimit &&
-        count < campaign.weaponStockFor(0, weaponId)) {
+    if (count < campaign.weaponStockFor(0, weaponId)) {
+      if (selectedWeaponCount >= campaign.weaponCatalog.carryLimit) {
+        _selectedWeaponIds.removeAt(0);
+      }
       _selectedWeaponIds.add(weaponId);
     } else if (count > 0) {
       _selectedWeaponIds.remove(weaponId);

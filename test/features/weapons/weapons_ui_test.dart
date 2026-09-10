@@ -82,8 +82,16 @@ void main() {
         tester
             .widget<IconButton>(find.byKey(const ValueKey('carry-weapon-9')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
+      await _tap(tester, 'carry-weapon-9');
+      expect(c.selectedWeaponCount, 1);
+      expect(c.selectedWeaponCountFor(0), 0);
+      expect(c.selectedWeaponCountFor(9), 1);
+      expect(c.campaign.weaponInventoryFor(0), {0: 1, 9: 1});
+      await _tap(tester, 'carry-weapon-0');
+      expect(c.selectedWeaponCountFor(0), 1);
+      expect(c.selectedWeaponCountFor(9), 0);
       await _tap(tester, 'carry-weapon-0');
       expect(c.selectedWeaponCount, 0);
       await _tap(tester, 'carry-weapon-9');

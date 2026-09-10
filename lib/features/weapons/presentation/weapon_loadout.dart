@@ -131,10 +131,7 @@ class WeaponLibrary extends StatelessWidget {
     final quantity = campaign.weaponStockFor(0, id);
     final selected = c.selectedWeaponCountFor(id) > 0;
     final buyProblem = campaign.weaponPurchaseBlockReason(id);
-    final canCarry =
-        canSelect &&
-        quantity > 0 &&
-        (selected || c.selectedWeaponCount < campaign.weaponCatalog.carryLimit);
+    final canCarry = canSelect && (selected || quantity > 0);
     return Container(
       key: ValueKey('warehouse-weapon-$id'),
       padding: CityPanelStyle.padding,
@@ -143,20 +140,28 @@ class WeaponLibrary extends StatelessWidget {
           color: selected ? CityPanelStyle.gold : const Color(0xff43513b),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text('${w.name} ×$quantity', style: CityPanelStyle.value),
-          const SizedBox(height: CityPanelStyle.textGap),
-          Text(w.effectLabel, style: CityPanelStyle.label),
-          Text(
-            campaign.year < w.unlockYear
-                ? '第${w.unlockYear}年解锁'
-                : '${w.price}金币',
-            style: CityPanelStyle.label,
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${w.name} ×$quantity', style: CityPanelStyle.value),
+                const SizedBox(height: CityPanelStyle.textGap),
+                Text(w.effectLabel, style: CityPanelStyle.label),
+                Text(
+                  campaign.year < w.unlockYear
+                      ? '第${w.unlockYear}年解锁'
+                      : '${w.price}金币',
+                  style: CityPanelStyle.label,
+                ),
+              ],
+            ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(width: 4),
+          Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 key: ValueKey('buy-weapon-$id'),
