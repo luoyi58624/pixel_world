@@ -138,6 +138,7 @@ class UnitPanel extends StatelessWidget {
           runSpacing: 12,
           children: [
             _stat('战斗', '${hero.combat}'),
+            _stat('士气', '${hero.morale}'),
             _stat('内政', '${hero.politics}'),
             _stat('月俸', '${hero.salary}'),
             _stat('士兵', '${hero.soldiers} 人'),

@@ -32,7 +32,7 @@ class _Normal implements math.Random {
 }
 
 void main() {
-  test('正式JSON覆盖每张地图每座城与所有国家，月产出和储备独立配置', () {
+  test('正式JSON覆盖每张地图每座城与所有国家，产出与城防按配置、全国储备满编', () {
     final setup = CampaignSetup.decode(jsonEncode(configJson()));
     final worlds = decodeWorlds(mapJson(), setup: setup);
     expect(setup.countries.length, 16);
@@ -42,17 +42,13 @@ void main() {
     );
     for (final world in worlds) {
       final c = CampaignState.fromRom(world, heroes(), aiEnabled: false);
-      expect(c.gold, 50);
+      expect(c.gold, 80);
       expect(c.goldFor(1), 70);
-      expect(
-        c.cities[1]!.requiredGarrison,
-        setup.cities[(world.id, 1)]!.requiredGarrison,
-      );
       expect(c.cities[0]!.baseIncome, 10);
-      expect(c.cities[1]!.baseIncome, 20);
+      expect(c.cities[1]!.baseIncome, 10);
       for (final item in world.cities) {
         final initial = setup.cities[(world.id, item.id)]!;
-        expect(c.soldiersAt(item.id), initial.initialReserveSoldiers);
+        expect(c.soldiersAt(item.id), c.soldierCapacityAt(item.id));
         expect(c.cities[item.id]!.level, initial.initialLevel);
         expect(
           c.cities[item.id]!.income,
@@ -87,7 +83,7 @@ void main() {
     expect(c.gold, 123);
     expect(c.cities[0]!.income, 37);
     expect(c.cities[0]!.level, 3);
-    expect(c.soldiersAt(0), 17);
+    expect(c.soldiersAt(0), 24);
     expect(c.cityBounds(c.world.cities.first).width, 48);
     expect(c.world.cities.first.initialLevel, 1);
     final monthly = CampaignState.fromRom(
@@ -97,18 +93,18 @@ void main() {
       economyRandom: _Normal(),
     );
     monthly.advance(60);
-    expect(monthly.gold, 123 + 37 - monthly.salaryCost);
-    expect(monthly.lastSettlementFor(0)!.baseIncome, 37);
+    expect(monthly.gold, 123 + 30 + 37 - monthly.salaryCost);
+    expect(monthly.lastSettlementFor(0)!.baseIncome, 67);
     controller.switchWorld(1);
     expect(controller.campaign.cities[0]!.level, 5);
-    expect(controller.campaign.soldiersAt(0), 30);
+    expect(controller.campaign.soldiersAt(0), 32);
     expect(controller.campaign.cities[0]!.income, 51);
     controller.campaign.heroes.firstWhere((hero) => hero.sourceId == 40).hp = 0;
     controller.tick(0.02);
     controller.restartCampaign();
     expect(controller.campaign.gold, 123);
     expect(controller.campaign.cities[0]!.level, 5);
-    expect(controller.campaign.soldiersAt(0), 30);
+    expect(controller.campaign.soldiersAt(0), 32);
   });
 
   test('国家初始货币不按拥有城数重复累加，显式测试覆盖不改写JSON配置', () {
@@ -146,7 +142,7 @@ void main() {
     );
     expect(c.gold, 0);
     expect(c.cities[0]!.income, 0);
-    expect(c.soldiersAt(0), 0);
+    expect(c.soldiersAt(0), 16);
     expect(() => setup.countries.clear(), throwsUnsupportedError);
     expect(() => setup.cities.clear(), throwsUnsupportedError);
   });
@@ -155,10 +151,6 @@ void main() {
     final edits = <void Function(Map<String, dynamic>)>[
       (data) => city(data)['initialLevel'] = 0,
       (data) => city(data)['initialLevel'] = 6,
-      (data) => city(data)['initialReserveSoldiers'] = -1,
-      (data) => city(data)['requiredGarrison'] = -1,
-      (data) => city(data)['requiredGarrison'] = 1.5,
-      (data) => city(data)['requiredGarrison'] = '2',
       (data) => city(data)['baseIncome'] = -1,
       (data) => city(data)['baseIncome'] = '20',
       (data) => city(data)['baseIncome'] = 2.5,
@@ -195,7 +187,7 @@ void main() {
     }
   });
 
-  test('初始兵员按实际英雄计算容量，一级三将允许十六兵，超过时在创建战役时报错', () {
+  test('废弃初始兵员配置不再改变满编规则，一级三将统一十六兵', () {
     final data = configJson();
     city(data)['initialReserveSoldiers'] = 16;
     final setup = CampaignSetup.decode(jsonEncode(data));
@@ -207,12 +199,12 @@ void main() {
     expect(c.soldierCapacityAt(0), 16);
     city(data)['initialReserveSoldiers'] = 17;
     final invalid = CampaignSetup.decode(jsonEncode(data));
-    expect(
-      () => CampaignState.fromRom(
-        decodeWorlds(mapJson(), setup: invalid).first,
-        heroes(),
-      ),
-      throwsArgumentError,
+    final updated = CampaignState.fromRom(
+      decodeWorlds(mapJson(), setup: invalid).first,
+      heroes(),
+      aiEnabled: false,
     );
+    expect(updated.reserveSoldiersFor(0), 16);
+    updated.dispose();
   });
 }

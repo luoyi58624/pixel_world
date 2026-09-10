@@ -51,6 +51,8 @@ class AiHero {
     this.openingAvailable = true,
     this.weaponReady = true,
     this.returnPath = const [],
+    this.regionCity,
+    this.salaryPaidMonth = -1,
   }) : soldiers = List.unmodifiable(soldiers),
        weapons = List.unmodifiable(weapons);
 
@@ -91,6 +93,8 @@ class AiHero {
     openingAvailable: d['opening'],
     weaponReady: d['weaponReady'],
     returnPath: [for (final p in d['returnPath']) AiPoint.fromJson(p)],
+    regionCity: d['regionCity'] as int?,
+    salaryPaidMonth: d['salaryPaidMonth'] as int? ?? -1,
   );
 
   /// 身份、国家、所属城、显示顺序与类型；类型 0/1/2 为普通/高级/主角。
@@ -139,6 +143,12 @@ class AiHero {
   /// 仅己方撤退的已走过路线。
   final List<AiPoint> returnPath;
 
+  /// 当前位置的地理辖区，属于公开地图信息，不包含敌军目的地。
+  final int? regionCity;
+
+  /// 招募时已经预付工资的月份，用于避免月末重复计费。
+  final int salaryPaidMonth;
+
   /// 是否占据城内迎战名额。
   bool get stationed =>
       state == AiArmyState.garrison || state == AiArmyState.defending;
@@ -186,6 +196,8 @@ class AiHero {
     'opening': openingAvailable,
     'weaponReady': weaponReady,
     'returnPath': [for (final p in returnPath) p.toJson()],
+    'regionCity': regionCity,
+    'salaryPaidMonth': salaryPaidMonth,
   };
 }
 
@@ -197,13 +209,12 @@ class AiCity {
     required this.country,
     required this.nativeCountry,
     required this.level,
-    required this.requiredGarrison,
     required this.center,
     required this.outline,
     required this.income,
     required this.poorIncome,
     required this.capacityContribution,
-    required this.recruitCapacity,
+    required this.rearStagingCapacity,
     required this.recruitAllowed,
     required this.revision,
     this.baseIncome = 10,
@@ -223,7 +234,6 @@ class AiCity {
     country: d['c'],
     nativeCountry: d['native'],
     level: d['level'],
-    requiredGarrison: d['keep'],
     center: AiPoint.fromJson(d['xy']),
     outline: AiOutline([
       for (final p in d['outline'] as List) AiPoint.fromJson(p),
@@ -231,7 +241,7 @@ class AiCity {
     income: d['income'],
     poorIncome: d['poor'],
     capacityContribution: d['cap'],
-    recruitCapacity: d['recruitCap'],
+    rearStagingCapacity: d['recruitCap'],
     recruitAllowed: d['recruit'],
     revision: d['rev'],
     baseIncome: d['baseIncome'],
@@ -246,14 +256,14 @@ class AiCity {
   );
 
   /// 城市身份、归属、原生国家与建筑等级。
-  final int id, country, nativeCountry, level, requiredGarrison;
+  final int id, country, nativeCountry, level;
 
   /// 实际中心及接触轮廓。
   final AiPoint center;
   final AiOutline outline;
 
   /// 月收入、欠收收入、城防容量贡献和招募容量。
-  final int income, poorIncome, capacityContribution, recruitCapacity;
+  final int income, poorIncome, capacityContribution, rearStagingCapacity;
 
   /// 未折算的一级基础产出，避免外国城市升级时的取整误差。
   final int baseIncome;
@@ -295,14 +305,13 @@ class AiCity {
     'c': country,
     'native': nativeCountry,
     'level': level,
-    'keep': requiredGarrison,
     'xy': center.toJson(),
     'outline': [for (final p in outline.points) p.toJson()],
     'income': income,
     'baseIncome': baseIncome,
     'poor': poorIncome,
     'cap': capacityContribution,
-    'recruitCap': recruitCapacity,
+    'recruitCap': rearStagingCapacity,
     'recruit': recruitAllowed,
     'rev': revision,
     'initial': initialBattleLevel,
@@ -380,6 +389,8 @@ class AiObservation {
     required List<AiCountry> countries,
     this.poolCount = 0,
     this.maximumSalary = 3,
+    this.year = 1,
+    this.monthIndex = 0,
   }) : cities = List.unmodifiable(cities),
        heroes = List.unmodifiable(heroes),
        countries = List.unmodifiable(countries);
@@ -403,10 +414,15 @@ class AiObservation {
     ],
     poolCount: d['pool'],
     maximumSalary: d['salary'],
+    year: d['year'] as int? ?? 1,
+    monthIndex: d['monthIndex'] as int? ?? 0,
   );
 
   /// 当前决策国与逻辑时刻。
   final int country, tick;
+
+  /// 当前年份和已结算月份，武器解锁与首月经营禁用共同使用。
+  final int year, monthIndex;
 
   /// 本月剩余时间。
   final double monthRemaining;
@@ -454,5 +470,7 @@ class AiObservation {
     'countries': [for (final c in countries) c.toJson()],
     'pool': poolCount,
     'salary': maximumSalary,
+    'year': year,
+    'monthIndex': monthIndex,
   };
 }

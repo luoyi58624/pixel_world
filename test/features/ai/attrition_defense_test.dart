@@ -1,0 +1,174 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/features/ai/protocol.dart';
+import 'package:pixel_world/features/ai/combat_assessment.dart';
+import 'package:pixel_world/features/ai/work_budget.dart';
+import 'package:pixel_world/features/events/domain/game_events.dart';
+
+import '../../support/national_ai_fixture.dart';
+
+void main() {
+  for (final (label, guards, gold, enemyAttack) in [
+    ('没有多余将领', [33], 200, 32),
+    ('城内防线能够抵挡', [33, 34], 200, 1),
+    ('最强武器买不起', [33, 34], 10, 32),
+    ('没有低攻击余将', [34, 35], 200, 32),
+  ]) {
+    test('$label时不派城内将领去做消耗截击', () {
+      final c = nationalScenario(
+        ai: false,
+        guards: guards,
+        gold: gold,
+        level: 4,
+        reserves: 12,
+        attackerCombat: enemyAttack,
+        overrides: {
+          33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+          34: {'combat': 14, 'maxHp': 60, 'morale': 100},
+          35: {'combat': 12, 'maxHp': 60, 'morale': 80},
+        },
+      );
+      addTearDown(c.dispose);
+      approaching(c, distance: 140);
+      c.advance(1 / 60);
+      final plan = planFor(c);
+      expect(
+        plan.groups.expand((g) => g.tasks).where((t) => t.role == 'intercept'),
+        isEmpty,
+        reason: plan.toJson().toString(),
+      );
+    });
+  }
+  test('低攻击将领带强武器消耗，高攻击普通将领留在城内接战', () {
+    final c = nationalScenario(
+      ai: false,
+      guards: [33, 34],
+      level: 4,
+      reserves: 12,
+      gold: 200,
+      attackerCombat: 32,
+      overrides: {
+        33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+        34: {'combat': 14, 'maxHp': 60, 'morale': 100},
+      },
+    );
+    addTearDown(c.dispose);
+    approaching(c, distance: 140);
+    c.advance(1 / 60);
+    final plan = planFor(c);
+    final groups = plan.groups
+        .where((g) => g.tasks.any((t) => t.attrition))
+        .toList();
+    expect(groups, isNotEmpty, reason: plan.toJson().toString());
+    final outgoing = groups
+        .expand((g) => g.actions)
+        .where((a) => a.kind == AiActionKind.dispatch)
+        .single;
+    expect(outgoing.hero, 'rom-33');
+    expect(outgoing.weaponIds.length, 1);
+    expect(
+      c.weaponCatalog.weapons[outgoing.weaponIds.single]!.damage,
+      greaterThanOrEqualTo(60),
+    );
+    expect(
+      plan.groups
+          .expand((g) => g.actions)
+          .any(
+            (a) =>
+                a.hero == 'rom-34' &&
+                [AiActionKind.dispatch, AiActionKind.dismiss].contains(a.kind),
+          ),
+      isFalse,
+    );
+    expect(c.aiObservationFor(1).hero('rom-34')!.type, 0);
+    expect(
+      ArmyTask.fromJson(groups.first.tasks.first.toJson()).attrition,
+      isTrue,
+    );
+  });
+
+  test('高攻击普通将领的城防价值可以高于低攻击高级将领', () {
+    final c = nationalScenario(
+      ai: false,
+      guards: [0, 34],
+      level: 5,
+      overrides: {
+        0: {'combat': 9, 'maxHp': 95},
+        34: {'combat': 14, 'maxHp': 99},
+      },
+    );
+    addTearDown(c.dispose);
+    final v = c.aiObservationFor(1), r = c.aiRulesForTesting();
+    expect(
+      heroDefenseValue(v.hero('rom-34')!, r, 5, 4),
+      greaterThan(heroDefenseValue(v.hero('rom-0')!, r, 5, 4)),
+    );
+  });
+
+  test('消耗效果只计能保留到下一场的整兵伤亡，不把伤兵回血忽略掉', () {
+    final c = nationalScenario(ai: false, guards: [34], level: 5);
+    addTearDown(c.dispose);
+    final v = c.aiObservationFor(1), r = c.aiRulesForTesting();
+    final assessor = CombatAssessor(r, AiWorkBudget(r.tuning));
+    final hero = v.hero('rom-34')!, enemy = v.hero('rom-2')!;
+    final a = assessor.compare(
+      hero,
+      enemy,
+      ownDefense: 5,
+      ownSoldiers: 4,
+      enemySoldiers: 4,
+      enemyPressure: 20,
+    );
+    final b = assessor.compare(
+      hero,
+      enemy,
+      ownDefense: 5,
+      ownSoldiers: 4,
+      enemySoldiers: 4,
+      enemyPressure: 35,
+    );
+    final stronger = assessor.compare(
+      hero,
+      enemy,
+      ownDefense: 5,
+      ownSoldiers: 4,
+      enemySoldiers: 4,
+      enemyPressure: 60,
+    );
+    expect(a.lower, b.lower);
+    expect(stronger.lower, greaterThan(a.lower));
+  });
+
+  test('真实指令调度执行武器截击，留守普通将领不被当作消耗品', () {
+    final c = nationalScenario(
+      ai: true,
+      guards: [33, 34],
+      level: 4,
+      reserves: 12,
+      gold: 200,
+      attackerCombat: 32,
+      overrides: {
+        33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+        34: {'combat': 14, 'maxHp': 60, 'morale': 100},
+      },
+    );
+    addTearDown(c.dispose);
+    approaching(c, distance: 140);
+    var used = false;
+    for (var i = 0; i < 6000 && !used; i++) {
+      c.advance(1 / 60);
+      used = c.events
+          .forCountry(1)
+          .query()
+          .any(
+            (e) => e.kind == GameEventKind.weaponUsed && e.heroId == 'rom-33',
+          );
+    }
+    expect(
+      used,
+      isTrue,
+      reason: c.events.forCountry(1).exportDecisionsJsonLines(),
+    );
+    expect(c.garrisonAt(1).any((h) => h.id == 'rom-34'), isTrue);
+    expect(c.marches['rom-33']?.hero.weaponIds, isEmpty);
+  });
+}

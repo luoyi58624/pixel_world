@@ -23,26 +23,14 @@ abstract final class GameConfig {
   /// 开局即开始决策，首次各国依次占用一个逻辑帧。
   static const countryAiInitialDelay = 0.0;
 
-  /// 未单独配置的城池默认保留两位将领，与城防等级无关。
-  static const defaultRequiredGarrison = 2;
-
   /// 国家经营和出征决策间隔，避免逐帧扫描招募和购买。
   static const countryAiInterval = 5.0;
 
   /// 自动出征至少携带的小兵数，默认配满四兵再出发。
   static const countryAiMinimumSoldiers = 4;
 
-  /// 每城每月最多抽三次，放弃消耗次数，签约成功后当月停止招募。
-  static const heroDrawsPerCityPerMonth = 3;
-
   /// 待签约结果包含抽取当月在内保留两个月，第三个月开始时回到共享池。
   static const heroOfferValidMonths = 2;
-
-  /// 一级城的招募人数门槛，只统计驻城英雄，不限制进城与开局名单。
-  static const cityRecruitCapacityBase = 2;
-
-  /// 每次升级增加的招募名额。
-  static const cityRecruitCapacityPerLevel = 1;
 
   /// 每位在外将领支付一金币粮草所需的行军或交战秒数。
   static const fieldSupplySecondsPerGold = 10.0;
@@ -95,11 +83,17 @@ abstract final class GameConfig {
   /// 每提升一级增加的月收入。
   static const cityIncomePerLevel = 5;
 
-  /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
-  static const foreignCityYieldFactor = 0.5;
+  /// 仍拥有城池的国家每月获得一次固定收入。
+  static const countryMonthlyIncome = 30;
 
-  /// 出征及野战将领撤退的失败概率，失败沿用整队阵亡结算。
-  static const retreatFailureChance = 0.6;
+  /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
+  static const foreignCityYieldFactor = 1.0;
+
+  /// 满生命、满兵力时的撤退成功率。
+  static const retreatBaseSuccessChance = 0.9;
+
+  /// 每少一名士兵，以及每损失四分之一将领生命，各扣除此成功率。
+  static const retreatConditionPenalty = 0.1;
 
   /// 发起撤退后双方从当前位置退回开场位置的秒数。
   static const retreatExitSeconds = 1.2;
@@ -116,9 +110,6 @@ abstract final class GameConfig {
   /// 生命严格低于四分之一且胜算渺茫时，高级电脑将领才考虑撤退。
   static const aiRetreatHealthRatio = 0.25;
 
-  /// 每次双方碰撞拼杀结束后，独立判定使用下一件武器的概率。
-  static const weaponChanceAfterClash = 0.5;
-
   /// 已接近本国城池的敌军警戒距离，单位为地图原生像素。
   static const aiThreatDistance = 320.0;
 
@@ -134,35 +125,39 @@ abstract final class GameConfig {
   /// 失败远征后重新筹备的间隔，避免立刻重复派兵送死。
   static const aiRaidRetrySeconds = 15.0;
 
-  /// 丰收时每座城额外增加的收入。
-  static const abundantBonusPerCity = 5;
+  /// 丰收时整个国家额外增加一次的收入。
+  static const abundantHarvestBonus = 30;
 
-  /// 欠收时每座城额外减少的收入。
-  static const poorPenaltyPerCity = 10;
+  /// 欠收时整个国家额外减少一次的收入。
+  static const poorHarvestPenalty = 30;
 
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;
 
-  /// 解雇高级将领的基础返还金币，实际金额再加该将领内政。
-  static const advancedDismissalGold = 10;
-
-  /// 解雇普通将领的基础返还金币，实际金额再加该将领内政。
-  static const normalDismissalGold = 5;
-
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;
 
+  /// 第一年可通过升级达到的最高城防，初始高等级城池不降级。
+  static const firstYearCityUpgradeLimit = 3;
+
+  /// 每过一年新增的可升级城防等级。
+  static const cityUpgradeLevelsPerYear = 1;
+
+  /// 当前年份的升级上限，封顶五级。
+  static int cityUpgradeLimitForYear(int year) =>
+      (firstYearCityUpgradeLimit +
+              (year - initialYear).clamp(0, maxCityLevel) *
+                  cityUpgradeLevelsPerYear)
+          .clamp(1, maxCityLevel);
+
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
-  static const List<int> cityUpgradeCosts = [30, 80, 150, 300];
+  static const List<int> cityUpgradeCosts = [30, 60, 100, 160];
 
   /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;
 
-  /// 每名本国存活英雄贡献的全国容量，出征和同国转城不影响计数。
-  static const cityReserveCapacityPerHero = 4;
-
-  /// 简化地图每座城的开局兵员贡献，正式开局汇总各城 JSON 配置至国家库存。
-  static const initialCityReserves = 0;
+  /// 开局每位实际登场将领贡献四兵，重复初始化记录不重复计算。
+  static const initialSoldiersPerHero = 4;
 
   /// 征募一个储备兵员的价格。
   static const soldierRecruitCost = 1;
@@ -182,20 +177,20 @@ abstract final class GameConfig {
   /// 每次抽取英雄的费用，放弃签约不退还抽取费。
   static const heroDrawCost = 5;
 
-  /// 高级将领的额外签约费。
-  static const advancedSigningFee = 10;
-
-  /// 普通将领的额外签约费。
-  static const normalSigningFee = 0;
-
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
   /// 守城方从二级起，每级增加的整队基础攻击力。
-  static const cityDefenseAttackPerLevel = 2;
+  static const cityDefenseAttackPerLevel = 1;
 
-  /// 一级城市的守方攻击加成，之后每级再增加两点，不增加士气。
-  static const cityDefenseBaseAttack = 2;
+  /// 一级城市增加一点攻击，之后每级再增加一点，不增加士气。
+  static const cityDefenseBaseAttack = 1;
+
+  /// 缩小碰撞强度差对击退速度的影响，避免少一个兵立即变成持续撞墙。
+  static const battleRecoilDifferenceScale = 0.25;
+
+  /// 原版撞墙使用双倍攻击强度，折半后按普通攻击强度追加一次伤害。
+  static const battleWallDamageScale = 0.5;
 
   /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
   static const fieldEncounterDistance = 16.0;
@@ -231,7 +226,7 @@ abstract final class GameConfig {
   static const battleFormationFrames = 163;
 
   /// 整场未攻下的城池，进攻方每赢一轮独立触发一次降级的概率。
-  static const cityDamageChancePerVictory = 0.5;
+  static const cityDamageChancePerVictory = 0.8;
 }
 
 /// 从玩法 JSON 读取的国家开局经济。

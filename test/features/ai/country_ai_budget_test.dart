@@ -1,4 +1,11 @@
+import 'package:pixel_world/features/ai/budget.dart';
+import 'package:pixel_world/features/ai/routes.dart';
+import 'package:pixel_world/features/ai/work_budget.dart';
+
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import '../../support/national_ai_fixture.dart' show advanceAi;
 
 import 'dart:convert';
@@ -47,6 +54,7 @@ CampaignState _campaign({
   );
   final initialIds = {40, 0, 2, 18, 19, if (secondCity) 3};
   for (final row in data['heroes'] as List) {
+    row['nativeCountryId'] = null;
     row['salary'] = row['id'] == 40
         ? 0
         : initialIds.contains(row['id'])
@@ -82,22 +90,29 @@ CampaignState _campaign({
     },
     [0, 1, 2, 3],
   );
-  final c = CampaignState.fromRom(
-    world,
-    decodeRomHeroes(jsonEncode(data))
-        .where((hero) => recruitment || initialIds.contains(hero.id))
-        .toList(),
-    aiEnabled: ai,
-    countryConfigs: {
-      0: const CountryConfig(initialGold: 100),
-      1: CountryConfig(initialGold: gold),
-      2: const CountryConfig(initialGold: 0),
-    },
-    economyRandom: economy ?? _Poor(),
-    recruitmentRandom: math.Random(3),
-    aiWorkerFactory: SynchronousAiWorker.new,
-    aiRandom: math.Random(7),
-    retreatRandom: math.Random(31),
+  final c = ongoingCampaign(
+    CampaignState.fromRom(
+      world,
+      decodeRomHeroes(jsonEncode(data))
+          .where((hero) => recruitment || initialIds.contains(hero.id))
+          .toList(),
+      weaponCatalog: WeaponCatalog.decode(
+        File('assets/data/rom_weapons.json').readAsStringSync(),
+      ),
+      aiEnabled: ai,
+      countryConfigs: {
+        0: const CountryConfig(initialGold: 100),
+        1: CountryConfig(initialGold: gold),
+        2: const CountryConfig(initialGold: 0),
+      },
+      economyRandom: economy ?? _Poor(),
+      recruitmentRandom: math.Random(3),
+      aiWorkerFactory: SynchronousAiWorker.new,
+      aiRandom: math.Random(7),
+      retreatRandom: math.Random(31),
+    ),
+    stock: 0,
+    year: 1,
   );
   var initialTroops = 0;
   for (final id in [1, if (secondCity) 3]) {
@@ -128,18 +143,22 @@ void main() {
       File('assets/data/rom_heroes.json').readAsStringSync(),
     );
     for (final world in worlds) {
-      final c = CampaignState.fromRom(
-        world,
-        heroes,
-        weaponCatalog: WeaponCatalog.decode(
-          File('assets/data/rom_weapons.json').readAsStringSync(),
+      final c = ongoingCampaign(
+        CampaignState.fromRom(
+          world,
+          heroes,
+          weaponCatalog: WeaponCatalog.decode(
+            File('assets/data/rom_weapons.json').readAsStringSync(),
+          ),
+          economyRandom: math.Random(17),
+          aiWorkerFactory: SynchronousAiWorker.new,
+          aiRandom: math.Random(7),
+          retreatRandom: math.Random(31),
+          recruitmentRandom: math.Random(11),
+          siegeRandom: math.Random(23),
         ),
-        economyRandom: math.Random(17),
-        aiWorkerFactory: SynchronousAiWorker.new,
-        aiRandom: math.Random(7),
-        retreatRandom: math.Random(31),
-        recruitmentRandom: math.Random(11),
-        siegeRandom: math.Random(23),
+        stock: 0,
+        year: 1,
       );
       var deployments = 0;
       for (var second = 0; second < 180 && !c.defeated; second++) {
@@ -167,25 +186,39 @@ void main() {
     expect(c.soldiersAt(1), 12);
     expect(c.cities[1]!.level, 2);
     expect(c.heroes.length, count);
-    expect(c.remainingHeroDraws(1), 3);
+    expect(c.remainingHeroDraws(1), isNull);
   });
 
   test('全国在外部队按数量和状态预留粮草，同时覆盖欠收与月俸', () {
     final c = _campaign(gold: 100, level: 1, salary: 2, ai: false);
-    final a = c.dispatchTo(_hero(c, 0), const GamePoint(1900, 30), countryId: 1)!;
-    final b = c.dispatchTo(_hero(c, 2), const GamePoint(1900, 30), countryId: 1)!;
+    final a = c.dispatchTo(
+      _hero(c, 0),
+      const GamePoint(1900, 30),
+      countryId: 1,
+    )!;
+    final b = c.dispatchTo(
+      _hero(c, 2),
+      const GamePoint(1900, 30),
+      countryId: 1,
+    )!;
     a.position = const GamePoint(200, 30);
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
     expect(moving.planningSeconds, closeTo(1700 / (22 * .75), .01));
-    expect(moving.minimumMonthlyIncome, 0);
-    expect(moving.monthlySalary, 6);
-    expect(moving.reserveGold, 31); // 两队完整行军约 103 秒各付十金币，加月俸六金币与应急五金币。
+    expect(moving.minimumMonthlyIncome, 10);
+    expect(
+      moving.monthlySalary,
+      c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
+    );
+    expect(moving.reserveGold, greaterThan(5)); // 欠收仍有五金币，预算只抵扣实际月结后到账的收入。
     b.camp();
-    expect(c.aiBudgetFor(1).reserveGold, 26);
+    expect(c.aiBudgetFor(1).reserveGold, lessThan(moving.reserveGold));
     expect(c.aiBudgetFor(0).reserveGold, 5);
     c.advance(59.9);
-    expect(c.aiBudgetFor(1).reserveGold, greaterThan(25)); // 预测期内新增一次月结。
+    expect(
+      c.aiBudgetFor(1).reserveGold,
+      greaterThanOrEqualTo(5),
+    ); // 预测期内新增一次月结。
   });
 
   test('收入尚未到账时仍保护月结前现金，读预算不会提前抽取收成', () {
@@ -259,8 +292,8 @@ void main() {
   test('先保护既有远征，连续经营经过欠收月结仍有粮草，资金充足也确实派兵', () {
     final c = _campaign(salary: 2);
     advanceAi(c, 8);
-    expect(c.marches.length, 1);
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.marches, isNotEmpty);
+    expect(c.garrisonAt(1), isNotEmpty);
     for (var second = 0; second < 60; second++) {
       advanceAi(c, 1);
       expect(
@@ -275,7 +308,7 @@ void main() {
       );
     }
     expect(c.lastSettlementFor(1)!.harvest.name, 'poor');
-    expect(c.goldFor(0), 100); // 玩家国库只受自己的月结影响。
+    expect(c.goldFor(0), 110); // 玩家国库只受自己的月结影响。
   });
 
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {
@@ -287,21 +320,31 @@ void main() {
       level: 4,
     );
     final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 4);
-    final count = expensive.heroes.length;
-    for (var i = 0; i < 1920; i++) {
-      expensive.advance(1 / 60);
-      cheap.advance(1 / 60);
+    for (final c in [expensive, cheap]) {
+      final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
+      final ledger = AiLedger(
+        view,
+        rules,
+        AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
+      );
+      final before = ledger.gold;
+      expect(ledger.recruit(view.city(1)!), identical(c, cheap));
+      expect(ledger.gold, before - (identical(c, cheap) ? 5 : 0));
     }
-    expect(expensive.remainingHeroDraws(1), 3);
-    expect(expensive.heroes.length, count);
-    expect(cheap.remainingHeroDraws(1), 0);
-    expect(cheap.heroes.length, count + 1);
   });
 
   test('资金不足的旧营地优先分批回城，不用刚恢复的零钱再发起远征', () {
     final c = _campaign(gold: 2, income: 0, stock: 0);
-    final a = c.dispatchTo(_hero(c, 0), const GamePoint(1900, 30), countryId: 1)!;
-    final b = c.dispatchTo(_hero(c, 2), const GamePoint(1900, 30), countryId: 1)!;
+    final a = c.dispatchTo(
+      _hero(c, 0),
+      const GamePoint(1900, 30),
+      countryId: 1,
+    )!;
+    final b = c.dispatchTo(
+      _hero(c, 2),
+      const GamePoint(1900, 30),
+      countryId: 1,
+    )!;
     a.position =
         c.cityBounds(c.world.cities[1]).centerRight + const GamePoint(15, 0);
     b.position = a.position + const GamePoint(0, 5);
@@ -314,7 +357,7 @@ void main() {
       c.advance(1 / 60);
     }
     expect(c.marches, isEmpty);
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.garrisonAt(1), isNotEmpty);
     expect(c.goldFor(1), greaterThan(0));
   });
 

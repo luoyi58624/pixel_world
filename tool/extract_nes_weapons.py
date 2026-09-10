@@ -94,6 +94,7 @@ def main():
     reference.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     original_weapons=json.loads(json.dumps(catalog['weapons']))
     out=Path('assets/data/rom_weapons.json')
+    old={}
     if out.exists():
         previous=json.loads(out.read_text(encoding='utf8'))
         old={w['id']:w for w in previous['weapons']}
@@ -104,9 +105,10 @@ def main():
     catalog['weapons']=[w for w in catalog['weapons'] if w['id'] not in (6,7,8)]
     for weapon in catalog['weapons']:
         weapon['romMinimumCities']=weapon['minimumCities']
-        weapon['minimumCities']=1
+        weapon.pop('minimumCities')
+        weapon['unlockYear'] = old.get(weapon['id'], {}).get('unlockYear', [0,9,1,10,2,11,3,12,4,13,5,14].index(weapon['id']) // 3 + 1)
         weapon['shopEnabled']=True
-    catalog['notes']['gameplay']='游戏商店全部开放；移除台风、强击手、死枪。原始完整记录位于 docs/reference/rom_weapons_original.json。'
+    catalog['notes']['gameplay']='商店每年解锁一行三种武器；每名将领每轮对阵最多自动使用一件；移除台风、强击手、死枪。原始完整记录位于 docs/reference/rom_weapons_original.json。'
     out.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     Path('docs/nes_weapons_evidence.json').write_text(json.dumps(
         dict(sourceSha256=ROM_SHA256, examples=evidence),ensure_ascii=False,indent=2)+'\n',encoding='utf8')

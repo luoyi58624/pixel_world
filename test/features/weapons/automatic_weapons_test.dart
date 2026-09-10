@@ -131,7 +131,7 @@ void main() {
   });
 
   for (final value in [.499999, .5, .99]) {
-    test('玩家开场自动消耗一件，碰撞分位 $value 仅判定一次，空余帧不重复掷骰', () {
+    test('玩家开场自动消耗一件，碰撞分位 $value 不再消费武器，空余帧不掷骰', () {
       final random = _Roll(value);
       final (c, battle) = _battle(random);
       expect(battle.attacker.weaponIds.length, 3);
@@ -145,15 +145,15 @@ void main() {
       _until(c, () => battle.simulation.weaponStrike == null);
       expect(battle.attacker.weaponIds.length, 2);
       _until(c, () => battle.simulation.clashes == 1);
-      expect(random.calls, 1);
-      expect(battle.attacker.weaponIds.length, value < .5 ? 1 : 2);
+      expect(random.calls, 0);
+      expect(battle.attacker.weaponIds.length, 2);
       c.advance(.1);
-      expect(random.calls, 1);
-      expect(battle.attacker.weaponIds.length, value < .5 ? 1 : 2);
+      expect(random.calls, 0);
+      expect(battle.attacker.weaponIds.length, 2);
     });
   }
 
-  test('固定概率下只用完实际三件，帧长改变不改变武器、生命或判定次数', () {
+  test('每轮一次武器额度，帧长改变不改变武器、生命或判定次数', () {
     final ra = _Roll(.1), rb = _Roll(.1);
     final (a, ba) = _battle(ra);
     final (b, bb) = _battle(rb);
@@ -163,7 +163,7 @@ void main() {
     }
     expect(ba.attacker.weaponIds, bb.attacker.weaponIds);
     expect(ba.attacker.weaponIds, isEmpty);
-    expect(ra.calls, 2);
+    expect(ra.calls, 0);
     expect(rb.calls, ra.calls);
     expect(ba.attacker.hp, bb.attacker.hp);
     expect(ba.defender.hp, bb.defender.hp);

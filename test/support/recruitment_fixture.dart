@@ -6,6 +6,7 @@ void prepareRecruitmentCity(
   int cityId, {
   int level = 5,
 }) {
+  if (campaign.settledMonths == 0) campaign.settledMonths = 1;
   final previous = campaign.cities[cityId]!;
   campaign.cities[cityId] = CitySituation(
     ownerCountryId: previous.ownerCountryId,

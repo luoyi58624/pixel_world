@@ -46,9 +46,18 @@ class _AiCoordinator {
     worker!.initialize(rules, map);
   }
 
-  void urgent(int country, {String reason = '局势发生变化'}) {
+  void urgent(
+    int country, {
+    String reason = '局势发生变化',
+    bool defenseNow = false,
+  }) {
     _urgent.add(country);
     _urgentReasons.putIfAbsent(country, () => {}).add(reason);
+    if (defenseNow) {
+      _schedules
+          .putIfAbsent(country, () => CountryAiSchedule(GameConfig.nationalAi))
+          .requestDefense(campaign._strategyTime);
+    }
   }
 
   String decisionId(int country, int request, {String? workerSession}) =>
@@ -234,6 +243,8 @@ class _AiCoordinator {
         ),
         idleCycles: idleCycles[country] ?? 0,
         stage: stage,
+        offensiveCountry: campaign._warPlans[country]?.offensiveCountryId,
+        offensiveCity: campaign._warPlans[country]?.offensiveCityId,
       );
       _schedules[country]!.submitted(request);
       latest[country] = request.id;
@@ -353,6 +364,17 @@ class _AiCoordinator {
           urgent(hero.countryId);
           continue;
         }
+        if (task.role == 'expedition' &&
+            task.targetCountry != null &&
+            campaign.cities[task.city]?.ownerCountryId != task.targetCountry &&
+            campaign.cities[task.city]?.ownerCountryId != hero.countryId) {
+          campaign.camp(hero.id, countryId: hero.countryId);
+          tasks.remove(hero.id);
+          _taskEnded(task, hero, '目标城已被第三国占领，停止误攻并重整主攻计划');
+          urgent(hero.countryId, reason: '原目标城池易主，重新集中力量');
+          changed = true;
+          continue;
+        }
         if (march.phase == MarchPhase.camped &&
             task.leg + 1 < task.points.length &&
             !march.supplyHalted) {
@@ -443,30 +465,42 @@ extension _AiSafety on CampaignState {
     final definition = world.cities.firstWhere((c) => c.id == id),
         owner = cities[id]!.ownerCountryId;
     final center = cityBounds(definition).center;
+    final origin = cityBounds(definition).topLeft;
+    final outline = AiOutline([
+      for (final p in _cityContact(definition).outline)
+        AiPoint(p.dx + origin.dx, p.dy + origin.dy),
+    ]);
     for (final march in marches.values) {
       if (march.hero.countryId == owner ||
           !march.hero.health.alive ||
-          !march.visibleOnMap) {
+          !march.visibleOnMap ||
+          _disbandAfterBattle.contains(march.hero.id)) {
         continue;
       }
       final delta = center - march.position, distance = delta.distance;
-      if (distance < 72) return true;
-      if (distance >
-          GameConfig.baseMarchSpeed * GameConfig.nationalAi.threatSeconds +
-              80) {
+      final invaded = territories.regionAt(march.position) == id;
+      if (!invaded &&
+          distance >
+              GameConfig.baseMarchSpeed * GameConfig.nationalAi.threatSeconds +
+                  80) {
         continue;
       }
       final velocity = _aiVelocity[march.hero.id] ?? GamePoint.zero;
-      if (velocity.distance < .01) continue;
-      final alignment =
-          (delta.dx * velocity.dx + delta.dy * velocity.dy) /
-          (distance * velocity.distance);
-      final perpendicular =
-          distance * math.sqrt(math.max(0, 1 - alignment * alignment));
-      if (alignment > .65 &&
-          perpendicular < cityBounds(definition).longestSide / 2 + 48 &&
-          distance / GameConfig.baseMarchSpeed <
-              GameConfig.nationalAi.threatSeconds) {
+      if (incomingSeconds(
+            position: AiPoint(march.position.dx, march.position.dy),
+            velocity: AiPoint(velocity.dx, velocity.dy),
+            center: AiPoint(center.dx, center.dy),
+            outline: outline,
+            marchSpeed: GameConfig.baseMarchSpeed,
+            horizon: GameConfig.nationalAi.threatSeconds,
+            invaded: invaded,
+            travelSeconds: (a, b) => estimateMarchSeconds(
+              world,
+              GamePoint(a.x, a.y),
+              GamePoint(b.x, b.y),
+            ),
+          ) !=
+          null) {
         return true;
       }
     }
@@ -477,7 +511,8 @@ extension _AiSafety on CampaignState {
     final city = cities[id];
     if (city == null) return false;
     if (!_automatedCountry(city.ownerCountryId)) return true;
-    // AI 自身保持安全名额，玩家仍使用原来的等级加一招募规则。
+    // 平时按作战需求招募；来敌时避免新将挡住核心守军的迎战名额。
+    if (!_aiThreatened(id)) return true;
     return garrisonAt(id).where((h) => h.health.alive).length <
         _aiSafetySlots(id);
   }
@@ -495,7 +530,7 @@ extension _AiSafety on CampaignState {
             _ai?.tasks[march.hero.id]?.role == 'regroup');
     if (rear &&
         garrisonAt(id).length <
-            cities[id]!.recruitCapacity +
+            cities[id]!.rearStagingCapacity +
                 GameConfig.nationalAi.rearStagingExtra) {
       _aiRearDeadlines.putIfAbsent(
         id,
@@ -584,6 +619,7 @@ extension _AiSafety on CampaignState {
     // 战前有效升级优先；每次合法筹款后可重新报价，战中绝不增加本场 B。
     void upgradeIfFunded() {
       if (battles[id]?.isActive != true &&
+          upgradeWindowBlockReason(id) == null &&
           guards.length + expectedArrivals <= GameConfig.maxCityLevel) {
         final governors =
             guards
@@ -594,27 +630,12 @@ extension _AiSafety on CampaignState {
               ..sort((a, b) => b.politics.compareTo(a.politics));
         if (governors.isNotEmpty) {
           final governor = governors.first;
-          var needed = 0;
-          for (
-            var level = cities[id]!.level;
-            level < guards.length + expectedArrivals;
-            level++
-          ) {
-            needed += math.max(
-              0,
-              GameConfig.cityUpgradeCosts[level - 1] - governor.politics,
-            );
-          }
-          if (goldFor(country) >= needed + protectedGold) {
-            for (
-              var n = 0;
-              n < 4 && cities[id]!.level < guards.length + expectedArrivals;
-              n++
-            ) {
-              if (!upgradeCity(id, hero: governor, countryId: country)) break;
-              changed = true;
-              finalActions.add('${governor.name}将城防升至${cities[id]!.level}级');
-            }
+          final needed = upgradeCostFor(id, governor, countryId: country);
+          if (needed != null &&
+              goldFor(country) >= needed + protectedGold &&
+              upgradeCity(id, hero: governor, countryId: country)) {
+            changed = true;
+            finalActions.add('${governor.name}将城防升至${cities[id]!.level}级');
           }
         }
       }
@@ -633,10 +654,15 @@ extension _AiSafety on CampaignState {
               .toList()
             ..sort((a, b) {
               double value(CampaignHero h) =>
-                  h.combat * 3 +
-                  h.maxHp * .35 +
-                  h.politics * 1.5 +
-                  (h.type == HeroType.advanced ? 30 : 0);
+                  (h.hp +
+                          GameConfig.heroSoldierLimit *
+                              BattleSimulation.soldierHp) *
+                      (h.combat +
+                          GameConfig.cityDefenseBaseAttack +
+                          (cities[id]!.level - 1) *
+                              GameConfig.cityDefenseAttackPerLevel +
+                          GameConfig.heroSoldierLimit * 2) +
+                  h.politics * .25;
               return value(a).compareTo(value(b));
             });
       if (free.isEmpty) break;

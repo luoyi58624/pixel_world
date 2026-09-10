@@ -18,7 +18,7 @@ extension CampaignWeapons on CampaignState {
 
   /// 商店武器统一开放，不以领土数量限制购买。
   bool weaponUnlocked(int countryId, WeaponDefinition weapon) =>
-      weapon.shopEnabled;
+      weapon.shopEnabled && year >= weapon.unlockYear;
 
   /// 购买检查国家归属、商店是否出售和金币，不需要选择英雄。
   String? weaponPurchaseBlockReason(int weaponId, {int countryId = 0}) {
@@ -29,7 +29,7 @@ extension CampaignWeapons on CampaignState {
     final weapon = weaponCatalog.weapons[weaponId];
     if (weapon == null) return '武器不存在';
     if (!weaponUnlocked(countryId, weapon)) {
-      return '武器未上架';
+      return weapon.shopEnabled ? '第 ${weapon.unlockYear} 年解锁' : '武器未上架';
     }
     if (goldFor(countryId) < weapon.price) {
       return '金币不足';
@@ -112,6 +112,7 @@ extension CampaignWeapons on CampaignState {
     }
     return !isPaused &&
         !defeated &&
+        !battle._weaponOpeningDone.contains(hero.id) &&
         heroes.contains(hero) &&
         hero.countryId == countryId &&
         slot >= 0 &&
@@ -139,6 +140,7 @@ extension CampaignWeapons on CampaignState {
         ? BattleSide.attacker
         : BattleSide.defender;
     if (!battle.simulation.useWeapon(side, weapon)) return false;
+    battle._weaponOpeningDone.add(hero.id);
     hero._weaponIds.removeAt(slot);
     battle.record('${hero.name}使用${weapon.name}');
     _record(
@@ -156,43 +158,19 @@ extension CampaignWeapons on CampaignState {
     return true;
   }
 
-  // 玩家和电脑共用事件驱动判定；只在开场及新的碰撞之后检查，绝不逐帧掷骰。
+  // 每个对阵双方各有一次机会，攻城换守将时由 _nextDefender 清除用量。
   bool _tryAutomaticWeapons(WorldBattle battle) {
-    final sim = battle.simulation;
-    if (!sim.canUseWeapon) return false;
-    if (battle._weaponOpeningDone.length == (battle is FieldBattle ? 2 : 1) &&
-        battle._lastWeaponClash == sim.clashes &&
-        battle._pendingWeapons.isEmpty) {
-      return false;
-    }
-    final armies = [
+    if (!battle.simulation.canUseWeapon) return false;
+    for (final hero in [
       battle.attacker,
       if (battle is FieldBattle) battle.defender,
-    ];
-    final opening = <String>{};
-    for (final hero in armies) {
-      if (battle._weaponOpeningDone.add(hero.id)) {
-        opening.add(hero.id);
-        if (hero.weaponIds.isNotEmpty) battle._pendingWeapons.add(hero.id);
+    ]) {
+      if (battle._weaponOpeningDone.contains(hero.id)) continue;
+      if (hero.weaponIds.isEmpty) {
+        battle._weaponOpeningDone.add(hero.id);
+        continue;
       }
-    }
-    if (sim.clashes > battle._lastWeaponClash) {
-      battle._lastWeaponClash = sim.clashes;
-      for (final hero in armies) {
-        if (!opening.contains(hero.id) &&
-            hero.weaponIds.isNotEmpty &&
-            _weaponRandom.nextDouble() < GameConfig.weaponChanceAfterClash) {
-          battle._pendingWeapons.add(hero.id);
-        }
-      }
-    }
-    for (final hero in armies) {
-      if (battle._pendingWeapons.contains(hero.id) &&
-          hero.weaponIds.isNotEmpty &&
-          useWeapon(hero, 0, countryId: hero.countryId)) {
-        battle._pendingWeapons.remove(hero.id);
-        return true;
-      }
+      if (useWeapon(hero, 0, countryId: hero.countryId)) return true;
     }
     return false;
   }

@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -49,13 +52,17 @@ CampaignState _campaign({
     },
     [0, 1, 2, 3],
   );
-  final c = CampaignState.fromRom(
-    world,
-    decodeRomHeroes(jsonEncode(json)),
-    aiEnabled: false,
-    siegeRandom: const FixedSiegeRandom(),
-    retreatRandom: const FixedSiegeRandom(.9),
-    startingGold: 10000,
+  final c = ongoingCampaign(
+    CampaignState.fromRom(
+      world,
+      decodeRomHeroes(jsonEncode(json)),
+      aiEnabled: false,
+      siegeRandom: const FixedSiegeRandom(),
+      retreatRandom: const FixedSiegeRandom(.9),
+      startingGold: 10000,
+    ),
+    stock: 0,
+    year: 1,
   );
   if (homeStock > 0) expect(c.buySoldiers(0, homeStock), isTrue);
   if (enemyStock > 0) {
@@ -229,7 +236,7 @@ void main() {
     expect(c.soldiersAt(0), 9);
     final capacity = c.soldierCapacityAt(1);
     c.upgradeCity(1, hero: hero);
-    expect(c.soldierCapacityAt(1), capacity + 2);
+    expect(c.soldierCapacityAt(1), capacity + 4);
     expect(c.soldiersAt(1), 9);
     c.cities[1]!.ownerCountryId = 0;
     expect(c.soldiersAt(1), 9);
@@ -245,7 +252,7 @@ void main() {
     expect(c.soldiersAt(0), 32);
     expect(c.soldiersAt(2), 32);
     c.defeatHero(_hero(c, 2).id, winnerCountryId: 1, defendedCityId: 0);
-    expect(c.soldierCapacityAt(0), 24);
-    expect(c.soldiersAt(0), 24);
+    expect(c.soldierCapacityAt(0), 28);
+    expect(c.soldiersAt(0), 28);
   });
 }

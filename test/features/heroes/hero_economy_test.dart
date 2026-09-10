@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -54,14 +57,16 @@ WorldDefinition _world() => WorldDefinition.fromJson(
 );
 
 CampaignState _campaign({Map<String, dynamic>? config, _Pick? pick}) =>
-    CampaignState.fromRom(
-      _world(),
-      decodeRomHeroes(jsonEncode(config ?? _config())),
-      aiEnabled: false,
-      startingGold: 100,
-      economyRandom: _Pick(),
-      recruitmentRandom: pick ?? _Pick(),
-      siegeRandom: _Pick(),
+    ongoingCampaign(
+      CampaignState.fromRom(
+        _world(),
+        decodeRomHeroes(jsonEncode(config ?? _config())),
+        aiEnabled: false,
+        startingGold: 100,
+        economyRandom: _Pick(),
+        recruitmentRandom: pick ?? _Pick(),
+        siegeRandom: _Pick(),
+      ),
     );
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -79,7 +84,7 @@ void main() {
     expect(c.battles[0]!.defender.sourceId, 0);
   });
 
-  test('JSON按非主角顺序逐位配置3/2/1/0月俸，主角免月俸且不占名额', () {
+  test('JSON按文件顺序配置月俸，专属国免薪且主角仍排首位', () {
     final c = _campaign();
     final order = _catalog()
         .where((hero) => hero.id != 40)
@@ -88,13 +93,8 @@ void main() {
     expect(_catalog().length, 41);
     expect(_catalog().first.id, 40);
     for (var rank = 0; rank < order.length; rank++) {
-      final expected = rank < 5
-          ? 3
-          : rank < 10
-          ? 2
-          : rank < 15
-          ? 1
-          : 0;
+      final definition = _catalog().firstWhere((h) => h.id == order[rank]);
+      final expected = definition.nativeCountryId == 0 ? 0 : definition.salary;
       expect(
         c.salaryFor(_catalog().firstWhere((hero) => hero.id == order[rank])),
         expected,
@@ -108,8 +108,15 @@ void main() {
   test('修改JSON影响初始驻军、预览、签约与月结，不再计算原ROM报酬', () {
     final data = _config();
     for (final row in data['heroes'] as List) {
-      if (row['id'] == 0) row['salary'] = 7;
-      if (row['id'] == 3) row['salary'] = 11;
+      row['salary'] = 0;
+      if (row['id'] == 0) {
+        row['salary'] = 7;
+        row['nativeCountryId'] = 1;
+      }
+      if (row['id'] == 3) {
+        row['salary'] = 11;
+        row['nativeCountryId'] = null;
+      }
     }
     final pick = _Pick();
     final c = _campaign(config: data, pick: pick);
@@ -120,18 +127,19 @@ void main() {
     expect(c.signHero(offer)!.salary, 11);
     final before = c.gold;
     c.advance(60);
-    expect(c.lastSettlementFor(0)!.salary, 21); // 7 + 11 + 友城威拉斯3。
-    expect(c.gold, before + 40 - 21);
-    expect(c.lastSettlementFor(1)!.salary, 3);
+    expect(c.lastSettlementFor(0)!.salary, 7); // 新签约将领已预付本月。
+    expect(c.gold, before + 70 - 7);
+    expect(c.lastSettlementFor(1)!.salary, 0);
   });
 
-  test('月俸配置拒绝负数、重复与不存在编号，主角不能配置非零报酬', () {
+  test('月俸配置拒绝负数、重复与不存在编号，专属归属与士气必须有效', () {
     for (final edit in <void Function(Map<String, dynamic>)>[
       (data) => data['heroes'][1]['salary'] = -1,
       (data) => data['heroes'][1]['salary'] = 1.5,
       (data) => data['heroes'][1]['salary'] = '3',
       (data) => data['heroes'][1]['id'] = 41,
-      (data) => data['heroes'][0]['salary'] = 1,
+      (data) => data['heroes'][0]['nativeCountryId'] = -1,
+      (data) => data['heroes'][0]['morale'] = 101,
       (data) => data['heroes'].add(data['heroes'][1]),
     ]) {
       final data = _config();
@@ -148,8 +156,8 @@ void main() {
     );
   });
 
-  for (final (id, base) in [(0, 10), (18, 5)]) {
-    test('解雇$id按类型返还基础金币加内政，移出驻军并回收，城防不降级', () {
+  for (final (id, base) in [(0, 0), (18, 0)]) {
+    test('解雇$id仅返还内政，移出驻军并回收，城防不降级', () {
       final c = _campaign();
       final hero = _hero(c, id);
       c.buySoldiers(0, 8);
@@ -180,26 +188,26 @@ void main() {
     c.advance(5);
     final before = c.gold;
     c.dismissHero(hero);
-    expect(c.gold, before + 25);
+    expect(c.gold, before + 15);
     expect(c.marches, isEmpty);
     expect(hero.soldiers, 0);
     expect(c.soldiersAt(0), 4);
-    expect(c.salaryAt(0), 0);
+    expect(c.salaryAt(0), _hero(c, 18).salary);
     c.advance(30);
-    expect(c.gold, before + 25);
+    expect(c.gold, before + 15);
   });
 
-  test('解雇后的储备遵守减少后的容量，已签约的本月招募机会不会重置', () {
+  test('解雇不改变开局兵力基数，签约后可继续招募', () {
     final c = _campaign();
     c.buySoldiers(0, c.soldierCapacityAt(0));
     final hero = _hero(c, 18);
     c.dismissHero(hero);
-    expect(c.soldierCapacityAt(0), 36);
-    expect(c.soldiersAt(0), 36);
+    expect(c.soldierCapacityAt(0), 40);
+    expect(c.soldiersAt(0), 40);
     final recruited = c.signHero(c.drawHero(0)!)!;
     c.dismissHero(recruited);
-    expect(c.remainingHeroDraws(0), 0);
-    expect(c.drawHero(0), isNull);
+    expect(c.remainingHeroDraws(0), isNull);
+    expect(c.drawHero(0), isNotNull);
   });
 
   test('主角、敌国及正在交战的将领不能解雇，失败不返款或影响交战', () {
@@ -230,14 +238,14 @@ void main() {
     final signed = _hero(c, old.sourceId);
     expect(signed, isNot(same(old)));
     expect(signed.countryId, 1);
-    expect(signed.salary, 3);
+    expect(signed.salary, offer.hero.salaryFor(1));
     expect(c.recruitPool.any((hero) => hero.id == old.sourceId), isFalse);
     expect(c.signHero(offer, countryId: 1), isNull);
     final before = c.goldFor(1);
     expect(c.dismissHero(old, countryId: 1), isNull);
     expect(c.goldFor(1), before);
-    expect(c.dismissHero(signed, countryId: 1), 25);
-    expect(c.goldFor(1), before + 25);
+    expect(c.dismissHero(signed, countryId: 1), 15);
+    expect(c.goldFor(1), before + 15);
   });
 
   test('控制器解雇清理选点和英雄面板，解雇最后守将仍保留我方城市', () {

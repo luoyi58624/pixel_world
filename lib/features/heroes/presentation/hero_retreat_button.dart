@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/config/game_config.dart';
 import '../../campaign/domain/campaign.dart';
 import '../../world_map/presentation/world_controller.dart';
 
@@ -26,7 +25,8 @@ class HeroRetreatButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final blocked = controller.campaign.retreatBlockReason(heroId);
-    final percent = (GameConfig.retreatFailureChance * 100).round();
+    final percent = (controller.campaign.retreatSuccessChance(heroId) * 100)
+        .round();
     return OutlinedButton.icon(
       onPressed: blocked == null
           ? () => onAction(() => controller.retreatHero(heroId))
@@ -36,7 +36,7 @@ class HeroRetreatButton extends StatelessWidget {
         minimumSize: const Size(0, 40),
       ),
       icon: const Icon(Icons.keyboard_return, size: 16),
-      label: Text('撤退 · $percent% 失败即阵亡', style: const TextStyle(fontSize: 12)),
+      label: Text('撤退 · 成功率 $percent%', style: const TextStyle(fontSize: 12)),
     );
   }
 }

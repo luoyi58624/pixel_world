@@ -16,6 +16,10 @@ import 'rules_data.dart';
 }) {
   final guards = view.garrison(city.id).reversed.take(city.safeSlots).toList();
   var lower = 1.0, upper = 1.0;
+  var burden = 0.0;
+  final ownPower =
+      rules.attack(hero.combat, field: false) +
+      rules.integer('soldierLimit') * rules.integer('soldierPower');
   var reserve = view.countries.firstWhere((c) => c.id == city.country).reserves;
   for (var i = 0; i < guards.length; i++) {
     final guard = guards[i];
@@ -30,12 +34,49 @@ import 'rules_data.dart';
       enemyDefense: math.max(1, city.safeSlots - i),
       ownSoldiers: rules.integer('soldierLimit'),
       enemySoldiers: soldiers,
-      loadout: gear,
+      loadout: i < gear.length ? [gear[i]] : const [],
       ownOpening: true,
       enemyOpening: false,
     );
     lower = math.min(lower, pair.lower);
     upper = math.min(upper, pair.upper);
+    final enemyPower =
+        rules.attack(
+          guard.combat,
+          field: false,
+          defenseLevel: math.max(1, city.safeSlots - i),
+        ) +
+        soldiers * rules.integer('soldierPower');
+    // 全城只有一份进攻军生命与背包；这里只累加静态攻防负担，不试打后续轮次。
+    final ratio = enemyPower / math.max(1, ownPower);
+    burden +=
+        (guard.hp + soldiers * rules.integer('soldierHp')) * ratio * ratio;
+  }
+  var weaponCredit = 0.0;
+  for (var i = 0; i < math.min(gear.length, guards.length); i++) {
+    final w = rules.weapons[gear[i]];
+    if (w != null) {
+      weaponCredit +=
+          math.max(0, w.damage - w.selfDamage) *
+          (i == 0 ? 1 : rules.tuning.laterWeaponCredit);
+    }
+  }
+  final endurance =
+      hero.hp +
+      rules.integer('soldierLimit') * rules.integer('soldierHp') +
+      weaponCredit;
+  final sustainedTeam = math.max(
+    1,
+    (burden / math.max(1, endurance * .85)).ceil(),
+  );
+  if (guards.isNotEmpty &&
+      gear.isEmpty &&
+      lower < rules.tuning.splitAdvantageMargin) {
+    return (lower: lower, upper: upper, teamSize: 0);
+  }
+  // 高城不能把超出编队容量的消耗硬截成四将，从而误报“已备齐兵力”。
+  if (sustainedTeam > rules.tuning.maxTeam) {
+    return (lower: lower, upper: upper, teamSize: 0);
   }
   if (guards.isEmpty ||
       (guards.length == 1 &&
@@ -46,7 +87,13 @@ import 'rules_data.dart';
           rules.tuning.advantageMargin +
               math.max(0, guards.length - 1) * .025 -
               slack) {
-    return (lower: lower, upper: upper, teamSize: 1);
+    return (
+      lower: lower,
+      upper: upper,
+      teamSize: lower >= rules.tuning.splitAdvantageMargin || guards.isEmpty
+          ? sustainedTeam
+          : math.max(2, sustainedTeam),
+    );
   }
   return (
     lower: lower,

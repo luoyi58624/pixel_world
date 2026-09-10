@@ -38,11 +38,11 @@ void main() {
     c.advance(59);
     final pool = c.recruitPool.map((h) => h.id).toSet();
     final offer = c.drawHero(0)!;
-    expect(offer.retentionLabel, '保留至 1年2月末');
+    expect(offer.retentionLabel, '保留至 1年3月末');
     expect(c.gold, 995);
-    expect(c.remainingHeroDraws(0), 2);
+    expect(c.remainingHeroDraws(0), isNull);
     c.advance(1);
-    expect(c.dateLabel, '1年2月');
+    expect(c.dateLabel, '1年3月');
     expect(c.recruitmentOffer, same(offer));
     expect(c.canSignHero(offer), isTrue);
     expect(c.drawHero(0), isNull);
@@ -51,7 +51,7 @@ void main() {
     expect(c.recruitmentOffer, same(offer));
     final gold = c.gold;
     c.advance(.02);
-    expect(c.dateLabel, '1年3月');
+    expect(c.dateLabel, '1年4月');
     expect(c.recruitmentOffer, isNull);
     expect(c.recruitPool.map((h) => h.id).toSet(), pool);
     expect(c.recruitPool.length, pool.length);
@@ -59,29 +59,29 @@ void main() {
     expect(c.canSignHero(offer), isFalse);
     expect(c.signHero(offer), isNull);
     expect(c.declineHero(offer), isFalse);
-    expect(c.remainingHeroDraws(0), 3);
+    expect(c.remainingHeroDraws(0), isNull);
   });
 
   test('跨年保留到次年一月末，已签约英雄不随期限消失', () {
     final c = _campaign();
-    c.advance(660);
+    c.advance(600);
     expect(c.dateLabel, '1年12月');
     final offer = c.drawHero(0)!;
     expect(offer.retentionLabel, '保留至 2年1月末');
     c.advance(60);
     expect(c.recruitmentOffer, same(offer));
     final hero = c.signHero(offer)!;
-    expect(c.remainingHeroDraws(0), 0);
+    expect(c.remainingHeroDraws(0), isNull);
     c.advance(120);
     expect(c.dateLabel, '2年3月');
     expect(c.heroes, contains(hero));
     expect(c.recruitPool.any((h) => h.id == hero.sourceId), isFalse);
-    expect(c.remainingHeroDraws(0), 3);
+    expect(c.remainingHeroDraws(0), isNull);
   });
 
   test('跨年未签约按原期限到期，重新读取不会续期', () {
     final c = _campaign();
-    c.advance(660);
+    c.advance(600);
     final offer = c.drawHero(0)!;
     c.advance(119);
     for (var i = 0; i < 10; i++) {
@@ -122,7 +122,7 @@ void main() {
     final second = b.drawHero(0)!;
     prepareRecruitmentCity(a, 0, level: 1);
     prepareRecruitmentCity(b, 0, level: 1);
-    expect(a.canSignHero(first), isFalse);
+    expect(a.canSignHero(first), isTrue);
     a.advance(180);
     for (var i = 0; i < 1800; i++) {
       b.advance(.1);

@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -32,6 +33,29 @@ AiRequest _request(CampaignState c, int id, AiDecisionStage stage) => AiRequest(
 );
 
 void main() {
+  test('敌军越境唤醒防守，旧请求结束前不并行指挥，处理警报后恢复周期', () {
+    final c = nationalScenario(ai: false);
+    addTearDown(c.dispose);
+    final schedule = CountryAiSchedule(const AiTuning());
+    for (final stage in [AiDecisionStage.resources, AiDecisionStage.defense]) {
+      final request = _request(c, stage.index + 1, stage);
+      schedule.submitted(request);
+      schedule.finish(request.id, 0, adopted: true);
+    }
+    final old = _request(c, 100, AiDecisionStage.attack);
+    schedule.submitted(old);
+    schedule.requestDefense(1);
+    expect(schedule.due(1), isNull);
+    expect(schedule.defenseAlarmPending, isTrue);
+    schedule.finish(old.id, 1, adopted: false);
+    expect(schedule.due(1), AiDecisionStage.defense);
+    c.advance(1);
+    final defense = _request(c, 101, AiDecisionStage.defense);
+    schedule.submitted(defense);
+    schedule.finish(defense.id, 1, adopted: true);
+    expect(schedule.defenseAlarmPending, isFalse);
+    expect(schedule.due(1), AiDecisionStage.attack);
+  });
   test('资源30秒、哨兵8秒，资源结果落地后才防守，最后进攻', () {
     final c = nationalScenario(ai: false);
     final schedule = CountryAiSchedule(const AiTuning());
@@ -154,6 +178,7 @@ void main() {
 
   test('本地可升级改善防守时，先使用国库而非打断远征', () {
     final c = nationalScenario(
+      gold: 600,
       ai: false,
       level: 1,
       guards: [0, 18],

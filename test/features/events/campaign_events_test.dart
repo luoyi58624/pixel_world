@@ -1,3 +1,5 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,21 +24,25 @@ void main() {
     final heroes = decodeRomHeroes(
       File('assets/data/rom_heroes.json').readAsStringSync(),
     );
-    CampaignState make(bool enabled) => CampaignState.fromRom(
-      world,
-      heroes,
-      aiWorkerFactory: SynchronousAiWorker.new,
-      aiRandom: math.Random(17),
-      economyRandom: math.Random(18),
-      recruitmentRandom: math.Random(19),
-      siegeRandom: math.Random(20),
-      weaponRandom: math.Random(21),
-      retreatRandom: math.Random(22),
-      eventLog: CampaignEvents(
-        worldId: world.id,
-        enabled: enabled,
-        onEvent: (_) => throw StateError('测试接收器错误'),
+    CampaignState make(bool enabled) => ongoingCampaign(
+      CampaignState.fromRom(
+        world,
+        heroes,
+        aiWorkerFactory: SynchronousAiWorker.new,
+        aiRandom: math.Random(17),
+        economyRandom: math.Random(18),
+        recruitmentRandom: math.Random(19),
+        siegeRandom: math.Random(20),
+        weaponRandom: math.Random(21),
+        retreatRandom: math.Random(22),
+        eventLog: CampaignEvents(
+          worldId: world.id,
+          enabled: enabled,
+          onEvent: (_) => throw StateError('测试接收器错误'),
+        ),
       ),
+      stock: 0,
+      year: 1,
     );
     final recorded = make(true), silent = make(false);
     addTearDown(recorded.dispose);

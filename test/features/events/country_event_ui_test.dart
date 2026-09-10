@@ -62,7 +62,7 @@ void main() {
       expect(find.text('本国准备出征'), findsOneWidget);
       expect(find.text('敌国决定守家'), findsNothing);
       expect(find.text('本国排队噪音'), findsNothing);
-      expect(find.text('最终决策 1 条'), findsOneWidget);
+      expect(find.text('决策与收支 1 条'), findsOneWidget);
       expect(find.byKey(const ValueKey('dispatch-confirm')), findsNothing);
       final before = c.time;
       await tester.pump(const Duration(milliseconds: 100));
@@ -70,13 +70,13 @@ void main() {
       note(0, '本国发现城池有危险');
       await tester.pump();
       expect(find.text('本国发现城池有危险'), findsOneWidget);
-      expect(find.text('最终决策 2 条'), findsOneWidget);
+      expect(find.text('决策与收支 2 条'), findsOneWidget);
       c.openCity(c.world.cities[1]);
       await tester.pump();
       expect(find.text('敌国决定守家'), findsOneWidget);
       expect(find.text('本国准备出征'), findsNothing);
       expect(find.text('敌国提案噪音'), findsNothing);
-      expect(find.text('最终决策 1 条'), findsOneWidget);
+      expect(find.text('决策与收支 1 条'), findsOneWidget);
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
@@ -105,7 +105,7 @@ void main() {
       expect(find.text('敌国决定守家'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('country-info-tab')));
       await tester.pump();
-      expect(find.byKey(const ValueKey('city-economy')), findsOneWidget);
+      expect(find.byKey(const ValueKey('city-economy')), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

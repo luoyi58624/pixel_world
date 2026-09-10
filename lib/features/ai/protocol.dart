@@ -77,6 +77,8 @@ class ArmyTask {
     this.arrivalSlot = false,
     this.reason = '',
     this.expectedOrderRevision = 0,
+    this.targetCountry,
+    this.attrition = false,
   });
 
   /// 所属英雄、任务角色与意图。
@@ -84,6 +86,12 @@ class ArmyTask {
 
   /// 目标城市或可见敌军。
   final int? city;
+
+  /// 出征时目标国家，城池被第三国抢先占领时据此停止误攻。
+  final int? targetCountry;
+
+  /// 消耗截击只承诺削弱来敌，不能据此宣布城防已经安全。
+  final bool attrition;
   final String? enemy;
 
   /// 合法分段路线及当前路段。
@@ -111,6 +119,8 @@ class ArmyTask {
     arrivalSlot: arrivalSlot,
     reason: reason,
     expectedOrderRevision: revision,
+    targetCountry: targetCountry,
+    attrition: attrition,
   );
 
   /// 跨平台任务记录。
@@ -127,6 +137,8 @@ class ArmyTask {
     'slot': arrivalSlot,
     'reason': reason,
     'order': expectedOrderRevision,
+    'targetCountry': targetCountry,
+    'attrition': attrition,
   };
 
   /// 解码任务。
@@ -143,6 +155,8 @@ class ArmyTask {
     arrivalSlot: d['slot'],
     reason: d['reason'],
     expectedOrderRevision: d['order'],
+    targetCountry: d['targetCountry'] as int?,
+    attrition: d['attrition'] as bool? ?? false,
   );
 }
 
@@ -271,6 +285,8 @@ class AiRequest {
     this.priority = 0,
     this.idleCycles = 0,
     this.stage = AiDecisionStage.full,
+    this.offensiveCountry,
+    this.offensiveCity,
   });
 
   /// 会话及静态数据版本。
@@ -281,6 +297,9 @@ class AiRequest {
 
   /// 当前国家本轮允许执行的调度阶段。
   final AiDecisionStage stage;
+
+  /// 持续灭国目标独立于临时防守，原目标灭国后才释放锁定。
+  final int? offensiveCountry, offensiveCity;
 
   /// 一致观察及已执行的持续任务。
   final AiObservation observation;
@@ -303,6 +322,8 @@ class AiRequest {
     'priority': priority,
     'idle': idleCycles,
     'stage': stage.name,
+    'offensiveCountry': offensiveCountry,
+    'offensiveCity': offensiveCity,
   };
 
   /// 解码请求并检查协议。
@@ -327,6 +348,8 @@ class AiRequest {
       priority: d['priority'],
       idleCycles: d['idle'],
       stage: AiDecisionStage.values.byName(d['stage'] as String? ?? 'full'),
+      offensiveCountry: d['offensiveCountry'] as int?,
+      offensiveCity: d['offensiveCity'] as int?,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -98,8 +99,10 @@ CampaignState _campaign(
     defense: 100,
     baseIncome: 10,
     initialLevel: 2,
-    requiredGarrison: 1,
   );
+  c.settledMonths = 1;
+  c.countryTroops[0] = CountryTroops();
+  c.countryTroops[2] = CountryTroops();
   c.countryTroops[attacker] = CountryTroops(reserveSoldiers: 4);
   if (transferExtrasTo != null) {
     for (var id = 3; id < 3 + extras; id++) {
@@ -156,7 +159,9 @@ Map<int, int> _draws({
       }
     }
     final march = c.marches.values.single;
-    final target = march.target!;
+    final target = c.world.cities.firstWhere(
+      (city) => city.id == (march.target?.id ?? c.aiTasks[march.hero.id]?.city),
+    );
     expect(
       c.cities[target.id]!.ownerCountryId,
       recovering ? attacker : isNot(attacker),
@@ -213,7 +218,8 @@ void main() {
       extras: 4,
       gold: 25,
     );
-    expect(counts, {0: 32});
+    expect(counts.values.fold(0, (a, b) => a + b), 32);
+    expect(counts[2] ?? 0, 0, reason: '高守备远城仍不可支付，空城无需预留多轮交战费用');
   });
 
   test('营地恢复补给后先返回友城整备，不立即再次盲目进攻', () {

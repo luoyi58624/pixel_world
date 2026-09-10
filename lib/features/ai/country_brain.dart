@@ -13,6 +13,7 @@ import 'work_budget.dart';
 import 'resource_planner.dart';
 import 'target_priority.dart';
 import 'raid_assessment.dart';
+import 'offensive_focus.dart';
 
 class _NationCandidate {
   _NationCandidate(
@@ -236,6 +237,22 @@ class CountryBrain {
         continue;
       }
       final expired = task != null && task.deadlineTick < _view.tick;
+      final assault = assaultTarget(hero, _view, ledger);
+      if (assaultIsCommitted(hero, _view, ledger, rules) &&
+          ledger.gold > 0 &&
+          (hero.hp >= hero.maxHp * .25 ||
+              _view.garrison(assault!.id).isEmpty)) {
+        notes.add('${hero.id}已临近主攻目标，保持进攻，不因普通预警或整备预算折返');
+        continue;
+      }
+      // 分段行军在路点会短暂停靠，下一段仍由原任务推进，不能误判为闲置营地。
+      if (task?.role == 'expedition' &&
+          !expired &&
+          !lowFunds &&
+          hero.hp >= hero.maxHp * .65 &&
+          task!.leg + 1 < task.points.length) {
+        continue;
+      }
       if (!lowFunds &&
           !completedIntercept &&
           !expired &&
@@ -253,7 +270,7 @@ class CountryBrain {
                             ? ledger.slots(c)
                             : math.max(
                                 ledger.slots(c),
-                                c.recruitCapacity +
+                                c.rearStagingCapacity +
                                     rules.tuning.rearStagingExtra,
                               )) &&
                     (_reports[c.id]?.threatened != true ||
@@ -281,7 +298,15 @@ class CountryBrain {
           route,
           role: 'regroup',
           rearSafe: _reports[city.id]?.threatened != true,
-          reason: lowFunds ? '回安全友城缩减粮草支出，保留其他有效远征' : '结束旧截击或整备残血部队，进城补给后重评估目标',
+          reason: lowFunds
+              ? '现有国库不足以继续供养远程任务，回城缩减粮草支出'
+              : hero.hp < hero.maxHp * .65
+              ? '将领受伤，回城恢复生命后再战'
+              : expired
+              ? '原任务已超过执行时限，回城重新整备'
+              : completedIntercept
+              ? '截击目标已消失，回城结束本次任务'
+              : '野外指令已完成，回城等待新任务',
           target: city,
           arrival: true,
           emergency: true,
@@ -324,12 +349,19 @@ class CountryBrain {
                   ),
                 ),
           );
-    final assigned = <int, int>{};
-    for (final task in ledger.tasks.values.where(
-      (t) => t.role == 'expedition' && t.city != null,
-    )) {
-      assigned.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
-    }
+    final openingFocus = OffensiveFocus(
+      _view,
+      ledger,
+      rules,
+      targetCountry: request.offensiveCountry,
+      targetCity: request.offensiveCity,
+    );
+    final assigned = {
+      for (final id in openingFocus.armies.keys)
+        id: openingFocus.assignedTo(id),
+    };
+    targetCity = openingFocus.primary ?? openingFocus.preferredCity;
+    if (openingFocus.primary != null && urgent.isEmpty) phase = 'attacking';
     final threatsResolved =
         beam.first.unresolved == 0 &&
         (request.stage != AiDecisionStage.attack ||
@@ -351,28 +383,37 @@ class CountryBrain {
           report?.risk?.advantage != CombatAdvantage.favorable) {
         continue;
       }
-      final keep = math.max(
-        1,
-        report?.threatened == true
-            ? math.min(home.requiredGarrison, ledger.slots(home))
-            : home.requiredGarrison,
-      );
+      final keep = report?.threatened == true
+          ? math.min(ledger.defendersToKeep(home), ledger.slots(home))
+          : ledger.defendersToKeep(home);
       if (ledger.garrison(home.id).length <= keep) continue;
       if (report?.threatened == true &&
           !_remainingDefenseSafe(home, hero, ledger)) {
         continue;
       }
 
+      final focus = OffensiveFocus(
+        _view,
+        ledger,
+        rules,
+        targetCountry: request.offensiveCountry,
+        targetCity: request.offensiveCity,
+      );
       final targets =
           _view.cities
               .where(
                 (c) =>
                     c.country != _view.country &&
+                    focus.allows(c) &&
                     (assigned[c.id] ?? 0) < rules.tuning.maxTeam,
               )
               .toList()
             ..sort(
-              (a, b) => _targetScore(b, hero).compareTo(_targetScore(a, hero)),
+              (a, b) => a.id == focus.primary
+                  ? -1
+                  : b.id == focus.primary
+                  ? 1
+                  : _targetScore(b, hero).compareTo(_targetScore(a, hero)),
             );
       PlannedOperation? selected;
       AiCity? selectedTarget;
@@ -384,12 +425,6 @@ class CountryBrain {
             .reversed
             .take(target.safeSlots)
             .toList();
-        // 单一目标达到保守编队名额后，不因仍有闲将无限增加攻城队列。
-        final teamNeed = math.max(
-          1,
-          math.min(rules.tuning.maxTeam, (guards.length / 2).ceil()),
-        );
-        if ((assigned[target.id] ?? 0) >= teamNeed) continue;
         final route = routes.to(hero, target.center, _view, target: target);
         if (!route.complete) continue;
         final equipment = operations.loadouts(hero, ledger);
@@ -414,14 +449,22 @@ class CountryBrain {
           final neededTeam = readiness.teamSize;
           acceptable = neededTeam > 0;
           if (!acceptable) continue;
+          final secondary = focus.primary != null && target.id != focus.primary;
+          if (secondary &&
+              (neededTeam != 1 || lower < rules.tuning.splitAdvantageMargin)) {
+            continue;
+          }
+          final queued = assigned[target.id] ?? 0;
+          final reinforcements = neededTeam - queued;
+          if (reinforcements <= 0) continue;
           requiredHeroes = math.max(requiredHeroes, neededTeam);
           final option = _prepareRaid(
             ledger,
             hero,
             target,
             gear,
-            neededTeam,
-            assigned[target.id] ?? 0,
+            reinforcements,
+            queued,
           );
           if (option == null) {
             final quote = ledger.copy();
@@ -431,8 +474,8 @@ class CountryBrain {
               hero,
               target,
               gear,
-              neededTeam,
-              assigned[target.id] ?? 0,
+              reinforcements,
+              queued,
             );
             if (quoted != null) {
               phase = urgent.isEmpty ? 'saving' : phase;
@@ -521,10 +564,10 @@ class CountryBrain {
               ..sort((a, b) => b.politics.compareTo(a.politics));
         final needHero =
             _view.cities.any((c) => c.country != _view.country) &&
-            local.length < math.max(1, city.requiredGarrison) + requiredHeroes;
+            local.length < ledger.defendersToKeep(city) + requiredHeroes;
         if (governors.isNotEmpty &&
             (local.length >= ledger.slots(city) ||
-                needHero && local.length >= city.recruitCapacity)) {
+                needHero && local.length >= city.rearStagingCapacity)) {
           if (next.upgrade(city, governors.first) &&
               next.gold >= next.cash().reserve) {
             ledger = next;
@@ -549,7 +592,6 @@ class CountryBrain {
           }
         }
         if (needHero &&
-            local.length < ledger.slots(city) &&
             next.recruit(city) &&
             next.gold >= next.cash().reserve) {
           ledger = next;
@@ -677,7 +719,7 @@ class CountryBrain {
       if (_reports[city.id]?.threatened == true && city.id != lead.city) {
         continue;
       }
-      final keep = math.max(1, city.requiredGarrison);
+      final keep = base.defendersToKeep(city);
       final room = math.max(0, base.garrison(city.id).length - keep);
       final free =
           base
@@ -719,7 +761,23 @@ class CountryBrain {
               ),
             ),
       );
-    final team = [lead, ...available.take(count - 1)];
+    final firstRoute = routes.to(lead, target.center, _view, target: target);
+    if (!firstRoute.complete) return null;
+    final team = [lead], teamRoutes = <String, AiRoute>{lead.id: firstRoute};
+    var earliest = firstRoute.seconds, latest = firstRoute.seconds;
+    // 只考察有限候补，以真实路程约束抵达间隔，避免前队打光、后队还在远方。
+    for (final h in available.take(rules.tuning.maxTeam * 2)) {
+      if (team.length >= count) break;
+      final route = routes.to(h, target.center, _view, target: target);
+      if (!route.complete) continue;
+      final nextEarly = math.min(earliest, route.seconds),
+          nextLate = math.max(latest, route.seconds);
+      if (nextLate - nextEarly > rules.tuning.raidArrivalSpread) continue;
+      team.add(h);
+      teamRoutes[h.id] = route;
+      earliest = nextEarly;
+      latest = nextLate;
+    }
     if (team.length < count) return null;
     var ledger = base;
     final actions = <AiAction>[],
@@ -736,7 +794,7 @@ class CountryBrain {
           !_remainingDefenseSafe(_view.city(hero.city)!, hero, ledger)) {
         return null;
       }
-      final route = routes.to(hero, target.center, _view, target: target);
+      final route = teamRoutes[hero.id]!;
       PlannedOperation? chosen;
       for (final gear
           in index == 0 ? [leadGear] : operations.loadouts(hero, ledger)) {
@@ -755,7 +813,9 @@ class CountryBrain {
                 ),
                 loadout: gear,
               );
-              return score.releaseRisk ||
+              return (gear.isEmpty &&
+                      score.lower < rules.tuning.splitAdvantageMargin) ||
+                  score.releaseRisk ||
                   score.upper <= rules.tuning.advantageMargin ||
                   score.lower < -.12;
             })) {
@@ -766,10 +826,7 @@ class CountryBrain {
           final remaining =
               ledger.garrison(city.id).length - (city.id == hero.city ? 1 : 0);
           protection +=
-              math.min(
-                math.max(0, remaining),
-                math.max(1, city.requiredGarrison),
-              ) *
+              math.min(math.max(0, remaining), ledger.defendersToKeep(city)) *
               rules.integer('soldierLimit');
         }
         chosen = operations.send(
@@ -777,7 +834,9 @@ class CountryBrain {
           hero,
           route,
           role: 'expedition',
-          reason: count == 1 ? '高级战力优先进攻可供养的弱城' : '全队完成装备、兵员与队列粮草准备后协同轮攻',
+          reason: count == 1
+              ? '围绕主攻目标投入足够战力，保留其他方向兵力'
+              : '集中优势编队轮攻同一座城，抵达间隔不超过${rules.tuning.raidArrivalSpread.toInt()}秒',
           target: target,
           gear: gear,
           protectSoldiers: math.min(

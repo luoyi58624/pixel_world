@@ -1,3 +1,5 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,8 +14,11 @@ List<RomHeroDefinition> _catalog() =>
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 
-CampaignState _campaign({int gold = 50}) =>
-    CampaignState.fromRom(_worlds().first, _catalog(), startingGold: gold);
+CampaignState _campaign({int gold = 50}) => ongoingCampaign(
+  CampaignState.fromRom(_worlds().first, _catalog(), startingGold: gold),
+  stock: 0,
+  year: 1,
+);
 
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -33,7 +38,7 @@ void main() {
     expect(governor.hp, 20);
     expect(governor.squad.map((soldier) => soldier.hp), soldierHp);
     expect(c.journal.last, contains(governor.name));
-    expect(c.upgradeCostFor(0, governor), 77);
+    expect(c.upgradeCostFor(0, governor), 57);
   });
 
   test('无选择、伪造同编号、外城、敌军和已阵亡将领不能升级且不扣款', () {
@@ -54,6 +59,7 @@ void main() {
     ]) {
       expect(c.upgradeCostFor(0, hero), isNull);
       expect(c.upgradeBlockReason(0, hero), isNotNull);
+      c.settledMonths = 24;
       expect(c.upgradeCity(0, hero: hero), isFalse);
       expect(c.gold, 50);
       expect(c.cities[0]!.level, 1);
@@ -114,9 +120,10 @@ void main() {
     );
     c.heroes.removeWhere((hero) => hero.sourceId == 0);
     c.heroes.add(governor);
-    for (final base in [30, 80, 150, 300]) {
+    for (final base in [30, 60, 100, 160]) {
       expect(c.cities[0]!.baseUpgradeCost, base);
       expect(c.upgradeCostFor(0, governor), 0);
+      c.settledMonths = 24;
       expect(c.upgradeCity(0, hero: governor), isTrue);
       expect(c.gold, 0);
     }
@@ -127,6 +134,7 @@ void main() {
   test('城池默认选可主持升级者，点击时重新验证已选择将领的驻城状态', () {
     final c = WorldController(_worlds(), heroCatalog: _catalog());
     addTearDown(c.dispose);
+    c.campaign.settledMonths = 1;
     final home = c.world.cities.first;
     c.openCity(home);
     final selected = c.selectedHero!;

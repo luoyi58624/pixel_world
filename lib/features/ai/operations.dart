@@ -36,7 +36,7 @@ class OperationPlanner {
             .where(
               (w) =>
                   (ledger.stock[w.id] ?? 0) > 0 ||
-                  _canPurchase && w.shopEnabled,
+                  _canPurchase && w.shopEnabled && _view.year >= w.unlockYear,
             )
             .toList()
           ..sort(
@@ -95,6 +95,7 @@ class OperationPlanner {
     double deadline = double.infinity,
     int protectSoldiers = 0,
     int queueIndex = 0,
+    bool attrition = false,
   }) {
     if (!route.complete ||
         !route.seconds.isFinite ||
@@ -134,7 +135,7 @@ class OperationPlanner {
           route.seconds +
           rules.number('supplySafety');
     }
-    if (duration > 600) return null;
+    if (duration > rules.tuning.maxExpeditionSeconds) return null;
     final task = ArmyTask(
       hero: hero.id,
       role: role,
@@ -151,6 +152,8 @@ class OperationPlanner {
       arrivalSlot: arrival,
       reason: reason,
       expectedOrderRevision: hero.orderRevision + 1,
+      targetCountry: role == 'expedition' ? target?.country : null,
+      attrition: attrition,
     );
     if (arrival &&
         target != null &&
@@ -161,7 +164,7 @@ class OperationPlanner {
             (rearSafe
                 ? math.max(
                     ledger.slots(target),
-                    target.recruitCapacity + rules.tuning.rearStagingExtra,
+                    target.rearStagingCapacity + rules.tuning.rearStagingExtra,
                   )
                 : ledger.slots(target))) {
       return null;

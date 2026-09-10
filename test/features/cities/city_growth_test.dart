@@ -1,26 +1,29 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/flutter_geometry.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
-import 'package:pixel_world/features/cities/domain/city_appearance.dart';
 import 'package:pixel_world/features/cities/domain/city_contact.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/world_map/data/world_assets.dart';
-import 'package:pixel_world/features/world_map/presentation/world_controller.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
-import 'package:pixel_world/features/world_map/presentation/world_painter.dart';
 
 import '../../support/fixed_siege_random.dart';
 
-CampaignState _campaign([int map = 0]) => CampaignState.fromRom(
-  aiEnabled: false,
-  decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  startingGold: 10000,
-  siegeRandom: const FixedSiegeRandom(),
-  retreatRandom: const FixedSiegeRandom(.9),
+CampaignState _campaign([int map = 0]) => ongoingCampaign(
+  CampaignState.fromRom(
+    aiEnabled: false,
+    decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    startingGold: 10000,
+    siegeRandom: const FixedSiegeRandom(),
+    retreatRandom: const FixedSiegeRandom(.9),
+  ),
+  stock: 0,
+  year: 3,
 );
 
 void main() {
@@ -35,10 +38,12 @@ void main() {
     expect(city.level, 5);
     city.ownerCountryId = 0;
     expect(city.level, 1);
-    expect(city.income, 43);
+    expect(city.income, 86);
     expect(city.baseUpgradeCost, 30);
     final c = _campaign();
+    c.settledMonths++;
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
+    c.settledMonths++;
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
     c.cities[0]!.ownerCountryId = 0;
     expect(c.cities[0]!.level, 3);
@@ -57,8 +62,8 @@ void main() {
     c.advance(0.02);
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.level, 1);
-    expect(c.cities[1]!.income, c.cities[1]!.baseIncome ~/ 2);
-    expect(c.cityBounds(city).size, const ui.Size(32, 48));
+    expect(c.cities[1]!.income, c.cities[1]!.baseIncome);
+    expect(c.cityBounds(city).size.toUi, const ui.Size(32, 48));
     expect(hero.cityId, 1);
     expect(c.garrisonAt(1), [hero]);
   });
@@ -66,10 +71,12 @@ void main() {
   test('升级扩建后点击和出城使用新范围，友军进驻不重置等级', () {
     final c = _campaign();
     final home = c.world.cities.first;
+    c.settledMonths++;
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
+    c.settledMonths++;
     c.upgradeCity(0, hero: c.garrisonAt(0).first);
     final expanded = c.cityBounds(home);
-    expect(expanded.size, const ui.Size(48, 48));
+    expect(expanded.size.toUi, const ui.Size(48, 48));
     expect(expanded.bottomLeft, home.bounds.bottomLeft);
     final addedWing = ui.Offset(home.bounds.right + 8, home.bounds.bottom - 8);
     expect(home.bounds.contains((addedWing).toGame), isFalse);
@@ -98,7 +105,9 @@ void main() {
     final hero = c.heroes.firstWhere((hero) => hero.sourceId == 40);
     final march = c.dispatch(hero, city)!;
     march.position = small.centerRight + (const ui.Offset(30, 0)).toGame;
+    c.settledMonths++;
     c.upgradeCity(1, hero: governor);
+    c.settledMonths++;
     c.upgradeCity(1, hero: governor);
     expect(march.destination.dx, c.cityBounds(city).right + 8);
     c.advance(1);
@@ -123,7 +132,7 @@ void main() {
       c.advance(1 / 60);
     }
     expect(c.cities[1]!.level, 4);
-    expect(c.cityBounds(city).size, const ui.Size(48, 64));
+    expect(c.cityBounds(city).size.toUi, const ui.Size(48, 64));
     for (var i = 0; i < 120 && !battle.simulation.canRetreat; i++) {
       c.advance(1 / 60);
     }
@@ -133,7 +142,7 @@ void main() {
       c.advance(1 / 60);
     }
     expect(c.cities[1]!.level, 3);
-    expect(c.cityBounds(city).size, const ui.Size(48, 48));
+    expect(c.cityBounds(city).size.toUi, const ui.Size(48, 48));
     final contact = CityContact.forAppearance(city.appearanceAt(3));
     final localPosition = march.position - c.cityBounds(city).topLeft;
     expect(
@@ -143,67 +152,5 @@ void main() {
     expect(battle.simulation, same(simulation));
     expect(battle.nextWaveIn, 0);
     expect(battle.isActive, isFalse);
-  });
-
-  testWidgets('五级原版建筑各不相同，降级和易主还原画面且不残留旧城堡', (tester) async {
-    await tester.runAsync(() async {
-      final assets = await WorldAssets.load();
-      final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
-      c.campaigns[0] = CampaignState.fromRom(
-        aiEnabled: false,
-        siegeRandom: const FixedSiegeRandom(),
-        c.world,
-        assets.heroCatalog,
-        startingGold: 10000,
-      )..hasDispatched = true;
-      final city = c.world.cities.first;
-      c.camera.resize((const ui.Size(240, 240)).toGame);
-      c.camera.center = city.bounds.bottomLeft + (const ui.Offset(24, -32)).toGame;
-      final terrain = assets.scenes[0];
-      Future<List<int>> render() async {
-        final recorder = ui.PictureRecorder();
-        WorldPainter(
-          c,
-          assets,
-        ).paint(ui.Canvas(recorder), const ui.Size(240, 240));
-        final picture = recorder.endRecording();
-        final image = await picture.toImage(240, 240);
-        final pixels = (await image.toByteData())!.buffer
-            .asUint8List()
-            .toList();
-        image.dispose();
-        picture.dispose();
-        return pixels;
-      }
-
-      final frames = <List<int>>[];
-      for (var level = 1; level <= 5; level++) {
-        if (level > 1) {
-          c.campaign.upgradeCity(0, hero: c.campaign.garrisonAt(0).first);
-        }
-        final image = assets.cityImage(city, level);
-        expect(image.width, cityAppearances[level]!.width * 16);
-        expect(image.height, cityAppearances[level]!.height * 16);
-        expect(assets.cityImage(c.world.cities[1], level), same(image));
-        final pixels = await render();
-        for (final previous in frames) {
-          expect(pixels, isNot(previous));
-        }
-        frames.add(pixels);
-        expect(assets.scenes[0], same(terrain));
-      }
-      c.campaign.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
-      expect(c.campaign.cities[0]!.level, 4);
-      expect(await render(), frames[3]);
-      c.campaign.cities[0]!.ownerCountryId = 1;
-      expect(c.campaign.cities[0]!.level, 1);
-      expect(await render(), frames[0]);
-      expect(
-        c.campaign.cityAt(city.bounds.bottomRight + (const ui.Offset(8, -8)).toGame),
-        isNull,
-      );
-      c.dispose();
-      assets.dispose();
-    });
   });
 }

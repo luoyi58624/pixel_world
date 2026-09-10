@@ -15,7 +15,7 @@ class _HarvestRoll implements math.Random {
   @override
   bool nextBool() => false;
   @override
-  double nextDouble() => 0;
+  double nextDouble() => roll / 100;
 }
 
 CampaignState _campaign({int harvestRoll = 0}) {
@@ -66,7 +66,7 @@ CampaignState _campaign({int harvestRoll = 0}) {
 }
 
 void main() {
-  test('各级外国城收入与城防容量折半，防守和招募等级保持原规则', () {
+  test('各级外国城收入与城防容量全额，防守和招募等级保持原规则', () {
     for (var level = 1; level <= 5; level++) {
       final city = CitySituation(
         ownerCountryId: 0,
@@ -75,12 +75,11 @@ void main() {
         baseIncome: 21,
         initialLevel: level,
       );
-      expect(city.income, (21 + (level - 1) * 5) ~/ 2);
-      expect(city.reserveCapacity, level * 2);
+      expect(city.income, 21 + (level - 1) * 5);
+      expect(city.reserveCapacity, level * 4);
       expect(city.level, level);
       expect(city.defense, 100);
-      expect(city.recruitCapacity, level + 1);
-      expect(city.requiredGarrison, 2);
+      expect(city.rearStagingCapacity, level + 1);
     }
   });
 
@@ -93,12 +92,12 @@ void main() {
     city.ownerCountryId = 0;
     expect(c.cityName(1), c.world.countryName(0));
     expect(city.level, 1);
-    expect(city.income, 10);
-    expect(city.reserveCapacity, 2);
+    expect(city.income, 21);
+    expect(city.reserveCapacity, 4);
     city.ownerCountryId = 2;
     expect(city.nativeCountryId, 1);
-    expect(city.income, 10);
-    expect(city.reserveCapacity, 2);
+    expect(city.income, 21);
+    expect(city.reserveCapacity, 4);
     city.ownerCountryId = 1;
     expect(city.isNative, isTrue);
     expect(city.income, 21);
@@ -106,43 +105,44 @@ void main() {
   });
 
   for (final (roll, income, adjustment) in [
-    (0, 35, 0),
-    (50, 10, -25),
-    (75, 48, 13),
+    (0, 76, 0),
+    (50, 46, -30),
+    (75, 106, 30),
   ]) {
-    test('收成 $roll：外国城逐城折算，月结、记录与AI保守收入一致', () {
+    test('收成 $roll：本土和占领地同额结算，月结、记录与AI保守收入一致', () {
       final c = _campaign(harvestRoll: roll);
       c.cities[1]!.ownerCountryId = 0;
-      expect(c.cities[1]!.income, 10);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 10);
+      expect(c.cities[1]!.income, 21);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 46);
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 3);
-      expect(report.baseIncome, 35);
+      expect(report.baseIncome, 76);
       expect(report.adjustment, adjustment);
-      expect(report.salary, 3);
-      expect(report.netIncome, income - 3);
-      expect(c.gold, 1000 + income - 3);
+      expect(report.salary, c.salaryCost);
+      expect(report.netIncome, income - c.salaryCost);
+      expect(c.gold, 1000 + income - c.salaryCost);
     });
   }
 
-  test('NPC占据玩家本土同样折算，计算收益不按玩家身份特判', () {
+  test('NPC占据玩家本土同样全额，计算收益不按玩家身份特判', () {
     final c = _campaign(harvestRoll: 50);
     c.cities[2]!.ownerCountryId = 1;
     expect(c.cities[2]!.nativeCountryId, 0);
-    expect(c.cities[2]!.income, 5);
-    expect(c.reserveCapacityFor(1), 18);
-    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 21);
+    expect(c.cities[2]!.income, 10);
+    expect(c.reserveCapacityFor(1), 20);
+    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 41);
     c.advance(60);
-    expect(c.lastSettlementFor(1)!.baseIncome, 36);
-    expect(c.lastSettlementFor(1)!.adjustment, -15);
-    expect(c.goldFor(1), 1000 + 21 - c.lastSettlementFor(1)!.salary);
+    expect(c.lastSettlementFor(1)!.baseIncome, 71);
+    expect(c.lastSettlementFor(1)!.adjustment, -30);
+    expect(c.goldFor(1), 1000 + 41 - c.lastSettlementFor(1)!.salary);
   });
 
   test('占城及升级仅增加折算后的国家容量，英雄容量与现有库存不减半', () {
     final c = _campaign();
     expect(c.reserveCapacityFor(0), 20);
-    expect(c.buySoldiers(0, 20), isTrue);
+    c.settledMonths = 1;
+    expect(c.reserveSoldiersFor(0), 20);
     c.heroes.removeWhere((h) => h.cityId == 1);
     final hero = c.heroes.firstWhere((h) => h.sourceId == 0);
     final march = c.dispatch(hero, c.world.cities[1])!;
@@ -152,20 +152,20 @@ void main() {
     expect(c.cities[1]!.ownerCountryId, 0);
     expect(c.cities[1]!.nativeCountryId, 1);
     expect(hero.cityId, 1);
-    expect(c.reserveCapacityFor(0), 22);
+    expect(c.reserveCapacityFor(0), 24);
     expect(c.reserveSoldiersFor(0), 20);
     expect(c.soldiersAt(1), c.soldiersAt(0));
     c.upgradeCity(1, hero: hero);
     expect(c.cities[1]!.level, 2);
-    expect(c.cities[1]!.income, 13);
-    expect(c.reserveCapacityFor(0), 24);
+    expect(c.cities[1]!.income, 26);
+    expect(c.reserveCapacityFor(0), 28);
     expect(c.reserveSoldiersFor(0), 20);
-    expect(c.buySoldiers(1, 5), isFalse);
+    expect(c.buySoldiers(1, 9), isFalse);
     expect(c.buySoldiers(1, 4), isTrue);
     expect(c.reserveSoldiersFor(0), 24);
   });
 
-  test('丰收先计入城池总收益再向下取整，避免分别取整少发金币', () {
+  test('收成只在国家层面结算，不改变单城产出', () {
     final city = CitySituation(
       ownerCountryId: 0,
       nativeCountryId: 1,
@@ -173,8 +173,8 @@ void main() {
       baseIncome: 21,
       initialLevel: 1,
     );
-    expect(city.incomeFor(Harvest.normal), 10);
-    expect(city.incomeFor(Harvest.abundant), 13);
-    expect(city.incomeFor(Harvest.poor), 5);
+    expect(city.incomeFor(Harvest.normal), 21);
+    expect(city.incomeFor(Harvest.abundant), 21);
+    expect(city.incomeFor(Harvest.poor), 21);
   });
 }

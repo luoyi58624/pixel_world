@@ -48,7 +48,7 @@ void main() {
       greaterThan(bare.lower),
     );
   });
-  test('后续概率武器的伤害下限为零，死枪自伤不视为确定获胜', () {
+  test('每轮只计一件武器，已使用后不再预支伤害，死枪自伤不视为确定获胜', () {
     final c = nationalScenario(ai: false, originalWeapons: true),
         r = c.aiRulesForTesting(),
         v = c.aiObservationFor(1);
@@ -63,7 +63,7 @@ void main() {
       enemySoldiers: 4,
     );
     expect(arrows.ownWeaponLower, 20);
-    expect(arrows.ownWeaponUpper, 60);
+    expect(arrows.ownWeaponUpper, 20);
     final later = evaluator.compare(
       a,
       b,
@@ -97,6 +97,6 @@ void main() {
     expect(restored.soldierCount, 2);
     expect(r.attack(20, terrain: 2), 10);
     expect(r.attack(20, terrain: 1), 14);
-    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 26);
+    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 23);
   });
 }

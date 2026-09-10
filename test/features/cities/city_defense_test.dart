@@ -22,7 +22,7 @@ CampaignState _campaign() => CampaignState.fromRom(
 );
 
 void main() {
-  test('一至五级每级只加两点攻击，不增加士气、不修改英雄属性', () {
+  test('一至五级每级只加一点攻击，不增加士气、不修改英雄属性', () {
     for (var level = 1; level <= 5; level++) {
       final attacker = _army('a')..soldiers.first.hp = 0;
       final defender = _army('d')..soldiers.first.hp = 0;
@@ -34,17 +34,17 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 16);
-      expect(sim.basePower(BattleSide.defender), 16 + level * 2);
-      expect(sim.attackerMorale.maximum, 43);
-      expect(sim.defenderMorale.maximum, 43);
-      expect(sim.defenderMorale.remaining, sim.defenderMorale.maximum);
+      expect(sim.basePower(BattleSide.defender), 16 + level);
+      expect(sim.attackerMorale.maximum, 100);
+      expect(sim.defenderMorale.maximum, 100);
+      expect(sim.defenderMorale.remaining, sim.defender.morale);
       expect(defender.attack, 10);
       expect(defender.general.hp, 20);
       expect(defender.soldiers[1].hp, 20);
     }
   });
 
-  test('原版红条由战斗属性决定，上限63，受伤不影响初始值', () {
+  test('红条由独立士气决定，上限100，受伤不影响初始值', () {
     for (final hp in [95, 99, 1000]) {
       final sim = BattleSimulation(
         attacker: _army('a', hp: hp),
@@ -52,9 +52,9 @@ void main() {
         seed: 2,
         defenderCityLevel: 5,
       );
-      expect(sim.attackerMorale.maximum, 43);
-      expect(sim.defenderMorale.maximum, 43);
-      expect(sim.defenderMorale.remaining, 43);
+      expect(sim.attackerMorale.maximum, 100);
+      expect(sim.defenderMorale.maximum, 100);
+      expect(sim.defenderMorale.remaining, 50);
       expect(sim.defender.general.hp, 20);
     }
   });
@@ -70,7 +70,7 @@ void main() {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 23);
-    expect(sim.basePower(BattleSide.defender), 33);
+    expect(sim.basePower(BattleSide.defender), 28);
     expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
     expect(sim.lastClash!.defenderDamage, inInclusiveRange(10, 20));
     expect(
@@ -81,6 +81,8 @@ void main() {
 
   test('换守将只降低本场临时等级并重填士气，真实城防暂不变化', () {
     final c = _campaign();
+    c.settledMonths = 1;
+    c.countryTroops[1] = CountryTroops();
     final attacker = c.garrisonAt(0).first;
     final firstDefender = c.garrisonAt(1).last..hp = 1;
     for (final soldier in firstDefender.squad) {
@@ -91,7 +93,7 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(battle.simulation.defenderAttackBonus, 2);
     expect(battle.simulation.defenderMoraleBonus, 0);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
@@ -100,19 +102,21 @@ void main() {
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
-    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderAttackBonus, 1);
     expect(battle.simulation.defenderMoraleBonus, 0);
-    expect(
-      battle.simulation.defenderMorale.remaining,
-      ((battle.defender.combat + 1) * 4 - 1).clamp(0, 63),
-    );
+    expect(battle.simulation.defenderMorale.remaining, battle.defender.morale);
     expect(battle.simulation.defender.attack, battle.defender.combat);
   });
 
   test('我方被NPC进攻也获得当前城防加成，中途升级不重开战斗或补充士气', () {
     final c = _campaign();
+    c.settledMonths = 1;
+    c.countryTroops[1] = CountryTroops();
+    c.settledMonths = 24;
     final governor = c.garrisonAt(0).first;
+    c.settledMonths++;
     c.upgradeCity(0, hero: governor);
+    c.settledMonths++;
     c.upgradeCity(0, hero: governor);
     final march = c.dispatch(
       c.garrisonAt(1).first,
@@ -127,13 +131,14 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      governor.combat + governor.soldiers * 2 + 6,
+      battle.defender.combat + battle.defender.soldiers * 2 + 3,
     );
     expect(
       sim.basePower(BattleSide.attacker),
       battle.attacker.combat + battle.attacker.soldiers * 2,
     );
     final idle = c.garrisonAt(0).firstWhere((hero) => hero != governor);
+    c.settledMonths++;
     expect(c.upgradeCity(0, hero: idle), isTrue);
     expect(c.cities[0]!.level, 4);
     expect(battle.simulation, same(sim));
@@ -143,6 +148,8 @@ void main() {
 
   test('易主重置后的城池使用实际一级，不沿用原始地图的二级加成', () {
     final c = _campaign();
+    c.settledMonths = 1;
+    c.countryTroops[1] = CountryTroops();
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
     final march = c.dispatch(c.garrisonAt(0).first, c.world.cities[1])!;
@@ -151,7 +158,7 @@ void main() {
     expect(c.world.cities[1].initialLevel, 2);
     final sim = c.battles[1]!.simulation;
     expect(sim.defenderCityLevel, 1);
-    expect(sim.defenderAttackBonus, 2);
+    expect(sim.defenderAttackBonus, 1);
     expect(sim.defenderMoraleBonus, 0);
   });
 }

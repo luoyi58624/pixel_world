@@ -144,6 +144,11 @@ extension _AiCommands on CampaignState {
       return reject(reply.error ?? '会话、规则、时限或请求身份不符');
     }
     final count = reply.plan.groups.fold(0, (n, g) => n + g.actions.length);
+    final schedule = coordinator._schedules[reply.country];
+    if (schedule?.defenseAlarmPending == true &&
+        schedule?.pending?.stage == AiDecisionStage.attack) {
+      return reject('敌军越境，先重新评估防守');
+    }
     if (count > GameConfig.nationalAi.maxCommands) return reject('命令组超过预算');
     final assignedHeroes = <String>{};
     for (final task in reply.plan.groups.expand((g) => g.tasks)) {
@@ -185,6 +190,34 @@ extension _AiCommands on CampaignState {
       data: {'groupCount': reply.plan.groups.length},
     );
     final plan = _warPlans.putIfAbsent(reply.country, CountryWarPlan._);
+    if (!cities.values.any(
+      (c) => c.ownerCountryId == plan.offensiveCountryId,
+    )) {
+      plan.offensiveCountryId = null;
+      plan.offensiveCityId = null;
+    }
+    final candidateCountry = cities[reply.plan.targetCity]?.ownerCountryId;
+    final committingAttack =
+        reply.plan.requiredGold > 0 ||
+        reply.plan.groups.any(
+          (g) =>
+              g.actions.any(
+                (a) =>
+                    a.kind == AiActionKind.buyWeapon ||
+                    a.kind == AiActionKind.dispatch,
+              ) &&
+              (reply.plan.phase == 'attacking' ||
+                  reply.plan.phase == 'preparing' ||
+                  reply.plan.phase == 'saving'),
+        );
+    if (committingAttack &&
+        candidateCountry != null &&
+        candidateCountry != reply.country &&
+        (plan.offensiveCountryId == null ||
+            plan.offensiveCountryId == candidateCountry)) {
+      plan.offensiveCountryId = candidateCountry;
+      plan.offensiveCityId = reply.plan.targetCity;
+    }
     final retainSaving =
         plan.phase == CountryWarPhase.saving &&
         reply.plan.phase == 'preparing' &&
@@ -213,7 +246,16 @@ extension _AiCommands on CampaignState {
     String? executionFailure;
     for (final group in reply.plan.groups) {
       if (!_aiGroupBudget(group, reply.country)) {
-        executionFailure = '当前资源不足以完成整组动作和预留';
+        executionFailure =
+            group.actions
+                .where((a) => a.kind == AiActionKind.recruit && a.city != null)
+                .map(
+                  (a) =>
+                      recruitmentBlockReason(a.city!, countryId: reply.country),
+                )
+                .whereType<String>()
+                .firstOrNull ??
+            '当前资源、入城名额或抵达时限不满足整组计划';
         reject(executionFailure);
         break;
       }
@@ -419,13 +461,14 @@ extension _AiCommands on CampaignState {
         case AiActionKind.upgrade:
           if (hero == null ||
               city?.ownerCountryId != countryId ||
+              upgradeWindowBlockReason(action.city!) != null ||
               _upgradeParticipantProblem(action.city!, hero, countryId) !=
                   null ||
               removed.contains(hero.id)) {
             return false;
           }
           final level = levels[action.city]!;
-          if (level >= GameConfig.maxCityLevel) return false;
+          if (level >= cityUpgradeLevelLimit) return false;
           gold -= math.max(
             0,
             GameConfig.cityUpgradeCosts[level - 1] - hero.politics,
@@ -442,10 +485,7 @@ extension _AiCommands on CampaignState {
             return false;
           }
           gold += dismissalGold(hero);
-          capacity = math.max(
-            0,
-            capacity - GameConfig.cityReserveCapacityPerHero,
-          );
+
           reserve = math.min(capacity, reserve);
         case AiActionKind.recruit:
           if (city?.ownerCountryId != countryId ||
@@ -456,11 +496,10 @@ extension _AiCommands on CampaignState {
           }
           gold -=
               GameConfig.heroDrawCost +
-              math.max(
-                GameConfig.advancedSigningFee,
-                GameConfig.normalSigningFee,
-              );
-          capacity += GameConfig.cityReserveCapacityPerHero;
+              _catalog.values
+                  .map((h) => h.salaryFor(countryId))
+                  .fold(0, math.max);
+
         case AiActionKind.soldiers:
           if (city?.ownerCountryId != countryId ||
               action.amount < 1 ||

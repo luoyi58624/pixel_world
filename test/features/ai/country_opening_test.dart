@@ -1,4 +1,6 @@
+import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import '../../support/national_ai_fixture.dart' show advanceAi;
 
 import 'dart:convert';
@@ -95,6 +97,9 @@ CampaignState _game({
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync())
         .where((h) => ids.contains(h.id))
         .toList(),
+    weaponCatalog: WeaponCatalog.decode(
+      File('assets/data/rom_weapons.json').readAsStringSync(),
+    ),
     aiEnabled: ai,
     aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: math.Random(7),
@@ -110,15 +115,15 @@ void main() {
     expect(c.aiStrategicDecisions, 1);
     expect(c.marches, isEmpty);
     advanceAi(c, .5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
+    expect(c.garrisonAt(1).length, 3);
     for (var i = 0; i < 4; i++) {
       final before = c.aiStrategicDecisions;
       c.advance(1 / 60);
       expect(c.aiStrategicDecisions - before, lessThanOrEqualTo(1));
     }
-    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 1);
-    expect(c.garrisonAt(2).length, 3);
+    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 2);
+    expect(c.garrisonAt(2).length, 2);
     expect(c.marches.values.any((m) => m.hero.countryId == 0), isFalse);
     expect(c.marches.values.map((m) => m.target!.id).toSet(), {3, 4});
     for (final country in [1, 2]) {
@@ -129,15 +134,14 @@ void main() {
     }
   });
 
-  test('独立留守配置不由等级推算，但只派足以处理现有目标的编队', () {
+  test('留守按当前局势计算，不再受固定人数配置限制', () {
     final c = _game(level: 5, guards: 1, largeArmy: true);
     advanceAi(c, .5);
-    expect(c.cities[1]!.requiredGarrison, 1);
-    expect(c.garrisonAt(1).length, 5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
+
+    expect(c.garrisonAt(1).length, 6);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
     c.cities[1]!.ownerCountryId = 2;
     expect(c.cities[1]!.level, 1);
-    expect(c.cities[1]!.requiredGarrison, 1);
   });
 
   test('没有粮草不强行出征或购置，国库不会被全面进攻花空', () {

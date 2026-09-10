@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -38,13 +41,17 @@ WorldDefinition _world() => WorldDefinition.fromJson(
   [0, 1, 2, 3],
 );
 
-CampaignState _campaign({WorldDefinition? world}) => CampaignState.fromRom(
-  world ?? _world(),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  aiEnabled: false,
-  siegeRandom: const FixedSiegeRandom(),
-  retreatRandom: const FixedSiegeRandom(.9),
-  startingGold: 1000,
+CampaignState _campaign({WorldDefinition? world}) => ongoingCampaign(
+  CampaignState.fromRom(
+    world ?? _world(),
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    aiEnabled: false,
+    siegeRandom: const FixedSiegeRandom(),
+    retreatRandom: const FixedSiegeRandom(.9),
+    startingGold: 1000,
+  ),
+  stock: 0,
+  year: 1,
 );
 
 CampaignHero _hero(CampaignState c, int id) =>

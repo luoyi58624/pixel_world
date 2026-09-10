@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -8,16 +11,20 @@ import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
-CampaignState campaign([int map = 0]) => CampaignState.fromRom(
-  decodeWorlds(
-    File('assets/maps/worlds.json').readAsStringSync(),
-    setup: CampaignSetup.decode(
-      File('assets/data/campaign_config.json').readAsStringSync(),
-    ),
-  )[map],
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  startingGold: 10000,
-  aiEnabled: false,
+CampaignState campaign([int map = 0]) => ongoingCampaign(
+  CampaignState.fromRom(
+    decodeWorlds(
+      File('assets/maps/worlds.json').readAsStringSync(),
+      setup: CampaignSetup.decode(
+        File('assets/data/campaign_config.json').readAsStringSync(),
+      ),
+    )[map],
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    startingGold: 10000,
+    aiEnabled: false,
+  ),
+  stock: 10,
+  year: 1,
 );
 
 void finish(CampaignState c, WorldBattle battle) {

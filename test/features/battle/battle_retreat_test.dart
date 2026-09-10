@@ -9,11 +9,11 @@ import '../../support/retreat_fixture.dart';
 void main() {
   for (final (roll, success) in [
     (0.0, false),
-    (.599999, false),
-    (.6, true),
+    (.099999, false),
+    (.1, true),
     (.99999, true),
   ]) {
-    test('撤退分位 $roll：六成失败边界准确，同场重复操作只判定一次', () {
+    test('撤退分位 $roll：满状态一成失败边界准确，同场重复操作只判定一次', () {
       final random = RetreatRoll(roll);
       final c = retreatCampaign(random: random);
       c.buySoldiers(0, 12);
@@ -104,7 +104,7 @@ void main() {
   });
 
   test('主角撤退失败先播阵亡结尾，完成后游戏结束且不降出发城等级', () {
-    final c = retreatCampaign(random: RetreatRoll(.1));
+    final c = retreatCampaign(random: RetreatRoll(0));
     final battle = startRetreatSiege(c, heroId: 40);
     c.retreatHero('rom-40');
     expect(c.defeated, isFalse);
@@ -192,7 +192,7 @@ void main() {
     final destination = march.destination;
     c.advance(2);
     expect(march.position, stopped);
-    advanceRetreatUntil(c, () => c.month == 2);
+    advanceRetreatUntil(c, () => c.month == 3);
     c.advance(.1);
     expect(march.supplyHalted, isFalse);
     expect(march.target, target);

@@ -41,10 +41,13 @@ String battleNumber(num value) =>
 /// 原版红条资源，来自独立的 AE/AF 数值而非将领生命。
 class BattleMorale {
   /// 用本场原版初始值创建显示快照。
-  BattleMorale(this.maximum) : remaining = maximum;
+  BattleMorale(this.initial) : remaining = initial;
 
-  /// 本场初始红条，上限 63。
-  final int maximum;
+  /// 全体将领使用统一的士气上限。
+  int get maximum => 100;
+
+  /// 此英雄配置的开场士气。
+  final int initial;
 
   /// 剩余红条。
   int remaining;
@@ -68,6 +71,7 @@ class BattleArmy {
     required this.general,
     required this.attack,
     required this.soldiers,
+    this.morale = 50,
   });
 
   /// 将领编号。
@@ -81,6 +85,9 @@ class BattleArmy {
 
   /// 原始战斗属性。
   final int attack;
+
+  /// 英雄独立配置的初始士气。
+  final int morale;
 
   /// 四个固定槽位的小兵生命。
   final List<BattleHealth> soldiers;
@@ -258,6 +265,7 @@ class BattleSimulation {
         (_combat(defender) + defenderAttackBonus).clamp(0, 63),
       ],
       moraleAttack: [_combat(attacker), _combat(defender)],
+      initialMorale: [attacker.morale, defender.morale],
       hp: [attacker.general.hp.round(), defender.general.hp.round()],
       slots: [
         for (final army in [attacker, defender])
@@ -267,6 +275,8 @@ class BattleSimulation {
           ],
       ],
       seed: seed,
+      recoilDifferenceScale: GameConfig.battleRecoilDifferenceScale,
+      wallDamageScale: GameConfig.battleWallDamageScale,
     );
     attackerMorale = BattleMorale(_kernel.ram[0xae]);
     defenderMorale = BattleMorale(_kernel.ram[0xaf]);
@@ -316,7 +326,7 @@ class BattleSimulation {
   int _combat(BattleArmy army) =>
       CombatRules.heroAttack(army.attack, heroAttackFactor);
 
-  /// 城防只修正基础攻击，每级增加两点，野战不享有加成。
+  /// 城防只修正基础攻击，野战不享有加成。
   int get defenderAttackBonus => fieldTerrain == null
       ? CombatRules.defenseBonus(
           defenderCityLevel,
@@ -373,6 +383,7 @@ class BattleSimulation {
   int _endingCompleteAt = 0;
   final _syncedHp = <BattleSide, double>{};
   WeaponStrike? _weaponStrike;
+  final _weaponUsers = <BattleSide>{};
 
   /// 当前武器演出，伤害只在命中时计算一次。
   WeaponStrike? get weaponStrike => _weaponStrike;
@@ -388,11 +399,14 @@ class BattleSimulation {
 
   /// 城战仅右侧进攻军可使用；野战双方均为在外出征部队。
   bool canUseWeaponFor(BattleSide side) =>
-      canUseWeapon && (fieldTerrain != null || side == BattleSide.attacker);
+      canUseWeapon &&
+      !_weaponUsers.contains(side) &&
+      (fieldTerrain != null || side == BattleSide.attacker);
 
   /// 锁定一个武器动作，保留原版直接伤害及死枪反噬。
   bool useWeapon(BattleSide side, WeaponDefinition weapon) {
     if (!canUseWeaponFor(side)) return false;
+    _weaponUsers.add(side);
     _kernel.ram[0x0d] = 0;
     _weaponStrike = WeaponStrike(
       weapon,

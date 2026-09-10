@@ -39,6 +39,7 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
     weaponCatalog: painter.assets.weaponCatalog,
     aiEnabled: false,
   );
+  c.campaign.settledMonths = 36;
   c.openCity(c.world.cities.first);
   c.selectHero('rom-0');
   await tester.pump();
@@ -46,6 +47,16 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
 }
 
 Future<void> _tap(WidgetTester tester, String key) async {
+  if (key == 'weapon-shop-toggle') {
+    if (find.byType(AlertDialog).evaluate().isNotEmpty) {
+      await tester.tap(find.text('关闭'));
+    } else {
+      await tester.tap(find.byKey(const ValueKey('weapon-shop-open')));
+    }
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    return;
+  }
   final finder = find.byKey(ValueKey(key));
   await tester.ensureVisible(finder);
   await tester.pump();
@@ -77,7 +88,7 @@ void main() {
         await _tap(tester, 'buy-weapon-0');
       }
       await _tap(tester, 'buy-weapon-9');
-      expect(c.campaign.gold, 24);
+      expect(c.campaign.gold, 54);
       expect(c.campaign.weaponInventoryFor(0), {0: 7, 9: 1});
       expect(hero.weaponIds, isEmpty);
       await _tap(tester, 'weapon-shop-toggle');
@@ -147,7 +158,9 @@ void main() {
         c.campaign.cityBounds(c.world.cities[0]).center +
             const GamePoint(-80, 80),
       )!;
-      for(var i=0;i<180;i++) { c.tick(1/60); }
+      for (var i = 0; i < 180; i++) {
+        c.tick(1 / 60);
+      }
       await tester.pump();
       final before = walking.position;
       final pool = battle.defender.squad.fold<double>(0, (n, s) => n + s.hp);

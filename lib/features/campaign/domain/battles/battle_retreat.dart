@@ -2,6 +2,20 @@ part of '../campaign.dart';
 
 /// 玩家与电脑共用撤退判定、伤亡结算及原路返城规则。
 extension BattleRetreatCommands on CampaignState {
+  /// 按此刻真实生命与存活士兵计算撤退成功率。
+  double retreatSuccessChance(String heroId) {
+    final hero = heroes.where((h) => h.id == heroId).firstOrNull;
+    if (hero == null) return 0;
+    return CombatRules.retreatSuccess(
+      hero.hp,
+      hero.maxHp,
+      hero.soldiers,
+      soldierLimit: GameConfig.heroSoldierLimit,
+      base: GameConfig.retreatBaseSuccessChance,
+      penalty: GameConfig.retreatConditionPenalty,
+    );
+  }
+
   /// 不允许守城将领撤退，也不能在胜败过场中改判或重复掷骰。
   String? retreatBlockReason(String heroId, {int countryId = 0}) {
     if (isPaused) return '游戏已暂停';
@@ -37,8 +51,8 @@ extension BattleRetreatCommands on CampaignState {
     final side = battle.attacker.id == heroId
         ? BattleSide.attacker
         : BattleSide.defender;
-    final succeeded =
-        _retreatRandom.nextDouble() >= GameConfig.retreatFailureChance;
+    final successChance = retreatSuccessChance(heroId);
+    final succeeded = _retreatRandom.nextDouble() >= 1 - successChance;
     battle.simulation.beginRetreat(side, succeeded: succeeded);
     _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
     final message = battle.simulation.retreatMessage!;
@@ -49,6 +63,7 @@ extension BattleRetreatCommands on CampaignState {
       countryId: countryId,
       hero: heroes.firstWhere((h) => h.id == heroId),
       reason: '申请按真实撤退规则脱离当前战斗',
+      data: {'successChance': successChance},
     );
     return succeeded;
   }

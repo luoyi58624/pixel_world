@@ -157,7 +157,7 @@ CampaignState nationalScenario({
     ).readAsStringSync(),
   );
   weapons['initialCountryStock'] = stock;
-  return CampaignState.fromRom(
+  final campaign = CampaignState.fromRom(
     world,
     decodeRomHeroes(jsonEncode(data))
         .where((h) => recruitment || ids.contains(h.id))
@@ -171,6 +171,10 @@ CampaignState nationalScenario({
     retreatRandom: math.Random(5),
     weaponRandom: math.Random(17),
   );
+  campaign.settledMonths = 36; // 此组检验完整武器与经营调度，开局限制由独立测试覆盖。
+  campaign.countryTroops[1] = CountryTroops(reserveSoldiers: reserves);
+  campaign.countryTroops[2] = CountryTroops(reserveSoldiers: 4);
+  return campaign;
 }
 
 /// 放置已经可观察的接近部队，不让它瞬移进入战斗。

@@ -36,7 +36,12 @@ void main() {
     expect(catalog.weapons[0]!.name, '箭');
     expect(catalog.weapons[0]!.price, 3);
     expect(catalog.weapons.keys, isNot(contains(anyOf(6, 7, 8))));
-    expect(catalog.weapons.values.every((w) => w.minimumCities == 1), isTrue);
+    expect(
+      catalog.weapons.values.every(
+        (w) => w.unlockYear >= 1 && w.unlockYear <= 4,
+      ),
+      isTrue,
+    );
   });
 
   for (final side in BattleSide.values) {

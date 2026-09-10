@@ -1,3 +1,5 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -21,40 +23,44 @@ class _Rolls implements math.Random {
   bool nextBool() => nextDouble() < 0.5;
 }
 
-CampaignState _campaign(_Rolls rolls) => CampaignState.fromRom(
-  WorldDefinition.fromJson(
-    {
-      'id': 0,
-      'width': 80,
-      'height': 32,
-      'tiles': List.filled(80 * 32, 0),
-      'cities': [
-        for (final (id, x, level, country, units) in [
-          (0, 8, 1, 0, [40, 0, 1, 2]),
-          (1, 40, 3, 1, [3, 4, 5, 6, 7]),
-          (2, 70, 1, 0, [8]),
-        ])
-          {
-            'id': id,
-            'name': '测试城',
-            'x': x,
-            'y': 15,
-            'width': 2,
-            'height': 2,
-            'shape': [3, 3, 3, 3],
-            'initialLevel': level,
-            'initialOwnerId': country,
-            'unitIds': units,
-          },
-      ],
-    },
-    [0, 1, 2, 3],
+CampaignState _campaign(_Rolls rolls) => ongoingCampaign(
+  CampaignState.fromRom(
+    WorldDefinition.fromJson(
+      {
+        'id': 0,
+        'width': 80,
+        'height': 32,
+        'tiles': List.filled(80 * 32, 0),
+        'cities': [
+          for (final (id, x, level, country, units) in [
+            (0, 8, 1, 0, [40, 0, 1, 2]),
+            (1, 40, 3, 1, [3, 4, 5, 6, 7]),
+            (2, 70, 1, 0, [8]),
+          ])
+            {
+              'id': id,
+              'name': '测试城',
+              'x': x,
+              'y': 15,
+              'width': 2,
+              'height': 2,
+              'shape': [3, 3, 3, 3],
+              'initialLevel': level,
+              'initialOwnerId': country,
+              'unitIds': units,
+            },
+        ],
+      },
+      [0, 1, 2, 3],
+    ),
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    aiEnabled: false,
+    startingGold: 10000,
+    siegeRandom: rolls,
+    retreatRandom: const FixedSiegeRandom(.9),
   ),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  aiEnabled: false,
-  startingGold: 10000,
-  siegeRandom: rolls,
-  retreatRandom: const FixedSiegeRandom(.9),
+  stock: 0,
+  year: 1,
 );
 
 CityBattle _start(CampaignState c) {
@@ -79,14 +85,14 @@ void _win(CampaignState c, CityBattle battle) {
 }
 
 void main() {
-  test('三级城临时加成为6、4、2，前三胜不提前改实际等级，第三胜直接占领', () {
+  test('三级城临时加成为3、2、1，前三胜不提前改实际等级，第三胜直接占领', () {
     final rolls = _Rolls([0]);
     final c = _campaign(rolls);
     final battle = _start(c);
     final remaining = c.garrisonAt(1).map((hero) => hero.id).toSet();
     for (var wave = 1; wave <= 3; wave++) {
       expect(battle.wave, wave);
-      expect(battle.simulation.defenderAttackBonus, 8 - wave * 2);
+      expect(battle.simulation.defenderAttackBonus, 4 - wave);
       expect(battle.simulation.cityAppearanceLevel, 3);
       expect(c.cities[1]!.level, 3);
       expect(rolls.calls, 0);
@@ -110,7 +116,7 @@ void main() {
   for (final (values, expected) in [
     ([0.1, 0.9], 2),
     ([0.499, 0.01], 1),
-    ([0.5, 0.99], 3),
+    ([0.8, 0.99], 3),
   ]) {
     test('两胜后进攻失败，每轮独立判定 $values，结束后城防为 $expected 级', () {
       final rolls = _Rolls(values);
@@ -176,7 +182,7 @@ void main() {
     _until(c, () => battle.wave == 2);
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     expect(c.cities[1]!.level, 4);
-    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(battle.simulation.defenderAttackBonus, 2);
     expect(battle.initialCityLevel, 3);
     expect(c.retreatHero(battle.attacker.id), isTrue);
     _until(c, () => !battle.isActive);

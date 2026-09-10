@@ -15,6 +15,7 @@ import '../data/world_assets.dart';
 import 'world_controller.dart';
 import 'world_painter.dart';
 import '../../cities/presentation/city_panel.dart';
+import '../../weapons/presentation/weapon_shop.dart';
 import '../../battle/presentation/battle_scene.dart';
 import '../../heroes/presentation/unit_panel.dart';
 import '../../app/presentation/game_over_panel.dart';
@@ -439,6 +440,22 @@ class _WorldScreenState extends State<WorldScreen>
                                   ),
                                 ),
                               ),
+                              Positioned(
+                                right: 16,
+                                bottom: 16,
+                                child: _mapOverlay(
+                                  c,
+                                  FilledButton.icon(
+                                    key: const ValueKey('weapon-shop-open'),
+                                    onPressed: () => _openWeaponShop(c),
+                                    icon: const Icon(
+                                      Icons.shopping_bag_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('武器商店'),
+                                  ),
+                                ),
+                              ),
                               if (_showMinimap)
                                 Positioned(
                                   right: 16,
@@ -655,45 +672,69 @@ class _WorldScreenState extends State<WorldScreen>
                 ],
               ),
             ),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xff0b110d),
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: _line),
-              ),
-              padding: const EdgeInsets.all(3),
-              child: Row(
-                children: List.generate(
-                  3,
-                  (index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                    child: TextButton(
-                      key: ValueKey('map-$index'),
-                      onPressed: () => _action(() => c.switchWorld(index)),
-                      style: TextButton.styleFrom(
-                        minimumSize: Size(compact ? 36 : 72, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        foregroundColor: index == c.index
-                            ? _cream
-                            : const Color(0xff899b8c),
-                        backgroundColor: index == c.index
-                            ? const Color(0xff344336)
-                            : Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(3),
+            if (constraints.maxWidth < 380)
+              PopupMenuButton<int>(
+                key: const ValueKey('compact-world-selector'),
+                tooltip: '切换地图',
+                onSelected: (index) => _action(() => c.switchWorld(index)),
+                itemBuilder: (_) => [
+                  for (var i = 0; i < 3; i++)
+                    PopupMenuItem(
+                      value: i,
+                      child: Text('地图${['一', '二', '三'][i]}'),
+                    ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    '地图${['Ⅰ', 'Ⅱ', 'Ⅲ'][c.index]}',
+                    style: const TextStyle(color: _cream),
+                  ),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xff0b110d),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: _line),
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Row(
+                  children: List.generate(
+                    3,
+                    (index) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1),
+                      child: TextButton(
+                        key: ValueKey('map-$index'),
+                        onPressed: () => _action(() => c.switchWorld(index)),
+                        style: TextButton.styleFrom(
+                          minimumSize: Size(compact ? 36 : 72, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          foregroundColor: index == c.index
+                              ? _cream
+                              : const Color(0xff899b8c),
+                          backgroundColor: index == c.index
+                              ? const Color(0xff344336)
+                              : Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(3),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        compact
-                            ? ['Ⅰ', 'Ⅱ', 'Ⅲ'][index]
-                            : ['地图一', '地图二', '地图三'][index],
-                        style: const TextStyle(fontSize: 12),
+                        child: Text(
+                          compact
+                              ? ['Ⅰ', 'Ⅱ', 'Ⅲ'][index]
+                              : ['地图一', '地图二', '地图三'][index],
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
             SizedBox(width: compact ? 4 : 20),
             PopupMenuButton<int>(
               key: const ValueKey('game-speed'),
@@ -735,10 +776,11 @@ class _WorldScreenState extends State<WorldScreen>
               icon: const Icon(Icons.pause_rounded, size: 24, color: _gold),
             ),
             IconButton(
-              tooltip: '操作说明',
-              onPressed: _help,
+              key: const ValueKey('game-settings'),
+              tooltip: '设置',
+              onPressed: _settings,
               icon: const Icon(
-                Icons.help_outline,
+                Icons.settings_outlined,
                 size: 20,
                 color: Color(0xffadb8ac),
               ),
@@ -865,6 +907,63 @@ class _WorldScreenState extends State<WorldScreen>
     child: child,
   );
 
+  void _openWeaponShop(WorldController c) {
+    _clearKeys();
+    showDialog<void>(
+      context: context,
+      builder: (_) => WeaponShop(controller: c),
+    ).then((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  void _settings() {
+    _clearKeys();
+    final c = _controller!;
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _ink,
+          title: const Text('设置', style: TextStyle(color: _cream)),
+          content: SizedBox(
+            width: 340,
+            child: SwitchListTile.adaptive(
+              key: const ValueKey('territory-border-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                '显示国土边界',
+                style: TextStyle(color: _cream, fontSize: 14),
+              ),
+              subtitle: const Text(
+                '城池易主后，边界自动更新',
+                style: TextStyle(color: Color(0xffadb8ac), fontSize: 12),
+              ),
+              value: c.showTerritoryBorders,
+              onChanged: (value) =>
+                  setDialogState(() => c.setTerritoryBorders(value)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _help();
+              },
+              child: const Text('操作说明'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
   void _help() {
     _clearKeys();
     showDialog<void>(
@@ -874,7 +973,7 @@ class _WorldScreenState extends State<WorldScreen>
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
         content: Text(
-          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、储备、招募和经济\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　守方临时加成逐轮减少2点，城防不加士气\n攻城结束　未占领时，每胜一轮50%概率降一级\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　每城每月限抽 ${GameConfig.heroDrawsPerCityPerMonth} 次，放弃可继续、签约后当月停止，每次 ${GameConfig.heroDrawCost} 金币，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　国家库购买并选最多三件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　开场一件，每次拼杀后50%概率再用一件\n主角无月俸，其他将领按新标准结算\n\nP　暂停 / 继续游戏（停止全部资源运行）\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、兵员、招募和国家日志\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级；第一年限三级，之后每年解锁一级\n开局即可经营，有钱即可升级、补兵和招募\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　守方临时加成逐轮减少1点，城防不加士气\n攻城结束　未占领时，每胜一轮80%概率降一级\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　抽取不限月度次数，每次 ${GameConfig.heroDrawCost} 金币，签约立即支付首月月俸，关闭窗口即放弃\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　国家库购买并选最多三件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　每轮对阵最多一件；每年解锁一行\n专属将领在本国免薪，其他国家聘用按 JSON 月俸结算；解雇仅返还内政金币\n\nP　暂停 / 继续游戏（停止全部资源运行）\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
           style: const TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [

@@ -1,3 +1,5 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'dart:math' as math;
 
 import '../../support/recruitment_fixture.dart';
@@ -43,13 +45,16 @@ Future<WorldController> _load(
   }
   final painter = tester.widget<CustomPaint>(canvas).painter! as WorldPainter;
   final c = painter.controller;
-  c.campaigns[0] = CampaignState.fromRom(
-    startingGold: startingGold,
-    aiEnabled: false,
-    c.world,
-    painter.assets.heroCatalog,
-    economyRandom: _RandomValue(),
-    recruitmentRandom: random,
+  c.campaigns[0] = ongoingCampaign(
+    CampaignState.fromRom(
+      startingGold: startingGold ?? 50,
+      aiEnabled: false,
+      c.world,
+      painter.assets.heroCatalog,
+      economyRandom: _RandomValue(),
+      recruitmentRandom: random,
+    ),
+    stock: 10,
   );
   c.openCity(c.world.cities.first);
   await tester.pump();
@@ -69,6 +74,32 @@ Future<void> _tap(WidgetTester tester, String key) async {
 }
 
 void main() {
+  testWidgets('年度城防上限禁用升级方块，跨年后自动允许继续升级', (tester) async {
+    final c = await _load(
+      tester,
+      const Size(375, 812),
+      _RandomValue(),
+      startingGold: 1000,
+    );
+    final campaign = c.campaign, hero = c.selectedHero!;
+    campaign.settledMonths = 0;
+    expect(campaign.upgradeCity(0, hero: hero), isTrue);
+    expect(campaign.upgradeCity(0, hero: hero), isTrue);
+    c.refreshUi();
+    await tester.pump();
+    final button = find.byKey(const ValueKey('city-upgrade'));
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+    expect(find.byTooltip('第 2 年可升至 4 级'), findsOneWidget);
+    campaign.settledMonths = 12;
+    c.refreshUi();
+    await tester.pump();
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+    await _tap(tester, 'city-upgrade');
+    expect(campaign.cities[0]!.level, 4);
+    expect(tester.widget<OutlinedButton>(button).onPressed, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets('待签约面板显示期限，打开面板跨月保留并按时自动移除', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     prepareRecruitmentCity(c.campaign, 0);
@@ -77,18 +108,22 @@ void main() {
     await _tap(tester, 'draw-hero');
     final offer = c.campaign.recruitmentOffer!;
     final expiry = find.byKey(const ValueKey('recruit-offer-expiry'));
-    expect(tester.widget<Text>(expiry).data, contains('保留至 1年2月末'));
-    c.tick(60);
+    expect(tester.widget<Text>(expiry).data, contains('关闭窗口即放弃'));
+    for (var step = 0; step < 60; step++) {
+      c.tick(1);
+    }
     await tester.pump();
     expect(c.campaign.recruitmentOffer, same(offer));
-    expect(tester.widget<Text>(expiry).data, contains('保留至 1年2月末'));
-    c.tick(60);
+    expect(tester.widget<Text>(expiry).data, contains('关闭窗口即放弃'));
+    for (var step = 0; step < 60; step++) {
+      c.tick(1);
+    }
     await tester.pump();
-    expect(c.campaign.dateLabel, '1年3月');
+    expect(c.campaign.dateLabel, '1年4月');
     expect(find.byKey(const ValueKey('city-recruit-offer')), findsNothing);
     expect(expiry, findsNothing);
     expect(c.campaign.signHero(offer), isNull);
-    expect(c.campaign.remainingHeroDraws(0), 3);
+    expect(c.campaign.remainingHeroDraws(0), isNull);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -106,12 +141,12 @@ void main() {
     final amount = find.byKey(const ValueKey('city-reserves'));
     expect(find.text('阿尔马国'), findsOneWidget);
     expect(find.text('奥尔梅国'), findsNothing);
-    expect(tester.widget<Text>(amount).data, '10/18');
+    expect(tester.widget<Text>(amount).data, '10/20');
     await _tap(tester, 'buy-reserves');
-    expect(tester.widget<Text>(amount).data, '18/18');
+    expect(tester.widget<Text>(amount).data, '20/20');
     c.openCity(c.world.cities.first);
     await tester.pump();
-    expect(tester.widget<Text>(amount).data, '18/18');
+    expect(tester.widget<Text>(amount).data, '20/20');
     c.campaign.defeatHero(
       hero.id,
       winnerCountryId: 2,
@@ -147,12 +182,12 @@ void main() {
       final error = Theme.of(tester.element(dismiss)).colorScheme.error;
       final style = tester.widget<OutlinedButton>(dismiss).style!;
       expect(style.foregroundColor!.resolve({}), error);
-      expect(find.text('解雇 · +25金币'), findsOneWidget);
+      expect(find.text('解雇 · +15金币'), findsOneWidget);
       final before = c.campaign.gold;
       final soldierCount = c.campaign.soldiersAt(0);
       await tester.tap(dismiss);
       await tester.pump();
-      expect(c.campaign.gold, before + 25);
+      expect(c.campaign.gold, before + 15);
       expect(c.campaign.soldiersAt(0), soldierCount);
       expect(c.selectedHeroId, main.id);
       expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsNothing);
@@ -180,10 +215,10 @@ void main() {
     });
   }
 
-  testWidgets('满员招募变灰，出城启用，签约前回城再次禁用但保留抽取结果', (tester) async {
+  testWidgets('人数不限制招募，回城超员后仍能支付月俸签约', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     final draw = find.byKey(const ValueKey('draw-hero'));
-    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
     final departures = <HeroMarch>[];
     for (final hero in c.campaign.garrisonAt(0).skip(1).toList()) {
       departures.add(c.campaign.dispatch(hero, c.world.cities[1])!);
@@ -206,8 +241,8 @@ void main() {
     await tester.pump();
     expect(c.campaign.garrisonAt(0).length, 2);
     expect(c.campaign.recruitmentOffer, same(offer));
-    expect(tester.widget<FilledButton>(sign).onPressed, isNull);
-    expect(find.text('驻城英雄已满，升级或派出英雄后可签约。'), findsOneWidget);
+    expect(tester.widget<FilledButton>(sign).onPressed, isNotNull);
+    expect(find.text('驻城英雄已满，升级或派出英雄后可签约。'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -407,10 +442,14 @@ void main() {
     expect(c.campaign.soldiersAt(0), 16);
     expect(c.campaign.gold, 40);
     expect(find.text('已满'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 60));
+    for (var step = 0; step < 60; step++) {
+      c.tick(1);
+    }
+    await tester.pump();
     // 一位将领扎营满一分钟，额外支付三金币粮草。
-    expect(find.text('1年2月 · 金币 41'), findsOneWidget);
-    expect(find.byKey(const ValueKey('city-monthly-report')), findsOneWidget);
+    expect(c.campaign.month, 3);
+    expect(c.campaign.lastSettlementFor(0), isNotNull);
+    expect(find.byKey(const ValueKey('city-monthly-report')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -420,10 +459,12 @@ void main() {
       tester,
       const Size(375, 812),
       _RandomValue(),
-      startingGold: 90,
+      startingGold: 70,
     );
     final hero = c.selectedHero!;
+    c.campaign.settledMonths++;
     c.campaign.upgradeCity(0, hero: hero);
+    c.campaign.settledMonths++;
     c.campaign.upgradeCity(0, hero: hero);
     expect(c.campaign.gold, 10);
     c.refreshUi();
@@ -451,7 +492,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('放弃后可继续抽满三次，关面板不重置，下月自动恢复', (tester) async {
+  testWidgets('放弃超过三次仍可继续招募，关闭再打开也不受月份限制', (tester) async {
     final c = await _load(tester, const Size(375, 812), _RandomValue());
     prepareRecruitmentCity(c.campaign, 0);
     c.refreshUi();
@@ -463,17 +504,17 @@ void main() {
         tester
             .widget<OutlinedButton>(find.byKey(const ValueKey('draw-hero')))
             .onPressed,
-        attempt < 2 ? isNotNull : isNull,
+        isNotNull,
       );
     }
     final draw = find.byKey(const ValueKey('draw-hero'));
-    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('city-recruit-quota')))
           .style!
           .color,
-      const Color(0xffa7b5a4),
+      const Color(0xffd6bd7c),
     );
     expect(
       find.descendant(of: draw, matching: find.text('5金币')),
@@ -483,8 +524,11 @@ void main() {
     await tester.pump();
     c.openCity(c.world.cities.first);
     await tester.pump();
-    expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
-    await tester.pump(const Duration(seconds: 60));
+    expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
+    for (var step = 0; step < 60; step++) {
+      c.tick(1);
+    }
+    await tester.pump();
     expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
     expect(
       tester
@@ -508,11 +552,15 @@ void main() {
                 .widget<CustomPaint>(find.byKey(const ValueKey('world-canvas')))
                 .painter!
             as WorldPainter;
-    c.campaigns[0] = CampaignState.fromRom(
-      c.world,
-      painter.assets.heroCatalog,
-      aiRandom: math.Random(3),
-      recruitmentRandom: math.Random(7),
+    c.campaigns[0] = ongoingCampaign(
+      CampaignState.fromRom(
+        c.world,
+        painter.assets.heroCatalog,
+        weaponCatalog: painter.assets.weaponCatalog,
+        aiRandom: math.Random(3),
+        recruitmentRandom: math.Random(7),
+      ),
+      stock: 10,
     );
     c.refreshUi();
     // 正式 AI 为异步后台；推进显示帧并让原生回复实际返回，不能一次补帧后立即断言。
@@ -534,10 +582,13 @@ void main() {
     expect(c.campaign.garrisonAt(0), isNotEmpty);
     // 自动经营已经验证；观战入口单独安排交战，避免其他随机行军抢先触发野战。
     c.campaign.dispose();
-    c.campaigns[0] = CampaignState.fromRom(
-      c.world,
-      painter.assets.heroCatalog,
-      aiEnabled: false,
+    c.campaigns[0] = ongoingCampaign(
+      CampaignState.fromRom(
+        c.world,
+        painter.assets.heroCatalog,
+        aiEnabled: false,
+      ),
+      stock: 10,
     );
     // 让一支仍可出征的非玩家部队抵达敌国，使用真实后台交战入口。
     final hero = c.campaign.heroes.firstWhere(
@@ -606,27 +657,36 @@ void main() {
       await tester.pump();
       c.openCity(c.world.cities.first);
       await tester.pump();
-      expect(c.campaign.recruitmentOffer, same(offer));
+      expect(c.campaign.recruitmentOffer, isNull);
       expect(c.campaign.gold, 45);
+      await _tap(tester, 'draw-hero');
+      final nextOffer = c.campaign.recruitmentOffer!;
       expect(
-        find.text(type == HeroType.normal ? '免费签约' : '签约 · 10 金币'),
+        find.text(
+          nextOffer.initialSalary == 0
+              ? '免费签约'
+              : '签约 · ${nextOffer.initialSalary} 金币',
+        ),
         findsOneWidget,
       );
       await _tap(tester, 'sign-recruit');
-      expect(c.selectedHero!.sourceId, offer.hero.id);
-      expect(c.campaign.gold, type == HeroType.normal ? 45 : 35);
+      expect(c.selectedHero!.sourceId, nextOffer.hero.id);
+      expect(c.campaign.gold, 40 - nextOffer.initialSalary);
       expect(c.campaign.recruitmentOffer, isNull);
       expect(c.selectedHero!.soldiers, 0);
       final draw = find.byKey(const ValueKey('draw-hero'));
-      expect(tester.widget<OutlinedButton>(draw).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
       expect(
         tester
             .widget<Text>(find.byKey(const ValueKey('city-recruit-quota')))
             .style!
             .color,
-        const Color(0xffa7b5a4),
+        const Color(0xffd6bd7c),
       );
-      await tester.pump(const Duration(seconds: 60));
+      for (var step = 0; step < 60; step++) {
+        c.tick(1);
+      }
+      await tester.pump();
       expect(tester.widget<OutlinedButton>(draw).onPressed, isNotNull);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

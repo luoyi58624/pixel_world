@@ -28,7 +28,7 @@ class _CountryEventLogViewState extends State<CountryEventLogView> {
   void _listen() {
     _unsubscribe?.call();
     _unsubscribe = widget.log.listen((event) {
-      if (mounted && event.isFinalDecision) setState(() {});
+      if (mounted && event.isVisibleInCountryLog) setState(() {});
     });
   }
 
@@ -48,17 +48,17 @@ class _CountryEventLogViewState extends State<CountryEventLogView> {
 
   Future<void> _copy() async {
     await Clipboard.setData(
-      ClipboardData(text: widget.log.exportDecisionsJsonLines()),
+      ClipboardData(text: widget.log.exportTimelineJsonLines()),
     );
     if (mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('已复制该国最终决策日志')));
+          .showSnackBar(const SnackBar(content: Text('已复制该国决策与收支日志')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final events = widget.log.finalDecisions(newestFirst: true, limit: 200);
+    final events = widget.log.timeline(newestFirst: true, limit: 200);
     return Material(
       color: Colors.transparent,
       child: Column(
@@ -70,26 +70,24 @@ class _CountryEventLogViewState extends State<CountryEventLogView> {
               children: [
                 Expanded(
                   child: Text(
-                    '最终决策 ${widget.log.decisionCount} 条',
+                    '决策与收支 ${widget.log.timelineCount} 条',
                     style: CityPanelStyle.label,
                   ),
                 ),
                 TextButton.icon(
                   key: const ValueKey('copy-country-events'),
-                  onPressed: widget.log.retainedDecisionCount == 0
-                      ? null
-                      : _copy,
+                  onPressed: widget.log.timeline().isEmpty ? null : _copy,
                   icon: const Icon(Icons.copy, size: 14),
                   label: const Text('复制日志', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
           ),
-          if (widget.log.droppedDecisionCount > 0)
+          if (widget.log.droppedTimelineCount > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Text(
-                '较早的 ${widget.log.droppedDecisionCount} 条决策已移出内存',
+                '较早的 ${widget.log.droppedTimelineCount} 条记录已移出内存',
                 style: CityPanelStyle.label,
               ),
             ),
@@ -97,7 +95,7 @@ class _CountryEventLogViewState extends State<CountryEventLogView> {
           Expanded(
             child: events.isEmpty
                 ? Center(
-                    child: Text('该国暂无最终 AI 决策', style: CityPanelStyle.label),
+                    child: Text('该国暂无决策或月度收支', style: CityPanelStyle.label),
                   )
                 : ListView.builder(
                     key: ValueKey('country-events-${widget.log.countryId}'),

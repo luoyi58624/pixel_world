@@ -7,19 +7,19 @@ enum Harvest {
   /// 基础城池收入。
   normal('正常营收', 0),
 
-  /// 按城池数扣减收入。
-  poor('欠收', -GameConfig.poorPenaltyPerCity),
+  /// 每国只扣减一次收入。
+  poor('欠收', -GameConfig.poorHarvestPenalty),
 
-  /// 按城池数追加收入。
-  abundant('丰收', GameConfig.abundantBonusPerCity);
+  /// 每国只追加一次收入。
+  abundant('丰收', GameConfig.abundantHarvestBonus);
 
-  const Harvest(this.label, this.perCityAdjustment);
+  const Harvest(this.label, this.nationalAdjustment);
 
   /// 对玩家显示的收成名称。
   final String label;
 
-  /// 每座城的额外收入或扣减。
-  final int perCityAdjustment;
+  /// 整个国家的一次性丰欠收调整。
+  final int nationalAdjustment;
 
   /// 按配置权重抽取，经济随机源与战斗、抽将分开。
   static Harvest draw(math.Random random) {

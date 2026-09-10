@@ -13,6 +13,9 @@ class CountryWarPlan {
   /// 锁定时的目标归属，用于在易主后重新评估。
   int? targetCountryId;
 
+  /// 持续灭国目标不被临时防守或单座城池易主清空。
+  int? offensiveCountryId, offensiveCityId;
+
   /// 当前正在守家、筹备、积蓄资金或执行进攻。
   CountryWarPhase phase = CountryWarPhase.preparing;
 

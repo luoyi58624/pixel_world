@@ -38,6 +38,7 @@ enum GameEventKind {
   supplyPaid('粮草支出', GameEventCategory.economy),
   supplyHalted('粮草耗尽', GameEventCategory.economy),
   monthSettled('月度结算', GameEventCategory.economy),
+  treasuryCaptured('灭国战利品', GameEventCategory.economy),
   battleQueued('城下等待', GameEventCategory.battle),
   battleStarted('开始交战', GameEventCategory.battle),
   battleWaveEnded('对阵结束', GameEventCategory.battle),
@@ -45,6 +46,7 @@ enum GameEventKind {
   retreatRequested('申请撤退', GameEventCategory.action),
   retreatResolved('撤退结果', GameEventCategory.battle),
   threatDetected('发现城池威胁', GameEventCategory.decision),
+  territoryEntered('敌军进入国境', GameEventCategory.decision),
   threatCleared('威胁状态变化', GameEventCategory.decision),
   hatredChanged('记下敌国侵袭', GameEventCategory.decision),
   decisionRequested('开始判断局势', GameEventCategory.decision),
@@ -119,9 +121,15 @@ class GameEvent {
   /// 本国最终 AI 决策的连续编号，内部追踪事件不占用编号。
   final int? decisionSequence;
 
-  /// 面板和默认模拟日志只统计最终 AI 决策。
+  /// 最终 AI 决策与内部调度事件分开统计。
   bool get isFinalDecision =>
       kind == GameEventKind.decisionFinalized && source == GameEventSource.ai;
+
+  /// 国家面板仅保留最终决策和月度收支，过滤调度过程噪音。
+  bool get isVisibleInCountryLog =>
+      isFinalDecision ||
+      kind == GameEventKind.monthSettled ||
+      kind == GameEventKind.treasuryCaptured;
 
   /// 固定逻辑帧及游戏年月；暂停期间不会增加。
   final int tick, year, month;
@@ -194,6 +202,12 @@ class CountryEventLog {
   final int capacity;
   final _events = ListQueue<GameEvent>();
   final _decisions = ListQueue<GameEvent>();
+  final _timeline = ListQueue<GameEvent>();
+  int _timelineTotal = 0;
+
+  /// 可见日志的累计和截断数量。
+  int get timelineCount => _timelineTotal;
+  int get droppedTimelineCount => _timelineTotal - _timeline.length;
   final _listeners = <void Function(GameEvent)>{};
   int _total = 0, _dropped = 0, _listenerErrors = 0;
   int _decisionTotal = 0, _decisionDropped = 0;
@@ -209,6 +223,11 @@ class CountryEventLog {
   int get droppedCount => _dropped;
   int get listenerErrors => _listenerErrors;
   void _add(GameEvent event) {
+    if (event.isVisibleInCountryLog) {
+      _timelineTotal++;
+      _timeline.addLast(event);
+      if (_timeline.length > capacity) _timeline.removeFirst();
+    }
     if (event.isFinalDecision) {
       _decisionTotal++;
       _decisions.addLast(event);
@@ -277,7 +296,26 @@ class CountryEventLog {
     return List.unmodifiable(limit == null ? source : source.take(limit));
   }
 
-  /// 默认导出只包含该国最终 AI 决策及其保留范围。
+  /// 可见国家日志独立保留，内部高频事件不会挤掉月结与最终决策。
+  List<GameEvent> timeline({bool newestFirst = false, int? limit}) {
+    final source = newestFirst ? _timeline.toList().reversed : _timeline;
+    return List.unmodifiable(limit == null ? source : source.take(limit));
+  }
+
+  /// 导出国家面板展示的决策与月结记录。
+  String exportTimelineJsonLines() => [
+    jsonEncode({
+      'type': 'countryTimeline',
+      'version': 1,
+      'countryId': countryId,
+      'totalCount': timelineCount,
+      'retainedCount': _timeline.length,
+      'droppedCount': droppedTimelineCount,
+    }),
+    ..._timeline.map((e) => e.toJsonLine()),
+  ].join('\n');
+
+  /// 只导出该国最终 AI 决策及其保留范围。
   String exportDecisionsJsonLines() => [
     jsonEncode({
       'type': 'countryDecisions',

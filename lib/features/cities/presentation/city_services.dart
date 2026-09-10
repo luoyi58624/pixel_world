@@ -44,7 +44,6 @@ class CityServices extends StatelessWidget {
     final offer = campaign.recruitmentOffer;
     final localOffer = city.isPlayer && offer?.cityId == cityId ? offer : null;
     final blocked = campaign.recruitmentBlockReason(cityId);
-    final draws = campaign.remainingHeroDraws(cityId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -65,7 +64,9 @@ class CityServices extends StatelessWidget {
                       city.isPlayer &&
                           upgradeProblem != null &&
                           city.baseUpgradeCost != null
-                      ? upgradeProblem.contains('金币')
+                      ? upgradeProblem.contains('年')
+                            ? upgradeProblem
+                            : upgradeProblem.contains('金币')
                             ? '金币不足'
                             : '请选择空闲将领'
                       : null,
@@ -103,9 +104,7 @@ class CityServices extends StatelessWidget {
                   valueKey: 'city-recruit-pool',
                   action: '${GameConfig.heroDrawCost}金币',
                   actionKey: 'city-recruit-quota',
-                  hint: city.isPlayer && localOffer == null && draws > 0
-                      ? blocked
-                      : null,
+                  hint: city.isPlayer && localOffer == null ? blocked : null,
                   onTap: city.isPlayer && localOffer == null && blocked == null
                       ? () => onAction(c.drawCityHero)
                       : null,
@@ -231,12 +230,12 @@ class CityServices extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'HP ${offer.hero.maxHp} · 战斗 ${offer.hero.combat} · 内政 ${offer.hero.politics} · 月俸 ${controller.campaign.salaryFor(offer.hero)}',
+          'HP ${offer.hero.maxHp} · 战斗 ${offer.hero.combat} · 士气 ${offer.hero.morale} · 内政 ${offer.hero.politics} · 月俸 ${controller.campaign.salaryFor(offer.hero)}',
           style: const TextStyle(color: _cream, fontSize: 12, height: 1.5),
         ),
         const SizedBox(height: 6),
         Text(
-          '${offer.retentionLabel}，放弃或到期不退抽取费。',
+          '签约支付首月月俸；关闭窗口即放弃。',
           key: const ValueKey('recruit-offer-expiry'),
           style: const TextStyle(color: _muted, fontSize: 11),
         ),
@@ -264,22 +263,17 @@ class CityServices extends StatelessWidget {
                     ? () => onAction(() => controller.signRecruitment(offer))
                     : null,
                 child: Text(
-                  offer.signingFee == 0
+                  offer.initialSalary == 0
                       ? '免费签约'
-                      : '签约 · ${offer.signingFee} 金币',
+                      : '签约 · ${offer.initialSalary} 金币',
                 ),
               ),
             ),
           ],
         ),
-        if (controller.campaign.recruitmentFull(offer.cityId))
+        if (controller.campaign.gold < offer.initialSalary)
           const Text(
-            '驻城英雄已满，升级或派出英雄后可签约。',
-            style: TextStyle(color: _muted, fontSize: 11),
-          )
-        else if (controller.campaign.gold < offer.signingFee)
-          const Text(
-            '签约费不足，请在保留期限内签约。',
+            '金币不足，无法支付首月月俸。',
             style: TextStyle(color: _muted, fontSize: 11),
           ),
       ],

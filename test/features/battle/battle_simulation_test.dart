@@ -31,7 +31,7 @@ void main() {
   test('原版兵力20、每兵强度2，首轮碰撞7到13点而非全属性直接扣血', () {
     final sim = battle();
     expect(sim.basePower(BattleSide.attacker), 23);
-    expect(sim.attackerMorale.maximum, 63);
+    expect(sim.attackerMorale.maximum, 100);
     round(sim, 1);
     expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
     expect(sim.lastClash!.defenderDamage, inInclusiveRange(7, 13));
@@ -59,11 +59,11 @@ void main() {
     round(sim, 2);
     expect(sim.elapsed - first, inInclusiveRange(0.5, 1.5));
   });
-  test('红条由战斗属性初始化，受伤和兵数不改红条；下一场按兵数重建整队兵力', () {
+  test('红条由独立士气配置初始化，受伤和兵数不改红条；下一场按兵数重建整队兵力', () {
     final a = army('a', attack: 5)..general.hp = 20;
     a.soldiers.first.hp = 3;
     final sim = BattleSimulation(attacker: a, defender: army('d'), seed: 3);
-    expect(sim.attackerMorale.maximum, 23);
+    expect(sim.attackerMorale.maximum, 100);
     expect(a.general.hp, 20);
     expect(a.soldiers.every((s) => s.hp == 20), isTrue);
     expect(sim.units.firstWhere((u) => u.id == 'a').health, same(a.general));

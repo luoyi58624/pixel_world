@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -92,7 +93,7 @@ void main() {
       );
       c.buySoldiers(1, 12, countryId: 1);
       c.advance(8);
-      expect(c.cities[1]!.requiredGarrison, 2);
+
       expect(c.garrisonAt(1).length, greaterThanOrEqualTo(2));
       expect(c.marches.length, 3 - c.garrisonAt(1).length);
       if (level == 5) expect(c.marches, isEmpty);
@@ -108,7 +109,7 @@ void main() {
     final point = march.position;
     c.advance(40);
     expect(march.position, point);
-    for (var i = 0; i < 786; i++) {
+    for (var i = 0; i < 3000; i++) {
       c.advance(1 / 60);
     }
     expect(c.goldFor(1), greaterThan(0));
@@ -120,36 +121,23 @@ void main() {
     expect(march.position, isNot(point));
   });
 
-  test('招募门槛为等级加一，开局超员不删人，升级才增加名额', () {
-    for (var level = 1; level <= 5; level++) {
-      final c = _campaign(level: level);
-      expect(c.cities[0]!.recruitCapacity, level + 1);
-      expect(c.cities[0]!.requiredGarrison, 2);
-    }
+  test('城防等级不再限制招募，开局超员仍能签约', () {
     final c = _campaign(gold: 1000);
-    expect(c.garrisonAt(0).length, 3);
-    final pool = c.recruitPool.length;
-    expect(c.drawHero(0), isNull);
-    expect(c.gold, 1000);
-    expect(c.remainingHeroDraws(0), 3);
-    expect(c.recruitPool.length, pool);
-    c.upgradeCity(0, hero: c.garrisonAt(0).first);
-    expect(c.recruitmentFull(0), isTrue);
-    c.upgradeCity(0, hero: c.garrisonAt(0).first);
-    expect(c.cities[0]!.requiredGarrison, 2);
+    final count = c.garrisonAt(0).length;
+    final offer = c.drawHero(0)!;
     expect(c.recruitmentFull(0), isFalse);
-    expect(c.drawHero(0), isNotNull);
+    expect(c.signHero(offer), isNotNull);
+    expect(c.garrisonAt(0).length, count + 1);
   });
 
-  test('出城释放招募名额，回城允许超员，签约前再次检查人数并保留锁定', () {
+  test('回城超员不会影响已经抽取的英雄签约', () {
     final c = _campaign();
     final first = _leave(c, 0), second = _leave(c, 2);
     expect(c.garrisonAt(0).length, 1);
     final offer = c.drawHero(0)!;
     final balance = c.gold;
     _return(c, first, 0);
-    expect(c.canSignHero(offer), isFalse);
-    expect(c.signHero(offer), isNull);
+    expect(c.canSignHero(offer), isTrue);
     expect(c.gold, balance);
     expect(c.recruitmentOffer, same(offer));
     expect(c.recruitPool.any((hero) => hero.id == offer.hero.id), isFalse);
@@ -173,9 +161,9 @@ void main() {
     _return(c, second, 2);
     expect(c.garrisonAt(2).length, 4);
     expect(first.hero.hp, first.hero.maxHp);
-    expect(c.soldiersAt(2), 7);
-    expect(c.recruitmentFull(2), isTrue);
-    expect(c.drawHero(2), isNull);
+    expect(c.soldiersAt(2), 27);
+    expect(c.recruitmentFull(2), isFalse);
+    expect(c.drawHero(2), isNotNull);
   });
 
   test('行军10秒一金币，扎营20秒一金币，驻城不扣粮草', () {
@@ -242,7 +230,10 @@ void main() {
     expect(a.supplyHalted, isTrue);
     final position = a.position;
     expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isFalse);
-    expect(c.dispatchTo(c.garrisonAt(0).first, const GamePoint(2000, 40)), isNull);
+    expect(
+      c.dispatchTo(c.garrisonAt(0).first, const GamePoint(2000, 40)),
+      isNull,
+    );
     c.advance(20);
     expect(a.position, position);
     expect(c.gold, 0);

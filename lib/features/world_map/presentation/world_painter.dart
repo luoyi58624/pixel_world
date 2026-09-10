@@ -8,6 +8,7 @@ import '../../campaign/domain/campaign.dart';
 import '../../heroes/domain/hero_sprite.dart';
 import '../data/world_assets.dart';
 import 'world_controller.dart';
+import 'territory_overlay.dart';
 
 /// 使用地图缓存与少量动态精灵绘制世界，不为每个格子创建组件。
 class WorldPainter extends CustomPainter {
@@ -67,6 +68,13 @@ class WorldPainter extends CustomPainter {
           );
         }
       }
+    }
+
+    if (c.showTerritoryBorders) {
+      TerritoryOverlay.draw(canvas, c.campaign.territories, {
+        for (final entry in c.campaign.cities.entries)
+          entry.key: entry.value.ownerCountryId,
+      }, camera.scale);
     }
 
     for (final city in c.world.cities) {

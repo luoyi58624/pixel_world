@@ -8,6 +8,7 @@ import 'protocol.dart';
 import 'rules_data.dart';
 import 'threats.dart';
 import 'work_budget.dart';
+import 'offensive_focus.dart';
 
 /// 一项完整防御候选，包含确定动作次序及未能解决的风险。
 class DefenseCandidate {
@@ -60,6 +61,22 @@ class DefensePlanner {
   ) sync* {
     final currentRisk = _risk(report, base);
     final overflow = base.occupancy(report.city.id) > base.slots(report.city);
+    if (!overflow &&
+        report.incoming.isNotEmpty &&
+        report.incoming.every((enemy) => _interceptionPending(enemy, base)) &&
+        !base.tasks.values.any(
+          (t) =>
+              t.attrition && report.incoming.any((e) => e.hero.id == t.enemy),
+        )) {
+      yield DefenseCandidate(
+        base,
+        [],
+        _quality(report, base),
+        note: '已有截击部队能及时接敌，等待执行结果，不重复派出第二支部队',
+        response: 'hold',
+      );
+      return;
+    }
     if (!overflow && currentRisk?.advantage == CombatAdvantage.favorable) {
       yield DefenseCandidate(
         base,
@@ -77,6 +94,14 @@ class DefensePlanner {
           (c) =>
               c.response == 'local' &&
               c.groups.isNotEmpty &&
+              c.groups.any(
+                (g) => g.actions.any(
+                  (a) =>
+                      a.kind == AiActionKind.upgrade ||
+                      a.kind == AiActionKind.soldiers ||
+                      a.kind == AiActionKind.dispatch,
+                ),
+              ) &&
               c.ledger.occupancy(report.city.id) <=
                   c.ledger.slots(report.city) &&
               ((_risk(report, c.ledger)?.lower ?? -1) >
@@ -84,11 +109,7 @@ class DefensePlanner {
                   c.groups.any(
                     (g) => g.tasks.any((t) => t.role == 'intercept'),
                   )) &&
-              ((_risk(report, c.ledger)?.upper ?? -1) >
-                      -rules.tuning.advantageMargin ||
-                  c.groups.any(
-                    (g) => g.tasks.any((t) => t.role == 'intercept'),
-                  )),
+              c.score > _quality(report, base),
         )
         .toList();
     if (local.isNotEmpty) {
@@ -98,7 +119,7 @@ class DefensePlanner {
     // 招募结果未知，不将未知英雄算成确定战力；先执行可支付的本地补强，再复核。
     if (!overflow && base.occupancy(report.city.id) < base.slots(report.city)) {
       final recruited = base.copy();
-      if (recruited.recruit(report.city) &&
+      if (recruited.recruit(report.city, emergency: true) &&
           recruited.gold >= recruited.cash(emergency: true).reserve) {
         yield _simple(report, base, recruited, [
           AiAction(AiActionKind.recruit, city: report.city.id),
@@ -326,6 +347,12 @@ class DefensePlanner {
       }
     }
 
+    // 领土预警并不等于城池将失守；已承担任务的远征只在极端救城时考虑召回。
+    final critical = _criticalRecall(report, base);
+    bool engaged(AiHero h) =>
+        assaultTarget(h, _view, base) != null ||
+        base.tasks[h.id]?.role == 'intercept' &&
+            (_view.hero(base.tasks[h.id]?.enemy)?.hp ?? 0) > 0;
     // 一个合适援军已经足够时，不把其余远征一起召回。
     final reinforcements =
         _view.heroes
@@ -335,14 +362,16 @@ class DefensePlanner {
                   h.canMove &&
                   !h.marked &&
                   base.tasks[h.id]?.arrivalSlot != true &&
-                  !base.reservedHeroes.contains(h.id),
+                  !base.reservedHeroes.contains(h.id) &&
+                  (!engaged(h) || critical),
             )
             .toList()
-          ..sort(
-            (a, b) => a.position
+          ..sort((a, b) {
+            if (engaged(a) != engaged(b)) return engaged(a) ? 1 : -1;
+            return a.position
                 .distance(city.center)
-                .compareTo(b.position.distance(city.center)),
-          );
+                .compareTo(b.position.distance(city.center));
+          });
     for (final hero in reinforcements.take(
       report.incoming.isEmpty ? 0 : rules.tuning.maxTeam,
     )) {
@@ -354,7 +383,8 @@ class DefensePlanner {
             ? sourceThreat!.deadline
             : double.infinity,
       );
-      if (_risk(report, base)?.advantage != CombatAdvantage.favorable &&
+      if ((!engaged(hero) || critical) &&
+          _risk(report, base)?.advantage != CombatAdvantage.favorable &&
           base.occupancy(city.id) < base.slots(city)) {
         final enemy = report.incoming
             .map((e) => e.hero)
@@ -406,6 +436,10 @@ class DefensePlanner {
         }
       }
       for (final incoming in report.incoming.take(2)) {
+        final continuing =
+            base.tasks[hero.id]?.role == 'intercept' &&
+            base.tasks[hero.id]?.enemy == incoming.hero.id;
+        if (engaged(hero) && !critical && !continuing) continue;
         if (hero.city != city.id &&
             sourceThreat?.threatened == true &&
             sourceThreat?.risk?.advantage != CombatAdvantage.favorable) {
@@ -425,7 +459,9 @@ class DefensePlanner {
           hero,
           route,
           role: 'intercept',
-          reason: '回援采取城外截击，避免入城挤占安全名额',
+          reason: engaged(hero)
+              ? '本地手段无法抵挡明确来袭，紧急截击预计${route.seconds.toStringAsFixed(1)}秒，早于敌军${incoming.seconds.toStringAsFixed(1)}秒抵城；最后才改派远征'
+              : '动用附近闲置部队截击来敌，不打断主攻任务',
           target: city,
           enemy: incoming.hero,
           emergency: true,
@@ -445,15 +481,41 @@ class DefensePlanner {
       }
     }
 
+    final interceptors =
+        mobile
+            .where((h) => h.combat <= rules.tuning.attritionCombatCeiling)
+            .toList()
+          ..sort((a, b) {
+            final lowA = a.combat <= rules.tuning.attritionCombatCeiling;
+            final lowB = b.combat <= rules.tuning.attritionCombatCeiling;
+            if (lowA != lowB) return lowA ? -1 : 1;
+            return heroDefenseValue(
+              a,
+              rules,
+              base.slots(city),
+              4,
+            ).compareTo(heroDefenseValue(b, rules, base.slots(city), 4));
+          });
+
+    final desperateSortie =
+        mobile.length > 1 &&
+        _risk(report, base)?.advantage == CombatAdvantage.unfavorable;
     for (final incoming in report.incoming.take(2)) {
-      if (incoming.hero.opponent != null) continue;
-      for (final hero in mobile.take(4)) {
+      if (!desperateSortie ||
+          incoming.hero.opponent != null ||
+          _interceptionPending(incoming, base)) {
+        continue;
+      }
+      for (final hero in interceptors.take(4)) {
         if (!work.candidate()) break;
         final left = base.garrison(city.id).where((h) => h != hero).toList();
+        if (left.isEmpty) continue;
         final core = left.isEmpty
             ? null
             : left.reduce(
-                (a, b) => heroCombatValue(a, rules) > heroCombatValue(b, rules)
+                (a, b) =>
+                    heroDefenseValue(a, rules, base.slots(city), 4) >
+                        heroDefenseValue(b, rules, base.slots(city), 4)
                     ? a
                     : b,
               );
@@ -485,9 +547,68 @@ class DefensePlanner {
             }
           }
         }
+        // 升级、补兵和武器可组合；先让本地补强生效，再考虑最后手段。
+        if (city.initialBattleLevel == null) {
+          final governors =
+              base.garrison(city.id).where((h) => h.canUpgrade).toList()
+                ..sort((a, b) => b.politics.compareTo(a.politics));
+          final upgraded = base.copy();
+          if (governors.isNotEmpty &&
+              upgraded.upgrade(city, governors.first) &&
+              upgraded.gold >= upgraded.cash(emergency: true).reserve) {
+            financing.add((
+              upgraded,
+              [
+                AiAction(
+                  AiActionKind.upgrade,
+                  city: city.id,
+                  hero: governors.first.id,
+                ),
+              ],
+              [],
+            ));
+          }
+        }
+        for (final entry in List.of(financing)) {
+          final supplied = entry.$1.copy();
+          final guarded = math.min(
+            supplied.slots(city),
+            supplied.garrison(city.id).length - 1,
+          );
+          final missing =
+              math.min(
+                supplied.capacity,
+                (guarded + 1) * rules.integer('soldierLimit'),
+              ) -
+              supplied.reserves;
+          if (missing > 0 &&
+              supplied.buySoldiers(missing) &&
+              supplied.gold >= supplied.cash(emergency: true).reserve) {
+            financing.add((
+              supplied,
+              [
+                ...entry.$2,
+                AiAction(AiActionKind.soldiers, city: city.id, amount: missing),
+              ],
+              entry.$3,
+            ));
+          }
+        }
         for (final finance in financing) {
           final funded = finance.$1;
-          for (final gear in operations.loadouts(hero, funded)) {
+          final strongest =
+              rules.weapons.values
+                  .where(
+                    (w) =>
+                        (funded.stock[w.id] ?? 0) > 0 ||
+                        w.shopEnabled && _view.year >= w.unlockYear,
+                  )
+                  .toList()
+                ..sort((a, b) => b.damage.compareTo(a.damage));
+          if (strongest.isEmpty) continue;
+          for (final gear in [
+            <int>[strongest.first.id],
+          ]) {
             final score = assessor.compare(
               hero,
               incoming.hero,
@@ -502,7 +623,9 @@ class DefensePlanner {
             );
             var useful = score.advantage == CombatAdvantage.favorable;
             var improvement = 0.0;
+            var securesDefense = useful;
             if (!useful &&
+                hero.combat <= rules.tuning.attritionCombatCeiling &&
                 core != null &&
                 score.ownWeaponLower > 0 &&
                 score.enemyWeaponUpper <
@@ -512,9 +635,19 @@ class DefensePlanner {
                               funded.reserves,
                             ) *
                             rules.integer('soldierHp')) {
+              final eligible = funded
+                  .garrison(city.id)
+                  .where((h) => h != hero)
+                  .toList()
+                  .reversed
+                  .take(funded.slots(city))
+                  .toList();
+              final position = eligible.indexWhere((h) => h.id == core.id);
+              if (position < 0) continue;
               final preserved = math.max(
                 0,
-                funded.reserves - rules.integer('soldierLimit'),
+                funded.reserves -
+                    (position + 1) * rules.integer('soldierLimit'),
               );
               final before = assessor.compare(
                 core,
@@ -530,9 +663,12 @@ class DefensePlanner {
                 enemyPressure: score.ownWeaponLower,
               );
               improvement = after.lower - before.lower;
+              securesDefense = after.advantage == CombatAdvantage.favorable;
               useful =
-                  after.advantage == CombatAdvantage.favorable &&
-                  improvement > .12;
+                  score.ownWeaponLower >= rules.integer('soldierHp') &&
+                  improvement >= rules.tuning.attritionMinImprovement &&
+                  (securesDefense ||
+                      report.risk?.advantage == CombatAdvantage.unfavorable);
             }
             if (!useful) continue;
             if (left.isEmpty &&
@@ -546,11 +682,12 @@ class DefensePlanner {
               route,
               role: 'intercept',
               reason: improvement > 0
-                  ? '配备可兑现的首件武器截击，保留核心守军兵员并改善防御余量'
-                  : '核心将领在武器和地形有利的城外迎战，监控绕过截击的来敌',
+                  ? '低攻击将领携一件强武器消耗来敌，保留高攻击守将与城防接战'
+                  : '低攻击余将携当前最强武器迎战，保留城内主力接敌',
               target: city,
               enemy: incoming.hero,
               gear: gear,
+              attrition: improvement > 0,
               emergency: true,
               deadline: incoming.seconds,
               protectSoldiers: core == null
@@ -567,7 +704,12 @@ class DefensePlanner {
                   actions: [...finance.$2, ...option.group.actions],
                   dependencies: {
                     ...option.group.dependencies,
-                    ...operations.dependencies(finance.$3, []),
+                    ...operations.dependencies(
+                      finance.$2
+                          .map((a) => _view.hero(a.hero))
+                          .whereType<AiHero>(),
+                      [],
+                    ),
                   },
                   tasks: option.group.tasks,
                   minimumGold: option.group.minimumGold,
@@ -577,14 +719,15 @@ class DefensePlanner {
               _quality(report, option.ledger) +
                   200 +
                   improvement * 500 -
+                  math.max(0, base.gold - option.ledger.gold) * .25 -
                   (improvement > 0 ? heroStrategicValue(hero) * .5 : 0) -
                   finance.$3.fold(
                     0.0,
                     (n, h) => n + heroStrategicValue(h) * .65,
                   ),
-              unresolved: remaining > option.ledger.slots(city),
+              unresolved:
+                  remaining > option.ledger.slots(city) || !securesDefense,
             );
-            break;
           }
         }
       }
@@ -666,6 +809,50 @@ class DefensePlanner {
           after.occupancy(report.city.id) > after.slots(report.city) ||
           _risk(report, after)?.advantage != CombatAdvantage.favorable,
     );
+  }
+
+  bool _interceptionPending(IncomingArmy incoming, AiLedger ledger) {
+    for (final task in ledger.tasks.values) {
+      if (task.role != 'intercept' ||
+          task.enemy != incoming.hero.id ||
+          task.deadlineTick <= _view.tick) {
+        continue;
+      }
+      final hero = _view.hero(task.hero);
+      if (hero == null ||
+          hero.hp <= 0 ||
+          hero.marked ||
+          ledger.removed.contains(hero.id)) {
+        continue;
+      }
+      if (hero.opponent == incoming.hero.id) return true;
+      if (!hero.canMove || task.committedUntil <= _view.tick) continue;
+      final route = operations.intercept(hero, incoming.hero, ledger);
+      if (route.complete &&
+          route.seconds + rules.tuning.reactionMargin < incoming.seconds) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _criticalRecall(CityDefenseReport report, AiLedger ledger) {
+    // 配额耗尽只是未知，不能把没算完误当作已经没有其他办法。
+    if (work.limited) return false;
+    final attacking =
+        report.city.initialBattleLevel != null ||
+        report.incoming.any(
+          (army) =>
+              army.hero.state == AiArmyState.queue ||
+              army.confidence >= .9 &&
+                  army.hero.state != AiArmyState.camped &&
+                  (army.hero.velocity.x.abs() + army.hero.velocity.y.abs()) >
+                      .01,
+        );
+    if (!attacking) return false;
+    if (ledger.garrison(report.city.id).isEmpty) return true;
+    final risk = _risk(report, ledger);
+    return risk != null && risk.upper < -rules.tuning.recallCriticalMargin;
   }
 
   CombatAssessment? _risk(CityDefenseReport r, AiLedger l) {

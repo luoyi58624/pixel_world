@@ -9,6 +9,7 @@ import 'rules_data.dart';
 import 'threats.dart';
 import 'target_priority.dart';
 import 'raid_assessment.dart';
+import 'offensive_focus.dart';
 
 /// 全国资源整理只在独立周期执行，预算包含在途部队粮草与月俸。
 class ResourcePlanner {
@@ -33,7 +34,7 @@ class ResourcePlanner {
     var ledger = initial;
     final view = request.observation;
     final groups = <AiCommandGroup>[];
-    int? savingTarget;
+    int? savingTarget, preparedTarget;
     var requiredGold = 0, requiredHeroes = 1;
     bool affordable(AiLedger next) =>
         next.gold >=
@@ -105,9 +106,65 @@ class ResourcePlanner {
       final local = ledger.garrison(city.id);
       final governors = local.where((h) => h.canUpgrade).toList()
         ..sort((a, b) => b.politics.compareTo(a.politics));
+      var extraHeroes = 1;
+      if (local.isNotEmpty && rules.weapons.isNotEmpty) {
+        final lead = local.reduce(
+          (a, b) => heroDeploymentValue(a) > heroDeploymentValue(b) ? a : b,
+        );
+        final gear =
+            rules.weapons.values
+                .where(
+                  (w) =>
+                      w.shopEnabled &&
+                      w.selfDamage == 0 &&
+                      view.year >= w.unlockYear,
+                )
+                .toList()
+              ..sort((a, b) => b.damage.compareTo(a.damage));
+        final targets =
+            view.cities
+                .where(
+                  (c) =>
+                      c.country != view.country &&
+                      OffensiveFocus(
+                        view,
+                        ledger,
+                        rules,
+                        targetCountry: request.offensiveCountry,
+                        targetCity: request.offensiveCity,
+                      ).allows(c),
+                )
+                .toList()
+              ..sort(
+                (a, b) => targetPriority(
+                  b,
+                  lead,
+                  view,
+                  rules,
+                  request.seed,
+                ).compareTo(targetPriority(a, lead, view, rules, request.seed)),
+              );
+        var team = rules.tuning.maxTeam;
+        for (final target in targets.take(3)) {
+          final readiness = assessRaid(
+            lead,
+            target,
+            view,
+            rules,
+            assessor,
+            gear.isEmpty
+                ? []
+                : List.filled(rules.integer('carryLimit'), gear.first.id),
+          );
+          if (readiness.teamSize > 0) team = math.min(team, readiness.teamSize);
+        }
+        // 需要轮番进攻时补齐队伍，不能永远停在“留守人数 + 一名远征军”。
+        extraHeroes = team;
+      }
       final needHero =
           view.cities.any((c) => c.country != view.country) &&
-          ledger.occupancy(city.id) < math.max(1, city.requiredGarrison) + 1;
+          ledger.occupancy(city.id) <
+              ledger.defendersToKeep(city) + extraHeroes;
       if (governors.isNotEmpty &&
           city.initialBattleLevel == null &&
           (local.length > ledger.slots(city) ||
@@ -132,9 +189,15 @@ class ResourcePlanner {
         }
       }
       // 新等级需要真实落地后才能使用新增招募名额，避免旧快照提前承诺。
-      if (needHero && ledger.occupancy(city.id) < city.safeSlots) {
+      if (needHero &&
+          (reports[city.id]?.threatened != true ||
+              ledger.occupancy(city.id) < city.safeSlots)) {
         final next = ledger.copy();
-        if (next.recruit(city) && affordable(next)) {
+        if (next.recruit(
+              city,
+              emergency: reports[city.id]?.threatened == true,
+            ) &&
+            affordable(next)) {
           accept(
             next,
             [AiAction(AiActionKind.recruit, city: city.id)],
@@ -153,9 +216,7 @@ class ResourcePlanner {
           (a, b) => heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
         );
       spare.addAll(
-        free.take(
-          math.max(0, local.length - math.max(1, city.requiredGarrison)),
-        ),
+        free.take(math.max(0, local.length - ledger.defendersToKeep(city))),
       );
     }
     spare.sort(
@@ -163,16 +224,36 @@ class ResourcePlanner {
     );
     if (spare.isNotEmpty) {
       final hero = spare.first;
+      final focus = OffensiveFocus(
+        view,
+        ledger,
+        rules,
+        targetCountry: request.offensiveCountry,
+        targetCity: request.offensiveCity,
+      );
       final targets =
-          view.cities.where((c) => c.country != view.country).toList()..sort(
-            (a, b) => targetPriority(
-              b,
-              hero,
-              view,
-              rules,
-              request.seed,
-            ).compareTo(targetPriority(a, hero, view, rules, request.seed)),
-          );
+          view.cities
+              .where(
+                (c) =>
+                    c.country != view.country &&
+                    OffensiveFocus(
+                      view,
+                      ledger,
+                      rules,
+                      targetCountry: request.offensiveCountry,
+                      targetCity: request.offensiveCity,
+                    ).allows(c),
+              )
+              .toList()
+            ..sort(
+              (a, b) => targetPriority(
+                b,
+                hero,
+                view,
+                rules,
+                request.seed,
+              ).compareTo(targetPriority(a, hero, view, rules, request.seed)),
+            );
       var equipped = false;
       for (final target in targets.take(rules.tuning.maxTargets)) {
         for (final gear in operations.loadouts(hero, ledger)) {
@@ -184,14 +265,23 @@ class ResourcePlanner {
             assessor,
             gear,
           );
-          if (readiness.teamSize == 0 || readiness.teamSize > spare.length) {
+          final queued = focus.assignedTo(target.id);
+          final needed = readiness.teamSize - queued;
+          final secondary = focus.primary != null && focus.primary != target.id;
+          if (readiness.teamSize == 0 ||
+              needed <= 0 ||
+              needed > spare.length ||
+              secondary &&
+                  (readiness.teamSize != 1 ||
+                      readiness.lower < rules.tuning.splitAdvantageMargin)) {
             continue;
           }
           // 只求整队报价，虚拟资金不进入真实采购或回复中的命令。
           var quote = ledger.copy()..gold = 1000000;
           final purchases = <AiAction>[];
           var ready = true;
-          for (var i = 0; i < readiness.teamSize; i++) {
+          var earliest = double.infinity, latest = 0.0;
+          for (var i = 0; i < needed; i++) {
             final member = spare[i];
             final memberRisk = assessRaid(
               member,
@@ -211,6 +301,13 @@ class ResourcePlanner {
               view,
               target: target,
             );
+            earliest = math.min(earliest, route.seconds);
+            latest = math.max(latest, route.seconds);
+            if (!route.complete ||
+                latest - earliest > rules.tuning.raidArrivalSpread) {
+              ready = false;
+              break;
+            }
             final protection = cities.fold(
               0,
               (n, c) =>
@@ -221,7 +318,7 @@ class ResourcePlanner {
                           quote.garrison(c.id).length -
                               (c.id == member.city ? 1 : 0),
                         ),
-                        math.max(1, c.requiredGarrison),
+                        quote.defendersToKeep(c),
                       ) *
                       rules.integer('soldierLimit'),
             );
@@ -237,7 +334,7 @@ class ResourcePlanner {
                 protection,
                 math.max(0, quote.capacity - rules.integer('soldierLimit')),
               ),
-              queueIndex: i,
+              queueIndex: queued + i,
             );
             if (option == null) {
               ready = false;
@@ -277,6 +374,7 @@ class ResourcePlanner {
             );
           }
           equipped = true;
+          preparedTarget = target.id;
           requiredGold = 0;
           savingTarget = null;
           break;
@@ -286,7 +384,7 @@ class ResourcePlanner {
     }
     return CountryPlan(
       phase: savingTarget == null ? 'preparing' : 'saving',
-      targetCity: savingTarget,
+      targetCity: preparedTarget ?? savingTarget,
       requiredGold: requiredGold,
       requiredHeroes: requiredHeroes,
       groups: groups,

@@ -20,9 +20,9 @@ void main() {
     final controller =
         (tester.widget<CustomPaint>(canvas).painter! as WorldPainter)
             .controller;
-    expect(controller.campaign.cities[1]!.baseIncome, 20);
-    expect(controller.campaign.cities[1]!.income, 25);
-    expect(controller.campaign.soldiersAt(0), 10);
+    expect(controller.campaign.cities[1]!.baseIncome, 10);
+    expect(controller.campaign.cities[1]!.income, 15);
+    expect(controller.campaign.soldiersAt(0), 16);
     expect(controller.campaign.goldFor(3), 90);
     await tester.pumpWidget(const SizedBox.shrink());
   });

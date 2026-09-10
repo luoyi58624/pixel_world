@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "description": "玩法配置：地图0/1/2对应地图一/二/三。name仅用于定位阅读，按id关联原地图。baseIncome为一级城的基础月产出，initialReserveSoldiers为本城开局贡献的兵员，同国各城汇总至一份全国库存，而非英雄带兵；国家初始金币只初始化一次，不按城池数累加。requiredGarrison为每城最低留守将领人数，与城防等级独立。修改后热重启，开局时读取配置。；初始国库按三地图10分钟对局补偿弱国，参考 docs/game_balance.md。",
+  "description": "各国初始货币和城防按本文件配置；开局兵员满编，上限为初始将领数×4加当前全国城防等级总和×4。首月可经营，升级、招募与补兵均不限制月度次数，逐次校验资金与资源；城防升级第一年最高三级，第二年四级，第三年起五级。",
   "countries": [
     {
       "id": 0,
       "name": "阿尔马",
-      "initialGold": 50
+      "initialGold": 80
     },
     {
       "id": 1,
@@ -91,81 +91,61 @@
           "id": 0,
           "name": "阿尔马",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 1,
-          "requiredGarrison": 2
+          "initialLevel": 1
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "baseIncome": 10,
+          "initialLevel": 2
         },
         {
           "id": 2,
           "name": "马易",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 3,
           "name": "鲍罗布",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 4,
           "name": "墨尔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 6,
           "name": "列穆",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 7,
           "name": "迪麦",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 8,
           "name": "索朗",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         }
       ]
     },
@@ -176,89 +156,67 @@
           "id": 0,
           "name": "阿尔马",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 1,
-          "requiredGarrison": 2
+          "initialLevel": 1
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "baseIncome": 10,
+          "initialLevel": 3
         },
         {
           "id": 2,
           "name": "马易",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 3,
           "name": "鲍罗布",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 4,
           "name": "墨尔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 6,
           "name": "列穆",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 7,
           "name": "迪麦",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 8,
           "name": "索朗",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 10,
           "name": "洛埃",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         }
       ]
     },
@@ -269,97 +227,73 @@
           "id": 0,
           "name": "阿尔马",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 1,
-          "requiredGarrison": 2
+          "initialLevel": 1
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 4,
-          "requiredGarrison": 2
+          "baseIncome": 10,
+          "initialLevel": 4
         },
         {
           "id": 2,
           "name": "马易",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 3,
           "name": "鲍罗布",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 4,
-          "requiredGarrison": 2
+          "initialLevel": 4
         },
         {
           "id": 4,
           "name": "墨尔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 6,
           "name": "列穆",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 7,
           "name": "迪麦",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 8,
           "name": "索朗",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         },
         {
           "id": 10,
           "name": "洛埃",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 2,
-          "requiredGarrison": 2
+          "initialLevel": 2
         },
         {
           "id": 11,
           "name": "贝尔",
           "baseIncome": 10,
-          "initialReserveSoldiers": 10,
-          "initialLevel": 3,
-          "requiredGarrison": 2
+          "initialLevel": 3
         }
       ]
     }

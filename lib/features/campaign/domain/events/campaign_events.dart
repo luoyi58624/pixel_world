@@ -102,6 +102,7 @@ extension _CampaignEventRecording on CampaignState {
         'strategy': plan.phase,
         'stage': stage?.name,
         'targetCityId': plan.targetCity,
+        'offensiveCountryId': _warPlans[reply.country]?.offensiveCountryId,
         'before': before,
         'after': _eventResources(reply.country),
         'actions': actions,

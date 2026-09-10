@@ -1,5 +1,8 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/flutter_geometry.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -62,11 +65,14 @@ Future<WorldController> _load(
               .painter!
           as WorldPainter;
   final c = painter.controller;
-  c.campaigns[0] = CampaignState.fromRom(
-    aiEnabled: false,
-    c.world,
-    painter.assets.heroCatalog,
-    startingGold: startingGold,
+  c.campaigns[0] = ongoingCampaign(
+    CampaignState.fromRom(
+      aiEnabled: false,
+      c.world,
+      painter.assets.heroCatalog,
+      startingGold: startingGold,
+    ),
+    stock: 10,
   );
   return c;
 }
@@ -224,7 +230,7 @@ void main() {
         expect(find.byKey(ValueKey('dispatch-hero-${hero.id}')), findsNothing);
       }
       expect(find.text('守城部队'), findsNothing);
-      expect(find.byKey(const ValueKey('city-economy')), findsOneWidget);
+      expect(find.byKey(const ValueKey('city-economy')), findsNothing);
       expect(c.campaign.garrisonAt(city.id), isEmpty);
       expect(c.campaign.heroesAt(city.id), heroes);
       expect(tester.takeException(), isNull);
@@ -268,8 +274,8 @@ void main() {
     expect(c.campaign.gold, 5);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('city-stat-月收入')),
-        matching: find.text('15'),
+        of: find.byKey(const ValueKey('city-upgrade')),
+        matching: find.text('2 级'),
       ),
       findsOneWidget,
     );
@@ -293,7 +299,7 @@ void main() {
     await tester.tap(upgrade);
     await tester.pump();
     expect(c.campaign.gold, 273);
-    expect(tester.widget<Text>(quote).data, contains('77金币'));
+    expect(tester.widget<Text>(quote).data, contains('57金币'));
     c.campaign.dispatch(c.selectedHero!, c.world.cities[1]);
     c.refreshUi();
     await tester.pump();
@@ -305,10 +311,12 @@ void main() {
   });
 
   test('直接查看城池和选择英雄，关闭或取消选目标均不扣兵', () {
-    final c = WorldController(
-      _worlds(),
-      heroCatalog: _heroCatalog(),
-      startingGold: 300,
+    final c = ongoingController(
+      WorldController(
+        _worlds(),
+        heroCatalog: _heroCatalog(),
+        startingGold: 300,
+      ),
     );
     expect(c.campaign.buySoldiers(0, 12), isTrue);
     c.openCity(c.world.cities.first);
@@ -328,10 +336,12 @@ void main() {
   });
 
   test('有效位置确认后英雄才离城，越界或重复确认不会重复扣兵', () {
-    final c = WorldController(
-      _worlds(),
-      heroCatalog: _heroCatalog(),
-      startingGold: 300,
+    final c = ongoingController(
+      WorldController(
+        _worlds(),
+        heroCatalog: _heroCatalog(),
+        startingGold: 300,
+      ),
     );
     expect(c.campaign.buySoldiers(0, 12), isTrue);
     final home = c.world.cities.first;
@@ -362,10 +372,12 @@ void main() {
   });
 
   test('一级城可让不同英雄独立出征，地图点击不会改写已有命令', () {
-    final c = WorldController(
-      _worlds(),
-      heroCatalog: _heroCatalog(),
-      startingGold: 300,
+    final c = ongoingController(
+      WorldController(
+        _worlds(),
+        heroCatalog: _heroCatalog(),
+        startingGold: 300,
+      ),
     );
     expect(c.campaign.buySoldiers(0, 12), isTrue);
     expect(c.campaign.cities[0]!.level, 1);
@@ -387,10 +399,12 @@ void main() {
   });
 
   test('切换地图保留各自出征记录，取消选目标不带到另一张地图', () {
-    final c = WorldController(
-      _worlds(),
-      heroCatalog: _heroCatalog(),
-      startingGold: 300,
+    final c = ongoingController(
+      WorldController(
+        _worlds(),
+        heroCatalog: _heroCatalog(),
+        startingGold: 300,
+      ),
     );
     expect(c.campaign.buySoldiers(0, 12), isTrue);
     c.campaign.upgradeCity(
@@ -418,7 +432,7 @@ void main() {
     expect(find.byKey(const ValueKey('city-sortie')), findsNothing);
     expect(find.byKey(const ValueKey('city-information')), findsNothing);
     expect(find.byKey(const ValueKey('dispatch-hero-rom-0')), findsOneWidget);
-    expect(find.text('月收入'), findsOneWidget);
+    expect(find.text('月收入'), findsNothing);
     expect(find.text('士兵数量'), findsOneWidget);
     expect(find.text('士兵'), findsNothing);
     expect(find.text('王牌'), findsNothing);
@@ -459,12 +473,12 @@ void main() {
       );
     }
     expect(find.text('城池情况'), findsOneWidget);
-    expect(find.text('经济情况'), findsOneWidget);
+    expect(find.text('经济情况'), findsNothing);
     expect(find.text('守城部队'), findsNothing);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('city-stat-月收入')),
-        matching: find.text('25'),
+        of: find.byKey(const ValueKey('city-upgrade')),
+        matching: find.text('2 级'),
       ),
       findsOneWidget,
     );

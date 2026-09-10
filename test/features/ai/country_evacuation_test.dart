@@ -29,6 +29,9 @@ AiReply _defenseReply(CampaignState c, ManualAiWorker worker) {
     attackerCombat: 63,
     overrides: {
       2: {'maxHp': 200},
+      0: {'politics': 0},
+      18: {'politics': 0},
+      19: {'politics': 0},
     },
     workerFactory: () => worker,
   );
@@ -143,11 +146,13 @@ void main() {
     final c = nationalScenario(
       originalWeapons: true,
       ai: false,
-      level: 2,
+      level: 5,
       gold: 50,
       attackerCombat: 63,
       overrides: {
         2: {'maxHp': 200},
+        18: {'combat': 2},
+        19: {'combat': 2},
       },
       stock: {
         '1': {'8': 1},

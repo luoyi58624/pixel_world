@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -26,15 +27,25 @@ CampaignState _campaign({
   int gold = 50,
   math.Random? economy,
   math.Random? recruitment,
-}) => CampaignState.fromRom(
-  aiEnabled: false,
-  decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  startingGold: gold,
-  economyRandom: economy ?? _RandomValue(),
-  recruitmentRandom: recruitment ?? _RandomValue(),
-  siegeRandom: _RandomValue(),
-);
+  bool opening = false,
+}) {
+  final c = CampaignState.fromRom(
+    aiEnabled: false,
+    decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    startingGold: gold,
+    economyRandom: economy ?? _RandomValue(),
+    recruitmentRandom: recruitment ?? _RandomValue(),
+    siegeRandom: _RandomValue(),
+  );
+  if (!opening) {
+    c.settledMonths = 1;
+    for (final owner in c.countryTroops.keys.toList()) {
+      c.countryTroops[owner] = CountryTroops();
+    }
+  }
+  return c;
+}
 
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -53,7 +64,7 @@ void _choose(CampaignState c, _RandomValue random, HeroType type) {
 
 void main() {
   test('每国初始50金币，60秒跨月，十二个月正确跨年', () {
-    final c = _campaign();
+    final c = _campaign(opening: true);
     for (final country in c.world.countries) {
       expect(c.goldFor(country.id), 50);
     }
@@ -63,14 +74,14 @@ void main() {
     expect(c.gold, 50);
     c.advance(0.01);
     expect(c.dateLabel, '1年2月');
-    expect(c.gold, 54);
+    expect(c.gold, 90);
     expect(c.lastSettlementFor(0)!.month, 1);
     final foreign = c.lastSettlementFor(1)!;
     expect(c.goldFor(1), 50 + foreign.baseIncome - foreign.salary);
     c.advance(660);
     expect(c.dateLabel, '2年1月');
     expect(c.settledMonths, 12);
-    expect(c.gold, 98);
+    expect(c.gold, 530);
   });
 
   test('概率边界严格为正常50份、欠收25份、丰收25份', () {
@@ -85,7 +96,7 @@ void main() {
     });
   });
 
-  test('城池月收入10起每级加5，外国城收成折半并继续扣月俸', () {
+  test('城池月收入10起每级加5，占领地全额并在国家层面计算收成', () {
     for (var level = 1; level <= 5; level++) {
       final city = CitySituation(
         ownerCountryId: 0,
@@ -95,27 +106,29 @@ void main() {
       );
       expect(city.income, 10 + (level - 1) * 5);
     }
-    for (final entry in {0: 0, 50: -15, 75: 7}.entries) {
+    for (final entry in {0: 0, 50: -30, 75: 30}.entries) {
       final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
       c.cities[1]!.ownerCountryId = 0;
       final governor = _hero(c, 0)..cityId = 1;
+      c.settledMonths = 24;
       c.upgradeCity(1, hero: governor);
+      c.settledMonths = 24;
       c.upgradeCity(1, hero: governor);
       final before = c.gold;
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 2);
-      expect(report.baseIncome, 20);
+      expect(report.baseIncome, 60);
       expect(report.adjustment, entry.value);
-      expect(report.salary, 6);
-      expect(c.gold, before + 20 + entry.value - 6);
+      expect(report.salary, 0);
+      expect(c.gold, before + 60 + entry.value);
     }
   });
 
-  test('月俸读取玩法JSON，主角任何情况下都是零', () {
+  test('专属将领免薪，国库按实际工资和收成结算', () {
     final c = _campaign();
-    expect(_hero(c, 0).salary, 3);
-    expect(_hero(c, 2).salary, 3);
+    expect(_hero(c, 0).salary, 0);
+    expect(_hero(c, 2).salary, 0);
     expect(_hero(c, 40).salary, 0);
     final definition = RomHeroDefinition.fromJson({
       'id': 40,
@@ -132,9 +145,9 @@ void main() {
     expect(CampaignHero.fromRom(definition, cityId: 0, countryId: 0).salary, 0);
     final poor = _campaign(gold: 1, economy: _RandomValue(50));
     poor.advance(60);
-    expect(poor.gold, 0);
-    expect(poor.lastSettlementFor(0)!.netIncome, -6);
-    expect(poor.lastSettlementFor(0)!.actualChange, -1);
+    expect(poor.gold, 11);
+    expect(poor.lastSettlementFor(0)!.netIncome, 10);
+    expect(poor.lastSettlementFor(0)!.actualChange, 10);
     expect(poor.defeated, isFalse);
   });
 
@@ -200,20 +213,23 @@ void main() {
   test('城防和将领贡献容量，降级裁掉超额储备，易主不赠兵', () {
     final c = _campaign(gold: 10000);
     for (var level = 1; level <= 5; level++) {
-      if (level > 1) c.upgradeCity(0, hero: c.garrisonAt(0).first);
+      if (level > 1) {
+        c.settledMonths = 24;
+        c.upgradeCity(0, hero: c.garrisonAt(0).first);
+      }
       expect(c.soldierCapacityAt(0), 4 * level + 12);
     }
     expect(c.buySoldiers(0, 32), isTrue);
     c.defeatHero('rom-0', winnerCountryId: 1, defendedCityId: 0);
-    expect(c.soldiersAt(0), 24);
-    expect(c.soldierCapacityAt(0), 24);
+    expect(c.soldiersAt(0), 28);
+    expect(c.soldierCapacityAt(0), 28);
     expect(c.maxSoldierPurchase(0), 0);
     c.cities[0]!.ownerCountryId = 2;
     expect(c.soldiersAt(0), 0);
-    expect(c.soldierCapacityAt(0), 18);
+    expect(c.soldierCapacityAt(0), 20);
   });
 
-  test('池中没有在场英雄和主角，普通将领抽取扣5但签约免费且不赠兵', () {
+  test('池中没有在场英雄和主角，普通将领抽取扣5、签约按月俸且不赠兵', () {
     final random = _RandomValue();
     final c = _campaign(recruitment: random);
     prepareRecruitmentCity(c, 0);
@@ -227,11 +243,11 @@ void main() {
     _choose(c, random, HeroType.normal);
     final offer = c.drawHero(0)!;
     expect(c.gold, 45);
-    expect(offer.signingFee, 0);
+    expect(offer.initialSalary, offer.hero.salaryFor(0));
     expect(c.drawHero(0), isNull);
     expect(c.gold, 45);
     final hero = c.signHero(offer)!;
-    expect(c.gold, 45);
+    expect(c.gold, 45 - offer.initialSalary);
     expect(hero.cityId, 0);
     expect(hero.soldiers, 0);
     expect(hero.hp, hero.maxHp);
@@ -240,21 +256,21 @@ void main() {
     expect(c.recruitPool.any((h) => h.id == hero.sourceId), isFalse);
   });
 
-  test('高级将领额外扣10签约，放弃不退抽取费并归还池子', () {
+  test('高级将领签约仅扣首月月俸，放弃不退抽取费并归还池子', () {
     final random = _RandomValue();
     final c = _campaign(recruitment: random);
     prepareRecruitmentCity(c, 0);
     _choose(c, random, HeroType.advanced);
     final offer = c.drawHero(0)!;
-    expect(offer.signingFee, 10);
+    expect(offer.initialSalary, offer.hero.salaryFor(0));
     expect(c.gold, 45);
     expect(c.signHero(offer), isNotNull);
-    expect(c.gold, 35);
+    expect(c.gold, 45 - offer.initialSalary);
     c.cities[2]!.ownerCountryId = 0;
     final declined = c.drawHero(2)!;
-    expect(c.gold, 30);
+    expect(c.gold, 40 - offer.initialSalary);
     expect(c.declineHero(declined), isTrue);
-    expect(c.gold, 30);
+    expect(c.gold, 40 - offer.initialSalary);
     expect(
       c.recruitPool.where((hero) => hero.id == declined.hero.id).length,
       1,

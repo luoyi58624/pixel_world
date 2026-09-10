@@ -24,6 +24,23 @@ GameEvent _emit(
 )!;
 
 void main() {
+  test('国家日志同时保留月结和最终决策，原始调度不挤掉收支', () {
+    final events = CampaignEvents(worldId: 0, capacityPerCountry: 3);
+    final log = events.forCountry(0);
+    _emit(events, 0, kind: GameEventKind.monthSettled);
+    for (var i = 0; i < 50; i++) {
+      _emit(events, 0);
+    }
+    _emit(events, 0, kind: GameEventKind.decisionFinalized);
+    expect(log.timeline().map((e) => e.kind), [
+      GameEventKind.monthSettled,
+      GameEventKind.decisionFinalized,
+    ]);
+    expect(log.finalDecisions().length, 1);
+    expect(log.exportTimelineJsonLines(), contains('monthSettled'));
+    expect(log.exportTimelineJsonLines(), isNot(contains('planProposed')));
+    expect(events.forCountry(1).timeline(), isEmpty);
+  });
   test('最终决策独立计数和导出，内部噪音不占编号也不挤掉最终历史', () {
     final events = CampaignEvents(worldId: 0, capacityPerCountry: 2);
     final log = events.forCountry(1);

@@ -4,6 +4,7 @@ import 'observation.dart';
 import 'routes.dart';
 import 'combat_assessment.dart';
 import 'rules_data.dart';
+import 'threat_geometry.dart';
 
 /// 观察到的来敌与预计接触区间，终点是推断而非读取隐藏命令。
 class IncomingArmy {
@@ -87,8 +88,10 @@ class ThreatAnalyzer {
       }
       if (hero.marked) continue;
       final distance = hero.position.distance(city.center);
-      if (distance >
-          rules.number('marchSpeed') * rules.tuning.threatSeconds + 80) {
+      final invaded = hero.regionCity == city.id;
+      if (!invaded &&
+          distance >
+              rules.number('marchSpeed') * rules.tuning.threatSeconds + 80) {
         continue;
       }
       final speed = math.sqrt(
@@ -99,8 +102,8 @@ class ThreatAnalyzer {
           : ((city.center.x - hero.position.x) * hero.velocity.x +
                     (city.center.y - hero.position.y) * hero.velocity.y) /
                 (math.max(1.0, distance) * speed);
-      if (toward < .45 && distance > 72) continue;
-      if (distance > 72) {
+      if (!invaded && toward < .45 && distance > 72) continue;
+      if (!invaded && distance > 72) {
         final along = math.max(0.0, distance * toward);
         final projected = hero.position.translated(
           hero.velocity.x / speed * along,
@@ -108,17 +111,29 @@ class ThreatAnalyzer {
         );
         if (city.outline.nearest(projected).distance(projected) > 48) continue;
       }
-      final end = city.outline.approach(hero.position, city.center);
-      var eta = routes.seconds(hero.position, end);
-      if (!eta.isFinite && routes.work.limited) {
-        eta = hero.position.distance(end) / rules.number('marchSpeed');
-      }
-      if (eta > rules.tuning.threatSeconds || !eta.isFinite) continue;
+      final eta = incomingSeconds(
+        position: hero.position,
+        velocity: hero.velocity,
+        center: city.center,
+        outline: city.outline,
+        marchSpeed: rules.number('marchSpeed'),
+        horizon: rules.tuning.threatSeconds,
+        invaded: invaded,
+        travelSeconds: (a, b) {
+          final seconds = routes.seconds(a, b);
+          return !seconds.isFinite && routes.work.limited
+              ? a.distance(b) / rules.number('marchSpeed')
+              : seconds;
+        },
+      );
+      if (eta == null) continue;
       incoming.add(
         IncomingArmy(
           hero,
           eta,
-          toward > .8
+          hero.state == AiArmyState.camped || speed < .01
+              ? .35
+              : toward > .8
               ? 1.0
               : distance < 72
               ? .9

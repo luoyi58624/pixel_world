@@ -20,7 +20,16 @@ class NesBattleKernel {
     required List<List<int>> slots,
     required int seed,
     List<int>? moraleAttack,
+    List<int>? initialMorale,
+    this.recoilDifferenceScale = 1,
+    this.wallDamageScale = 1,
   }) {
+    if (!recoilDifferenceScale.isFinite ||
+        recoilDifferenceScale < 0 ||
+        !wallDamageScale.isFinite ||
+        wallDamageScale < 0) {
+      throw ArgumentError('击退与撞墙倍率必须是非负有限数');
+    }
     for (final entry in nesBattleBlocks.entries) {
       final hex = entry.value;
       for (var i = 0; i < hex.length; i += 2) {
@@ -63,6 +72,14 @@ class NesBattleKernel {
         ram[0x1a + side] = moraleAttack[side];
       }
       _call(0xe1c6, x: side);
+      if (initialMorale != null) {
+        if (initialMorale.length != 2 ||
+            initialMorale[side] < 0 ||
+            initialMorale[side] > 100) {
+          throw ArgumentError('独立士气必须位于 0 到 100');
+        }
+        ram[0xae + side] = initialMorale[side];
+      }
       ram[0x1a + side] = strength;
       _call(0xe758, x: side);
     }
@@ -70,6 +87,12 @@ class NesBattleKernel {
 
   /// 每场独立 RAM，状态不与其他城池的后台战斗混用。
   final Uint8List ram = Uint8List(65536);
+
+  /// 强度差进入反弹查表前的倍率；1 保持原始 ROM，较小值平滑少量属性差。
+  final double recoilDifferenceScale;
+
+  /// 撞墙输入强度的倍率；1 保持原版双倍强度，0.5 等于一次普通接触强度。
+  final double wallDamageScale;
 
   /// 已执行的逻辑帧数。
   int frames = 0;
@@ -288,6 +311,13 @@ class NesBattleKernel {
         wallHits[0]++;
       } else if (_pc == 0xe5e4) {
         wallHits[1]++;
+      }
+      // 只调整新游戏的数值入口，保留反弹、减速、回冲与阵亡的原始指令。
+      if (_pc == 0xe649 && recoilDifferenceScale != 1) {
+        _a = (_x + (_a - _x) * recoilDifferenceScale).round().clamp(0, 255);
+      }
+      if ((_pc == 0xe54e || _pc == 0xe5e7) && wallDamageScale != 1) {
+        _a = _nz((_a * wallDamageScale).round().clamp(0, 255));
       }
       final opcode = _byte();
       switch (opcode) {

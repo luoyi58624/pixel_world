@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -38,7 +39,9 @@ void main() {
       expect(source, isNot(contains('nextDouble(')), reason: file.path);
       expect(source, isNot(contains('nextInt(')), reason: file.path);
     }
-    final old = File('lib/features/campaign/domain/countries/country_strategy.dart').readAsStringSync();
+    final old = File(
+      'lib/features/campaign/domain/countries/country_strategy.dart',
+    ).readAsStringSync();
     expect(old, isNot(contains('_projectRaid')));
     expect(File('lib/world/country_ai.dart').existsSync(), isFalse);
   });

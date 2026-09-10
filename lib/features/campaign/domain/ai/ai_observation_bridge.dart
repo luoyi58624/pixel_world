@@ -18,25 +18,20 @@ extension _AiObservationBridge on CampaignState {
       'emergencyGold': GameConfig.countryAiEmergencyGold,
       'battleBudget': GameConfig.countryAiBattleBudgetSeconds,
       'incomeStep': GameConfig.cityIncomePerLevel,
-      'poorPenalty': GameConfig.poorPenaltyPerCity,
+      'countryIncome': GameConfig.countryMonthlyIncome,
+      'poorPenalty': GameConfig.poorHarvestPenalty,
       'foreignYield': GameConfig.foreignCityYieldFactor,
       'maxLevel': GameConfig.maxCityLevel,
+      'firstYearCityLevel': GameConfig.firstYearCityUpgradeLimit,
+      'cityLevelsPerYear': GameConfig.cityUpgradeLevelsPerYear,
+      'initialYear': GameConfig.initialYear,
       'capacityPerLevel': GameConfig.cityReserveCapacityPerLevel,
-      'capacityPerHero': GameConfig.cityReserveCapacityPerHero,
       'soldierCost': GameConfig.soldierRecruitCost,
       'soldierBatch': GameConfig.soldierRecruitBatchSize,
-      'recruitBase': GameConfig.cityRecruitCapacityBase,
-      'recruitStep': GameConfig.cityRecruitCapacityPerLevel,
       'drawCost': GameConfig.heroDrawCost,
-      'signingFee': math.max(
-        GameConfig.advancedSigningFee,
-        GameConfig.normalSigningFee,
-      ),
-      'advancedDismissal': GameConfig.advancedDismissalGold,
-      'normalDismissal': GameConfig.normalDismissalGold,
       'retreatSurvivalRatio': GameConfig.aiRetreatSurvivalRatio,
-      'retreatFailure': GameConfig.retreatFailureChance,
-      'weaponChance': GameConfig.weaponChanceAfterClash,
+      'retreatFailure': 1 - GameConfig.retreatBaseSuccessChance,
+      'weaponChance': 0,
     };
     final weapons = [
       for (final w in weaponCatalog.weapons.values)
@@ -45,7 +40,7 @@ extension _AiObservationBridge on CampaignState {
           w.price,
           w.damage,
           w.selfDamage,
-          w.minimumCities,
+          w.unlockYear,
           w.shopEnabled,
           w.animationFrames / 60,
         ),
@@ -137,7 +132,6 @@ extension _AiObservationBridge on CampaignState {
           country: city.ownerCountryId,
           nativeCountry: city.nativeCountryId,
           level: city.level,
-          requiredGarrison: city.requiredGarrison,
           center: AiPoint(rect.center.dx, rect.center.dy),
           outline: AiOutline([
             for (final p in _cityContact(definition).outline)
@@ -147,7 +141,7 @@ extension _AiObservationBridge on CampaignState {
           poorIncome: city.incomeFor(Harvest.poor),
           baseIncome: city.baseIncome,
           capacityContribution: city.reserveCapacity,
-          recruitCapacity: city.recruitCapacity,
+          rearStagingCapacity: city.rearStagingCapacity,
           recruitAllowed:
               city.ownerCountryId == countryId &&
               recruitmentBlockReason(definition.id, countryId: countryId) ==
@@ -225,13 +219,15 @@ extension _AiObservationBridge on CampaignState {
           combat: hero.combat,
           politics: hero.politics,
           salary: GameConfig.chargeHeroSalary ? hero.salary : 0,
+          salaryPaidMonth: hero._salaryPaidMonth,
           position: AiPoint(position.dx, position.dy),
+          regionCity: territories.regionAt(position),
           velocity: AiPoint(velocity.dx, velocity.dy),
           state: _aiArmyState(hero),
           soldiers: hero.squad.map((s) => s.hp).toList(),
           weapons: hero.weaponIds,
           morale: battle == null
-              ? 0
+              ? hero.morale.toDouble()
               : battle.simulation
                     .morale(
                       attacking ? BattleSide.attacker : BattleSide.defender,
@@ -257,7 +253,9 @@ extension _AiObservationBridge on CampaignState {
               own && dismissalBlockReason(hero, countryId: countryId) == null,
           canUpgrade:
               own &&
-              _upgradeParticipantProblem(hero.cityId, hero, countryId) == null,
+              _upgradeParticipantProblem(hero.cityId, hero, countryId) ==
+                  null &&
+              upgradeWindowBlockReason(hero.cityId) == null,
           canRetreat:
               own && retreatBlockReason(hero.id, countryId: countryId) == null,
           marked: _disbandAfterBattle.contains(hero.id),
@@ -310,11 +308,15 @@ extension _AiObservationBridge on CampaignState {
       country: countryId,
       tick: tick,
       monthRemaining: GameConfig.secondsPerMonth - _monthSeconds,
+      year: year,
+      monthIndex: settledMonths,
       cities: cityViews,
       heroes: heroViews,
       countries: countryViews,
       poolCount: _heroPool.length,
-      maximumSalary: _catalog.values.map(salaryFor).fold(0, math.max),
+      maximumSalary: _catalog.values
+          .map((h) => h.salaryFor(countryId))
+          .fold(0, math.max),
     );
   }
 }

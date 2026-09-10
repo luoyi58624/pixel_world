@@ -2,7 +2,7 @@ part of '../campaign.dart';
 
 /// 一国所有城池共用的兵员储备，不包括已领走的随军士兵。
 class CountryTroops {
-  /// 创建开局兵员，容量由战役中全国城防和存活将领共同决定。
+  /// 创建开局兵员，容量由固定基数及后续城防、领地增减决定。
   CountryTroops({int reserveSoldiers = 0})
     : _reserveSoldiers = reserveSoldiers {
     if (reserveSoldiers < 0) {

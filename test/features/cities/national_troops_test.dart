@@ -89,20 +89,21 @@ void _return(CampaignState c, HeroMarch march, int cityId) {
 }
 
 void main() {
-  test('各城初始兵员汇入国家，一座城可贡献超过本地容量，只校验全国总量', () {
+  test('开局兵力按初始将领与城防满编，不采用旧逐城兵员配置', () {
     final c = _campaign();
     expect(c.reserveCapacityFor(0), 24);
-    expect(c.reserveSoldiersFor(0), 22);
-    expect(c.soldiersAt(0), 22);
-    expect(c.soldiersAt(2), 22);
-    expect(c.reserveSoldiersFor(1), 5);
-    expect(c.reserveSoldiersFor(2), 4);
-    expect(() => _campaign(secondStock: 5), throwsArgumentError);
+    expect(c.reserveSoldiersFor(0), 24);
+    expect(c.soldiersAt(0), 24);
+    expect(c.soldiersAt(2), 24);
+    expect(c.reserveSoldiersFor(1), 24);
+    expect(c.reserveSoldiersFor(2), 8);
+    expect(_campaign(secondStock: 5).reserveSoldiersFor(0), 24);
     expect(() => CountryTroops(reserveSoldiers: -1), throwsArgumentError);
   });
 
   test('任意友城征兵和出征都操作全国同一份库存，跨城归还不会重复加兵', () {
     final c = _campaign();
+    c.countryTroops[0] = CountryTroops(reserveSoldiers: 22);
     final gold = c.gold;
     expect(c.buySoldiers(2, 2), isTrue);
     expect(c.gold, gold - 2);
@@ -122,7 +123,7 @@ void main() {
     expect(c.reserveSoldiersFor(0), 23);
     c.advance(1);
     expect(c.reserveSoldiersFor(0), 23);
-    expect(c.reserveSoldiersFor(1), 5);
+    expect(c.reserveSoldiersFor(1), 24);
   });
 
   test('两座城同时守卫也从全国顺序领兵，总共六兵不能领成两队四兵', () {
@@ -151,20 +152,20 @@ void main() {
     expect(c.cityName(1), '阿尔马');
     expect(c.world.cities[1].label, '奥尔梅'); // 原地图资料不被战役改写。
     expect(c.cities[3]!.ownerCountryId, 1);
-    expect(c.reserveSoldiersFor(1), 5);
-    expect(c.reserveCapacityFor(1), 8);
-    expect(c.reserveSoldiersFor(0), 22);
-    expect(c.reserveCapacityFor(0), 26);
-    expect(c.soldiersAt(1), 22);
+    expect(c.reserveSoldiersFor(1), 16);
+    expect(c.reserveCapacityFor(1), 16);
+    expect(c.reserveSoldiersFor(0), 24);
+    expect(c.reserveCapacityFor(0), 28);
+    expect(c.soldiersAt(1), 24);
     c.defeatHero(hero.id, winnerCountryId: 2, defendedCityId: 1);
     expect(c.cityName(1), '迪麦');
-    expect(c.soldiersAt(1), 4);
-    expect(c.reserveSoldiersFor(0), 20); // 失去一城、一将后按全国上限裁减。
+    expect(c.soldiersAt(1), 8);
+    expect(c.reserveSoldiersFor(0), 24); // 失去一城、一将后按全国上限裁减。
     c.defeatHero(_hero(c, 5).id, winnerCountryId: 2, defendedCityId: 3);
     expect(c.cityName(3), '迪麦');
     expect(c.reserveSoldiersFor(1), 0);
     expect(c.reserveCapacityFor(1), 0);
-    expect(c.reserveSoldiersFor(2), 4);
+    expect(c.reserveSoldiersFor(2), 8);
   });
 
   test('实际攻城结束后观战地点与城池名同步变更，兵员不会因占领复制', () {
@@ -181,7 +182,7 @@ void main() {
     expect(battle.isActive, isFalse);
     expect(battle.locationLabel, '阿尔马国');
     expect(c.cityName(1), '阿尔马');
-    expect(c.reserveSoldiersFor(0), 22);
+    expect(c.reserveSoldiersFor(0), 24);
     expect(c.soldiersAt(0), c.soldiersAt(1));
   });
 }

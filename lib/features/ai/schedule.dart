@@ -10,6 +10,16 @@ class CountryAiSchedule {
   final AiTuning tuning;
   double _resourceAt = 0, _defenseAt = 0, _attackAt = 0, _retryAt = 0;
   AiRequest? _pending;
+  int? _defenseAlarmTick;
+
+  /// 国境变化尚未由新观察处理，阻止继续执行旧的进攻建议。
+  bool get defenseAlarmPending => _defenseAlarmTick != null;
+
+  /// 越境事件唤醒防守；正在计算的请求保持唯一，完成后立即处理新警报。
+  void requestDefense(double now) {
+    _defenseAlarmTick = (now * 60).round();
+    _retryAt = now;
+  }
 
   /// 未完成请求阻止同国新观察覆盖旧任务。
   AiRequest? get pending => _pending;
@@ -18,6 +28,7 @@ class CountryAiSchedule {
   AiDecisionStage? due(double now) {
     if (_pending != null || now < _retryAt) return null;
     if (now >= _resourceAt) return AiDecisionStage.resources;
+    if (defenseAlarmPending) return AiDecisionStage.defense;
     if (now >= _defenseAt) return AiDecisionStage.defense;
     if (now >= _attackAt) return AiDecisionStage.attack;
     return null;
@@ -35,7 +46,7 @@ class CountryAiSchedule {
     if (request == null || request.id != id) return;
     _pending = null;
     if (!adopted) {
-      _retryAt = now + 2;
+      _retryAt = defenseAlarmPending ? now : now + 2;
       return;
     }
     _retryAt = now;
@@ -45,6 +56,10 @@ class CountryAiSchedule {
         _defenseAt = now;
         _attackAt = now;
       case AiDecisionStage.defense:
+        if (_defenseAlarmTick != null &&
+            request.observation.tick >= _defenseAlarmTick!) {
+          _defenseAlarmTick = null;
+        }
         _defenseAt = now + tuning.intervalSeconds;
         _attackAt = now;
       case AiDecisionStage.attack:

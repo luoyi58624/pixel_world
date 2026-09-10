@@ -16,7 +16,7 @@ class WeaponDefinition {
         1,
         3000,
       ),
-      minimumCities = _number(data, 'minimumCities', 1, 16),
+      unlockYear = _number({'unlockYear': 1, ...data}, 'unlockYear', 1, 9999),
       shopEnabled = data['shopEnabled'] as bool {
     if (name.trim().isEmpty) throw const FormatException('武器名称不能为空');
   }
@@ -42,8 +42,8 @@ class WeaponDefinition {
   /// 原动画从开始到结算伤害的帧数，不含回到阵位的准备动作。
   final int animationFrames;
 
-  /// 保留的数据兼容字段，当前游戏购买不受城池数量限制。
-  final int minimumCities;
+  /// 第几年允许在商店购买。
+  final int unlockYear;
 
   /// 原版三种事件武器不在普通商店销售，可通过初始库存配置取得。
   final bool shopEnabled;
@@ -107,6 +107,13 @@ class WeaponCatalog {
 
   /// 按原编号查找武器。
   final Map<int, WeaponDefinition> weapons;
+
+  /// 按年份分行、行内按价格排列，价格调整不会把未解锁武器挤到第一行。
+  List<WeaponDefinition> get shopWeapons =>
+      weapons.values.toList()..sort((a, b) {
+        final year = a.unlockYear.compareTo(b.unlockYear);
+        return year != 0 ? year : a.price.compareTo(b.price);
+      });
 
   /// 一位将领的携带上限，默认三件。
   final int carryLimit;

@@ -11,7 +11,7 @@
       "nameSource": "player_input_ram_6FB0",
       "encodedName": [],
       "maxHp": 99,
-      "combat": 15,
+      "combat": 18,
       "politics": 15,
       "salary": 0,
       "romSalary": 0,
@@ -29,7 +29,10 @@
         "packedPoliticsSalary": 98834,
         "eggFlags": 98875,
         "typeSeed": 98966
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 0,
+      "morale": 100
     },
     {
       "id": 0,
@@ -46,9 +49,9 @@
         0
       ],
       "maxHp": 95,
-      "combat": 15,
+      "combat": 18,
       "politics": 15,
-      "salary": 3,
+      "salary": 10,
       "romSalary": 8,
       "eggCapable": true,
       "rawEggFlags": 202,
@@ -64,7 +67,10 @@
         "packedPoliticsSalary": 98794,
         "eggFlags": 98835,
         "typeSeed": 98926
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 0,
+      "morale": 100
     },
     {
       "id": 1,
@@ -82,9 +88,9 @@
         0
       ],
       "maxHp": 95,
-      "combat": 15,
+      "combat": 18,
       "politics": 15,
-      "salary": 3,
+      "salary": 10,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 202,
@@ -100,7 +106,10 @@
         "packedPoliticsSalary": 98795,
         "eggFlags": 98836,
         "typeSeed": 98927
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": null,
+      "morale": 100
     },
     {
       "id": 2,
@@ -119,9 +128,9 @@
         0
       ],
       "maxHp": 94,
-      "combat": 15,
+      "combat": 18,
       "politics": 3,
-      "salary": 3,
+      "salary": 10,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 201,
@@ -137,7 +146,10 @@
         "packedPoliticsSalary": 98796,
         "eggFlags": 98837,
         "typeSeed": 98928
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 0,
+      "morale": 100
     },
     {
       "id": 3,
@@ -157,9 +169,9 @@
         0
       ],
       "maxHp": 95,
-      "combat": 15,
+      "combat": 18,
       "politics": 10,
-      "salary": 3,
+      "salary": 10,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 200,
@@ -175,7 +187,10 @@
         "packedPoliticsSalary": 98797,
         "eggFlags": 98838,
         "typeSeed": 98929
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 1,
+      "morale": 100
     },
     {
       "id": 4,
@@ -193,9 +208,9 @@
         0
       ],
       "maxHp": 94,
-      "combat": 15,
+      "combat": 18,
       "politics": 13,
-      "salary": 3,
+      "salary": 9,
       "romSalary": 7,
       "eggCapable": false,
       "rawEggFlags": 9,
@@ -211,7 +226,10 @@
         "packedPoliticsSalary": 98798,
         "eggFlags": 98839,
         "typeSeed": 98930
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 1,
+      "morale": 90
     },
     {
       "id": 5,
@@ -231,9 +249,9 @@
         0
       ],
       "maxHp": 77,
-      "combat": 15,
+      "combat": 18,
       "politics": 15,
-      "salary": 2,
+      "salary": 9,
       "romSalary": 2,
       "eggCapable": false,
       "rawEggFlags": 10,
@@ -249,7 +267,10 @@
         "packedPoliticsSalary": 98799,
         "eggFlags": 98840,
         "typeSeed": 98931
-      }
+      },
+      "romCombat": 15,
+      "nativeCountryId": 1,
+      "morale": 90
     },
     {
       "id": 6,
@@ -266,9 +287,9 @@
         0
       ],
       "maxHp": 76,
-      "combat": 14,
+      "combat": 17,
       "politics": 5,
-      "salary": 2,
+      "salary": 8,
       "romSalary": 8,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -284,7 +305,10 @@
         "packedPoliticsSalary": 98800,
         "eggFlags": 98841,
         "typeSeed": 98932
-      }
+      },
+      "romCombat": 14,
+      "nativeCountryId": 2,
+      "morale": 80
     },
     {
       "id": 7,
@@ -304,9 +328,9 @@
         0
       ],
       "maxHp": 71,
-      "combat": 14,
+      "combat": 17,
       "politics": 7,
-      "salary": 2,
+      "salary": 8,
       "romSalary": 5,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -322,7 +346,10 @@
         "packedPoliticsSalary": 98801,
         "eggFlags": 98842,
         "typeSeed": 98933
-      }
+      },
+      "romCombat": 14,
+      "nativeCountryId": 2,
+      "morale": 80
     },
     {
       "id": 8,
@@ -341,9 +368,9 @@
         0
       ],
       "maxHp": 73,
-      "combat": 13,
+      "combat": 16,
       "politics": 1,
-      "salary": 2,
+      "salary": 8,
       "romSalary": 7,
       "eggCapable": false,
       "rawEggFlags": 68,
@@ -359,7 +386,10 @@
         "packedPoliticsSalary": 98802,
         "eggFlags": 98843,
         "typeSeed": 98934
-      }
+      },
+      "romCombat": 13,
+      "nativeCountryId": 2,
+      "morale": 80
     },
     {
       "id": 9,
@@ -376,9 +406,9 @@
         0
       ],
       "maxHp": 74,
-      "combat": 13,
+      "combat": 16,
       "politics": 15,
-      "salary": 2,
+      "salary": 8,
       "romSalary": 9,
       "eggCapable": true,
       "rawEggFlags": 194,
@@ -394,7 +424,10 @@
         "packedPoliticsSalary": 98803,
         "eggFlags": 98844,
         "typeSeed": 98935
-      }
+      },
+      "romCombat": 13,
+      "nativeCountryId": 3,
+      "morale": 80
     },
     {
       "id": 10,
@@ -416,7 +449,7 @@
       "maxHp": 53,
       "combat": 13,
       "politics": 13,
-      "salary": 1,
+      "salary": 7,
       "romSalary": 8,
       "eggCapable": true,
       "rawEggFlags": 133,
@@ -432,7 +465,10 @@
         "packedPoliticsSalary": 98804,
         "eggFlags": 98845,
         "typeSeed": 98936
-      }
+      },
+      "romCombat": 13,
+      "nativeCountryId": 3,
+      "morale": 80
     },
     {
       "id": 11,
@@ -451,7 +487,7 @@
       "maxHp": 71,
       "combat": 12,
       "politics": 7,
-      "salary": 1,
+      "salary": 6,
       "romSalary": 10,
       "eggCapable": false,
       "rawEggFlags": 8,
@@ -467,7 +503,10 @@
         "packedPoliticsSalary": 98805,
         "eggFlags": 98846,
         "typeSeed": 98937
-      }
+      },
+      "romCombat": 12,
+      "nativeCountryId": 5,
+      "morale": 75
     },
     {
       "id": 12,
@@ -486,7 +525,7 @@
       "maxHp": 40,
       "combat": 12,
       "politics": 4,
-      "salary": 1,
+      "salary": 6,
       "romSalary": 8,
       "eggCapable": false,
       "rawEggFlags": 4,
@@ -502,7 +541,10 @@
         "packedPoliticsSalary": 98806,
         "eggFlags": 98847,
         "typeSeed": 98938
-      }
+      },
+      "romCombat": 12,
+      "nativeCountryId": 4,
+      "morale": 75
     },
     {
       "id": 13,
@@ -521,7 +563,7 @@
       "maxHp": 74,
       "combat": 11,
       "politics": 8,
-      "salary": 1,
+      "salary": 5,
       "romSalary": 6,
       "eggCapable": false,
       "rawEggFlags": 2,
@@ -537,7 +579,10 @@
         "packedPoliticsSalary": 98807,
         "eggFlags": 98848,
         "typeSeed": 98939
-      }
+      },
+      "romCombat": 11,
+      "nativeCountryId": 4,
+      "morale": 70
     },
     {
       "id": 14,
@@ -556,7 +601,7 @@
       "maxHp": 88,
       "combat": 12,
       "politics": 15,
-      "salary": 1,
+      "salary": 6,
       "romSalary": 9,
       "eggCapable": true,
       "rawEggFlags": 197,
@@ -572,7 +617,10 @@
         "packedPoliticsSalary": 98808,
         "eggFlags": 98849,
         "typeSeed": 98940
-      }
+      },
+      "romCombat": 12,
+      "nativeCountryId": 5,
+      "morale": 75
     },
     {
       "id": 15,
@@ -592,7 +640,7 @@
       "maxHp": 38,
       "combat": 11,
       "politics": 10,
-      "salary": 0,
+      "salary": 5,
       "romSalary": 4,
       "eggCapable": false,
       "rawEggFlags": 4,
@@ -608,7 +656,10 @@
         "packedPoliticsSalary": 98809,
         "eggFlags": 98850,
         "typeSeed": 98941
-      }
+      },
+      "romCombat": 11,
+      "nativeCountryId": null,
+      "morale": 70
     },
     {
       "id": 16,
@@ -626,7 +677,7 @@
       "maxHp": 56,
       "combat": 10,
       "politics": 2,
-      "salary": 0,
+      "salary": 5,
       "romSalary": 5,
       "eggCapable": false,
       "rawEggFlags": 9,
@@ -642,7 +693,10 @@
         "packedPoliticsSalary": 98810,
         "eggFlags": 98851,
         "typeSeed": 98942
-      }
+      },
+      "romCombat": 10,
+      "nativeCountryId": 6,
+      "morale": 70
     },
     {
       "id": 17,
@@ -661,7 +715,7 @@
       "maxHp": 89,
       "combat": 10,
       "politics": 2,
-      "salary": 0,
+      "salary": 5,
       "romSalary": 10,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -677,7 +731,10 @@
         "packedPoliticsSalary": 98811,
         "eggFlags": 98852,
         "typeSeed": 98943
-      }
+      },
+      "romCombat": 10,
+      "nativeCountryId": 6,
+      "morale": 70
     },
     {
       "id": 18,
@@ -695,7 +752,7 @@
       "maxHp": 36,
       "combat": 9,
       "politics": 9,
-      "salary": 0,
+      "salary": 4,
       "romSalary": 4,
       "eggCapable": true,
       "rawEggFlags": 197,
@@ -711,7 +768,10 @@
         "packedPoliticsSalary": 98812,
         "eggFlags": 98853,
         "typeSeed": 98944
-      }
+      },
+      "romCombat": 9,
+      "nativeCountryId": 7,
+      "morale": 60
     },
     {
       "id": 19,
@@ -734,7 +794,7 @@
       "maxHp": 58,
       "combat": 9,
       "politics": 10,
-      "salary": 0,
+      "salary": 4,
       "romSalary": 5,
       "eggCapable": false,
       "rawEggFlags": 4,
@@ -750,7 +810,10 @@
         "packedPoliticsSalary": 98813,
         "eggFlags": 98854,
         "typeSeed": 98945
-      }
+      },
+      "romCombat": 9,
+      "nativeCountryId": 7,
+      "morale": 60
     },
     {
       "id": 20,
@@ -769,7 +832,7 @@
       "maxHp": 23,
       "combat": 8,
       "politics": 3,
-      "salary": 0,
+      "salary": 4,
       "romSalary": 3,
       "eggCapable": false,
       "rawEggFlags": 2,
@@ -785,7 +848,10 @@
         "packedPoliticsSalary": 98814,
         "eggFlags": 98855,
         "typeSeed": 98946
-      }
+      },
+      "romCombat": 8,
+      "nativeCountryId": 7,
+      "morale": 60
     },
     {
       "id": 21,
@@ -808,7 +874,7 @@
       "maxHp": 54,
       "combat": 8,
       "politics": 7,
-      "salary": 0,
+      "salary": 4,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 133,
@@ -824,7 +890,10 @@
         "packedPoliticsSalary": 98815,
         "eggFlags": 98856,
         "typeSeed": 98947
-      }
+      },
+      "romCombat": 8,
+      "nativeCountryId": 8,
+      "morale": 60
     },
     {
       "id": 22,
@@ -843,7 +912,7 @@
       "maxHp": 41,
       "combat": 7,
       "politics": 4,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 2,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -859,7 +928,10 @@
         "packedPoliticsSalary": 98816,
         "eggFlags": 98857,
         "typeSeed": 98948
-      }
+      },
+      "romCombat": 7,
+      "nativeCountryId": 8,
+      "morale": 50
     },
     {
       "id": 23,
@@ -879,7 +951,7 @@
       "maxHp": 59,
       "combat": 7,
       "politics": 9,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 4,
       "eggCapable": true,
       "rawEggFlags": 201,
@@ -895,7 +967,10 @@
         "packedPoliticsSalary": 98817,
         "eggFlags": 98858,
         "typeSeed": 98949
-      }
+      },
+      "romCombat": 7,
+      "nativeCountryId": 9,
+      "morale": 50
     },
     {
       "id": 24,
@@ -914,7 +989,7 @@
       "maxHp": 71,
       "combat": 6,
       "politics": 10,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 3,
       "eggCapable": false,
       "rawEggFlags": 69,
@@ -930,7 +1005,10 @@
         "packedPoliticsSalary": 98818,
         "eggFlags": 98859,
         "typeSeed": 98950
-      }
+      },
+      "romCombat": 6,
+      "nativeCountryId": 9,
+      "morale": 50
     },
     {
       "id": 25,
@@ -947,7 +1025,7 @@
       "maxHp": 40,
       "combat": 6,
       "politics": 14,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 5,
       "eggCapable": false,
       "rawEggFlags": 6,
@@ -963,7 +1041,10 @@
         "packedPoliticsSalary": 98819,
         "eggFlags": 98860,
         "typeSeed": 98951
-      }
+      },
+      "romCombat": 6,
+      "nativeCountryId": 10,
+      "morale": 50
     },
     {
       "id": 26,
@@ -985,7 +1066,7 @@
       "maxHp": 57,
       "combat": 5,
       "politics": 5,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 134,
@@ -1001,7 +1082,10 @@
         "packedPoliticsSalary": 98820,
         "eggFlags": 98861,
         "typeSeed": 98952
-      }
+      },
+      "romCombat": 5,
+      "nativeCountryId": 10,
+      "morale": 40
     },
     {
       "id": 27,
@@ -1023,7 +1107,7 @@
       "maxHp": 23,
       "combat": 5,
       "politics": 3,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 2,
       "eggCapable": false,
       "rawEggFlags": 9,
@@ -1039,7 +1123,10 @@
         "packedPoliticsSalary": 98821,
         "eggFlags": 98862,
         "typeSeed": 98953
-      }
+      },
+      "romCombat": 5,
+      "nativeCountryId": 10,
+      "morale": 40
     },
     {
       "id": 28,
@@ -1058,7 +1145,7 @@
       "maxHp": 38,
       "combat": 4,
       "politics": 9,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 5,
       "eggCapable": true,
       "rawEggFlags": 193,
@@ -1074,7 +1161,10 @@
         "packedPoliticsSalary": 98822,
         "eggFlags": 98863,
         "typeSeed": 98954
-      }
+      },
+      "romCombat": 4,
+      "nativeCountryId": 11,
+      "morale": 40
     },
     {
       "id": 29,
@@ -1093,7 +1183,7 @@
       "maxHp": 53,
       "combat": 4,
       "politics": 4,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 4,
       "eggCapable": false,
       "rawEggFlags": 1,
@@ -1109,7 +1199,10 @@
         "packedPoliticsSalary": 98823,
         "eggFlags": 98864,
         "typeSeed": 98955
-      }
+      },
+      "romCombat": 4,
+      "nativeCountryId": 11,
+      "morale": 40
     },
     {
       "id": 30,
@@ -1128,7 +1221,7 @@
       "maxHp": 38,
       "combat": 3,
       "politics": 4,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 5,
       "eggCapable": false,
       "rawEggFlags": 1,
@@ -1144,7 +1237,10 @@
         "packedPoliticsSalary": 98824,
         "eggFlags": 98865,
         "typeSeed": 98956
-      }
+      },
+      "romCombat": 3,
+      "nativeCountryId": 11,
+      "morale": 30
     },
     {
       "id": 31,
@@ -1167,7 +1263,7 @@
       "maxHp": 63,
       "combat": 3,
       "politics": 8,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 196,
@@ -1183,7 +1279,10 @@
         "packedPoliticsSalary": 98825,
         "eggFlags": 98866,
         "typeSeed": 98957
-      }
+      },
+      "romCombat": 3,
+      "nativeCountryId": 1,
+      "morale": 30
     },
     {
       "id": 32,
@@ -1204,7 +1303,7 @@
       "maxHp": 62,
       "combat": 2,
       "politics": 6,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 3,
       "eggCapable": false,
       "rawEggFlags": 64,
@@ -1220,7 +1319,10 @@
         "packedPoliticsSalary": 98826,
         "eggFlags": 98867,
         "typeSeed": 98958
-      }
+      },
+      "romCombat": 2,
+      "nativeCountryId": 1,
+      "morale": 30
     },
     {
       "id": 33,
@@ -1243,7 +1345,7 @@
       "maxHp": 45,
       "combat": 2,
       "politics": 5,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 7,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -1259,7 +1361,10 @@
         "packedPoliticsSalary": 98827,
         "eggFlags": 98868,
         "typeSeed": 98959
-      }
+      },
+      "romCombat": 2,
+      "nativeCountryId": 3,
+      "morale": 30
     },
     {
       "id": 34,
@@ -1281,7 +1386,7 @@
       "maxHp": 29,
       "combat": 11,
       "politics": 9,
-      "salary": 0,
+      "salary": 5,
       "romSalary": 10,
       "eggCapable": true,
       "rawEggFlags": 196,
@@ -1297,7 +1402,10 @@
         "packedPoliticsSalary": 98828,
         "eggFlags": 98869,
         "typeSeed": 98960
-      }
+      },
+      "romCombat": 11,
+      "nativeCountryId": 3,
+      "morale": 70
     },
     {
       "id": 35,
@@ -1317,7 +1425,7 @@
       "maxHp": 44,
       "combat": 9,
       "politics": 10,
-      "salary": 0,
+      "salary": 4,
       "romSalary": 6,
       "eggCapable": false,
       "rawEggFlags": 5,
@@ -1333,7 +1441,10 @@
         "packedPoliticsSalary": 98829,
         "eggFlags": 98870,
         "typeSeed": 98961
-      }
+      },
+      "romCombat": 9,
+      "nativeCountryId": 4,
+      "morale": 60
     },
     {
       "id": 36,
@@ -1353,7 +1464,7 @@
       "maxHp": 40,
       "combat": 7,
       "politics": 11,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 4,
       "eggCapable": false,
       "rawEggFlags": 0,
@@ -1369,7 +1480,10 @@
         "packedPoliticsSalary": 98830,
         "eggFlags": 98871,
         "typeSeed": 98962
-      }
+      },
+      "romCombat": 7,
+      "nativeCountryId": null,
+      "morale": 50
     },
     {
       "id": 37,
@@ -1388,7 +1502,7 @@
       "maxHp": 26,
       "combat": 6,
       "politics": 14,
-      "salary": 0,
+      "salary": 3,
       "romSalary": 5,
       "eggCapable": true,
       "rawEggFlags": 129,
@@ -1404,7 +1518,10 @@
         "packedPoliticsSalary": 98831,
         "eggFlags": 98872,
         "typeSeed": 98963
-      }
+      },
+      "romCombat": 6,
+      "nativeCountryId": 6,
+      "morale": 50
     },
     {
       "id": 38,
@@ -1422,7 +1539,7 @@
       "maxHp": 39,
       "combat": 4,
       "politics": 9,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 3,
       "eggCapable": false,
       "rawEggFlags": 2,
@@ -1438,7 +1555,10 @@
         "packedPoliticsSalary": 98832,
         "eggFlags": 98873,
         "typeSeed": 98964
-      }
+      },
+      "romCombat": 4,
+      "nativeCountryId": null,
+      "morale": 40
     },
     {
       "id": 39,
@@ -1458,7 +1578,7 @@
       "maxHp": 24,
       "combat": 2,
       "politics": 8,
-      "salary": 0,
+      "salary": 2,
       "romSalary": 4,
       "eggCapable": false,
       "rawEggFlags": 1,
@@ -1474,7 +1594,10 @@
         "packedPoliticsSalary": 98833,
         "eggFlags": 98874,
         "typeSeed": 98965
-      }
+      },
+      "romCombat": 2,
+      "nativeCountryId": null,
+      "morale": 30
     }
   ],
   "notes": {
@@ -1485,7 +1608,9 @@
     "aces": "王牌库存属于 RAM 的动态物品槽，开局清为 FF；召唤蛋与王牌库存不是同一个字段。",
     "egg": "eggCapable 来自 CF77 对 8203+ID 最高位的检查；蛋的具体召唤结果依赖运行状态，未展开。",
     "specialSlots": "初始化循环还处理 41–45 特殊单位槽，内政/报酬表仅覆盖 0–40，不将越界字节解释为英雄属性。",
-    "salary": "salary 是可直接调整的月俸金币，romSalary 是原版报酬；主角免费。",
-    "order": "主角排在第一位，其余按本文件 heroes 数组顺序展示，守城时从末位出战。"
+    "salary": "外聘月俸：高级将领8–10金币；普通将领按战力2–7金币。专属国任职免费，签约立即预付当月，月末不重复计费。",
+    "order": "主角排在第一位，其余按本文件 heroes 数组顺序展示，守城时从末位出战。",
+    "morale": "morale 为独立的新游戏属性，上限100，不再由攻击力或HP计算。",
+    "nativeCountryId": "以第三张图实际开局归属绑定专属国家；重复ID按现有开局规则取最后归属，未登场英雄为空。专属国任职免月俸。"
   }
 }

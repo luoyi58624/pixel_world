@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -56,11 +59,15 @@ WorldDefinition _world([int terrain = 0]) => WorldDefinition.fromJson(
   [0, 1, 2, 3],
 );
 
-CampaignState _campaign([int terrain = 0]) => CampaignState.fromRom(
-  _world(terrain),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  startingGold: 1000,
-  aiEnabled: false,
+CampaignState _campaign([int terrain = 0]) => ongoingCampaign(
+  CampaignState.fromRom(
+    _world(terrain),
+    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    startingGold: 1000,
+    aiEnabled: false,
+  ),
+  stock: 0,
+  year: 1,
 );
 
 CampaignHero _hero(CampaignState c, int id) =>
@@ -72,8 +79,16 @@ CampaignHero _hero(CampaignState c, int id) =>
   int second = 3,
 }) {
   final a = _hero(c, first), b = _hero(c, second);
-  final left = c.dispatchTo(a, const GamePoint(320, 160), countryId: a.countryId)!;
-  final right = c.dispatchTo(b, const GamePoint(80, 160), countryId: b.countryId)!;
+  final left = c.dispatchTo(
+    a,
+    const GamePoint(320, 160),
+    countryId: a.countryId,
+  )!;
+  final right = c.dispatchTo(
+    b,
+    const GamePoint(80, 160),
+    countryId: b.countryId,
+  )!;
   left.position = const GamePoint(150, 160);
   right.position = const GamePoint(200, 160);
   return (left, right);
@@ -153,16 +168,8 @@ void main() {
             .every((unit) => unit.attack == 2),
         isTrue,
       );
-      expect(
-        sim.attackerMorale.maximum,
-        (((a.hero.combat * entry.value.heroAttackFactor).floor() + 1) * 4 - 1)
-            .clamp(0, 63),
-      );
-      expect(
-        sim.defenderMorale.maximum,
-        (((b.hero.combat * entry.value.heroAttackFactor).floor() + 1) * 4 - 1)
-            .clamp(0, 63),
-      );
+      expect(sim.attackerMorale.maximum, 100);
+      expect(sim.defenderMorale.maximum, 100);
     }
   });
 
@@ -191,10 +198,7 @@ void main() {
       expect(sim.basePower(BattleSide.defender), power);
       expect(sim.lastClash!.attackerDamage, inInclusiveRange(q + 1, q * 2 + 1));
       expect(sim.lastClash!.defenderDamage, inInclusiveRange(q + 1, q * 2 + 1));
-      expect(
-        sim.defenderMorale.maximum,
-        (((15 * terrain.heroAttackFactor).floor() + 1) * 4 - 1).clamp(0, 63),
-      );
+      expect(sim.defenderMorale.maximum, 100);
     }
   });
 

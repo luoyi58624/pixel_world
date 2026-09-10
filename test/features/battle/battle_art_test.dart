@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
@@ -83,7 +84,7 @@ void main() {
     }
     expect(
       BattleSimulation.arenaSize,
-      Size(
+      GameSize(
         (layout['arenaSize'][0] as int).toDouble(),
         (layout['arenaSize'][1] as int).toDouble(),
       ),
@@ -135,10 +136,16 @@ void main() {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final art = BattleArt(assets);
-      expect(assets.battleSprites.length, 9);
+      expect(assets.battleSprites.length, 11);
       for (final image
           in assets.battleSprites.entries
-              .where((e) => e.key != 'hero_names')
+              .where(
+                (e) => !{
+                  'hero_names',
+                  'result_labels',
+                  'weapon_effects',
+                }.contains(e.key),
+              )
               .map((e) => e.value)) {
         expect(
           Size(image.width.toDouble(), image.height.toDouble()),

@@ -12,13 +12,13 @@ class AiWeapon {
     this.price,
     this.damage,
     this.selfDamage,
-    this.minimumCities,
+    this.unlockYear,
     this.shopEnabled,
     this.seconds,
   );
 
   /// 武器属性。
-  final int id, price, damage, selfDamage, minimumCities;
+  final int id, price, damage, selfDamage, unlockYear;
   final bool shopEnabled;
   final double seconds;
 
@@ -28,7 +28,7 @@ class AiWeapon {
     price,
     damage,
     selfDamage,
-    minimumCities,
+    unlockYear,
     shopEnabled,
     seconds,
   ];
@@ -107,6 +107,16 @@ class AiRules {
   int? upgradeCost(int level, int politics) => level > upgradeCosts.length
       ? null
       : (upgradeCosts[level - 1] - politics).clamp(0, 99999);
+
+  /// 当前年份允许的新城防等级，按同一份初始化规则限制复合升级方案。
+  int cityUpgradeLimit(int year) =>
+      ((values['firstYearCityLevel'] ?? integer('maxLevel')).toInt() +
+              (year - (values['initialYear'] ?? 1).toInt()).clamp(
+                    0,
+                    integer('maxLevel'),
+                  ) *
+                  (values['cityLevelsPerYear'] ?? 1).toInt())
+          .clamp(1, integer('maxLevel'));
 
   /// 序列化初始化消息。
   Map<String, Object?> toJson() => {

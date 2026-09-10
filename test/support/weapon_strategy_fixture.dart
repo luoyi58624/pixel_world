@@ -108,6 +108,8 @@ CampaignState weaponStrategyCampaign({
     siegeRandom: const FixedSiegeRandom(),
     retreatRandom: const FixedSiegeRandom(.9),
   );
+  c.settledMonths = 36; // 武器效果测试使用全部已解锁的年份。
+  c.countryTroops[1] = CountryTroops();
   c.countryTroops[2] = CountryTroops(reserveSoldiers: enemyStock);
   c.countryTroops[0] = CountryTroops(reserveSoldiers: 4);
   return c;

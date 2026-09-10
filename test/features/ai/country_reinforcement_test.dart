@@ -8,7 +8,7 @@ import '../../support/national_ai_fixture.dart';
   int level = 2,
   bool far = false,
   bool friendly = false,
-  int gold = 200,
+  int gold = 20,
 }) {
   final c = nationalScenario(
     ai: false,
@@ -28,7 +28,9 @@ import '../../support/national_ai_fixture.dart';
   final hero = c.heroes.firstWhere((h) => h.sourceId == 0);
   final march = c.dispatchTo(hero, const GamePoint(600, 100), countryId: 1)!;
   final home = c.cityBounds(c.world.cities[1]).center;
-  march.position = far ? const GamePoint(900, 800) : home + const GamePoint(15, -60);
+  march.position = far
+      ? const GamePoint(900, 800)
+      : home + const GamePoint(15, -60);
   approaching(c, distance: 140);
   c.advance(1 / 60);
   return (c, march);

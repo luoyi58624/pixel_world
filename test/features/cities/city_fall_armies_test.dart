@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -180,7 +181,7 @@ void main() {
     final gold = c.gold, month = c.settledTurns;
     finish(c, battle);
     expect(c.heroes, isNot(contains(hero)));
-    expect(c.gold, gold);
+    expect(c.gold, gold + 50); // 最后一城的战利品仍按本场已经发生的胜负结算。
     expect(c.settledTurns, month);
     expect(c.defeated, isTrue);
   });
@@ -223,9 +224,9 @@ void main() {
     }
     expect(c.watchedBattle, same(battle));
     expect(battle.wave, 1);
-    expect(battle.nextWaveIn, 0);
+    expect(battle.nextWaveIn, greaterThan(0));
     expect(c.campaign.cities[1]!.level, levelBeforeResult);
-    expect(c.campaign.heroes, contains(d));
+    expect(c.campaign.heroes, isNot(contains(d)));
     for (var i = 0; i < 3000 && battle.wave == 1; i++) {
       c.tick(1 / 60);
     }

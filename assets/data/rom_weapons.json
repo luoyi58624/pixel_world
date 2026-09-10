@@ -11,7 +11,6 @@
       "selfDamage": 0,
       "romPrice": 3,
       "romDamage": 20,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 0,
       "encodedName": [
@@ -27,7 +26,8 @@
         "damage": 92534
       },
       "animationFrames": 118,
-      "romMinimumCities": 1
+      "romMinimumCities": 1,
+      "unlockYear": 1
     },
     {
       "id": 1,
@@ -37,7 +37,6 @@
       "selfDamage": 0,
       "romPrice": 7,
       "romDamage": 30,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 1,
       "encodedName": [
@@ -53,7 +52,8 @@
         "damage": 92535
       },
       "animationFrames": 209,
-      "romMinimumCities": 2
+      "romMinimumCities": 2,
+      "unlockYear": 1
     },
     {
       "id": 2,
@@ -63,7 +63,6 @@
       "selfDamage": 0,
       "romPrice": 12,
       "romDamage": 40,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 2,
       "encodedName": [
@@ -82,7 +81,8 @@
         "damage": 92536
       },
       "animationFrames": 90,
-      "romMinimumCities": 3
+      "romMinimumCities": 3,
+      "unlockYear": 2
     },
     {
       "id": 3,
@@ -92,7 +92,6 @@
       "selfDamage": 0,
       "romPrice": 16,
       "romDamage": 50,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 3,
       "encodedName": [
@@ -112,7 +111,8 @@
         "damage": 92537
       },
       "animationFrames": 98,
-      "romMinimumCities": 4
+      "romMinimumCities": 4,
+      "unlockYear": 3
     },
     {
       "id": 4,
@@ -122,7 +122,6 @@
       "selfDamage": 0,
       "romPrice": 20,
       "romDamage": 60,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 4,
       "encodedName": [
@@ -142,7 +141,8 @@
         "damage": 92538
       },
       "animationFrames": 132,
-      "romMinimumCities": 5
+      "romMinimumCities": 5,
+      "unlockYear": 3
     },
     {
       "id": 5,
@@ -152,7 +152,6 @@
       "selfDamage": 0,
       "romPrice": 25,
       "romDamage": 70,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 5,
       "encodedName": [
@@ -171,7 +170,8 @@
         "damage": 92539
       },
       "animationFrames": 79,
-      "romMinimumCities": 6
+      "romMinimumCities": 6,
+      "unlockYear": 4
     },
     {
       "id": 9,
@@ -181,7 +181,6 @@
       "selfDamage": 0,
       "romPrice": 5,
       "romDamage": 25,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 9,
       "encodedName": [
@@ -199,7 +198,8 @@
         "damage": 92543
       },
       "animationFrames": 177,
-      "romMinimumCities": 1
+      "romMinimumCities": 1,
+      "unlockYear": 1
     },
     {
       "id": 10,
@@ -209,7 +209,6 @@
       "selfDamage": 0,
       "romPrice": 10,
       "romDamage": 35,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 10,
       "encodedName": [
@@ -227,7 +226,8 @@
         "damage": 92544
       },
       "animationFrames": 253,
-      "romMinimumCities": 2
+      "romMinimumCities": 2,
+      "unlockYear": 2
     },
     {
       "id": 11,
@@ -237,7 +237,6 @@
       "selfDamage": 0,
       "romPrice": 14,
       "romDamage": 45,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 11,
       "encodedName": [
@@ -256,7 +255,8 @@
         "damage": 92545
       },
       "animationFrames": 211,
-      "romMinimumCities": 3
+      "romMinimumCities": 3,
+      "unlockYear": 2
     },
     {
       "id": 12,
@@ -266,7 +266,6 @@
       "selfDamage": 0,
       "romPrice": 18,
       "romDamage": 55,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 12,
       "encodedName": [
@@ -285,7 +284,8 @@
         "damage": 92546
       },
       "animationFrames": 227,
-      "romMinimumCities": 4
+      "romMinimumCities": 4,
+      "unlockYear": 3
     },
     {
       "id": 13,
@@ -295,7 +295,6 @@
       "selfDamage": 0,
       "romPrice": 22,
       "romDamage": 65,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 13,
       "encodedName": [
@@ -314,7 +313,8 @@
         "damage": 92547
       },
       "animationFrames": 106,
-      "romMinimumCities": 5
+      "romMinimumCities": 5,
+      "unlockYear": 4
     },
     {
       "id": 14,
@@ -324,7 +324,6 @@
       "selfDamage": 0,
       "romPrice": 27,
       "romDamage": 75,
-      "minimumCities": 1,
       "shopEnabled": true,
       "effectId": 14,
       "encodedName": [
@@ -343,7 +342,8 @@
         "damage": 92548
       },
       "animationFrames": 195,
-      "romMinimumCities": 6
+      "romMinimumCities": 6,
+      "unlockYear": 4
     }
   ],
   "initialCountryStock": {},
@@ -354,6 +354,6 @@
     "damage": "DE8D–DE92 取高五位，bank5 A92A 读取 A966+效果ID，调用 E40C 直接伤害。",
     "selfDamage": "bank5 A934–A93F：效果8追加对己方255点伤害。",
     "consume": "DE82–DE8A：先读取705D+英雄ID×3+槽号，再以FF清空。",
-    "gameplay": "游戏商店全部开放；移除台风、强击手、死枪。原始完整记录位于 docs/reference/rom_weapons_original.json。"
+    "gameplay": "每个对阵最多使用一件，攻城更换守将后重新获得一次机会。商店按每行三件排序，每年解锁一行，共四行。"
   }
 }

@@ -87,6 +87,10 @@ CampaignState retreatCampaign({
     aiWorkerFactory: () => worker,
     aiRandom: math.Random(7),
   );
+  campaign.settledMonths = 1;
+  for (final owner in campaign.countryTroops.keys.toList()) {
+    campaign.countryTroops[owner] = CountryTroops();
+  }
   _setupWorkers[campaign] = worker;
   return campaign;
 }

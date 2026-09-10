@@ -124,6 +124,39 @@ class AiLedger {
       (arrivals[city] ?? 0) +
       (recruited.contains(city) ? 1 : 0);
 
+  /// 留守由来敌和现有队伍决定，单将国家在没有已知威胁时也能扩张。
+  int defendersToKeep(AiCity city) {
+    final original = view.garrison(city.id);
+    final guards = garrison(city.id);
+    final danger =
+        city.initialBattleLevel != null ||
+        view.heroes.any(
+          (h) =>
+              h.country != view.country &&
+              !h.stationed &&
+              !h.marked &&
+              h.hp > 0 &&
+              (h.regionCity == city.id ||
+                  h.position.distance(city.center) < 96),
+        );
+    if (danger) return guards.isEmpty ? 0 : 1;
+    if (guards.any((h) => h.type == 2)) return 1;
+    if (original.length <= 1) return 0;
+    final enemyDistance = view.cities
+        .where((c) => c.country != view.country)
+        .fold<double>(
+          double.infinity,
+          (d, c) => math.min(d, c.center.distance(city.center)),
+        );
+    final friendlyDistance = view.owned
+        .where((c) => c.id != city.id)
+        .fold<double>(
+          double.infinity,
+          (d, c) => math.min(d, c.center.distance(city.center)),
+        );
+    return enemyDistance > friendlyDistance * 1.5 ? 0 : 1;
+  }
+
   /// 核算已有部队、候选任务和月结前后现金低点。
   CashRequirement cash({bool emergency = false, double? horizon}) {
     var duration =
@@ -201,7 +234,7 @@ class AiLedger {
               rules.number('supplySafety');
         }
       }
-      if (!until.isFinite) until = 600;
+      if (!until.isFinite) until = rules.tuning.maxExpeditionSeconds;
       duration = math.max(duration, until);
       final indefinite =
           task == null &&
@@ -218,27 +251,45 @@ class AiLedger {
     for (final s in newSupplies) {
       duration = math.max(duration, s.until);
     }
-    duration = math.min(600, duration);
+    duration = math.min(rules.tuning.maxExpeditionSeconds, duration);
     final salary = view.heroes
         .where(
           (h) =>
               h.country == view.country && h.hp > 0 && !removed.contains(h.id),
         )
         .fold(extraSalary, (n, h) => n + h.salary);
-    final income = view.owned
+    // 签约时已预付本月；只抵扣下一个月结，后续月份仍需保留全额月俸。
+    final prepaid = view.heroes
+        .where(
+          (h) =>
+              h.country == view.country &&
+              h.hp > 0 &&
+              !removed.contains(h.id) &&
+              h.salaryPaidMonth == view.monthIndex,
+        )
+        .fold(extraSalary, (n, h) => n + h.salary);
+    final earningCities = view.owned
         .where((c) => !abandoned.contains(c.id))
-        .fold(
-          0,
-          (n, c) =>
-              n +
-              ((c.baseIncome +
-                          (levels[c.id]! - 1) * rules.integer('incomeStep') -
-                          rules.integer('poorPenalty')) *
-                      (c.country == c.nativeCountry
-                          ? 1
-                          : rules.number('foreignYield')))
-                  .floor(),
-        );
+        .toList();
+    final int income =
+        (earningCities.isEmpty
+            ? 0
+            : rules.integer('countryIncome') - rules.integer('poorPenalty')) +
+        earningCities
+            .where((c) => !abandoned.contains(c.id))
+            .fold<int>(
+              0,
+              (n, c) =>
+                  n +
+                  ((c.baseIncome +
+                              (levels[c.id]! - 1) *
+                                  rules.integer('incomeStep')) *
+                          (c.country == c.nativeCountry
+                              ? 1
+                              : rules.number('foreignYield')))
+                      .floor(),
+            );
+    int monthlyCost(int n) => n == 0 ? 0 : n * (salary - income) - prepaid;
     final checkpoints = <double>{duration};
     final monthEnds = <double>[];
     for (
@@ -259,15 +310,16 @@ class AiLedger {
                     .floor();
       // 同时检查本次月结到账之前，不能用下月收入支付此前的粮草。
       if (monthEnds.any((month) => (month - at).abs() < 1e-7)) {
-        peak = math.max(
-          peak,
-          pay + math.max(0, months - 1) * (salary - income),
-        );
+        peak = math.max(peak, pay + monthlyCost(math.max(0, months - 1)));
       }
-      peak = math.max(peak, pay + months * (salary - income));
+      peak = math.max(peak, pay + monthlyCost(months));
     }
     return CashRequirement(
-      math.max(0, peak) + (emergency ? 0 : rules.integer('emergencyGold')),
+      // 游戏在金币恰好归零时就停营，紧急采购也须为在外部队多留一金币。
+      math.max(0, peak) +
+          (emergency
+              ? (supplies.isEmpty ? 0 : 1)
+              : rules.integer('emergencyGold')),
       duration,
       salary,
       income,
@@ -283,7 +335,11 @@ class AiLedger {
     }
     final level = levels[city.id]!,
         cost = rules.upgradeCost(level, governor.politics);
-    if (cost == null || gold < cost) return false;
+    if (level >= rules.cityUpgradeLimit(view.year) ||
+        cost == null ||
+        gold < cost) {
+      return false;
+    }
     final factor = city.country == city.nativeCountry
         ? 1.0
         : rules.number('foreignYield');
@@ -303,12 +359,8 @@ class AiLedger {
     removed.add(hero.id);
     tasks.remove(hero.id);
     reservedHeroes.add(hero.id);
-    gold +=
-        rules.integer(
-          hero.type == 1 ? 'advancedDismissal' : 'normalDismissal',
-        ) +
-        hero.politics;
-    capacity = math.max(0, capacity - rules.integer('capacityPerHero'));
+    gold += hero.politics;
+
     reserves = math.min(
       capacity,
       reserves + (hero.stationed ? hero.soldierCount : 0),
@@ -333,7 +385,10 @@ class AiLedger {
   /// 商店已开放的武器只检查价格，不按城池数解锁。
   bool buyWeapon(int id) {
     final w = rules.weapons[id];
-    if (w == null || !w.shopEnabled || gold < w.price) {
+    if (w == null ||
+        !w.shopEnabled ||
+        view.year < w.unlockYear ||
+        gold < w.price) {
       return false;
     }
     gold -= w.price;
@@ -342,21 +397,37 @@ class AiLedger {
   }
 
   /// 抽签按最高费用和月俸预留，不能指定尚未抽到的英雄。
-  bool recruit(AiCity city) {
-    final limit =
-        rules.integer('recruitBase') +
-        (levels[city.id]! - 1) * rules.integer('recruitStep');
-    final cost = rules.integer('drawCost') + rules.integer('signingFee');
+  bool recruit(AiCity city, {bool emergency = false}) {
+    final cost = rules.integer('drawCost') + view.maximumSalary;
+    final futureSalary = view.heroes
+        .where(
+          (h) =>
+              h.country == view.country && h.hp > 0 && !removed.contains(h.id),
+        )
+        .fold(extraSalary + view.maximumSalary, (n, h) => n + h.salary);
+    final monthlyIncome =
+        rules.integer('countryIncome') +
+        view.owned
+            .where((c) => !abandoned.contains(c.id))
+            .fold<int>(
+              0,
+              (n, c) =>
+                  n +
+                  c.baseIncome +
+                  ((levels[c.id] ?? c.level) - 1) * rules.integer('incomeStep'),
+            );
     if (!city.recruitAllowed ||
         recruited.contains(city.id) ||
         view.poolCount <= recruited.length ||
-        occupancy(city.id) >= limit ||
-        gold < cost) {
+        gold < cost ||
+        futureSalary >
+            monthlyIncome *
+                (emergency ? 1 : rules.tuning.maxPayrollIncomeRatio)) {
       return false;
     }
     gold -= cost;
     extraSalary += view.maximumSalary;
-    capacity += rules.integer('capacityPerHero');
+
     recruited.add(city.id);
     return true;
   }

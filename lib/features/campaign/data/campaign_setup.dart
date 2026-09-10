@@ -4,24 +4,13 @@ import '../../../core/config/game_config.dart';
 
 /// 单座城池的开局经济与兵员配置，名称仅在 JSON 中用作阅读提示。
 class CitySetup {
-  const CitySetup._({
-    required this.baseIncome,
-    required this.initialReserveSoldiers,
-    required this.initialLevel,
-    required this.requiredGarrison,
-  });
+  const CitySetup._({required this.baseIncome, required this.initialLevel});
 
   /// 一级城市的基础月产出，后续升级增量沿用全局规则。
   final int baseIncome;
 
-  /// 本城开局贡献给全国储备的兵员，不为驻城将领另送免费兵。
-  final int initialReserveSoldiers;
-
   /// 开局等级，影响建筑外观、收入、储备容量和守城加成。
   final int initialLevel;
-
-  /// 自动出征后本城至少保留的将领数，不随城防等级变化。
-  final int requiredGarrison;
 }
 
 /// 独立于 ROM 地形数据的玩法配置，解析后不可变。
@@ -98,14 +87,6 @@ class CampaignSetup {
         cities[key] = CitySetup._(
           baseIncome: _integer(row, 'baseIncome', location),
           initialLevel: level,
-          requiredGarrison: row.containsKey('requiredGarrison')
-              ? _integer(row, 'requiredGarrison', location)
-              : GameConfig.defaultRequiredGarrison,
-          initialReserveSoldiers: _integer(
-            row,
-            'initialReserveSoldiers',
-            location,
-          ),
         );
       }
     }

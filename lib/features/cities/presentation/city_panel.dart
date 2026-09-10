@@ -198,8 +198,6 @@ class _CityPanelState extends State<CityPanel> {
           const SizedBox(height: CityPanelStyle.sectionGap),
           WeaponLibrary(controller: c, onAction: onAction),
         ],
-        const SizedBox(height: CityPanelStyle.sectionGap),
-        _economy(situation),
       ],
     );
   }
@@ -281,9 +279,10 @@ class _CityPanelState extends State<CityPanel> {
           const SizedBox(height: 14),
           _stats([
             ('战斗', '${hero.combat}'),
+            ('士气', '${hero.morale}'),
             ('内政', '${hero.politics}'),
             ('月俸', '${hero.salary}'),
-          ], columns: 3),
+          ], columns: 4),
           if (hero.isPlayer && !c.campaign.canDispatch(hero))
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -342,42 +341,6 @@ class _CityPanelState extends State<CityPanel> {
         MarchPhase.dueling => '野战中',
         null => '驻守中',
       };
-
-  Widget _economy(CitySituation situation) {
-    final c = controller;
-    final cityId = c.selectedCity!.id;
-    final report = c.campaign.lastSettlementFor(situation.ownerCountryId);
-    return Column(
-      key: const ValueKey('city-economy'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _section('经济情况'),
-            const Spacer(),
-            Text(
-              c.campaign.dateLabel,
-              style: const TextStyle(fontSize: 11, color: _muted),
-            ),
-          ],
-        ),
-        const SizedBox(height: CityPanelStyle.headingGap),
-        _stats([
-          ('月收入', '${situation.income}'),
-          ('本城月俸', '${c.campaign.salaryAt(cityId)}'),
-          ('正常净收入', '${situation.income - c.campaign.salaryAt(cityId)}'),
-        ], columns: 3),
-        if (report != null) ...[
-          const SizedBox(height: CityPanelStyle.headingGap),
-          Text(
-            '${report.year}年${report.month}月 · ${report.harvest.label}\n城池收入 ${report.baseIncome}，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 −${report.salary}\n国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange} 金币',
-            key: const ValueKey('city-monthly-report'),
-            style: const TextStyle(fontSize: 11, height: 1.5, color: _muted),
-          ),
-        ],
-      ],
-    );
-  }
 
   Widget _footer(bool isPlayer) {
     final c = controller;

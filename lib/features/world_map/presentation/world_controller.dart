@@ -192,7 +192,21 @@ class WorldController extends ChangeNotifier {
   WorldDefinition get world => worlds[index];
 
   /// 当前选中的城池。
-  CityDefinition? selectedCity;
+  CityDefinition? _selectedCity;
+
+  /// 当前城池面板；关闭或切换城池即放弃尚未签约的候选。
+  CityDefinition? get selectedCity => _selectedCity;
+
+  /// 切换面板时归还公共池锁定的候选将领。
+  set selectedCity(CityDefinition? value) {
+    if (_selectedCity?.id != value?.id) {
+      final offer = campaign.recruitmentOffer;
+      if (offer != null && offer.cityId == _selectedCity?.id) {
+        campaign.declineHero(offer);
+      }
+    }
+    _selectedCity = value;
+  }
 
   /// 鼠标或触摸指示的格子。
   TileCoord? cursor;
@@ -237,6 +251,16 @@ class WorldController extends ChangeNotifier {
   /// 是否显示格子边界。
   bool showGrid = false;
 
+  /// 仅控制国土边界辅助显示，不影响越境预警和国家调度。
+  bool showTerritoryBorders = false;
+
+  /// 修改边界显示后只请求一次界面刷新。
+  void setTerritoryBorders(bool value) {
+    if (showTerritoryBorders == value) return;
+    showTerritoryBorders = value;
+    refreshUi();
+  }
+
   /// 是否让镜头跟随行走角色。
   bool followHero = false;
 
@@ -258,8 +282,8 @@ class WorldController extends ChangeNotifier {
     _gameOverShown = false;
     camera.cancelMotion();
     battleCamera.cancelMotion();
-    index = value;
     selectedCity = null;
+    index = value;
     selectedHeroId = null;
     pendingHero = null;
     movingHeroId = null;
@@ -854,11 +878,8 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 在城池原面板购买国家共用武器，不依赖当前英雄。
+  /// 从全局商店购买国家共用武器，不依赖当前选中的城池或英雄。
   void buyCountryWeapon(int weaponId) {
-    if (selectedCity == null || !campaign.cities[selectedCity!.id]!.isPlayer) {
-      return;
-    }
     if (!campaign.buyWeapon(weaponId)) return;
     message = campaign.lastEvent;
     refreshUi();

@@ -1,4 +1,7 @@
+import '../../support/ongoing_fixture.dart';
+
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,11 +14,15 @@ List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 List<RomHeroDefinition> _heroes() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
-CampaignState _campaign({int gold = 50}) => CampaignState.fromRom(
-  _worlds().first,
-  _heroes(),
-  startingGold: gold,
-  aiEnabled: false,
+CampaignState _campaign({int gold = 50}) => ongoingCampaign(
+  CampaignState.fromRom(
+    _worlds().first,
+    _heroes(),
+    startingGold: gold,
+    aiEnabled: false,
+  ),
+  stock: 0,
+  year: 1,
 );
 
 void _emptySquad(CampaignHero hero) {

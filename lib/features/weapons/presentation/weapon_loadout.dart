@@ -67,7 +67,7 @@ class WeaponLoadout extends StatelessWidget {
   }
 }
 
-/// 国家共用武器库，同类叠加、三列换行，原地购买并选择出征装备。
+/// 国家共用武器库，同类叠加、三列换行，选择出征装备，购买入口位于地图右下角。
 class WeaponLibrary extends StatefulWidget {
   /// 购买不依赖英雄，携带选择绑定当前驻城英雄且不暂停游戏。
   const WeaponLibrary({
@@ -87,8 +87,6 @@ class WeaponLibrary extends StatefulWidget {
 }
 
 class _WeaponLibraryState extends State<WeaponLibrary> {
-  bool _showShop = false;
-
   @override
   Widget build(BuildContext context) {
     final c = widget.controller, campaign = c.campaign;
@@ -110,15 +108,6 @@ class _WeaponLibraryState extends State<WeaponLibrary> {
             Text(
               '已选 ${c.selectedWeaponCount}/${catalog.carryLimit}',
               style: CityPanelStyle.label,
-            ),
-            const Spacer(),
-            TextButton(
-              key: const ValueKey('weapon-shop-toggle'),
-              onPressed: () => setState(() => _showShop = !_showShop),
-              child: Text(
-                _showShop ? '收起商店' : '购买',
-                style: CityPanelStyle.value,
-              ),
             ),
           ],
         ),
@@ -142,57 +131,6 @@ class _WeaponLibraryState extends State<WeaponLibrary> {
             ],
           ),
         ),
-        if (_showShop) ...[
-          const SizedBox(height: CityPanelStyle.headingGap),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final weapons = catalog.weapons.values.toList()
-                ..sort((a, b) => a.price.compareTo(b.price));
-              return Wrap(
-                spacing: CityPanelStyle.gap,
-                runSpacing: CityPanelStyle.gap,
-                children: [
-                  for (final weapon in weapons)
-                    SizedBox(
-                      width:
-                          (constraints.maxWidth - CityPanelStyle.gap * 2) / 3,
-                      child: OutlinedButton(
-                        key: ValueKey('buy-weapon-${weapon.id}'),
-                        style: CityPanelStyle.button(
-                          actionable:
-                              campaign.weaponPurchaseBlockReason(weapon.id) ==
-                              null,
-                        ),
-                        onPressed:
-                            campaign.weaponPurchaseBlockReason(weapon.id) ==
-                                null
-                            ? () => widget.onAction(
-                                () => c.buyCountryWeapon(weapon.id),
-                              )
-                            : null,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(weapon.name, style: CityPanelStyle.value),
-                            const SizedBox(height: CityPanelStyle.textGap),
-                            Text(
-                              '${weapon.price}金币',
-                              style: CityPanelStyle.label,
-                            ),
-                            Text(
-                              weapon.effectLabel,
-                              style: CityPanelStyle.label,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
       ],
     );
   }

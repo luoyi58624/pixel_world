@@ -13,12 +13,14 @@ const probe=`<!doctype html><html><head><base href="/strategy/"><meta charset="u
 (async()=>{
  const f=await (await fetch('worker_fixture.json')).json();
  const cases=f.cases||[{request:f.request,expected:f.expected}];
- const failures=[],samples=[];let frames=0,last=performance.now(),intervals=[];
+ const failures=[],samples=[];let frames=0,heartbeats=0,last=performance.now(),intervals=[];
+ // 无头浏览器可能合并绘制帧，使用主线程计时器检验工作期间仍能响应，帧率只作诊断。
+ const heartbeat=setInterval(()=>heartbeats++,10);
  function frame(t){frames++;intervals.push(t-last);last=t;requestAnimationFrame(frame);}requestAnimationFrame(frame);
  const worker=new Worker(new URL('ai/worker.js?v='+f.build,document.baseURI));
  let context='',index=0,cancelled=false;const started=performance.now();
  const normalize=v=>typeof v==='number'?Math.round(v*1e6)/1e6:Array.isArray(v)?v.map(normalize):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,normalize(x)])):v;
- function finish(error){worker.terminate();intervals=intervals.filter(x=>x>0).sort((a,b)=>a-b);const result={ok:!error,context,cancelled,replies:index,frames,elapsed:performance.now()-started,frameP95:intervals[Math.floor(intervals.length*.95)]||0,samples,error};document.getElementById('result').textContent=JSON.stringify(result);document.body.dataset.status=error?'failed':'passed';}
+ function finish(error){worker.terminate();clearInterval(heartbeat);intervals=intervals.filter(x=>x>0).sort((a,b)=>a-b);const result={ok:!error,context,cancelled,replies:index,frames,heartbeats,elapsed:performance.now()-started,frameP95:intervals[Math.floor(intervals.length*.95)]||0,samples,error};document.getElementById('result').textContent=JSON.stringify(result);document.body.dataset.status=error?'failed':'passed';}
  worker.onerror=e=>finish(e.message||'worker error');
  worker.onmessage=e=>{try{
    const d=JSON.parse(e.data);
@@ -30,7 +32,7 @@ const probe=`<!doctype html><html><head><base href="/strategy/"><meta charset="u
      if(d.reply.error)throw Error(d.reply.error);
      if(JSON.stringify(normalize(d.reply.plan))!==JSON.stringify(normalize(cases[index%cases.length].expected)))throw Error('native and web plans differ for stage '+cases[index%cases.length].request.stage);
      index++;samples.push(d.reply.micros);
-     if(index===24){if(frames<2)throw Error('main animation did not progress');finish(null);}
+     if(index===24){if(heartbeats<2)throw Error('main event loop did not progress');finish(null);}
      else worker.postMessage(JSON.stringify({kind:'plan',request:{...cases[index%cases.length].request,id:index+1}}));
    }
    if(d.kind==='error')throw Error(d.message);

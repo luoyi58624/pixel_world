@@ -59,7 +59,7 @@ void main() {
         heroes[0]!.politics,
         heroes[0]!.romSalary,
       ],
-      [95, 15, 15, 8],
+      [95, 18, 15, 8],
     );
     expect(heroes[2]!.name, '威拉斯');
     expect(
@@ -74,11 +74,11 @@ void main() {
         heroes[40]!.politics,
         heroes[40]!.salary,
       ],
-      [99, 15, 15, 0],
+      [99, 18, 15, 0],
     );
     final c = _campaign();
     expect(c.heroesAt(0).map((hero) => hero.sourceId), [40, 0, 2]);
-    expect(c.soldiersAt(0), 0);
+    expect(c.soldiersAt(0), c.soldierCapacityAt(0));
     expect(c.heroesAt(0).every((hero) => hero.soldiers == 0), isTrue);
   });
 
@@ -92,10 +92,11 @@ void main() {
     final c = _campaign(gold: 10000);
     for (var level = 2; level <= 5; level++) {
       final before = c.gold;
+      c.settledMonths = 24;
       expect(c.upgradeCity(0, hero: _hero(c, 40)), isTrue);
       expect(c.cities[0]!.level, level);
       expect(c.cities[0]!.income, 10 + 5 * (level - 1));
-      expect(before - c.gold, [15, 65, 135, 285][level - 2]);
+      expect(before - c.gold, [15, 45, 85, 145][level - 2]);
     }
     final balance = c.gold;
     expect(c.upgradeCity(0, hero: _hero(c, 40)), isFalse);
@@ -111,25 +112,28 @@ void main() {
   test('每60秒按现有等级月结并扣缩减后的月俸，结果与帧长一致', () {
     for (final frames in [1, 60, 1200]) {
       final c = _campaign();
-      expect(c.salaryCost, 6);
-      expect(c.netIncome, 4);
+      expect(c.salaryCost, 0);
+      expect(c.netIncome, 40);
       for (var n = 0; n < frames; n++) {
         c.advance(120 / frames);
       }
       expect(c.settledTurns, 2);
-      expect(c.gold, 308);
+      expect(c.gold, 380);
     }
     final c = _campaign();
+    c.settledMonths = 24;
     c.upgradeCity(0, hero: _hero(c, 40));
     c.advance(59.9);
     expect(c.gold, 285);
     c.advance(0.1);
-    expect(c.gold, 294);
+    expect(c.gold, 330);
   });
 
   test('单场已结束的守城战败命中降级判定，同一事件不能重复结算', () {
     final c = _campaign(gold: 2000);
+    c.settledMonths = 24;
     c.upgradeCity(0, hero: _hero(c, 40));
+    c.settledMonths = 24;
     c.upgradeCity(0, hero: _hero(c, 40));
     final result = c.defeatHero(
       'rom-0',
@@ -181,6 +185,7 @@ void main() {
 
   test('升级允许继续出征，最后一城失守清除行军主角并结束本局', () {
     final c = _campaign();
+    c.settledMonths = 24;
     c.upgradeCity(0, hero: _hero(c, 40));
     c.dispatch(_hero(c, 40), c.world.cities[1]);
     expect(c.canDispatch(_hero(c, 0)), isTrue);
@@ -219,14 +224,8 @@ void main() {
       hero.squad.map((soldier) => soldier.hp),
       soldiers.map((hp) => hp > 0 ? 20.0 : 0.0),
     );
-    expect(
-      battle.simulation.attackerMorale.maximum,
-      ((hero.combat + 1) * 4 - 1).clamp(0, 63),
-    );
-    expect(
-      battle.simulation.attackerMorale.remaining,
-      ((hero.combat + 1) * 4 - 1).clamp(0, 63),
-    );
+    expect(battle.simulation.attackerMorale.maximum, 100);
+    expect(battle.simulation.attackerMorale.remaining, hero.morale);
   });
 
   test('主角进攻战败立即结束，出发城和未出战英雄保留', () {
@@ -253,6 +252,7 @@ void main() {
   test('二级城首胜仅降低临时加成，第二胜占领并清除剩余守将', () {
     final c = _campaign();
     final defenderIds = c.garrisonAt(1).map((hero) => hero.id).toList();
+    c.countryTroops[1] = CountryTroops();
     c.garrisonAt(1).last.hp = 1;
     for (final soldier in c.garrisonAt(1).last.squad) {
       soldier.hp = 0;
@@ -269,6 +269,7 @@ void main() {
     expect(c.cities[1]!.level, 2);
     expect(c.cities[1]!.isPlayer, isFalse);
     expect(c.garrisonAt(1).length, defenderIds.length - 1);
+    c.countryTroops[1] = CountryTroops();
     c.garrisonAt(1).last.hp = 1;
     for (final soldier in c.garrisonAt(1).last.squad) {
       soldier.hp = 0;
@@ -281,6 +282,6 @@ void main() {
     expect(c.heroes.any((hero) => defenderIds.contains(hero.id)), isFalse);
     expect(c.marches, isEmpty);
     expect(c.garrisonAt(1), [hero]);
-    expect(c.grossIncome, 15);
+    expect(c.grossIncome, 50);
   });
 }

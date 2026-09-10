@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -119,7 +120,9 @@ void main() {
     c.tap(c.camera.toScreen(march.position));
     expect(c.selectedUnitId, isNull);
     expect(c.campaign.retreatHero(march.hero.id), isTrue);
-    c.tick(1.81);
+    for (var i = 0; i < 109; i++) {
+      c.tick(1 / 60);
+    }
     expect(march.visibleOnMap, isTrue);
     expect(march.returningFromRetreat, isTrue);
     c.cancelCityAction();

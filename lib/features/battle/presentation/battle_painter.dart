@@ -496,7 +496,12 @@ class BattlePainter extends CustomPainter {
       final hp = hero.health.hp.round().toString();
       _digits(canvas, hp, Offset(x + 78 - hp.length * 8, 178));
       canvas.drawRect(
-        Rect.fromLTWH(x + 14, 193, sim.morale(side).remaining.toDouble(), 8),
+        Rect.fromLTWH(
+          x + 14,
+          193,
+          (63 * sim.morale(side).remaining / 100).floorToDouble(),
+          8,
+        ),
         Paint()
           ..color = const Color(0xffb53120)
           ..isAntiAlias = false,
