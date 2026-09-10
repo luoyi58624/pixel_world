@@ -5,6 +5,9 @@ import 'observation.dart';
 import 'protocol.dart';
 import 'routes.dart';
 import 'rules_data.dart';
+import 'coalition_policy.dart';
+import 'combat_assessment.dart';
+import 'raid_assessment.dart';
 
 /// 一组已经核算资源的调动候选。
 class PlannedOperation {
@@ -28,15 +31,36 @@ class OperationPlanner {
   AiObservation get _view => request.observation;
   bool get _canPurchase => request.stage != AiDecisionStage.attack;
 
+  /// 国家需要具备近程前沿据点才参与围攻，远方威胁不挤占当前军费。
+  bool hasCoalitionFront(AiCity target) =>
+      !CoalitionPolicy(target.country, _view, rules).dangerous ||
+      _view.owned.any(
+        (city) =>
+            routes.seconds(city.center, target.outline.nearest(city.center)) <=
+            rules.tuning.coalitionMaxTravelSeconds,
+      );
+
+  /// 新出征部队按实际地形成本检查围攻距离，在途任务不受该筛选改令。
+  bool canRaidFrom(AiHero hero, AiCity target) =>
+      !CoalitionPolicy(target.country, _view, rules).dangerous ||
+      routes.seconds(hero.position, target.outline.nearest(hero.position)) <=
+          rules.tuning.coalitionMaxTravelSeconds;
+
   /// 有限的低价优先配装候选，不把后续三件全部当作必定释放。
-  List<List<int>> loadouts(AiHero hero, AiLedger ledger) {
+  List<List<int>> loadouts(
+    AiHero hero,
+    AiLedger ledger, {
+    bool considerPurchases = false,
+  }) {
     if (!hero.stationed) return [hero.weapons];
     final available =
         rules.weapons.values
             .where(
               (w) =>
                   (ledger.stock[w.id] ?? 0) > 0 ||
-                  _canPurchase && w.shopEnabled && _view.year >= w.unlockYear,
+                  (_canPurchase || considerPurchases) &&
+                      w.shopEnabled &&
+                      _view.year >= w.unlockYear,
             )
             .toList()
           ..sort(
@@ -68,6 +92,92 @@ class OperationPlanner {
       }
     }
     return result;
+  }
+
+  /// 危险国家使用追加预算提升整队装备；未备齐时等待采购，不在进攻阶段降回廉价方案。
+  List<List<int>> raidLoadouts(
+    AiHero hero,
+    AiLedger ledger,
+    AiCity target,
+    CombatAssessor assessor,
+  ) {
+    final policy = CoalitionPolicy(
+      target.country,
+      _view,
+      rules,
+      levels: ledger.levels,
+    );
+    if (!hero.stationed) return loadouts(hero, ledger);
+    final surplus = math.max(
+      0,
+      ledger.gold - ledger.cash().reserve - policy.monthlyIncome * 2,
+    );
+    if (!policy.dangerous && surplus == 0) return loadouts(hero, ledger);
+    final defenders = math.min(
+      _view.garrison(target.id).length,
+      target.safeSlots,
+    );
+    if (defenders == 0) return [const []];
+    final ordinary = loadouts(hero, ledger, considerPurchases: true);
+    int price(List<int> gear) =>
+        gear.fold(0, (n, id) => n + rules.weapons[id]!.price);
+    List<int>? baseline;
+    var baselineTeam = 1;
+    for (final gear in ordinary) {
+      final readiness = assessRaid(hero, target, _view, rules, assessor, gear);
+      if (readiness.teamSize > 0 &&
+          (baseline == null || price(gear) < price(baseline))) {
+        baseline = gear;
+        baselineTeam = readiness.teamSize;
+      }
+    }
+    if (baseline == null) return ordinary;
+    final allowance =
+        price(baseline) +
+        (policy.extraGold + (surplus * .15).floor()) ~/ baselineTeam;
+    final candidates = <List<int>>[baseline];
+    for (final weapon in rules.weapons.values) {
+      if ((ledger.stock[weapon.id] ?? 0) == 0 &&
+          !(weapon.shopEnabled && _view.year >= weapon.unlockYear)) {
+        continue;
+      }
+      for (
+        var count = 1;
+        count <= math.min(defenders, rules.integer('carryLimit'));
+        count++
+      ) {
+        if ((weapon.price * count <= allowance ||
+                (ledger.stock[weapon.id] ?? 0) >= count) &&
+            weapon.selfDamage <
+                hero.hp +
+                    rules.integer('soldierLimit') *
+                        rules.integer('soldierHp')) {
+          candidates.add(List.filled(count, weapon.id));
+        }
+      }
+    }
+    double strength(List<int> gear) {
+      var result = 0.0;
+      for (var i = 0; i < gear.length; i++) {
+        final weapon = rules.weapons[gear[i]]!;
+        result +=
+            (weapon.damage - weapon.selfDamage) *
+            (i == 0 ? 1 : rules.tuning.laterWeaponCredit);
+      }
+      return result;
+    }
+
+    candidates.sort((a, b) {
+      final power = strength(b).compareTo(strength(a));
+      return power != 0 ? power : price(a).compareTo(price(b));
+    });
+    // 最多十二种武器、每种三个槽位，只评估预算内的有限候选。
+    for (final gear in candidates.take(rules.tuning.maxTeam)) {
+      if (assessRaid(hero, target, _view, rules, assessor, gear).teamSize > 0) {
+        return [gear];
+      }
+    }
+    return [baseline];
   }
 
   /// 依赖版本只绑定真正会使用的实体，不随无关国家移动失效。
@@ -105,6 +215,12 @@ class OperationPlanner {
       return null;
     }
     if (route.seconds + rules.tuning.reactionMargin >= deadline) return null;
+    if (role == 'expedition' &&
+        target != null &&
+        CoalitionPolicy(target.country, _view, rules).dangerous &&
+        route.seconds > rules.tuning.coalitionMaxTravelSeconds) {
+      return null;
+    }
     final previous = base.tasks[hero.id];
     if (previous != null) {
       if (previous.committedUntil > _view.tick && !emergency) return null;
@@ -128,7 +244,7 @@ class OperationPlanner {
                 target == null
                     ? 1
                     : math.min(
-                        target.safeSlots,
+                        attrition ? 1 : target.safeSlots,
                         _view.garrison(target.id).length,
                       ),
               ) +
@@ -143,7 +259,12 @@ class OperationPlanner {
       enemy: enemy?.id,
       deadlineTick:
           _view.tick +
-          (deadline.isFinite ? deadline * 60 : math.max(duration, 60) * 60)
+          (deadline.isFinite
+                  ? deadline * 60
+                  : (math.max(duration, 60) +
+                            rules.tuning.maximumRequestAge +
+                            rules.tuning.reactionMargin) *
+                        60)
               .ceil(),
       committedUntil:
           _view.tick + (rules.tuning.commitmentSeconds * 60).round(),

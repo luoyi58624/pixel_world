@@ -1270,6 +1270,7 @@ class CampaignState {
   String? recruitmentBlockReason(int cityId, {int countryId = 0}) {
     if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
+    if (settledMonths == 0) return '首月禁止招募将领，第二个月开放';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
     if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';

@@ -14,6 +14,7 @@ import 'resource_planner.dart';
 import 'target_priority.dart';
 import 'raid_assessment.dart';
 import 'offensive_focus.dart';
+import 'coalition_policy.dart';
 
 class _NationCandidate {
   _NationCandidate(
@@ -237,6 +238,9 @@ class CountryBrain {
         continue;
       }
       final expired = task != null && task.deadlineTick < _view.tick;
+      if (hero.movementPending && task != null && !expired && ledger.gold > 0) {
+        continue;
+      }
       final assault = assaultTarget(hero, _view, ledger);
       if (assaultIsCommitted(hero, _view, ledger, rules) &&
           ledger.gold > 0 &&
@@ -340,12 +344,14 @@ class CountryBrain {
                 heroDeploymentValue(
                   b,
                   preserveGovernor:
-                      _view.city(b.city)!.level < rules.integer('maxLevel'),
+                      _view.city(b.city)!.level <
+                      rules.cityUpgradeLimit(_view.year),
                 ).compareTo(
                   heroDeploymentValue(
                     a,
                     preserveGovernor:
-                        _view.city(a.city)!.level < rules.integer('maxLevel'),
+                        _view.city(a.city)!.level <
+                        rules.cityUpgradeLimit(_view.year),
                   ),
                 ),
           );
@@ -362,18 +368,10 @@ class CountryBrain {
     };
     targetCity = openingFocus.primary ?? openingFocus.preferredCity;
     if (openingFocus.primary != null && urgent.isEmpty) phase = 'attacking';
-    final threatsResolved =
-        beam.first.unresolved == 0 &&
-        (request.stage != AiDecisionStage.attack ||
-            urgent.every(
-              (r) =>
-                  r.overflow == 0 &&
-                  r.risk?.advantage == CombatAdvantage.favorable,
-            ));
     var launched = false;
     for (final hero in spare) {
-      if (!threatsResolved ||
-          ledger.reservedHeroes.contains(hero.id) ||
+      // 每城独立校验余下守军，不让其他城市未解决的威胁冻结全国进攻。
+      if (ledger.reservedHeroes.contains(hero.id) ||
           ledger.removed.contains(hero.id)) {
         continue;
       }
@@ -405,6 +403,7 @@ class CountryBrain {
                 (c) =>
                     c.country != _view.country &&
                     focus.allows(c) &&
+                    operations.canRaidFrom(hero, c) &&
                     (assigned[c.id] ?? 0) < rules.tuning.maxTeam,
               )
               .toList()
@@ -427,7 +426,12 @@ class CountryBrain {
             .toList();
         final route = routes.to(hero, target.center, _view, target: target);
         if (!route.complete) continue;
-        final equipment = operations.loadouts(hero, ledger);
+        final equipment = operations.raidLoadouts(
+          hero,
+          ledger,
+          target,
+          assessor,
+        );
         var acceptable = false;
         for (final gear in equipment) {
           final readiness = assessRaid(
@@ -465,6 +469,7 @@ class CountryBrain {
             gear,
             reinforcements,
             queued,
+            breakthrough: readiness.breakthrough,
           );
           if (option == null) {
             final quote = ledger.copy();
@@ -476,6 +481,7 @@ class CountryBrain {
               gear,
               reinforcements,
               queued,
+              breakthrough: readiness.breakthrough,
             );
             if (quoted != null) {
               phase = urgent.isEmpty ? 'saving' : phase;
@@ -493,7 +499,7 @@ class CountryBrain {
             continue;
           }
           final score =
-              _targetScore(target, hero) -
+              _targetScore(target, hero, travelSeconds: route.seconds) -
               route.seconds * .4 -
               (ledger.gold - option.ledger.gold) * .5 +
               lower * 30 +
@@ -546,6 +552,17 @@ class CountryBrain {
       yield 6;
     }
 
+    if (!launched &&
+        beam.first.unresolved == 0 &&
+        request.stage != AiDecisionStage.defense) {
+      final staging = _stageFrontier(ledger, openingFocus);
+      if (staging != null) {
+        ledger = staging.ledger;
+        groups.add(staging.group);
+        phase = 'preparing';
+      }
+    }
+
     // 无可执行远征时再为明确缺口整备，禁止边境危险溢员和无任务采购。
     if (request.stage == AiDecisionStage.full &&
         !launched &&
@@ -592,7 +609,10 @@ class CountryBrain {
           }
         }
         if (needHero &&
-            next.recruit(city) &&
+            next.recruit(
+              city,
+              offensiveCountry: _view.city(targetCity)?.country,
+            ) &&
             next.gold >= next.cash().reserve) {
           ledger = next;
           groups.add(
@@ -634,6 +654,11 @@ class CountryBrain {
       }
     }
     if (launched) phase = urgent.isEmpty ? 'attacking' : 'defending';
+    final coalitionTarget = _view.city(targetCity);
+    if (coalitionTarget != null) {
+      final policy = CoalitionPolicy(coalitionTarget.country, _view, rules);
+      if (policy.dangerous) notes.add(policy.decisionNote);
+    }
     if (groups.isEmpty) {
       notes.add(
         ledger.gold < ledger.cash().reserve
@@ -670,6 +695,78 @@ class CountryBrain {
       routeSteps: work.routeSteps,
       expansions: work.candidates,
     );
+  }
+
+  // 只移动安全后方的闲置驻军，抵达后再从前线重新规划；不改令任何在途军队。
+  PlannedOperation? _stageFrontier(AiLedger ledger, OffensiveFocus focus) {
+    final fronts = _view.owned
+        .where((c) => _reports[c.id]?.threatened != true)
+        .toList();
+    if (fronts.length < 2) return null;
+    final enemies = _view.cities
+        .where((c) => c.country != _view.country && focus.allows(c))
+        .toList();
+    final costs = <int, double>{};
+    for (final city in fronts) {
+      enemies.sort(
+        (a, b) => a.center
+            .distance(city.center)
+            .compareTo(b.center.distance(city.center)),
+      );
+      costs[city.id] = enemies
+          .take(rules.tuning.maxTargets)
+          .fold<double>(
+            double.infinity,
+            (n, enemy) => math.min(
+              n,
+              routes.seconds(city.center, enemy.outline.nearest(city.center)),
+            ),
+          );
+    }
+    fronts.sort((a, b) => costs[a.id]!.compareTo(costs[b.id]!));
+    for (final front in fronts.take(2)) {
+      if (costs[front.id]! > rules.tuning.coalitionMaxTravelSeconds) continue;
+      for (final rear in fronts.reversed) {
+        if (costs[rear.id]! < costs[front.id]! + 10) continue;
+        final local = ledger.garrison(rear.id);
+        if (local.length <= ledger.defendersToKeep(rear)) continue;
+        final spare =
+            local
+                .where(
+                  (h) =>
+                      h.canDispatch &&
+                      h.type != 2 &&
+                      !ledger.reservedHeroes.contains(h.id),
+                )
+                .toList()
+              ..sort(
+                (a, b) =>
+                    heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
+              );
+        for (final hero in spare.take(2)) {
+          if (!work.candidate()) return null;
+          final route = routes.to(
+            hero,
+            front.center,
+            _view,
+            target: front,
+            safe: true,
+          );
+          final option = operations.send(
+            ledger,
+            hero,
+            route,
+            role: 'transfer',
+            target: front,
+            arrival: true,
+            rearSafe: true,
+            reason: '将后方闲置主力前移到安全前沿据点，缩短后续征服的行军与粮草成本',
+          );
+          if (option != null) return option;
+        }
+      }
+    }
+    return null;
   }
 
   bool _remainingDefenseSafe(AiCity city, AiHero departing, AiLedger ledger) {
@@ -712,8 +809,9 @@ class CountryBrain {
     AiCity target,
     List<int> leadGear,
     int count,
-    int queued,
-  ) {
+    int queued, {
+    bool breakthrough = false,
+  }) {
     final available = <AiHero>[];
     for (final city in _view.owned) {
       if (_reports[city.id]?.threatened == true && city.id != lead.city) {
@@ -725,7 +823,10 @@ class CountryBrain {
           base
               .garrison(city.id)
               .where(
-                (h) => h.canDispatch && !base.reservedHeroes.contains(h.id),
+                (h) =>
+                    h.canDispatch &&
+                    !base.reservedHeroes.contains(h.id) &&
+                    operations.canRaidFrom(h, target),
               )
               .toList()
             ..sort(
@@ -733,12 +834,14 @@ class CountryBrain {
                   heroDeploymentValue(
                     b,
                     preserveGovernor:
-                        _view.city(b.city)!.level < rules.integer('maxLevel'),
+                        _view.city(b.city)!.level <
+                        rules.cityUpgradeLimit(_view.year),
                   ).compareTo(
                     heroDeploymentValue(
                       a,
                       preserveGovernor:
-                          _view.city(a.city)!.level < rules.integer('maxLevel'),
+                          _view.city(a.city)!.level <
+                          rules.cityUpgradeLimit(_view.year),
                     ),
                   ),
             );
@@ -752,12 +855,14 @@ class CountryBrain {
             heroDeploymentValue(
               b,
               preserveGovernor:
-                  _view.city(b.city)!.level < rules.integer('maxLevel'),
+                  _view.city(b.city)!.level <
+                  rules.cityUpgradeLimit(_view.year),
             ).compareTo(
               heroDeploymentValue(
                 a,
                 preserveGovernor:
-                    _view.city(a.city)!.level < rules.integer('maxLevel'),
+                    _view.city(a.city)!.level <
+                    rules.cityUpgradeLimit(_view.year),
               ),
             ),
       );
@@ -797,9 +902,12 @@ class CountryBrain {
       final route = teamRoutes[hero.id]!;
       PlannedOperation? chosen;
       for (final gear
-          in index == 0 ? [leadGear] : operations.loadouts(hero, ledger)) {
+          in index == 0 ||
+                  CoalitionPolicy(target.country, _view, rules).dangerous
+              ? [leadGear]
+              : operations.loadouts(hero, ledger)) {
         if (index > 0 &&
-            guards.any((guard) {
+            (breakthrough ? guards.take(1) : guards).any((guard) {
               final score = assessor.compare(
                 hero,
                 guard,
@@ -844,6 +952,7 @@ class CountryBrain {
             math.max(0, ledger.capacity - rules.integer('soldierLimit')),
           ),
           queueIndex: queued + index,
+          attrition: breakthrough,
         );
         if (chosen != null) break;
       }
@@ -861,7 +970,11 @@ class CountryBrain {
     return PlannedOperation(
       ledger,
       AiCommandGroup(
-        reason: count == 1 ? '执行静态优势明确、可以供养的扩张' : '整队后勤准备完成，按真实排队规则轮攻；不预演未来伤亡',
+        reason: breakthrough
+            ? '先派可形成有效交换的将领进攻前排，持续轮攻并补充战损'
+            : count == 1
+            ? '执行静态优势明确、可以供养的扩张'
+            : '整队后勤准备完成，按真实排队规则轮攻；不预演未来伤亡',
         actions: actions,
         dependencies: deps,
         tasks: tasks,
@@ -870,6 +983,13 @@ class CountryBrain {
     );
   }
 
-  double _targetScore(AiCity city, AiHero hero) =>
-      targetPriority(city, hero, _view, rules, request.seed);
+  double _targetScore(AiCity city, AiHero hero, {double? travelSeconds}) =>
+      targetPriority(
+        city,
+        hero,
+        _view,
+        rules,
+        request.seed,
+        travelSeconds: travelSeconds,
+      );
 }

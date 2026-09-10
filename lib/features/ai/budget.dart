@@ -4,6 +4,8 @@ import 'observation.dart';
 import 'protocol.dart';
 import 'routes.dart';
 import 'rules_data.dart';
+import 'coalition_policy.dart';
+import '../economy/domain/military_upkeep.dart';
 
 /// 一名部队的连续粮草承诺，返城时才停止计费。
 class SupplyCommitment {
@@ -289,7 +291,17 @@ class AiLedger {
                               : rules.number('foreignYield')))
                       .floor(),
             );
-    int monthlyCost(int n) => n == 0 ? 0 : n * (salary - income) - prepaid;
+    final upkeep = monthlyGarrisonUpkeep;
+    int monthlyCost(int n) => n == 0
+        ? 0
+        : n * (salary - income) -
+              prepaid +
+              (view.nation.garrisonAccrued +
+                      upkeep *
+                          (view.monthRemaining / rules.number('monthSeconds') +
+                              n -
+                              1))
+                  .ceil();
     final checkpoints = <double>{duration};
     final monthEnds = <double>[];
     for (
@@ -351,6 +363,18 @@ class AiLedger {
     return true;
   }
 
+  /// 计入已招募、出发和预约入城的部队，防止预算只计算工资漏掉囤将军费。
+  int get monthlyGarrisonUpkeep => view.owned.fold(
+    0,
+    (sum, city) =>
+        sum +
+        MilitaryUpkeep.monthlyCost(
+          occupancy(city.id),
+          freeHeroes: (rules.values['garrisonFree'] ?? 2).toInt(),
+          factor: (rules.values['garrisonFactor'] ?? 0).toInt(),
+        ),
+  );
+
   /// 合法解雇的确定返款与全国容量裁剪。
   bool dismiss(AiHero hero) {
     if (!hero.canDismiss || hero.type == 2 || removed.contains(hero.id)) {
@@ -397,7 +421,7 @@ class AiLedger {
   }
 
   /// 抽签按最高费用和月俸预留，不能指定尚未抽到的英雄。
-  bool recruit(AiCity city, {bool emergency = false}) {
+  bool recruit(AiCity city, {bool emergency = false, int? offensiveCountry}) {
     final cost = rules.integer('drawCost') + view.maximumSalary;
     final futureSalary = view.heroes
         .where(
@@ -416,13 +440,35 @@ class AiLedger {
                   c.baseIncome +
                   ((levels[c.id] ?? c.level) - 1) * rules.integer('incomeStep'),
             );
-    if (!city.recruitAllowed ||
+    final free = (rules.values['garrisonFree'] ?? 2).toInt();
+    final factor = (rules.values['garrisonFactor'] ?? 0).toInt();
+    final count = occupancy(city.id);
+    final futureUpkeep =
+        monthlyGarrisonUpkeep +
+        MilitaryUpkeep.monthlyCost(
+          count + 1,
+          freeHeroes: free,
+          factor: factor,
+        ) -
+        MilitaryUpkeep.monthlyCost(count, freeHeroes: free, factor: factor);
+    if (view.monthIndex == 0 ||
+        !city.recruitAllowed ||
         recruited.contains(city.id) ||
         view.poolCount <= recruited.length ||
         gold < cost ||
+        futureSalary + futureUpkeep >
+            monthlyIncome * (emergency ? 1.3 : 1.1) ||
         futureSalary >
             monthlyIncome *
-                (emergency ? 1 : rules.tuning.maxPayrollIncomeRatio)) {
+                (emergency
+                    ? 1
+                    : offensiveCountry == null
+                    ? rules.tuning.maxPayrollIncomeRatio
+                    : CoalitionPolicy(
+                        offensiveCountry,
+                        view,
+                        rules,
+                      ).payrollRatio)) {
       return false;
     }
     gold -= cost;

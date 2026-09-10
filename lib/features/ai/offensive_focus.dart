@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'budget.dart';
 import 'observation.dart';
 import 'rules_data.dart';
+import 'coalition_policy.dart';
 
 /// 只识别本国公开指令，敌城已变友城后不再属于进攻任务。
 AiCity? assaultTarget(AiHero hero, AiObservation view, AiLedger ledger) {
@@ -38,7 +39,7 @@ class OffensiveFocus {
     this.rules, {
     int? targetCountry,
     int? targetCity,
-  }) : objectiveCountry =
+  }) : _previousCountry =
            view.cities.any(
              (c) => c.country == targetCountry && c.country != view.country,
            )
@@ -69,7 +70,35 @@ class OffensiveFocus {
   final AiRules rules;
 
   /// 原目标仍有领土时持续推进，灭国后自动解除。
-  final int? objectiveCountry;
+  final int? _previousCountry;
+
+  /// 尚未出发时可改为应对新出现的危险国家，已经在途的部队保持原战线。
+  int? get objectiveCountry {
+    final previous = _previousCountry;
+    if (previous == null || armies.isNotEmpty) return previous;
+    bool reachable(int country) => view.cities
+        .where((c) => c.country == country)
+        .any(
+          (target) => view.owned.any(
+            (home) =>
+                ledger.routes.seconds(
+                  home.center,
+                  target.outline.nearest(home.center),
+                ) <=
+                rules.tuning.coalitionMaxTravelSeconds,
+          ),
+        );
+    if (CoalitionPolicy(previous, view, rules).dangerous) {
+      return reachable(previous) ? previous : null;
+    }
+    final others = view.cities.map((c) => c.country).toSet();
+    return others.any(
+          (id) => CoalitionPolicy(id, view, rules).dangerous && reachable(id),
+        )
+        ? null
+        : previous;
+  }
+
   final int? _preferredCity;
 
   /// 尚未攻下的具体目标优先；已易主时重新选择该敌国的剩余城市。
@@ -106,6 +135,8 @@ class OffensiveFocus {
 
   /// 新目标必须取得主战线许可；已经在打的其他战线保留原指令。
   bool allows(AiCity city) {
+    // 尚无实际出征时，旧目标只影响偏好，不能封死所有其他可进攻城市。
+    if (primary == null) return true;
     if (objectiveCountry != null &&
         city.country != objectiveCountry &&
         (primary == null || !mayOpenFront)) {

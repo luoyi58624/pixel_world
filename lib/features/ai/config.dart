@@ -2,10 +2,20 @@
 class AiTuning {
   /// 默认预算限制每次候选展开与路线积分，普通改令保留承诺期。
   const AiTuning({
-    this.intervalSeconds = 8,
-    this.resourceIntervalSeconds = 30,
+    this.intervalSeconds = 4,
+    this.resourceIntervalSeconds = 10,
     this.resourceCashBuffer = 12,
-    this.maxPayrollIncomeRatio = .5,
+    this.maxPayrollIncomeRatio = .65,
+    this.dangerousCountryCityCount = 3,
+    this.coalitionBudgetBaseMonths = .5,
+    this.coalitionBudgetStepMonths = .25,
+    this.coalitionTargetBaseBonus = 45,
+    this.coalitionTargetStepBonus = 15,
+    this.coalitionPayrollCeiling = .8,
+    this.coalitionMaxTravelSeconds = 45,
+    this.targetTravelScale = 25,
+    this.hatredTargetBonus = 90,
+    this.breakthroughMargin = -.15,
     this.threatSeconds = 24,
     this.urgentSeconds = 6,
     this.reactionMargin = 1.5,
@@ -18,8 +28,8 @@ class AiTuning {
     this.maxCommands = 24,
     this.maxTeam = 4,
     this.maxOffensiveFronts = 2,
-    this.singleFrontMonths = 12,
-    this.splitForceRatio = 2.25,
+    this.singleFrontMonths = 0,
+    this.splitForceRatio = 1.0,
     this.splitAdvantageMargin = .3,
     this.raidArrivalSpread = 20,
     this.maxExpeditionSeconds = 900,
@@ -35,7 +45,7 @@ class AiTuning {
     this.maximumRequestAge = 3,
     this.workerTimeoutMs = 2500,
     this.maxRestarts = 2,
-    this.stagnationSeconds = 60,
+    this.stagnationSeconds = 20,
   });
 
   /// 决策间隔、观察窗口、紧急窗口及反应安全余量。
@@ -45,8 +55,29 @@ class AiTuning {
   final double resourceIntervalSeconds;
   final int resourceCashBuffer;
 
-  /// AI 外聘月俸最多占正常月收入的一半，为征兵、兵器和粮草留出长期现金流。
+  /// AI 外聘月俸占正常月收入的上限，为战损补员预留招聘空间。
   final double maxPayrollIncomeRatio;
+
+  /// 敌国达到该城池数后列为共同危险目标，玩家国家同样适用。
+  final int dangerousCountryCityCount;
+
+  /// 追加军费按本国正常月收入折算，达到门槛后每多一城继续增加。
+  final double coalitionBudgetBaseMonths, coalitionBudgetStepMonths;
+
+  /// 危险国家的目标权重，不替代防守、可支付性和实际胜算检查。
+  final double coalitionTargetBaseBonus, coalitionTargetStepBonus;
+
+  /// 围攻危险国家时的外聘月俸上限，仍保留长期经营与粮草预算。
+  final double coalitionPayrollCeiling;
+
+  /// 围攻只使用可在此行军时间内抵达的近程兵力。
+  final double coalitionMaxTravelSeconds;
+
+  /// 默认距离偏好与满仇恨时的目标加权，均不覆盖可支付性判断。
+  final double targetTravelScale, hatredTargetBonus;
+
+  /// 首轮静态下界允许的风险，支持先出兵消耗而不等待打穿全城。
+  final double breakthroughMargin;
 
   /// 普通任务承诺期与最大观察年龄。
   final double commitmentSeconds, maximumRequestAge;
@@ -98,6 +129,16 @@ class AiTuning {
     'resourceInterval': resourceIntervalSeconds,
     'cashBuffer': resourceCashBuffer,
     'payrollRatio': maxPayrollIncomeRatio,
+    'dangerousCountryCities': dangerousCountryCityCount,
+    'coalitionBudgetBase': coalitionBudgetBaseMonths,
+    'coalitionBudgetStep': coalitionBudgetStepMonths,
+    'coalitionTargetBase': coalitionTargetBaseBonus,
+    'coalitionTargetStep': coalitionTargetStepBonus,
+    'coalitionPayrollCeiling': coalitionPayrollCeiling,
+    'coalitionTravel': coalitionMaxTravelSeconds,
+    'targetTravelScale': targetTravelScale,
+    'hatredTargetBonus': hatredTargetBonus,
+    'breakthroughMargin': breakthroughMargin,
     'threat': threatSeconds,
     'urgent': urgentSeconds,
     'margin': reactionMargin,
@@ -136,6 +177,21 @@ class AiTuning {
     resourceIntervalSeconds: (d['resourceInterval'] as num? ?? 30).toDouble(),
     resourceCashBuffer: d['cashBuffer'] as int? ?? 12,
     maxPayrollIncomeRatio: (d['payrollRatio'] as num? ?? .5).toDouble(),
+    dangerousCountryCityCount: d['dangerousCountryCities'] as int? ?? 3,
+    coalitionBudgetBaseMonths: (d['coalitionBudgetBase'] as num? ?? .5)
+        .toDouble(),
+    coalitionBudgetStepMonths: (d['coalitionBudgetStep'] as num? ?? .25)
+        .toDouble(),
+    coalitionTargetBaseBonus: (d['coalitionTargetBase'] as num? ?? 45)
+        .toDouble(),
+    coalitionTargetStepBonus: (d['coalitionTargetStep'] as num? ?? 15)
+        .toDouble(),
+    coalitionPayrollCeiling: (d['coalitionPayrollCeiling'] as num? ?? .8)
+        .toDouble(),
+    coalitionMaxTravelSeconds: (d['coalitionTravel'] as num? ?? 45).toDouble(),
+    targetTravelScale: (d['targetTravelScale'] as num? ?? 25).toDouble(),
+    hatredTargetBonus: (d['hatredTargetBonus'] as num? ?? 90).toDouble(),
+    breakthroughMargin: (d['breakthroughMargin'] as num? ?? .1).toDouble(),
     threatSeconds: (d['threat'] as num).toDouble(),
     urgentSeconds: (d['urgent'] as num).toDouble(),
     reactionMargin: (d['margin'] as num).toDouble(),
