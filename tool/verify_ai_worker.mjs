@@ -12,6 +12,7 @@ const output=path.resolve('build/national_ai');fs.mkdirSync(output,{recursive:tr
 const probe=`<!doctype html><html><head><base href="/strategy/"><meta charset="utf-8"></head><body><pre id="result">running</pre><script>
 (async()=>{
  const f=await (await fetch('worker_fixture.json')).json();
+ const cases=f.cases||[{request:f.request,expected:f.expected}];
  const failures=[],samples=[];let frames=0,last=performance.now(),intervals=[];
  function frame(t){frames++;intervals.push(t-last);last=t;requestAnimationFrame(frame);}requestAnimationFrame(frame);
  const worker=new Worker(new URL('ai/worker.js?v='+f.build,document.baseURI));
@@ -23,14 +24,14 @@ const probe=`<!doctype html><html><head><base href="/strategy/"><meta charset="u
    const d=JSON.parse(e.data);
    if(d.kind==='hello'){context=d.backend;if(d.build!==f.build||!context.includes('DedicatedWorkerGlobalScope'))throw Error('worker identity mismatch');worker.postMessage(JSON.stringify({kind:'init',protocol:f.request.protocol,build:f.build,rules:f.rules,map:f.map}));}
    if(d.kind==='ready'){worker.postMessage(JSON.stringify({kind:'plan',request:{...f.request,id:999}}));worker.postMessage(JSON.stringify({kind:'cancel',id:999}));}
-   if(d.kind==='cancelled'){cancelled=true;worker.postMessage(JSON.stringify({kind:'plan',request:{...f.request,id:1}}));}
+   if(d.kind==='cancelled'){cancelled=true;worker.postMessage(JSON.stringify({kind:'plan',request:{...cases[0].request,id:1}}));}
    if(d.kind==='reply'){
      if(d.reply.id===999)throw Error('cancellation was not observed');
      if(d.reply.error)throw Error(d.reply.error);
-     if(JSON.stringify(normalize(d.reply.plan))!==JSON.stringify(normalize(f.expected)))throw Error('native and web plans differ');
+     if(JSON.stringify(normalize(d.reply.plan))!==JSON.stringify(normalize(cases[index%cases.length].expected)))throw Error('native and web plans differ for stage '+cases[index%cases.length].request.stage);
      index++;samples.push(d.reply.micros);
      if(index===24){if(frames<2)throw Error('main animation did not progress');finish(null);}
-     else worker.postMessage(JSON.stringify({kind:'plan',request:{...f.request,id:index+1}}));
+     else worker.postMessage(JSON.stringify({kind:'plan',request:{...cases[index%cases.length].request,id:index+1}}));
    }
    if(d.kind==='error')throw Error(d.message);
  }catch(error){finish(String(error));}};

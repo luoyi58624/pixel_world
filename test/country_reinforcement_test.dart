@@ -7,9 +7,11 @@ import 'support/national_ai_fixture.dart';
   int level = 2,
   bool far = false,
   bool friendly = false,
+  int gold = 200,
 }) {
   final c = nationalScenario(
     ai: false,
+    gold: gold,
     level: level,
     guards: [0, 18],
     reserves: 12,
@@ -59,7 +61,7 @@ void main() {
     );
   });
   test('R05 一级城已有守军时，强将通过野外截击回援，不直接挤进城', () {
-    final (c, march) = _rescue(level: 1);
+    final (c, march) = _rescue(level: 1, gold: 20);
     final plan = planFor(c);
     final tasks = plan.groups
         .expand((g) => g.tasks)

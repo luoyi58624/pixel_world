@@ -2,7 +2,9 @@
 class AiTuning {
   /// 默认预算限制每次候选展开与路线积分，普通改令保留承诺期。
   const AiTuning({
-    this.intervalSeconds = 5,
+    this.intervalSeconds = 8,
+    this.resourceIntervalSeconds = 30,
+    this.resourceCashBuffer = 12,
     this.threatSeconds = 24,
     this.urgentSeconds = 6,
     this.reactionMargin = 1.5,
@@ -27,6 +29,10 @@ class AiTuning {
 
   /// 决策间隔、观察窗口、紧急窗口及反应安全余量。
   final double intervalSeconds, threatSeconds, urgentSeconds, reactionMargin;
+
+  /// 全国资源整理频率和常规采购后保留的最低流动金币。
+  final double resourceIntervalSeconds;
+  final int resourceCashBuffer;
 
   /// 普通任务承诺期与最大观察年龄。
   final double commitmentSeconds, maximumRequestAge;
@@ -55,6 +61,8 @@ class AiTuning {
   /// 序列化策略参数。
   Map<String, Object?> toJson() => {
     'interval': intervalSeconds,
+    'resourceInterval': resourceIntervalSeconds,
+    'cashBuffer': resourceCashBuffer,
     'threat': threatSeconds,
     'urgent': urgentSeconds,
     'margin': reactionMargin,
@@ -80,6 +88,8 @@ class AiTuning {
   /// 解码初始化时下发的策略参数。
   factory AiTuning.fromJson(Map<String, dynamic> d) => AiTuning(
     intervalSeconds: (d['interval'] as num).toDouble(),
+    resourceIntervalSeconds: (d['resourceInterval'] as num? ?? 30).toDouble(),
+    resourceCashBuffer: d['cashBuffer'] as int? ?? 12,
     threatSeconds: (d['threat'] as num).toDouble(),
     urgentSeconds: (d['urgent'] as num).toDouble(),
     reactionMargin: (d['margin'] as num).toDouble(),

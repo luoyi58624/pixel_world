@@ -145,6 +145,10 @@ extension _AiCommands on CampaignState {
     }
     final count = reply.plan.groups.fold(0, (n, g) => n + g.actions.length);
     if (count > GameConfig.nationalAi.maxCommands) return reject('命令组超过预算');
+    final assignedHeroes = <String>{};
+    for (final task in reply.plan.groups.expand((g) => g.tasks)) {
+      if (!assignedHeroes.add(task.hero)) return reject('同一将领被重复分配任务');
+    }
     // 整份回复进入同一固定命令阶段；前一组的合法变化不会误判后一组旧版本。
     final dependencies = <String, String>{};
     for (final group in reply.plan.groups) {
@@ -181,16 +185,22 @@ extension _AiCommands on CampaignState {
       data: {'groupCount': reply.plan.groups.length},
     );
     final plan = _warPlans.putIfAbsent(reply.country, CountryWarPlan._);
-    plan.targetCityId = reply.plan.targetCity;
-    plan.targetCountryId = cities[plan.targetCityId]?.ownerCountryId;
-    plan.phase = switch (reply.plan.phase) {
-      'defending' => CountryWarPhase.defending,
-      'saving' => CountryWarPhase.saving,
-      'attacking' => CountryWarPhase.attacking,
-      _ => CountryWarPhase.preparing,
-    };
-    plan.requiredGold = reply.plan.requiredGold;
-    plan.requiredHeroes = reply.plan.requiredHeroes;
+    final retainSaving =
+        plan.phase == CountryWarPhase.saving &&
+        reply.plan.phase == 'preparing' &&
+        reply.plan.groups.isEmpty;
+    if (!retainSaving) {
+      plan.targetCityId = reply.plan.targetCity;
+      plan.targetCountryId = cities[plan.targetCityId]?.ownerCountryId;
+      plan.phase = switch (reply.plan.phase) {
+        'defending' => CountryWarPhase.defending,
+        'saving' => CountryWarPhase.saving,
+        'attacking' => CountryWarPhase.attacking,
+        _ => CountryWarPhase.preparing,
+      };
+      plan.requiredGold = reply.plan.requiredGold;
+      plan.requiredHeroes = reply.plan.requiredHeroes;
+    }
     for (final note in reply.plan.notes) {
       diagnostics.record('${world.countryName(reply.country)}国：$note');
     }
@@ -502,6 +512,28 @@ extension _AiCommands on CampaignState {
       if (gold < 0) return false;
     }
     if (gold < group.minimumGold) return false;
+    final replacing = group.tasks.map((t) => t.hero).toSet();
+    final departing = group.actions
+        .where((a) => a.kind == AiActionKind.dispatch)
+        .map((a) => a.hero)
+        .toSet();
+    final incoming = <int, int>{};
+    for (final task in _ai?.tasks.values ?? <ArmyTask>[]) {
+      final march = marches[task.hero];
+      if (!task.arrivalSlot ||
+          task.city == null ||
+          replacing.contains(task.hero) ||
+          march == null ||
+          march.hero.countryId != countryId ||
+          !march.hero.health.alive ||
+          _disbandAfterBattle.contains(task.hero) ||
+          task.deadlineTick < _strategyTime * 60 ||
+          task.expectedOrderRevision != (_aiOrderVersions[task.hero] ?? 0) ||
+          cities[task.city]?.ownerCountryId != countryId) {
+        continue;
+      }
+      incoming.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
+    }
     for (final task in group.tasks) {
       final hero = heroes.where((h) => h.id == task.hero).firstOrNull;
       if (hero == null ||
@@ -512,14 +544,22 @@ extension _AiCommands on CampaignState {
       }
       if (task.arrivalSlot && task.city != null) {
         if (cities[task.city]?.ownerCountryId != countryId) return false;
-        final occupancy = garrisonAt(task.city!)
-            .where((h) => h.health.alive && !removed.contains(h.id))
-            .length;
+        final occupancy =
+            garrisonAt(task.city!)
+                .where(
+                  (h) =>
+                      h.health.alive &&
+                      !removed.contains(h.id) &&
+                      !departing.contains(h.id),
+                )
+                .length +
+            (incoming[task.city] ?? 0);
         final slots = _aiSafetySlots(
           task.city!,
           overrideLevel: levels[task.city],
         );
         if (_aiThreatened(task.city!) && occupancy >= slots) return false;
+        incoming.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
       }
       final position =
           marches[hero.id]?.position ??

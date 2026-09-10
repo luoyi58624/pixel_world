@@ -60,7 +60,28 @@ class AiLedger {
   /// 已选择的任务、移出/解雇英雄及入城名额。
   final Map<String, ArmyTask> tasks;
   final Set<String> removed = {}, departed = {}, reservedHeroes = {};
-  final Map<int, int> arrivals = {};
+
+  /// 根据持续任务重建预约，跨调度周期仍占名额，改派后自动释放旧城名额。
+  Map<int, int> get arrivals {
+    final result = <int, int>{};
+    for (final task in tasks.values) {
+      final hero = view.hero(task.hero);
+      if (!task.arrivalSlot ||
+          task.city == null ||
+          hero == null ||
+          hero.marked ||
+          hero.hp <= 0 ||
+          removed.contains(hero.id) ||
+          (hero.stationed && !departed.contains(hero.id)) ||
+          task.deadlineTick < view.tick ||
+          view.city(task.city)?.country != view.country) {
+        continue;
+      }
+      result.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return result;
+  }
+
   final Set<int> recruited = {}, abandoned = {};
   final List<SupplyCommitment> newSupplies = [];
 
@@ -80,7 +101,6 @@ class AiLedger {
     next.removed.addAll(removed);
     next.departed.addAll(departed);
     next.reservedHeroes.addAll(reservedHeroes);
-    next.arrivals.addAll(arrivals);
     next.recruited.addAll(recruited);
     next.abandoned.addAll(abandoned);
     next.newSupplies.addAll(newSupplies);
@@ -368,9 +388,6 @@ class AiLedger {
     departed.add(hero.id);
     reservedHeroes.add(hero.id);
     tasks[hero.id] = task;
-    if (task.arrivalSlot && task.city != null) {
-      arrivals.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
-    }
     newSupplies.add(
       SupplyCommitment(
         hero.supplyDue,
@@ -391,9 +408,6 @@ class AiLedger {
     }
     reservedHeroes.add(hero.id);
     tasks[hero.id] = task;
-    if (task.arrivalSlot && task.city != null) {
-      arrivals.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
-    }
     return true;
   }
 }

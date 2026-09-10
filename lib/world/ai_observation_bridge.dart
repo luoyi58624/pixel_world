@@ -151,7 +151,8 @@ extension _AiObservationBridge on CampaignState {
           recruitAllowed:
               city.ownerCountryId == countryId &&
               recruitmentBlockReason(definition.id, countryId: countryId) ==
-                  null,
+                  null &&
+              _aiSafeRecruitment(definition.id),
           revision: _aiCityRevision(definition.id),
           initialBattleLevel: battle?.initialCityLevel,
           victories: battle?.victories ?? 0,
@@ -159,6 +160,13 @@ extension _AiObservationBridge on CampaignState {
           defender: battle?.defender.id,
           battleStage: battle?.simulation.stage.name ?? '',
           nextWaveSeconds: battle?.nextWaveIn ?? 0,
+          defenderFallen:
+              battle != null &&
+              !battle._settled &&
+              battle.nextWaveIn == 0 &&
+              heroes.contains(battle.defender) &&
+              !battle.defender.health.alive &&
+              battle.attacker.health.alive,
           dangerSeconds: battle == null
               ? 0
               : battle.nextWaveIn > 0

@@ -327,7 +327,7 @@ void main() {
     final spent = c.goldFor(1);
     c.advance(1 / 60);
     expect(c.goldFor(1), spent);
-    expect(c.cities[1]!.level, 3);
+    expect(c.cities[1]!.level, 2); // 资源阶段只升级一次，防守阶段尚未返回。
   });
   test('当前构建指纹已经由独立 Worker 编译步骤生成', () {
     expect(aiBuildStamp, isNot('development'));

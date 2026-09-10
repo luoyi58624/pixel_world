@@ -18,6 +18,7 @@ class DefenseCandidate {
     this.score, {
     this.unresolved = false,
     this.note = '',
+    this.response = 'local',
   });
 
   /// 资源状态、动作组、相对价值及失败解释。
@@ -26,6 +27,9 @@ class DefenseCandidate {
   final double score;
   final bool unresolved;
   final String note;
+
+  /// 本地抵抗、召回远征或迁移，避免回防固定加分压过原有防线。
+  final String response;
 }
 
 /// 有界比较升级、解雇、调防、全国回援、武器截击及安全转移。
@@ -54,18 +58,98 @@ class DefensePlanner {
     CityDefenseReport report,
     AiLedger base,
   ) sync* {
+    final currentRisk = _risk(report, base);
+    final overflow = base.occupancy(report.city.id) > base.slots(report.city);
+    if (!overflow && currentRisk?.advantage == CombatAdvantage.favorable) {
+      yield DefenseCandidate(
+        base,
+        [],
+        _quality(report, base),
+        note: '城防与现有守将足以应对可见来敌，维持远征，不召回将领',
+        response: 'hold',
+      );
+      return;
+    }
+    final choices = _allCandidates(report, base).toList();
+    // 优先采用能解决险情的本地动作；明显改善防线时也先让真实结果落地。
+    final local = choices
+        .where(
+          (c) =>
+              c.response == 'local' &&
+              c.groups.isNotEmpty &&
+              c.ledger.occupancy(report.city.id) <=
+                  c.ledger.slots(report.city) &&
+              ((_risk(report, c.ledger)?.lower ?? -1) >
+                      (currentRisk?.lower ?? -1) + .04 ||
+                  c.groups.any(
+                    (g) => g.tasks.any((t) => t.role == 'intercept'),
+                  )) &&
+              ((_risk(report, c.ledger)?.upper ?? -1) >
+                      -rules.tuning.advantageMargin ||
+                  c.groups.any(
+                    (g) => g.tasks.any((t) => t.role == 'intercept'),
+                  )),
+        )
+        .toList();
+    if (local.isNotEmpty) {
+      yield* local;
+      return;
+    }
+    // 招募结果未知，不将未知英雄算成确定战力；先执行可支付的本地补强，再复核。
+    if (!overflow && base.occupancy(report.city.id) < base.slots(report.city)) {
+      final recruited = base.copy();
+      if (recruited.recruit(report.city) &&
+          recruited.gold >= recruited.cash(emergency: true).reserve) {
+        yield _simple(report, base, recruited, [
+          AiAction(AiActionKind.recruit, city: report.city.id),
+        ], '本地仍有迎战名额，先招募补强，再按实际到任属性复核，暂不召回远征');
+        return;
+      }
+    }
+    yield* choices;
+  }
+
+  Iterable<DefenseCandidate> _allCandidates(
+    CityDefenseReport report,
+    AiLedger base,
+  ) sync* {
     final city = report.city;
     final overflow = base.occupancy(city.id) > base.slots(city);
     yield DefenseCandidate(
       base,
       [],
       _quality(report, base),
-      unresolved: overflow,
+      unresolved:
+          overflow ||
+          _risk(report, base)?.advantage != CombatAdvantage.favorable,
       note: overflow
           ? 'unsalvageableDefense：当前安全名额 ${base.slots(city)}，驻军 ${base.occupancy(city.id)}，等待合法修复'
           : '保持可出场守军，继续监控全部来敌',
     );
     if (!work.candidate()) return;
+
+    final needed = math.max(
+      0,
+      math.min(
+            base.capacity,
+            base.garrison(city.id).length * rules.integer('soldierLimit'),
+          ) -
+          base.reserves,
+    );
+    if (needed > 0) {
+      final supplied = base.copy();
+      final affordable = math.max(
+        0,
+        (supplied.gold - supplied.cash(emergency: true).reserve) ~/
+            rules.integer('soldierCost'),
+      );
+      final count = math.min(needed, affordable);
+      if (count > 0 && supplied.buySoldiers(count)) {
+        yield _simple(report, base, supplied, [
+          AiAction(AiActionKind.soldiers, city: city.id, amount: count),
+        ], '优先用国库补足现有守军兵员，再判断是否需要外援');
+      }
+    }
 
     if (city.initialBattleLevel == null) {
       final upgraded = base.copy(), actions = <AiAction>[];
@@ -235,6 +319,7 @@ class DefensePlanner {
             List.of(groups),
             _quality(report, moved) + saved * .65,
             note: _noteForTransfer(report),
+            response: 'relocation',
           );
           if (overflow) break;
         }
@@ -249,6 +334,7 @@ class DefensePlanner {
                   h.country == _view.country &&
                   h.canMove &&
                   !h.marked &&
+                  base.tasks[h.id]?.arrivalSlot != true &&
                   !base.reservedHeroes.contains(h.id),
             )
             .toList()
@@ -268,7 +354,8 @@ class DefensePlanner {
             ? sourceThreat!.deadline
             : double.infinity,
       );
-      if (base.occupancy(city.id) < base.slots(city)) {
+      if (_risk(report, base)?.advantage != CombatAdvantage.favorable &&
+          base.occupancy(city.id) < base.slots(city)) {
         final enemy = report.incoming
             .map((e) => e.hero)
             .reduce(
@@ -283,6 +370,8 @@ class DefensePlanner {
             rules.integer('soldierLimit'),
             base.reserves + hero.soldierCount,
           ),
+          ownOpening: false,
+          enemyOpening: enemy.openingAvailable,
         );
         if (score.lower > (report.risk?.lower ?? -1) + .05) {
           final route = operations.routes.to(
@@ -297,19 +386,21 @@ class DefensePlanner {
             hero,
             route,
             role: 'rescue',
-            reason: '召回能及时增强防线的在外将领，并预留入城名额',
+            reason:
+                '本地抵抗仍有缺口（城防${base.slots(city)}级，防守余量${((_risk(report, base)?.lower ?? -1) * 100).round()}点），援军约${route.seconds.toStringAsFixed(1)}秒到达，危险窗口${safeDeadline.toStringAsFixed(1)}秒，预留入城名额',
             target: city,
             arrival: true,
             emergency: true,
             deadline: safeDeadline,
           );
-          if (option != null) {
+          if (option != null &&
+              _risk(report, option.ledger)?.advantage ==
+                  CombatAdvantage.favorable) {
             yield DefenseCandidate(
               option.ledger,
               [option.group],
-              _quality(report, option.ledger) +
-                  200 +
-                  heroStrategicValue(hero) * .25,
+              _quality(report, option.ledger) - heroStrategicValue(hero) * .08,
+              response: 'recall',
             );
           }
         }
@@ -345,9 +436,10 @@ class DefensePlanner {
             option.ledger,
             [option.group],
             _quality(report, option.ledger) +
-                180 +
-                heroStrategicValue(incoming.hero) * .3,
+                80 -
+                heroStrategicValue(hero) * .08,
             unresolved: overflow,
+            response: 'recall',
           );
         }
       }
@@ -535,6 +627,7 @@ class DefensePlanner {
             _quality(report, option.ledger) + heroStrategicValue(hero) * 1.2,
             unresolved:
                 option.ledger.occupancy(city.id) > option.ledger.slots(city),
+            response: 'relocation',
           );
         }
       }
@@ -569,37 +662,83 @@ class DefensePlanner {
       _quality(report, after) -
           losses * .65 -
           math.max(0, before.gold - after.gold) * .2,
+      unresolved:
+          after.occupancy(report.city.id) > after.slots(report.city) ||
+          _risk(report, after)?.advantage != CombatAdvantage.favorable,
     );
   }
 
   CombatAssessment? _risk(CityDefenseReport r, AiLedger l) {
     if (r.incoming.isEmpty) return null;
-    final guards = l
-        .garrison(r.city.id)
-        .reversed
-        .take(l.slots(r.city))
-        .toList();
+    final all = l.garrison(r.city.id);
+    var reserve = l.reserves;
+    // 已接受且能及时到达的援军参与评估，不能每次扫描都当作援军不存在。
+    for (final task in l.tasks.values) {
+      if (!task.arrivalSlot ||
+          task.city != r.city.id ||
+          task.deadlineTick < _view.tick) {
+        continue;
+      }
+      final hero = _view.hero(task.hero);
+      if (hero == null ||
+          hero.marked ||
+          hero.opponent != null ||
+          hero.hp <= 0 ||
+          l.removed.contains(hero.id) ||
+          all.any((h) => h.id == hero.id)) {
+        continue;
+      }
+      var from = hero.position, seconds = 0.0;
+      for (final point in task.points.skip(task.leg)) {
+        seconds += operations.routes.seconds(from, point);
+        from = point;
+      }
+      if (!seconds.isFinite ||
+          seconds + rules.tuning.reactionMargin >= r.deadline) {
+        continue;
+      }
+      reserve = math.min(l.capacity, reserve + hero.soldierCount);
+      all.add(
+        AiHero.fromJson(
+          Map<String, dynamic>.from(hero.toJson())
+            ..['hp'] = hero.maxHp.toDouble()
+            ..['troops'] = <double>[]
+            ..['s'] = AiArmyState.garrison.index,
+        ),
+      );
+    }
+    all.sort((a, b) => a.order.compareTo(b.order));
+    final current = all.where((h) => h.id == r.city.defender).firstOrNull;
+    final guards = [
+      ?current,
+      ...all.reversed.where((h) => h != current),
+    ].take(l.slots(r.city)).toList();
     if (guards.isEmpty) return null;
-    final hero = guards.reduce(
-      (a, b) => heroCombatValue(a, rules) > heroCombatValue(b, rules) ? a : b,
-    );
-    final enemy = r.incoming
-        .map((e) => e.hero)
-        .reduce(
-          (a, b) =>
-              heroCombatValue(a, rules) > heroCombatValue(b, rules) ? a : b,
+    CombatAssessment? best;
+    for (var i = 0; i < guards.length; i++) {
+      final hero = guards[i];
+      final add = hero.state == AiArmyState.defending
+          ? 0
+          : math.min(
+              reserve,
+              rules.integer('soldierLimit') - hero.soldierCount,
+            );
+      reserve -= add;
+      CombatAssessment? worst;
+      for (final army in r.incoming) {
+        final pair = assessor.compare(
+          hero,
+          army.hero,
+          ownDefense: math.max(1, l.slots(r.city) - i),
+          ownSoldiers: hero.soldierCount + add,
+          ownOpening: false,
+          enemyOpening: army.hero.openingAvailable,
         );
-    return assessor.compare(
-      hero,
-      enemy,
-      ownDefense: math.max(1, l.slots(r.city) - guards.indexOf(hero)),
-      ownSoldiers: math.min(
-        rules.integer('soldierLimit'),
-        l.reserves + hero.soldierCount,
-      ),
-      ownOpening: false,
-      enemyOpening: enemy.openingAvailable,
-    );
+        if (worst == null || pair.lower < worst.lower) worst = pair;
+      }
+      if (best == null || worst!.lower > best.lower) best = worst;
+    }
+    return best;
   }
 
   double _quality(CityDefenseReport r, AiLedger l) {

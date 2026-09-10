@@ -31,6 +31,21 @@ void main() {
     final brain = CountryBrain(rules, map, request);
     for (final _ in brain.steps()) {}
     expect(brain.result!.groups, isNotEmpty);
+    final cases = [
+      for (final stage in AiDecisionStage.values)
+        (() {
+          final staged = AiRequest.fromJson({
+            ...request.toJson(),
+            'stage': stage.name,
+          });
+          final planner = CountryBrain(rules, map, staged);
+          for (final _ in planner.steps()) {}
+          return {
+            'request': staged.toJson(),
+            'expected': planner.result!.toJson(),
+          };
+        })(),
+    ];
     Directory('build/national_ai').createSync(recursive: true);
     File('build/national_ai/worker_fixture.json').writeAsStringSync(
       jsonEncode({
@@ -39,6 +54,7 @@ void main() {
         'map': map.toJson(),
         'request': request.toJson(),
         'expected': brain.result!.toJson(),
+        'cases': cases,
       }),
     );
   });

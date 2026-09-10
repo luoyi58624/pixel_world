@@ -20,6 +20,7 @@ class _AiCoordinator {
   final _urgentReasons = <int, Set<String>>{};
   // 仅用于日志去重，不参与规划、预算或将领调度。
   final _lastDecisionLogState = <int, String>{};
+  final _schedules = <int, CountryAiSchedule>{};
   AiWorker? worker;
   late AiRules rules;
   late AiMap map;
@@ -55,6 +56,11 @@ class _AiCoordinator {
 
   void _traceWorker(String kind, Map<String, Object?> data) {
     final country = data['country'] as int?, id = data['id'] as int?;
+    if (country != null &&
+        id != null &&
+        ['replyDropped', 'requestDropped', 'cancelled'].contains(kind)) {
+      _schedules[country]?.finish(id, campaign._strategyTime, adopted: false);
+    }
     final rejected = [
       'replyDropped',
       'requestDropped',
@@ -106,6 +112,9 @@ class _AiCoordinator {
     _lastRequest.clear();
     _urgent.clear();
     _urgentReasons.clear();
+    for (final schedule in _schedules.values) {
+      schedule.suspend();
+    }
     session = 'closed';
   }
 
@@ -126,11 +135,35 @@ class _AiCoordinator {
               .toSet()
               .toList()
             ..sort();
-      // 复用调度所需的威胁检测；只有状态变化才记录，不逐帧刷屏。
+      final due = <int, AiDecisionStage>{};
+      for (final id in countries) {
+        final schedule = _schedules.putIfAbsent(
+          id,
+          () => CountryAiSchedule(rules.tuning),
+        );
+        final pending = schedule.pending;
+        if (pending != null && pending.deadlineTick < tick) {
+          schedule.finish(pending.id, campaign._strategyTime, adopted: false);
+        }
+        final stage = schedule.due(campaign._strategyTime);
+        if (stage != null) due[id] = stage;
+      }
+      if (due.isEmpty) return;
+      final waiting = due.keys.toList()
+        ..sort((a, b) {
+          // 排队资历优先，紧急标记不再让某国每半秒插队重算。
+          final age = (_lastRequest[a] ?? -100).compareTo(
+            _lastRequest[b] ?? -100,
+          );
+          return age != 0 ? age : a.compareTo(b);
+        });
+      final country = waiting.first;
+      final stage = due[country]!;
+      // 仅在该国调度到期时扫描，避免每一帧遍历所有城池和部队。
       final threats = <int, int>{};
       for (final city in campaign.world.cities) {
         final owner = campaign.cities[city.id]!.ownerCountryId;
-        if (countries.contains(owner) && campaign._aiThreatened(city.id)) {
+        if (owner == country && campaign._aiThreatened(city.id)) {
           threats[city.id] = owner;
         }
       }
@@ -156,6 +189,7 @@ class _AiCoordinator {
         );
       }
       for (final entry in _knownThreats.entries) {
+        if (entry.value != country) continue;
         if (threats[entry.key] == entry.value) continue;
         campaign._emitEvent(
           GameEventKind.threatCleared,
@@ -170,36 +204,11 @@ class _AiCoordinator {
         );
       }
       _knownThreats
-        ..clear()
+        ..removeWhere((key, value) => value == country)
         ..addAll(threats);
-      final waiting = countries.where((id) {
-        final age = campaign._strategyTime - (_lastRequest[id] ?? -100);
-        final danger = threats.containsValue(id);
-        return !_lastRequest.containsKey(id) ||
-            age >= rules.tuning.intervalSeconds ||
-            (age >= .5 && (_urgent.contains(id) || danger));
-      }).toList();
-      if (waiting.isEmpty) return;
-      int priority(int country) {
-        final age = campaign._strategyTime - (_lastRequest[country] ?? -100);
-        if (_lastRequest.containsKey(country) &&
-            age > rules.tuning.intervalSeconds * 2) {
-          return 3;
-        }
-        if (_urgent.contains(country) || threats.containsValue(country)) {
-          return 2;
-        }
-        return 0;
-      }
-
-      waiting.sort((a, b) {
-        final p = priority(b).compareTo(priority(a));
-        return p != 0
-            ? p
-            : (_lastRequest[a] ?? -100).compareTo(_lastRequest[b] ?? -100);
-      });
-      final country = waiting.first;
-      final requestPriority = priority(country);
+      final requestPriority = _urgent.contains(country) || threats.isNotEmpty
+          ? 2
+          : 0;
       final trigger = [
         if (!_lastRequest.containsKey(country)) '开局或恢复决策',
         if (threats.containsValue(country)) '家里有危险，重新判断防守',
@@ -224,7 +233,9 @@ class _AiCoordinator {
           () => campaign._aiRandom.nextInt(1 << 30),
         ),
         idleCycles: idleCycles[country] ?? 0,
+        stage: stage,
       );
+      _schedules[country]!.submitted(request);
       latest[country] = request.id;
       _lastRequest[country] = campaign._strategyTime;
       campaign._aiStrategicDecisions++;
@@ -238,6 +249,7 @@ class _AiCoordinator {
         reason: trigger.isEmpty ? '定期复查任务与资源' : trigger.join('；'),
         data: {
           'requestId': request.id,
+          'stage': stage.name,
           'rulesVersion': rules.version,
           'mapVersion': map.version,
           'preferenceSeed': request.seed,
@@ -282,6 +294,13 @@ class _AiCoordinator {
       for (final reply in worker?.takeReplies() ?? <AiReply>[]) {
         campaign._aiRouteEstimates += reply.plan.routeSteps;
         changed = campaign._commitAiReply(reply, this) || changed;
+        if (reply.session == session) {
+          _schedules[reply.country]?.finish(
+            reply.id,
+            campaign._strategyTime,
+            adopted: applied[reply.country] == reply.id,
+          );
+        }
       }
       for (final entry in campaign._aiRearDeadlines.entries.toList()) {
         if (campaign.garrisonAt(entry.key).length <=
@@ -404,7 +423,18 @@ extension _AiSafety on CampaignState {
   int _aiSafetySlots(int id, {int? overrideLevel}) {
     final battle = battles[id];
     return battle?.isActive == true
-        ? math.max(0, battle!.initialCityLevel - battle.victories)
+        ? math.max(
+            0,
+            battle!.initialCityLevel -
+                battle.victories -
+              (!battle._settled &&
+                  battle.nextWaveIn == 0 &&
+                  heroes.contains(battle.defender) &&
+                        !battle.defender.health.alive &&
+                        battle.attacker.health.alive
+                    ? 1
+                    : 0),
+          )
         : (overrideLevel ?? cities[id]!.level);
   }
 

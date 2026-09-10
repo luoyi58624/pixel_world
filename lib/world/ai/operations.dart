@@ -26,6 +26,7 @@ class OperationPlanner {
   final AiRules rules;
   final AiRoutes routes;
   AiObservation get _view => request.observation;
+  bool get _canPurchase => request.stage != AiDecisionStage.attack;
 
   /// 有限的低价优先配装候选，不把后续三件全部当作必定释放。
   List<List<int>> loadouts(AiHero hero, AiLedger ledger) {
@@ -35,7 +36,9 @@ class OperationPlanner {
             .where(
               (w) =>
                   (ledger.stock[w.id] ?? 0) > 0 ||
-                  w.shopEnabled && _view.owned.length >= w.minimumCities,
+                  _canPurchase &&
+                      w.shopEnabled &&
+                      _view.owned.length >= w.minimumCities,
             )
             .toList()
           ..sort(
@@ -104,8 +107,8 @@ class OperationPlanner {
     }
     if (route.seconds + rules.tuning.reactionMargin >= deadline) return null;
     final previous = base.tasks[hero.id];
-    if (previous != null && previous.committedUntil > _view.tick) {
-      if (!emergency) return null;
+    if (previous != null) {
+      if (previous.committedUntil > _view.tick && !emergency) return null;
       if (previous.role == role &&
           previous.city == target?.id &&
           previous.enemy == enemy?.id &&
@@ -153,7 +156,10 @@ class OperationPlanner {
     );
     if (arrival &&
         target != null &&
-        ledger.occupancy(target.id) >=
+        ledger.occupancy(target.id) -
+                (previous?.arrivalSlot == true && previous?.city == target.id
+                    ? 1
+                    : 0) >=
             (rearSafe
                 ? math.max(
                     ledger.slots(target),
@@ -169,6 +175,7 @@ class OperationPlanner {
       );
       final purchase = math.max(0, desired - ledger.reserves);
       if (purchase > 0) {
+        if (!_canPurchase) return null;
         if (!ledger.buySoldiers(purchase)) return null;
         actions.add(
           AiAction(AiActionKind.soldiers, city: hero.city, amount: purchase),
@@ -178,6 +185,7 @@ class OperationPlanner {
       for (final id in gear) {
         needed.update(id, (n) => n + 1, ifAbsent: () => 1);
         if ((ledger.stock[id] ?? 0) < needed[id]!) {
+          if (!_canPurchase) return null;
           if (!ledger.buyWeapon(id)) return null;
           actions.add(AiAction(AiActionKind.buyWeapon, amount: id));
         }

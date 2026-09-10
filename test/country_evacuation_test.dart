@@ -4,6 +4,21 @@ import 'package:pixel_world/world/ai/protocol.dart';
 
 import 'support/national_ai_fixture.dart';
 
+// 先提交真实资源结果，再取新观察下的防守建议，避免用资源阶段验证调兵。
+AiReply _defenseReply(CampaignState c, ManualAiWorker worker) {
+  final completed = <int>{};
+  for (var i = 0; i < 180; i++) {
+    for (final request in worker.requests.where((r) => r.country == 1)) {
+      if (request.stage == AiDecisionStage.defense) {
+        return worker.solve(request);
+      }
+      if (completed.add(request.id)) worker.replies.add(worker.solve(request));
+    }
+    c.advance(1 / 60);
+  }
+  throw StateError('防守调度未接续资源阶段');
+}
+
 (CampaignState, ManualAiWorker) _evacuation() {
   final worker = ManualAiWorker();
   final c = nationalScenario(
@@ -19,8 +34,7 @@ import 'support/national_ai_fixture.dart';
   );
   approaching(c, distance: 200);
   c.advance(1 / 60);
-  final request = worker.requests.firstWhere((r) => r.country == 1);
-  final reply = worker.solve(request);
+  final reply = _defenseReply(c, worker);
   expect(
     reply.plan.groups
         .expand((g) => g.tasks)
@@ -54,9 +68,7 @@ void main() {
     c.cities[3]!.ownerCountryId = 2;
     approaching(c, distance: 210);
     c.advance(1 / 60);
-    final reply = worker.solve(
-      worker.requests.firstWhere((r) => r.country == 1),
-    );
+    final reply = _defenseReply(c, worker);
     final task = reply.plan.groups
         .expand((g) => g.tasks)
         .where((t) => t.role == 'newBase')

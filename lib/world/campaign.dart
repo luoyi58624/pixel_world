@@ -22,6 +22,7 @@ import 'ai/rules_data.dart';
 import 'ai/budget.dart';
 import 'ai/routes.dart';
 import 'ai/work_budget.dart';
+import 'ai/schedule.dart';
 import 'ai/runtime/worker.dart';
 import 'ai/runtime/build_stamp.dart';
 
@@ -2299,7 +2300,14 @@ class CampaignState {
       hero.hp = 0;
       _clearSquad(hero);
       _recycleHero(hero);
-      _emitEvent(GameEventKind.heroDisbanded,'城池失守，未出战的${hero.name}离队',hero:hero,cityId:cityId,targetCountryId:winnerCountryId,source:GameEventSource.system);
+      _emitEvent(
+        GameEventKind.heroDisbanded,
+        '城池失守，未出战的${hero.name}离队',
+        hero: hero,
+        cityId: cityId,
+        targetCountryId: winnerCountryId,
+        source: GameEventSource.system,
+      );
     }
     for (final hero in departed) {
       final battle = activeBattleForHero(hero.id);

@@ -60,9 +60,9 @@ extension _CampaignEventRecording on CampaignState {
   }) {
     if (!events.enabled) return;
     final plan = reply.plan;
+    final stage = coordinator._schedules[reply.country]?.pending?.stage;
     final state = '${plan.phase}:${plan.targetCity}:${failure ?? ''}';
     final previousState = coordinator._lastDecisionLogState[reply.country];
-    coordinator._lastDecisionLogState[reply.country] = state;
     if (actions.isEmpty) {
       if (previousState == state) return;
       if (failure == null &&
@@ -71,6 +71,7 @@ extension _CampaignEventRecording on CampaignState {
         return;
       }
     }
+    coordinator._lastDecisionLogState[reply.country] = state;
     final target = plan.targetCity == null
         ? ''
         : '，目标${cityName(plan.targetCity!)}国城池';
@@ -99,6 +100,7 @@ extension _CampaignEventRecording on CampaignState {
       data: {
         'result': result,
         'strategy': plan.phase,
+        'stage': stage?.name,
         'targetCityId': plan.targetCity,
         'before': before,
         'after': _eventResources(reply.country),

@@ -145,7 +145,7 @@ void main() {
     worker.replies.add(worker.solve(request));
     c.advance(1 / 60);
     expect(
-      c.events.forCountry(1).query().last.kind,
+      c.events.forCountry(1).query(decisionId: requested.decisionId).last.kind,
       GameEventKind.planRejected,
     );
     expect(c.goldFor(1), gold);

@@ -148,7 +148,7 @@ Map<int, int> _draws({
         c.heroes.firstWhere((hero) => hero.sourceId == 2),
         countryId: attacker,
       );
-      c.advance(GameConfig.countryAiInterval + .5);
+      advanceAiForSentinel(c);
     } else {
       for (var tick = 0; tick < 6; tick++) {
         c.advance(1 / 60);
@@ -163,6 +163,13 @@ Map<int, int> _draws({
     counts.update(target.id, (count) => count + 1, ifAbsent: () => 1);
   }
   return counts;
+}
+
+// 防守周期内逐帧等待真实调度，不用一次大步跳过资源、防守、进攻的交接。
+void advanceAiForSentinel(CampaignState c) {
+  for (var i = 0; i < (GameConfig.nationalAi.intervalSeconds + .5) * 60; i++) {
+    c.advance(1 / 60);
+  }
 }
 
 void main() {

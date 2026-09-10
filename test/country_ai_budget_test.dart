@@ -1,3 +1,5 @@
+import 'support/national_ai_fixture.dart' show advanceAi;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -140,7 +142,7 @@ void main() {
       );
       var deployments = 0;
       for (var second = 0; second < 180 && !c.defeated; second++) {
-        c.advance(1);
+        advanceAi(c, 1);
         final units = c.marches.values.where((march) => !march.hero.isPlayer);
         deployments += units.length;
         for (final unit in units) {
@@ -158,7 +160,7 @@ void main() {
   test('只剩一金币时不征兵、不升级、不新增远征，即使已有充足士兵', () {
     final c = _campaign(gold: 1, recruitment: true);
     final count = c.heroes.length;
-    c.advance(8);
+    advanceAi(c, 8);
     expect(c.goldFor(1), 1);
     expect(c.marches, isEmpty);
     expect(c.soldiersAt(1), 12);
@@ -255,11 +257,11 @@ void main() {
 
   test('先保护既有远征，连续经营经过欠收月结仍有粮草，资金充足也确实派兵', () {
     final c = _campaign(salary: 2);
-    c.advance(8);
+    advanceAi(c, 8);
     expect(c.marches.length, 1);
     expect(c.garrisonAt(1).length, 2);
     for (var second = 0; second < 60; second++) {
-      c.advance(1);
+      advanceAi(c, 1);
       expect(
         c.goldFor(1),
         greaterThanOrEqualTo(GameConfig.countryAiEmergencyGold),
@@ -285,7 +287,7 @@ void main() {
     );
     final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 4);
     final count = expensive.heroes.length;
-    for (var i = 0; i < 780; i++) {
+    for (var i = 0; i < 1920; i++) {
       expensive.advance(1 / 60);
       cheap.advance(1 / 60);
     }
@@ -323,7 +325,7 @@ void main() {
       stock: 0,
       salary: 1,
     );
-    c.advance(8);
+    advanceAi(c, 8);
     final budget = c.aiBudgetFor(1);
     expect(c.goldFor(1), greaterThanOrEqualTo(budget.reserveGold));
     expect(c.goldFor(1), lessThan(45));

@@ -1,3 +1,5 @@
+import 'support/national_ai_fixture.dart' show advanceAi;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -105,6 +107,8 @@ void main() {
     expect(c.marches, isEmpty);
     c.advance(1 / 60);
     expect(c.aiStrategicDecisions, 1);
+    expect(c.marches, isEmpty);
+    advanceAi(c, .5);
     expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
     expect(c.garrisonAt(1).length, 2);
     for (var i = 0; i < 4; i++) {
@@ -126,7 +130,7 @@ void main() {
 
   test('独立留守配置不由等级推算，但只派足以处理现有目标的编队', () {
     final c = _game(level: 5, guards: 1, largeArmy: true);
-    c.advance(1 / 60);
+    advanceAi(c, .5);
     expect(c.cities[1]!.requiredGarrison, 1);
     expect(c.garrisonAt(1).length, 5);
     expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);

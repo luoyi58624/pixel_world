@@ -1,3 +1,5 @@
+import 'support/national_ai_fixture.dart' show advanceAi;
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -21,7 +23,7 @@ const _balancedSiege = <int, Map<String, Object>>{
 void main() {
   test('开局立即扩张弱城，单军足够时不把多余将领全部堆向同一目标', () {
     final c = weaponStrategyCampaign(ai: true);
-    c.advance(.2);
+    advanceAi(c, .5);
     final marches = c.marches.values
         .where((m) => m.hero.countryId == 1)
         .toList();
@@ -44,7 +46,7 @@ void main() {
       enemyStock: 8,
       heroOverrides: _balancedSiege,
     );
-    c.advance(.2);
+    advanceAi(c, .5);
     final raid = c.marches.values.where((m) => m.hero.countryId == 1).toList();
     expect(raid.length, 2);
     expect(raid.map((m) => m.target!.id).toSet(), {2});
@@ -73,7 +75,7 @@ void main() {
       targetHeroes: [3, 4],
       heroOverrides: _balancedSiege,
     );
-    c.advance(.2);
+    advanceAi(c, .5);
     final plan = c.warPlanFor(1)!;
     expect(plan.phase, CountryWarPhase.saving);
     expect(plan.requiredGold, greaterThan(20));
@@ -106,7 +108,7 @@ void main() {
       enemyStock: 12,
       easyNeighbor: true,
     );
-    c.advance(.2);
+    advanceAi(c, .5);
     expect(c.warPlanFor(1)!.targetCityId, 3);
     expect(
       c.marches.values
@@ -125,11 +127,11 @@ void main() {
       enemyStock: 12,
       recruitment: true,
     );
-    c.advance(.2);
+    advanceAi(c, .5);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.preparing);
     expect(c.marches, isEmpty);
     expect(c.cities[1]!.level, 3);
-    expect(c.goldFor(1), 935);
+    expect(c.goldFor(1), 919); // 先补16名现有将领所需士兵，再支付65金币城防。
   });
 
   test('侦测可见来敌后修复迎战名额，不在危险满员城继续招募', () {
@@ -138,7 +140,7 @@ void main() {
     final march = c.dispatch(attacker, c.world.cities[1])!;
     march.position =
         c.cityBounds(c.world.cities[1]).center + const Offset(260, 0);
-    c.advance(.2);
+    advanceAi(c, .5);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
     expect(c.weaponStorageUsed(1), 0);
     expect(c.garrisonAt(1).every((hero) => hero.weaponIds.isEmpty), isTrue);

@@ -10,6 +10,9 @@ import 'routes.dart';
 import 'rules_data.dart';
 import 'threats.dart';
 import 'work_budget.dart';
+import 'resource_planner.dart';
+import 'target_priority.dart';
+import 'raid_assessment.dart';
 
 class _NationCandidate {
   _NationCandidate(
@@ -82,6 +85,17 @@ class CountryBrain {
             h.orderRevision == t.expectedOrderRevision;
       }).toList(),
     );
+    if (request.stage == AiDecisionStage.resources) {
+      result = ResourcePlanner(
+        request,
+        rules,
+        operations,
+        assessor,
+        _reports,
+      ).plan(ledger);
+      yield 1;
+      return;
+    }
     final groups = <AiCommandGroup>[], notes = <String>[];
     var phase = 'preparing';
     int? targetCity;
@@ -104,7 +118,10 @@ class CountryBrain {
               );
       });
     var beam = [_NationCandidate(ledger, [], [], 0, 0)];
-    for (final report in urgent) {
+    for (final report
+        in request.stage == AiDecisionStage.attack
+            ? <CityDefenseReport>[]
+            : urgent) {
       final next = <_NationCandidate>[];
       for (final state in beam) {
         for (final choice in defense.candidates(report, state.ledger)) {
@@ -135,7 +152,7 @@ class CountryBrain {
         beam = next.take(math.min(4, rules.tuning.maxPlans)).toList();
       }
     }
-    if (urgent.isNotEmpty) {
+    if (urgent.isNotEmpty && request.stage != AiDecisionStage.attack) {
       final chosen = beam.first;
       ledger = chosen.ledger;
       groups.addAll(chosen.groups);
@@ -149,12 +166,16 @@ class CountryBrain {
         );
       }
     }
+    if (urgent.isNotEmpty) phase = 'defending';
     yield 2;
 
     // 撤退只参考已发生的碰撞与当前生命，不额外抽样未来伤害。
-    for (final hero in _view.heroes.where(
-      (h) => h.country == _view.country && !h.marked && h.canRetreat,
-    )) {
+    for (final hero
+        in _view.heroes
+            .where(
+              (h) => h.country == _view.country && !h.marked && h.canRetreat,
+            )
+            .where((_) => request.stage != AiDecisionStage.attack)) {
       if (hero.type != 1 ||
           hero.hp >= hero.maxHp * .25 ||
           hero.clashes < 2 ||
@@ -191,6 +212,7 @@ class CountryBrain {
           (h) =>
               h.country == _view.country &&
               h.canMove &&
+              request.stage != AiDecisionStage.attack &&
               !h.marked &&
               !ledger.reservedHeroes.contains(h.id),
         )
@@ -283,6 +305,7 @@ class CountryBrain {
               (h) =>
                   h.country == _view.country &&
                   h.canDispatch &&
+                  request.stage != AiDecisionStage.defense &&
                   !h.marked &&
                   !ledger.removed.contains(h.id),
             )
@@ -307,7 +330,14 @@ class CountryBrain {
     )) {
       assigned.update(task.city!, (n) => n + 1, ifAbsent: () => 1);
     }
-    final threatsResolved = beam.first.unresolved == 0;
+    final threatsResolved =
+        beam.first.unresolved == 0 &&
+        (request.stage != AiDecisionStage.attack ||
+            urgent.every(
+              (r) =>
+                  r.overflow == 0 &&
+                  r.risk?.advantage == CombatAdvantage.favorable,
+            ));
     var launched = false;
     for (final hero in spare) {
       if (!threatsResolved ||
@@ -365,58 +395,24 @@ class CountryBrain {
         final equipment = operations.loadouts(hero, ledger);
         var acceptable = false;
         for (final gear in equipment) {
-          var lower = 1.0, upper = 1.0;
-          var enemyReserve = _view.countries
-              .firstWhere((c) => c.id == target.country)
-              .reserves;
-          for (var i = 0; i < guards.length; i++) {
-            final guard = guards[i];
-            final soldiers = math.min(
-              rules.integer('soldierLimit'),
-              enemyReserve + guard.soldierCount,
-            );
-            enemyReserve = math.max(
-              0,
-              enemyReserve - (soldiers - guard.soldierCount),
-            );
-            final assessment = assessor.compare(
-              hero,
-              guard,
-              enemyDefense: math.max(1, target.safeSlots - i),
-              ownSoldiers: rules.integer('soldierLimit'),
-              enemySoldiers: soldiers,
-              loadout: gear,
-              ownOpening: true,
-              enemyOpening: false,
-            );
-            lower = math.min(lower, assessment.lower);
-            upper = math.min(upper, assessment.upper);
-          }
-          final slack =
-              request.idleCycles >
-                      rules.tuning.stagnationSeconds /
-                          rules.tuning.intervalSeconds &&
-                  ledger.gold > 100
-              ? .05
-              : 0.0;
-          acceptable =
-              guards.isEmpty ||
-              (guards.length == 1 &&
-                  target.level <= 2 &&
-                  hero.hp >= hero.maxHp * .8 &&
-                  lower > rules.tuning.expansionMargin) ||
-              lower >
-                  rules.tuning.advantageMargin +
-                      math.max(0, guards.length - 1) * .025 -
-                      slack;
-          var neededTeam = 1;
-          if (!acceptable &&
-              guards.length > 1 &&
-              upper > rules.tuning.advantageMargin &&
-              lower > -.08) {
-            neededTeam = math.min(rules.tuning.maxTeam, guards.length);
-            acceptable = true;
-          }
+          final readiness = assessRaid(
+            hero,
+            target,
+            _view,
+            rules,
+            assessor,
+            gear,
+            slack:
+                request.idleCycles >
+                        rules.tuning.stagnationSeconds /
+                            rules.tuning.intervalSeconds &&
+                    ledger.gold > 100
+                ? .05
+                : 0,
+          );
+          final lower = readiness.lower;
+          final neededTeam = readiness.teamSize;
+          acceptable = neededTeam > 0;
           if (!acceptable) continue;
           requiredHeroes = math.max(requiredHeroes, neededTeam);
           final option = _prepareRaid(
@@ -508,7 +504,8 @@ class CountryBrain {
     }
 
     // 无可执行远征时再为明确缺口整备，禁止边境危险溢员和无任务采购。
-    if (!launched &&
+    if (request.stage == AiDecisionStage.full &&
+        !launched &&
         groups.fold(0, (n, g) => n + g.actions.length) <
             rules.tuning.maxCommands - 3) {
       for (final city in _view.owned) {
@@ -814,50 +811,6 @@ class CountryBrain {
     );
   }
 
-  double _targetScore(AiCity city, AiHero hero) {
-    final guards = _view
-        .garrison(city.id)
-        .reversed
-        .take(city.safeSlots)
-        .toList();
-    final strongest = guards.isEmpty
-        ? 0.0
-        : guards
-              .map((h) => h.combat * 3 + h.hp * .35 + h.soldierCount * 8)
-              .reduce(math.max);
-    final territories = _view.cities
-        .where((c) => c.country == city.country)
-        .length;
-    final linked = _view.heroes
-        .where((h) => h.city == city.id && !h.stationed)
-        .fold(
-          0.0,
-          (n, h) =>
-              n + heroStrategicValue(h) * (h.opponent == null ? .12 : .03),
-        );
-    final hatred = math.min(
-      .5,
-      (_view.nation.hatred[city.country] ?? 0) * .005,
-    );
-    final rivalry = territories >= 3
-        ? math.min(40, territories * 6).toDouble()
-        : 0.0;
-    var tie = (request.seed ^ (city.id * 7919)) & 0xffffffff;
-    tie = (tie ^ (tie << 13)) & 0xffffffff;
-    tie = (tie ^ (tie >>> 17)) & 0xffffffff;
-    tie = (tie ^ (tie << 5)) & 0xffffffff;
-    return 160 +
-        city.baseIncome *
-            (city.nativeCountry == hero.country
-                ? 1
-                : rules.number('foreignYield')) *
-            2 +
-        linked +
-        rivalry +
-        hatred * 30 -
-        strongest * .5 -
-        city.level * 8 -
-        hero.position.distance(city.center) * .03 +
-        (tie & 0xffff) / 65536 * 0.000001;
-  }
+  double _targetScore(AiCity city, AiHero hero) =>
+      targetPriority(city, hero, _view, rules, request.seed);
 }

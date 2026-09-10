@@ -65,4 +65,4 @@ event_audit_world0_seed101_country2.jsonl              # 另一个独立 AI 国
 
 事件测试覆盖国家隔离、独立保留上限、深度冻结、观察者错误隔离、实际费用、计划与执行关联、过期计划拒绝、受袭去重，以及开关记录后相同种子的行为一致；还验证多指令合并、部分失败、重复空闲决定去重和噪音不挤占最终历史。面板测试覆盖手机/桌面尺寸、切国不串日志、同国多城共享、实时刷新、过滤计数与复制范围。
 
-事件系统让调度冲突可以被定位；它不会自动修复之前已指出的跨轮入城预留或任务优先级问题。可在日志中重点检查 `taskReplaced / planRejected / commandRejected / guardIntervention` 及其关联 `decisionId`。
+事件系统本身负责观察；跨周期入城预留、调度顺序和召回优先级的后续修订见 [国家调度周期](ai_dispatch_cycles.md)。排查时可在完整追踪中检查 `taskReplaced / planRejected / commandRejected / guardIntervention` 及其关联 `decisionId`。

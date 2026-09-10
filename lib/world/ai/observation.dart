@@ -213,6 +213,7 @@ class AiCity {
     this.defender,
     this.battleStage = '',
     this.nextWaveSeconds = 0,
+    this.defenderFallen = false,
     this.dangerSeconds = 0,
   });
 
@@ -240,6 +241,7 @@ class AiCity {
     defender: d['defender'],
     battleStage: d['stage'],
     nextWaveSeconds: (d['next'] as num).toDouble(),
+    defenderFallen: d['fallen'] as bool? ?? false,
     dangerSeconds: (d['danger'] as num).toDouble(),
   );
 
@@ -273,13 +275,19 @@ class AiCity {
   final String battleStage;
   final double nextWaveSeconds;
 
+  /// 已阵亡守将仍在播放结束动画时，AI 不再把其占用的胜轮当成空闲名额。
+  final bool defenderFallen;
+
   /// 只由公开的当前准备或武器动画得出的最早结算下界，未知时为零。
   final double dangerSeconds;
 
   /// 当前仍可能迎战的真实名额。
   int get safeSlots => initialBattleLevel == null
       ? level
-      : (initialBattleLevel! - victories).clamp(0, 5);
+      : (initialBattleLevel! - victories - (defenderFallen ? 1 : 0)).clamp(
+          0,
+          5,
+        );
 
   /// 跨平台记录。
   Map<String, Object?> toJson() => {
@@ -303,6 +311,7 @@ class AiCity {
     'defender': defender,
     'stage': battleStage,
     'next': nextWaveSeconds,
+    'fallen': defenderFallen,
     'danger': dangerSeconds,
   };
 }

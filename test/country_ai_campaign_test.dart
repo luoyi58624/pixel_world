@@ -93,6 +93,7 @@ void main() {
               removedUnfought = 0,
               halted = 0,
               ticks = 0;
+          final unsafeExamples = <Map<String, Object?>>[];
           final timer = Stopwatch()..start();
           for (; ticks < seconds * 60 && !c.defeated; ticks++) {
             final fieldBefore = c.marches.keys.toSet();
@@ -150,6 +151,27 @@ void main() {
                         .length >
                     battle.initialCityLevel - battle.victories) {
                   overflow++;
+                  if (unsafeExamples.length < 12) {
+                    unsafeExamples.add({
+                      'tick': ticks,
+                      'city': battle.city.id,
+                      'owner': c.cities[battle.city.id]!.ownerCountryId,
+                      'defendingCountry': battle.defendingCountryId,
+                      'level': c.cities[battle.city.id]!.level,
+                      'initialLevel': battle.initialCityLevel,
+                      'victories': battle.victories,
+                      'nextWaveIn': battle.nextWaveIn,
+                      'garrison': c
+                          .garrisonAt(battle.city.id)
+                          .map((h) => {'id': h.id, 'hp': h.hp})
+                          .toList(),
+                      'latestDecisions': c.events
+                          .forCountry(battle.defendingCountryId)
+                          .finalDecisions(newestFirst: true, limit: 2)
+                          .map((e) => e.summary)
+                          .toList(),
+                    });
+                  }
                 }
               }
               for (final march in c.marches.values.where(
@@ -161,6 +183,7 @@ void main() {
             }
           }
           expect(c.aiDiagnostics.commands, greaterThan(0));
+          expect(overflow, 0, reason: '不得在已阵亡守将的结束动画期间错误补入新英雄：$unsafeExamples');
           rows.add({
             'world': world.id,
             'seed': seed,
@@ -168,6 +191,7 @@ void main() {
             'captures': captures,
             'deployedHeroes': deployed.length,
             'unsafeSiegeSamples': overflow,
+            'unsafeSiegeExamples': unsafeExamples,
             'advancedLostBeforeFighting': removedUnfought,
             'advancedLostWithCityBeforeFighting': lostUnfought,
             'haltedArmySeconds': halted,

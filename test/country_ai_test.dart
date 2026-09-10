@@ -1,3 +1,5 @@
+import 'support/national_ai_fixture.dart' show advanceAi;
+
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -278,7 +280,7 @@ void main() {
     final initial = c.garrisonAt(1).toList()..sort(_strength);
     c.advance(0);
     expect(c.marches, isEmpty);
-    c.advance(1 / 60);
+    advanceAi(c, .8);
     expect(c.marches.length, 1);
     final march = c.marches.values.first;
     expect(march.hero, same(initial.first));
@@ -306,7 +308,7 @@ void main() {
     pick.value = c.recruitPool.indexOf(weakest.first);
     prepareRecruitmentCity(c, 1, level: 3);
     expect(c.drawHero(1, countryId: 1), isNotNull);
-    c.advance(1 / 60);
+    advanceAi(c, .8);
     final newHero = c.heroes.firstWhere(
       (hero) => hero.sourceId == weakest.first.id,
     );
@@ -365,7 +367,7 @@ void main() {
         countries: _quietCountries()
           ..[1] = const CountryConfig(initialGold: 30),
       );
-      c.advance(8);
+      advanceAi(c, 8);
       choices.add(c.marches.values.first.target!.id);
     }
     expect(choices, isNotEmpty);
@@ -432,7 +434,7 @@ void main() {
   test('零留守偏好不能清空最后一城，仍保留能够守国的将领', () {
     final c = _campaign(
       ai: true,
-      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 30),
+      countries: _quietCountries()..[1] = const CountryConfig(initialGold: 100),
     );
     c.cities[1]!.ownerCountryId = 2;
     c.cities[1]!.ownerCountryId = 1;
@@ -445,13 +447,13 @@ void main() {
     );
     final count = c.garrisonAt(1).length;
     _setStock(c, 1, count * 4);
-    c.advance(8);
-    expect(c.cities[1]!.level, 1);
+    advanceAi(c, 8);
+    expect(c.cities[1]!.level, 2); // 资源阶段允许先升级，零留守也不能清空最后一城。
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      1,
+      count - 1,
     );
-    expect(c.garrisonAt(1).length, count - 1);
+    expect(c.garrisonAt(1).length, 1);
     expect(c.cities[1]!.requiredGarrison, 0);
   });
 

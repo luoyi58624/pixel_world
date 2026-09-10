@@ -4,6 +4,9 @@ import 'observation.dart';
 /// 消息协议版本；改变格式必须同时重建 UI 与 Worker。
 const aiProtocolVersion = 1;
 
+/// 正式调度按资源、防守、进攻串行执行；完整周期供独立评估测试使用。
+enum AiDecisionStage { full, resources, defense, attack }
+
 /// 玩家与电脑都能执行的命令类别，不包含修改生命或强制脱战。
 enum AiActionKind {
   upgrade,
@@ -267,6 +270,7 @@ class AiRequest {
     this.seed = 0,
     this.priority = 0,
     this.idleCycles = 0,
+    this.stage = AiDecisionStage.full,
   });
 
   /// 会话及静态数据版本。
@@ -274,6 +278,9 @@ class AiRequest {
 
   /// 请求编号、截止时刻、独立偏好种子、优先级与停滞周期。
   final int id, deadlineTick, seed, priority, idleCycles;
+
+  /// 当前国家本轮允许执行的调度阶段。
+  final AiDecisionStage stage;
 
   /// 一致观察及已执行的持续任务。
   final AiObservation observation;
@@ -295,6 +302,7 @@ class AiRequest {
     'seed': seed,
     'priority': priority,
     'idle': idleCycles,
+    'stage': stage.name,
   };
 
   /// 解码请求并检查协议。
@@ -318,6 +326,7 @@ class AiRequest {
       seed: d['seed'],
       priority: d['priority'],
       idleCycles: d['idle'],
+      stage: AiDecisionStage.values.byName(d['stage'] as String? ?? 'full'),
     );
   }
 }
