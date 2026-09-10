@@ -15,6 +15,9 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
   rootBundle.evict('assets/data/rom_heroes.json');
   rootBundle.evict('assets/data/weapon_animations.json');
   await tester.pumpWidget(const PixelWorldApp());
+  await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
+  await tester.tap(find.byKey(const ValueKey('start-game')));
+  await tester.pump();
   final canvas = find.byKey(const ValueKey('world-canvas'));
   for (var i = 0; i < 200 && canvas.evaluate().isEmpty; i++) {
     await tester.runAsync(

@@ -28,7 +28,11 @@ const _gold = Color(0xffd6bd7c);
 /// 可拖动、缩放、切换场景并指挥角色行走的地图界面。
 class WorldScreen extends StatefulWidget {
   /// 创建地图探索界面。
-  const WorldScreen({super.key});
+  const WorldScreen({super.key, this.initialWorldIndex = 0})
+    : assert(initialWorldIndex >= 0 && initialWorldIndex < 3);
+
+  /// 从开始界面选择的地图索引。
+  final int initialWorldIndex;
 
   @override
   State<WorldScreen> createState() => _WorldScreenState();
@@ -69,6 +73,7 @@ class _WorldScreenState extends State<WorldScreen>
         heroCatalog: assets.heroCatalog,
         weaponCatalog: assets.weaponCatalog,
       );
+      controller.switchWorld(widget.initialWorldIndex);
       setState(() {
         _assets = assets;
         _controller = controller;

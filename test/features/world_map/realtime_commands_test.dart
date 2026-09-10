@@ -44,6 +44,9 @@ Future<WorldController> _load(WidgetTester tester, Size size) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(const PixelWorldApp());
+  await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
+  await tester.tap(find.byKey(const ValueKey('start-game')));
+  await tester.pump();
   for (
     var i = 0;
     i < 200 && find.byKey(const ValueKey('world-canvas')).evaluate().isEmpty;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'features/world_map/presentation/world_screen.dart';
+import 'features/app/presentation/game_start_screen.dart';
 
 /// 启动像素世界地图。
 void main() {
@@ -27,7 +27,7 @@ class PixelWorldApp extends StatelessWidget {
         fontFamily: 'Microsoft YaHei',
         useMaterial3: true,
       ),
-      home: const WorldScreen(),
+      home: const GameStartScreen(),
     );
   }
 }

@@ -9,6 +9,9 @@ void main() {
   testWidgets('正式资源加载将玩法JSON接入控制器，未传额外参数也会生效', (tester) async {
     rootBundle.clear();
     await tester.pumpWidget(const PixelWorldApp());
+    await tester.ensureVisible(find.byKey(const ValueKey('start-game')));
+    await tester.tap(find.byKey(const ValueKey('start-game')));
+    await tester.pump();
     final canvas = find.byKey(const ValueKey('world-canvas'));
     for (var i = 0; i < 200 && canvas.evaluate().isEmpty; i++) {
       await tester.runAsync(
