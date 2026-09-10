@@ -39,13 +39,13 @@
 
 当前游戏将城防平衡调整为每级增加两点碰撞攻击，且不增加士气：碰撞强度按加成后的属性初始化，E1C6 计算红条时临时使用英雄自身有效战斗属性，随后还原碰撞属性。原字节未改写；这是新游戏规则，不是对原 ROM 数值的宣称。
 
-`tool/extract_nes_auto_charge.py` 只读执行同一原指令段，生成 `test/fixtures/nes_auto_charge_frames.json`；`test/nes_auto_charge_test.dart` 比较 1,400 帧的士气、积累、随机源、位移、伤亡和碰撞状态。原手动/无输入的 4,000 帧对照仍保留，用于验证基础指令没有因自动控制适配而改变。原音频、特殊召唤和完整 NES 输入仍不在本次移植范围内。
+`tool/extract_nes_auto_charge.py` 只读执行同一原指令段，生成 `test/fixtures/nes_auto_charge_frames.json`；`test/features/battle/nes_auto_charge_test.dart` 比较 1,400 帧的士气、积累、随机源、位移、伤亡和碰撞状态。原手动/无输入的 4,000 帧对照仍保留，用于验证基础指令没有因自动控制适配而改变。原音频、特殊召唤和完整 NES 输入仍不在本次移植范围内。
 
-运行 `tool/extract_nes_battle_kernel.py` 可以再次从指定 ROM 只读提取指令并生成 py65 对照数据。`test/nes_battle_kernel_test.dart` 比较四组、共 4,000 帧的完整计算快照，包含位置小数、带符号速度、随机源、红条、生命、减员槽、弹地位置和次数。
+运行 `tool/extract_nes_battle_kernel.py` 可以再次从指定 ROM 只读提取指令并生成 py65 对照数据。`test/features/battle/nes_battle_kernel_test.dart` 比较四组、共 4,000 帧的完整计算快照，包含位置小数、带符号速度、随机源、红条、生命、减员槽、弹地位置和次数。
 
 ```powershell
 python tool/extract_nes_battle_kernel.py "ROM 路径" --py65-path build/nes_analysis/deps
-flutter test test/nes_battle_kernel_test.dart
+flutter test test/features/battle/nes_battle_kernel_test.dart
 ```
 
 对照数据执行原始计算，只跳过 CF49 的战役登记和 E8F3 的 OAM 写入；CF49 会清除将领战役身份，当前由 Campaign 接管，其普通死亡入口已是零 HP、零兵力。它们不替代碰撞、随机数或运动算术。逐帧比较证明的是这些给定初始状态和输入下的计算一致性，并非整台 NES 的逐周期仿真。

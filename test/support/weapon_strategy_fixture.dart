@@ -2,19 +2,26 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:pixel_world/game_config.dart';
-import 'package:pixel_world/world/campaign.dart';
-import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
-import 'package:pixel_world/world/rom_hero.dart';
-import 'package:pixel_world/world/weapon.dart';
-import 'package:pixel_world/world/world_data.dart';
+import 'package:pixel_world/core/config/game_config.dart';
+import 'package:pixel_world/features/campaign/domain/campaign.dart';
+import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/features/heroes/data/rom_hero.dart';
+import 'package:pixel_world/features/weapons/domain/weapon.dart';
+import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 import 'fixed_siege_random.dart';
 
 /// 加载原版武器目录，可给指定国家设置可复核的测试库存。
-WeaponCatalog testWeaponCatalog({Map<String, dynamic> stock = const {}}) {
+WeaponCatalog testWeaponCatalog({
+  Map<String, dynamic> stock = const {},
+  bool original = false,
+}) {
   final data = jsonDecode(
-    File('assets/data/rom_weapons.json').readAsStringSync(),
+    File(
+      original
+          ? 'docs/reference/rom_weapons_original.json'
+          : 'assets/data/rom_weapons.json',
+    ).readAsStringSync(),
   );
   data['initialCountryStock'] = stock;
   return WeaponCatalog.decode(jsonEncode(data));

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'ui/world_screen.dart';
+import 'features/world_map/presentation/world_screen.dart';
 
 /// 启动像素世界地图。
 void main() {

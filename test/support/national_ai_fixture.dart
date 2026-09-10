@@ -1,18 +1,19 @@
+import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:pixel_world/world/campaign.dart';
-import 'package:pixel_world/world/campaign_setup.dart';
-import 'package:pixel_world/world/rom_hero.dart';
-import 'package:pixel_world/world/weapon.dart';
-import 'package:pixel_world/world/world_data.dart';
-import 'package:pixel_world/world/ai/country_brain.dart';
-import 'package:pixel_world/world/ai/protocol.dart';
-import 'package:pixel_world/world/ai/rules_data.dart';
-import 'package:pixel_world/world/ai/runtime/worker.dart';
-import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/features/campaign/domain/campaign.dart';
+import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
+import 'package:pixel_world/features/heroes/data/rom_hero.dart';
+import 'package:pixel_world/features/weapons/domain/weapon.dart';
+import 'package:pixel_world/features/world_map/domain/world_data.dart';
+import 'package:pixel_world/features/ai/country_brain.dart';
+import 'package:pixel_world/features/ai/protocol.dart';
+import 'package:pixel_world/features/ai/rules_data.dart';
+import 'package:pixel_world/features/ai/runtime/worker.dart';
+import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 
 /// 可控制延迟、乱序和重复回复的测试后端，不用于正式游戏。
 class ManualAiWorker implements AiWorker {
@@ -75,6 +76,7 @@ CampaignState nationalScenario({
   AiWorker Function()? workerFactory,
   Map<String, dynamic> stock = const {},
   int terrain = 0,
+  bool originalWeapons = false,
 }) {
   final records = [
     (0, 110, 48, 0, [40], 5),
@@ -148,7 +150,11 @@ CampaignState nationalScenario({
   }
   final ids = records.expand((r) => r.$5).toSet();
   final weapons = jsonDecode(
-    File('assets/data/rom_weapons.json').readAsStringSync(),
+    File(
+      originalWeapons
+          ? 'docs/reference/rom_weapons_original.json'
+          : 'assets/data/rom_weapons.json',
+    ).readAsStringSync(),
   );
   weapons['initialCountryStock'] = stock;
   return CampaignState.fromRom(
@@ -178,7 +184,7 @@ HeroMarch approaching(CampaignState c, {double distance = 60, int city = 1}) {
   )!;
   march.position =
       c.cityBounds(c.world.cities.firstWhere((v) => v.id == city)).center +
-      Offset(distance, 0);
+      GamePoint(distance, 0);
   return march;
 }
 

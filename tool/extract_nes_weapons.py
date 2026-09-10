@@ -85,20 +85,34 @@ def main():
     raw=args.rom.read_bytes()
     catalog=extract(raw)
     evidence=verify_damage(raw,catalog)
+    reference=Path('docs/reference/rom_weapons_original.json')
+    reference.parent.mkdir(parents=True,exist_ok=True)
+    if reference.exists():
+        frames={w['id']:w.get('animationFrames',60) for w in json.loads(reference.read_text(encoding='utf8'))['weapons']}
+        for weapon in catalog['weapons']:
+            if weapon['id'] in frames: weapon['animationFrames']=frames[weapon['id']]
+    reference.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
+    original_weapons=json.loads(json.dumps(catalog['weapons']))
     out=Path('assets/data/rom_weapons.json')
     if out.exists():
         previous=json.loads(out.read_text(encoding='utf8'))
         old={w['id']:w for w in previous['weapons']}
         for weapon in catalog['weapons']:
-            for key in ['price','damage','selfDamage','minimumCities','shopEnabled','animationFrames']:
+            for key in ['price','damage','selfDamage','animationFrames']:
                 if weapon['id'] in old and key in old[weapon['id']]: weapon[key]=old[weapon['id']][key]
         catalog['initialCountryStock']=previous.get('initialCountryStock',{})
+    catalog['weapons']=[w for w in catalog['weapons'] if w['id'] not in (6,7,8)]
+    for weapon in catalog['weapons']:
+        weapon['romMinimumCities']=weapon['minimumCities']
+        weapon['minimumCities']=1
+        weapon['shopEnabled']=True
+    catalog['notes']['gameplay']='游戏商店全部开放；移除台风、强击手、死枪。原始完整记录位于 docs/reference/rom_weapons_original.json。'
     out.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     Path('docs/nes_weapons_evidence.json').write_text(json.dumps(
         dict(sourceSha256=ROM_SHA256, examples=evidence),ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     sheet=Image.new('RGB',(152,15*20),'black')
     draw=ImageDraw.Draw(sheet)
-    for weapon in catalog['weapons']:
+    for weapon in original_weapons:
         y=weapon['id']*20
         draw.text((0,y+3),str(weapon['id']),fill='white')
         for x,(page,code) in enumerate(glyph_tokens(weapon['encodedName'])):

@@ -80,10 +80,10 @@ Worker URL 按文档 baseURI 解析，支持子目录，并带构建指纹。服
 ## 验证
 
 ```powershell
-flutter test test/country_ai_runtime_test.dart test/country_defense_safety_test.dart test/country_reinforcement_test.dart test/country_evacuation_test.dart test/country_ai_routes_test.dart
-flutter test test/country_ai_worker_fixture_test.dart
+flutter test test/features/ai/country_ai_runtime_test.dart test/features/ai/country_defense_safety_test.dart test/features/ai/country_reinforcement_test.dart test/features/ai/country_evacuation_test.dart test/features/ai/country_ai_routes_test.dart
+flutter test test/features/ai/country_ai_worker_fixture_test.dart
 node tool/verify_ai_worker.mjs
-flutter test test/country_ai_campaign_test.dart --dart-define=AI_CAMPAIGN_SECONDS=300 --dart-define=AI_CAMPAIGN_SEEDS=101,223,337 --dart-define=AI_CAMPAIGN_LABEL=heldout_new
+flutter test test/features/ai/country_ai_campaign_test.dart --dart-define=AI_CAMPAIGN_SECONDS=300 --dart-define=AI_CAMPAIGN_SEEDS=101,223,337 --dart-define=AI_CAMPAIGN_LABEL=heldout_new
 ```
 
 页面性能验收用 `--dart-define=AI_PROFILE=true --base-href=/strategy/` 构建，再运行 `node tool/verify_ai_worker.mjs --mode debug-js --web-root build/ai_debug_js --seconds 15`。工具使用专用无头 Chrome，记录实际页面拖拽、后台身份、通信和主环境耗时，正式构建默认不打印诊断。实测结果与局限见 [验收记录](national_ai_validation.md)。

@@ -2597,7 +2597,7 @@ if(typeof s=="function")A.cu(A.cx("Attempting to rewrap a JS function.",null))
 r=function(a,b){return function(c){return a(b,c,arguments.length)}}(A.kY,s)
 r[$.is()]=s
 p.onmessage=r
-q.$1(B.i.ag(t.G.a(A.O(["kind","hello","protocol",1,"build","28093e66","backend",o],t.N,t.X)),null))},
+q.$1(B.i.ag(t.G.a(A.O(["kind","hello","protocol",1,"build","b8ad17fe","backend",o],t.N,t.X)),null))},
 hS:function hS(){},
 hT:function hT(a){this.a=a},
 jr(a){return v.mangledGlobalNames[a]},
@@ -4340,7 +4340,7 @@ r.d-=s
 r.e+=a
 return!0},
 by(a){var s=this,r=s.b.f.i(0,a)
-if(r==null||!r.f||s.a.gU().gm(0)<r.e||s.d<r.b)return!1
+if(r==null||!r.f||s.d<r.b)return!1
 s.d=s.d-r.b
 s.w.aj(a,new A.du(),new A.dv())
 return!0},
@@ -6368,8 +6368,8 @@ A.fy.prototype={
 $1(a){var s
 t.o.a(a)
 s=this.b.w.i(0,a.a)
-if((s==null?0:s)<=0){s=this.a.a
-s=s.x!==B.k&&a.f&&s.y.gU().gm(0)>=a.e}else s=!0
+if((s==null?0:s)<=0)s=this.a.a.x!==B.k&&a.f
+else s=!0
 return s},
 $S:14}
 A.fz.prototype={
@@ -6805,7 +6805,7 @@ return A.O(["version",s.a,"width",s.b,"height",s.c,"terrain",s.d],t.N,t.X)}}
 A.e1.prototype={
 cJ(a){var s,r,q,p,o,n,m,l,k,j,i=this
 try{s=t.d1.a(B.i.ct(a,null))
-switch(J.aU(s,"kind")){case"init":if(!J.aq(J.aU(s,"protocol"),1)||!J.aq(J.aU(s,"build"),"28093e66"))throw A.h(B.a4);++i.f
+switch(J.aU(s,"kind")){case"init":if(!J.aq(J.aU(s,"protocol"),1)||!J.aq(J.aU(s,"build"),"b8ad17fe"))throw A.h(B.a4);++i.f
 i.e=null
 p=i.r
 if(p.a>0){p.b=p.c=p.d=p.e=p.f=null

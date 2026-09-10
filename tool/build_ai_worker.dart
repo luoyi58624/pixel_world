@@ -5,7 +5,7 @@ import 'dart:convert';
 Future<void> main(List<String> arguments) async {
   final root = Directory.current;
   final sources =
-      Directory('lib/world/ai')
+      Directory('lib/features/ai')
           .listSync(recursive: true)
           .whereType<File>()
           .where(
@@ -15,8 +15,8 @@ Future<void> main(List<String> arguments) async {
           )
           .toList()
         ..addAll([
-          File('lib/world/combat_rules.dart'),
-          File('lib/game_config.dart'),
+          File('lib/features/battle/domain/combat_rules.dart'),
+          File('lib/core/config/game_config.dart'),
           File('tool/ai_worker.dart'),
         ])
         ..sort((a, b) => a.path.compareTo(b.path));
@@ -30,7 +30,7 @@ Future<void> main(List<String> arguments) async {
   }
   final stamp = hash.toRadixString(16);
   if (arguments.contains('--check')) {
-    final marker = File('lib/world/ai/runtime/build_stamp.dart'),
+    final marker = File('lib/features/ai/runtime/build_stamp.dart'),
         asset = File('web/ai/worker.js');
     if (!marker.existsSync() ||
         !asset.existsSync() ||
@@ -42,7 +42,7 @@ Future<void> main(List<String> arguments) async {
     stdout.writeln('AI Worker 源码、版本与产物一致：$stamp');
     return;
   }
-  File('lib/world/ai/runtime/build_stamp.dart').writeAsStringSync(
+  File('lib/features/ai/runtime/build_stamp.dart').writeAsStringSync(
     "/// 由构建脚本更新，防止旧 Worker 与新 UI 混用。\nconst aiBuildStamp = '$stamp';\n",
   );
   Directory('web/ai').createSync(recursive: true);

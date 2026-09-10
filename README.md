@@ -15,7 +15,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 ## 调整数值
 
-将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。字段说明见 [开局配置说明](docs/campaign_config.md)。其余全局规则在 [`lib/game_config.dart`](lib/game_config.dart)。保存配置后热重启，新的开局才会读取；原版报酬保留在英雄记录的 `romSalary`，可调月俸使用 `salary`。
+将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。字段说明见 [开局配置说明](docs/campaign_config.md)。其余全局规则在 [`lib/core/config/game_config.dart`](lib/core/config/game_config.dart)。保存配置后热重启，新的开局才会读取；原版报酬保留在英雄记录的 `romSalary`，可调月俸使用 `salary`。
 
 ## 操作
 
@@ -46,28 +46,28 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 - `assets/maps/worlds.json`：基础地形编号、城堡模板、位置、单位编号。
 - `assets/images/terrain.png`：128 个 16×16 组合图块。
 - `assets/images/hero/advanced.png`、`normal.png`、`protagonist.png`：高级、普通、主角三套独立的 96×16 图集，六帧固定为正面 A/B、背面 A/B、左侧面 A/B。
-- `lib/world/hero_sprite.dart`：八方向判定、角色外观及六帧动画选择。
-- `lib/world/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
+- `lib/features/heroes/domain/hero_sprite.dart`：八方向判定、角色外观及六帧动画选择。
+- `lib/features/campaign/domain/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
 - `assets/data/rom_heroes.json`：41 位英雄的属性、月俸与展示顺序，原版报酬另存 `romSalary`，保留姓名编码和来源偏移。
-- `lib/world/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
+- `lib/features/heroes/data/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
 - `assets/data/rom_countries.json`、`assets/images/flags.png`：原版城名、国家及国旗，来源见 [核对报告](docs/nes_cities_flags.md)。
-- `lib/world/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
-- `lib/world/world_data.dart`：地图定义、城池定义、直线路线和地形速度。
-- `lib/world/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。
-- `lib/world/world_controller.dart`：探索、选中、行军及场景切换状态。
-- `lib/world/world_assets.dart`：按图块数据生成地图绘制缓存。
-- `lib/world/city_appearance.dart`：原 ROM 五级城堡模板，按当前等级切换形状与尺寸。
-- `lib/world/world_painter.dart`：静态地图与动态精灵绘制。
-- `lib/ui/world_screen.dart`：输入、工具栏、小地图和城池面板。
-- `lib/ui/city_panel.dart`：城池选项、情况和单页英雄选择；底部按钮固定，小窗口内滚动详情。
-- `lib/ui/city_services.dart`：城池储备征兵、英雄配兵与抽取签约，同页操作。
-- `lib/world/economy.dart`、`recruitment.dart`：各国月结报告、收成概率和待签约英雄。
-- `lib/ui/unit_panel.dart`：角色操作、属性与观战入口。
-- `lib/ui/battle_scene.dart`：可拖动、缩放的城内战场，固定展示两军 HP、兵力和士气。
+- `lib/features/world_map/domain/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
+- `lib/features/world_map/domain/world_data.dart`：地图定义、城池定义、直线路线和地形速度。
+- `lib/features/world_map/presentation/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。
+- `lib/features/world_map/presentation/world_controller.dart`：探索、选中、行军及场景切换状态。
+- `lib/features/world_map/data/world_assets.dart`：按图块数据生成地图绘制缓存。
+- `lib/features/cities/domain/city_appearance.dart`：原 ROM 五级城堡模板，按当前等级切换形状与尺寸。
+- `lib/features/world_map/presentation/world_painter.dart`：静态地图与动态精灵绘制。
+- `lib/features/world_map/presentation/world_screen.dart`：输入、工具栏、小地图和城池面板。
+- `lib/features/cities/presentation/city_panel.dart`：城池选项、情况和单页英雄选择；底部按钮固定，小窗口内滚动详情。
+- `lib/features/cities/presentation/city_services.dart`：城池储备征兵、英雄配兵与抽取签约，同页操作。
+- `lib/features/economy/domain/economy.dart`、`recruitment.dart`：各国月结报告、收成概率和待签约英雄。
+- `lib/features/heroes/presentation/unit_panel.dart`：角色操作、属性与观战入口。
+- `lib/features/battle/presentation/battle_scene.dart`：可拖动、缩放的城内战场，固定展示两军 HP、兵力和士气。
 - `assets/images/hero/advanced_red.png`、`normal_red.png`：我方六帧换色图集，与敌方共享原始形状。
 - `assets/images/battle/`、`assets/data/rom_battle_art.json`：只读提取的原版战斗角色、武器、背景与来源证据。
-- `lib/world/battle_simulation.dart`：固定纵队、整队伤害、随机减员、士气蓄力、战线与撞墙溢出结算。
-- `lib/world/battle_painter.dart`：缓存原版精灵，绘制冲锋、挥砍、受击、撞墙回弹和倒地；只给英雄画血条。
+- `lib/features/battle/domain/battle_simulation.dart`：固定纵队、整队伤害、随机减员、士气蓄力、战线与撞墙溢出结算。
+- `lib/features/battle/presentation/battle_painter.dart`：缓存原版精灵，绘制冲锋、挥砍、受击、撞墙回弹和倒地；只给英雄画血条。
 
 地图的事实来源是 JSON 与图块集。启动时只拼接静态基础地形，城堡按当前等级绘制，五套建筑小图共用缓存；升级、降级或易主不必重建整张地图，也不会残留旧建筑。每帧只补绘可见城堡、角色、水面与战斗标记，不为每个格子创建 Widget。小地图以基础地形叠加当前国旗，避免旧城堡轮廓残留。地图不显示鼠标方格、选城框、路线及目的地标记，选点使用系统准星光标。人物和镜头保留连续坐标，最终显示时按设备物理像素对齐，并关闭纹理平滑，避免斜走和非整数缩放造成额外抖动。英雄帧按外观、阵营、动作和当前物理尺寸缓存，改变尺寸时释放旧缓存。
 
@@ -105,9 +105,9 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 英雄商店从本地图的共享回收池随机抽一位英雄，每次花 5 金币，**每城每月最多抽三次，签约成功后本月停止招募**，池中英雄等概率且不会与在场或待签约英雄重复。玩家抽中后立即锁定该英雄、等待签约或放弃，其他国家无法抽到；NPC 抽取后同步付费签约归队，不保留待签约结果。NPC 抽取前须备足抽取费及池中最高可能的签约费，资金不足不扣费、不锁人、不占次数；实际只扣抽中的将领对应费用。每次抽取消耗一次机会；放弃后可继续使用剩余次数，最多三次，签约成功后剩余机会归零。关闭面板、英雄阵亡或城池易主都不会重置本月限制。跨月保留的结果按实际签约月份锁定，下月恢复三次。普通将领免费签约，高级将领另付 10 金币，也可以放弃；放弃将英雄退回池中，抽取费不退。未登场、阵亡和失城被移除的非主角英雄均可入池，主角永不入池。待签约结果保留至次月月底，再下个月开始时自动回到共享池；例如一月抽中可保留到二月末，三月失效。关闭面板不重复抽取或延长期限，到期不退抽取费，旧按钮不能再次签约；已签约将领不会到期消失。签约后英雄满血进驻招募城，初始不带兵，离城时自动从储备补兵。招募城易主时待签约结果返回池中。
 
-已接入十五种原版一次性武器。城池原面板的国家武器库不限容量，同类型显示数量、三列自动换行；购买后先入库，选好最多三件，确认出征目标才带走。关闭面板清空选择，回城自动卸下剩余武器。城内不展示英雄装备，出征后点击地图英雄可查看随身武器。城池守方不能使用武器，攻方和野外双方可以使用；直接伤害先扣小兵，溢出再伤将。十二种商店武器按城池数解锁，三种事件专属武器保留初始库存配置。原值、来源与玩法可调字段见 [武器提取说明](docs/nes_weapons.md) 和 [rom_weapons.json](assets/data/rom_weapons.json)。
+游戏保留十二种原版一次性武器，商店全部开放，有金币即可购买；台风、强击手、死枪已移除。国家武器库不限容量，同类型合并数量、三列自动换行；购买后先入库，选好最多三件，确认地图目标才带走。关闭面板清空选择，回城自动卸下剩余武器。城内不展示英雄装备，出征后点击地图英雄可查看武器。城池守方不能使用武器，攻方和野外双方可以使用；直接伤害先扣小兵，溢出再伤将。原值和可调字段见 [武器提取说明](docs/nes_weapons.md) 和 [rom_weapons.json](assets/data/rom_weapons.json)。
 
-携带武器后，每次对阵开场自动使用一件，每次碰撞拼杀后以 50% 概率使用下一件，玩家和电脑规则相同，观战无需点击释放。十五种武器已使用原 ROM 逐帧动画，包含全队动作、变形及投射物；原始帧数、图集和验证见 [原武器动画还原](docs/nes_weapon_animations.md)。
+携带武器后，每次对阵开场自动使用一件，每次碰撞拼杀后以 50% 概率使用下一件，玩家和电脑规则相同，观战无需点击释放。武器使用原 ROM 逐帧动画，包含全队动作、变形及投射物；原始帧数、图集和验证见 [原武器动画还原](docs/nes_weapon_animations.md)。
 
 非玩家国家现由常驻后台统一规划：原生 Isolate、Web Worker，主环境只准备观察和提交合法命令。AI 仅用公开属性和规则做静态风险评估，不模拟未来战斗，也不读取敌方隐藏目的地。危险城池优先修复真正的迎战名额，并联合比较回援、截击、转移、整备与扩张；国库、兵员、装备和入城名额全国共享预留。
 
@@ -120,6 +120,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 顶部暂停按钮或 **P** 键可暂停／继续整个游戏。暂停时关闭 AI 后台并停止游戏帧调度，冻结所有国家的行军、战斗、武器动画、年月、收入、月俸、粮草、招募到期和资源操作；当前面板与选点保留。继续后只推进新经过的时间，不补算暂停时长。
 
 修改 AI 核心或全局规则后先运行 `dart run tool/build_ai_worker.dart`，再热重启或构建 Flutter；发布同时包含生成的 `web/ai/worker.js`，可用 `dart run tool/build_ai_worker.dart --check` 校验版本一致。
+
+工程已按功能归档到 `lib/features/`，共用时钟、配置与纯数值几何位于 `lib/core/`。顶部倍率按钮支持 1、2、4、8、16 倍，镜头操作保持实时。无窗口模拟入口为 `dart run tool/simulate.dart --speed 16 --seconds 600`，使用同一套实际战役和战斗规则。目录及运行说明见 [游戏架构](docs/game_architecture.md)，资金调优和对局结果见 [平衡评估](docs/game_balance.md)。
 
 城池易主统一重置为一级，产出、升级费用和建筑外观同步恢复；同国部队重复进驻不会重置等级。一级、二级为不同的 2×3 模板，三级扩展为 3×3，四级、五级使用不同的 3×4 模板。建筑沿原地图左下地基扩建，点击、出城、接触点和交战标记共用实际尺寸；已在途的目标点随建筑变化更新，守城降级时不重开当前战斗。原始地图数据和 ROM 文件不参与运行时修改。
 
@@ -160,13 +162,13 @@ python tool/extract_nes_battle_art.py "你的 ROM 路径"
 
 ```powershell
 flutter analyze
-flutter test test/navigation_test.dart test/hero_sprite_test.dart test/hero_walk_animation_test.dart test/map_render_test.dart
-flutter test test/city_dispatch_test.dart test/city_services_test.dart test/auto_reinforcement_test.dart test/city_reserve_capacity_test.dart
-flutter test test/campaign_rules_test.dart test/city_defense_test.dart test/field_battle_test.dart test/field_battle_ui_test.dart
-flutter test test/siege_queue_test.dart
-flutter test test/identity_flags_test.dart
-flutter test test/game_over_test.dart
-flutter test test/city_growth_test.dart
-flutter test test/economy_market_test.dart test/city_services_test.dart test/country_ai_test.dart test/recruitment_retry_test.dart
-flutter test test/battle_simulation_test.dart test/battle_art_test.dart test/city_contact_test.dart test/realtime_commands_test.dart
+flutter test test/features/world_map/navigation_test.dart test/features/heroes/hero_sprite_test.dart test/features/heroes/hero_walk_animation_test.dart test/features/world_map/map_render_test.dart
+flutter test test/features/cities/city_dispatch_test.dart test/features/cities/city_services_test.dart test/features/cities/auto_reinforcement_test.dart test/features/cities/city_reserve_capacity_test.dart
+flutter test test/features/campaign/campaign_rules_test.dart test/features/cities/city_defense_test.dart test/features/battle/field_battle_test.dart test/features/battle/field_battle_ui_test.dart
+flutter test test/features/battle/siege_queue_test.dart
+flutter test test/features/world_map/identity_flags_test.dart
+flutter test test/features/app/game_over_test.dart
+flutter test test/features/cities/city_growth_test.dart
+flutter test test/features/campaign/economy_market_test.dart test/features/cities/city_services_test.dart test/features/ai/country_ai_test.dart test/features/campaign/recruitment_retry_test.dart
+flutter test test/features/battle/battle_simulation_test.dart test/features/battle/battle_art_test.dart test/features/cities/city_contact_test.dart test/features/world_map/realtime_commands_test.dart
 ```

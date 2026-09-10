@@ -36,7 +36,7 @@
 
 ## 内存、订阅和模拟文件
 
-`lib/world/events/game_events.dart` 是独立于 Flutter、AI 核心和文件系统的事件接口。`campaign.events.forCountry(id)` 返回本国日志；`listen` 返回解绑函数；`query` 可按类型、英雄、决策编号和全局序号过滤。
+`lib/features/events/domain/game_events.dart` 是独立于 Flutter、AI 核心和文件系统的事件接口。`campaign.events.forCountry(id)` 返回本国日志；`listen` 返回解绑函数；`query` 可按类型、英雄、决策编号和全局序号过滤。
 
 默认每国独立保留最近 1000 条最终决策和最近 1000 条内部追踪，追踪噪音不会挤掉最终决策历史。`finalDecisions` 读取最终决策，`decisionCount` 是最终决策累计数，`exportDecisionsJsonLines` 导出最终决策。面板展示最近 200 条，可展开结构化详情；「复制日志」导出该国当前保留的全部最终决策，首行含累计、保留和截断数量。面板仅在本国新增最终决策时刷新，不因内部流程频繁重建。正式游戏不默认逐条写磁盘，也没有日志轮询定时器。重开后建立新日志，旧的未导出内存记录不持久化。
 
@@ -45,7 +45,7 @@
 现有实际战役回归默认按国家写最终决策 JSONL，只为实际出现最终决策的国家生成文件：
 
 ```powershell
-flutter test test/country_ai_campaign_test.dart --dart-define=AI_CAMPAIGN_SECONDS=180 --dart-define=AI_CAMPAIGN_SEEDS=101,223 --dart-define=AI_CAMPAIGN_LABEL=event_audit
+flutter test test/features/ai/country_ai_campaign_test.dart --dart-define=AI_CAMPAIGN_SECONDS=180 --dart-define=AI_CAMPAIGN_SEEDS=101,223 --dart-define=AI_CAMPAIGN_LABEL=event_audit
 ```
 
 输出位于 `build/national_ai/`：

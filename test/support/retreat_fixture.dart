@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pixel_world/world/campaign.dart';
-import 'package:pixel_world/world/ai/runtime/testing_worker.dart';
-import 'package:pixel_world/world/rom_hero.dart';
-import 'package:pixel_world/world/world_data.dart';
+import 'package:pixel_world/features/campaign/domain/campaign.dart';
+import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/features/heroes/data/rom_hero.dart';
+import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 import 'fixed_siege_random.dart';
 

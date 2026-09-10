@@ -1,0 +1,1079 @@
+{
+  "method": {
+    "seconds": 600,
+    "speed": 16,
+    "developmentSeeds": [
+      101,
+      223,
+      337
+    ],
+    "holdoutSeeds": [
+      503,
+      787
+    ],
+    "maps": [
+      0,
+      1,
+      2
+    ],
+    "backend": "deterministic-test"
+  },
+  "cohorts": {
+    "before_balance": {
+      "cases": 9,
+      "captures": 48,
+      "deaths": 397,
+      "unified": 0,
+      "protagonistSurvived": 9,
+      "unsafeSiegeSamples": 0,
+      "invalidResourceSamples": 0,
+      "duplicateHeroSamples": 0,
+      "haltedArmySeconds": 0,
+      "auditedRapidTaskReplacements": [
+        {
+          "world": 2,
+          "seed": 223,
+          "country": 2,
+          "tick": 7216,
+          "gapSeconds": 5.95,
+          "summary": "命培尔野外截击",
+          "reason": "回援采取城外截击，避免入城挤占安全名额",
+          "task": {
+            "hero": "rom-8",
+            "role": "intercept",
+            "deadline": 8090,
+            "commit": 7816,
+            "city": 3,
+            "enemy": "rom-11",
+            "points": [
+              [
+                343.6560896686655,
+                455.28254651088463
+              ]
+            ],
+            "leg": 0,
+            "gold": 7,
+            "slot": false,
+            "reason": "回援采取城外截击，避免入城挤占安全名额",
+            "order": 4
+          }
+        }
+      ],
+      "countries": {
+        "0": {
+          "name": "阿尔马",
+          "gold": 50,
+          "alive": 9,
+          "cases": 9,
+          "land": [
+            1,
+            2,
+            2,
+            2,
+            2,
+            2,
+            1,
+            2,
+            3
+          ],
+          "elimination": []
+        },
+        "1": {
+          "name": "奥尔梅",
+          "gold": 70,
+          "alive": 9,
+          "cases": 9,
+          "land": [
+            1,
+            2,
+            1,
+            2,
+            1,
+            1,
+            2,
+            2,
+            1
+          ],
+          "elimination": []
+        },
+        "2": {
+          "name": "马易",
+          "gold": 60,
+          "alive": 9,
+          "cases": 9,
+          "land": [
+            1,
+            2,
+            1,
+            2,
+            2,
+            3,
+            2,
+            1,
+            1
+          ],
+          "elimination": []
+        },
+        "3": {
+          "name": "鲍罗布",
+          "gold": 80,
+          "alive": 7,
+          "cases": 9,
+          "land": [
+            2,
+            1,
+            1,
+            0,
+            1,
+            0,
+            2,
+            2,
+            2
+          ],
+          "elimination": [
+            441,
+            123
+          ]
+        },
+        "4": {
+          "name": "墨尔",
+          "gold": 45,
+          "alive": 8,
+          "cases": 9,
+          "land": [
+            1,
+            1,
+            2,
+            0,
+            2,
+            1,
+            1,
+            1,
+            1
+          ],
+          "elimination": [
+            523
+          ]
+        },
+        "5": {
+          "name": "托洛诺",
+          "gold": 55,
+          "alive": 6,
+          "cases": 9,
+          "land": [
+            0,
+            1,
+            2,
+            0,
+            2,
+            1,
+            2,
+            1,
+            0
+          ],
+          "elimination": [
+            446,
+            410,
+            274
+          ]
+        },
+        "6": {
+          "name": "列穆",
+          "gold": 40,
+          "alive": 8,
+          "cases": 9,
+          "land": [
+            1,
+            1,
+            1,
+            2,
+            1,
+            1,
+            0,
+            1,
+            1
+          ],
+          "elimination": [
+            411
+          ]
+        },
+        "7": {
+          "name": "迪麦",
+          "gold": 50,
+          "alive": 4,
+          "cases": 9,
+          "land": [
+            1,
+            0,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1
+          ],
+          "elimination": [
+            104,
+            88,
+            100,
+            299,
+            99
+          ]
+        },
+        "8": {
+          "name": "索朗",
+          "gold": 45,
+          "alive": 2,
+          "cases": 9,
+          "land": [
+            2,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            132,
+            99,
+            187,
+            97,
+            74,
+            126,
+            99
+          ]
+        },
+        "9": {
+          "name": "本塔",
+          "gold": 80,
+          "alive": 6,
+          "cases": 9,
+          "land": [
+            0,
+            1,
+            1,
+            1,
+            0,
+            2,
+            0,
+            1,
+            2
+          ],
+          "elimination": [
+            547,
+            536,
+            281
+          ]
+        },
+        "10": {
+          "name": "洛埃",
+          "gold": 65,
+          "alive": 0,
+          "cases": 6,
+          "land": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            50,
+            36,
+            50,
+            36,
+            50,
+            36
+          ]
+        },
+        "11": {
+          "name": "贝尔",
+          "gold": 60,
+          "alive": 0,
+          "cases": 3,
+          "land": [
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            64,
+            64,
+            64
+          ]
+        }
+      }
+    },
+    "balance_v1": {
+      "cases": 9,
+      "captures": 46,
+      "deaths": 547,
+      "unified": 0,
+      "protagonistSurvived": 9,
+      "unsafeSiegeSamples": 0,
+      "invalidResourceSamples": 0,
+      "duplicateHeroSamples": 0,
+      "haltedArmySeconds": 0,
+      "auditedRapidTaskReplacements": [
+        {
+          "world": 2,
+          "seed": 101,
+          "country": 5,
+          "tick": 27024,
+          "gapSeconds": 5.966666666666667,
+          "summary": "命塔洛诺转向托洛诺国城池回城整备；命代杜罗转向托洛诺国城池回城整备",
+          "reason": "回安全友城缩减粮草支出，保留其他有效远征；结束旧截击或整备残血部队，进城补给后重评估目标",
+          "task": {
+            "hero": "rom-11",
+            "role": "regroup",
+            "deadline": 30624,
+            "commit": 27624,
+            "city": 5,
+            "enemy": null,
+            "points": [
+              [
+                392.0,
+                232.43202054146875
+              ]
+            ],
+            "leg": 0,
+            "gold": 1,
+            "slot": true,
+            "reason": "回安全友城缩减粮草支出，保留其他有效远征",
+            "order": 4
+          }
+        }
+      ],
+      "countries": {
+        "0": {
+          "name": "阿尔马",
+          "gold": 50,
+          "alive": 9,
+          "cases": 9,
+          "land": [
+            1,
+            2,
+            2,
+            1,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          "elimination": []
+        },
+        "1": {
+          "name": "奥尔梅",
+          "gold": 70,
+          "alive": 6,
+          "cases": 9,
+          "land": [
+            0,
+            4,
+            0,
+            2,
+            1,
+            3,
+            2,
+            1,
+            0
+          ],
+          "elimination": [
+            509,
+            106,
+            108
+          ]
+        },
+        "2": {
+          "name": "马易",
+          "gold": 60,
+          "alive": 7,
+          "cases": 9,
+          "land": [
+            2,
+            1,
+            1,
+            1,
+            3,
+            0,
+            0,
+            1,
+            1
+          ],
+          "elimination": [
+            497,
+            505
+          ]
+        },
+        "3": {
+          "name": "鲍罗布",
+          "gold": 90,
+          "alive": 6,
+          "cases": 9,
+          "land": [
+            3,
+            0,
+            0,
+            1,
+            1,
+            2,
+            1,
+            1,
+            0
+          ],
+          "elimination": [
+            471,
+            137,
+            467
+          ]
+        },
+        "4": {
+          "name": "墨尔",
+          "gold": 110,
+          "alive": 7,
+          "cases": 9,
+          "land": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            0,
+            2,
+            1,
+            0
+          ],
+          "elimination": [
+            402,
+            403
+          ]
+        },
+        "5": {
+          "name": "托洛诺",
+          "gold": 120,
+          "alive": 7,
+          "cases": 9,
+          "land": [
+            1,
+            0,
+            3,
+            1,
+            1,
+            1,
+            1,
+            0,
+            2
+          ],
+          "elimination": [
+            118,
+            371
+          ]
+        },
+        "6": {
+          "name": "列穆",
+          "gold": 120,
+          "alive": 7,
+          "cases": 9,
+          "land": [
+            1,
+            0,
+            1,
+            1,
+            0,
+            1,
+            1,
+            1,
+            2
+          ],
+          "elimination": [
+            354,
+            541
+          ]
+        },
+        "7": {
+          "name": "迪麦",
+          "gold": 160,
+          "alive": 5,
+          "cases": 9,
+          "land": [
+            1,
+            0,
+            2,
+            0,
+            0,
+            1,
+            0,
+            1,
+            2
+          ],
+          "elimination": [
+            268,
+            465,
+            169,
+            481
+          ]
+        },
+        "8": {
+          "name": "索朗",
+          "gold": 180,
+          "alive": 4,
+          "cases": 9,
+          "land": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            1,
+            1
+          ],
+          "elimination": [
+            482,
+            99,
+            500,
+            101,
+            274
+          ]
+        },
+        "9": {
+          "name": "本塔",
+          "gold": 130,
+          "alive": 5,
+          "cases": 9,
+          "land": [
+            0,
+            2,
+            0,
+            1,
+            1,
+            0,
+            0,
+            2,
+            2
+          ],
+          "elimination": [
+            254,
+            273,
+            228,
+            199
+          ]
+        },
+        "10": {
+          "name": "洛埃",
+          "gold": 220,
+          "alive": 2,
+          "cases": 6,
+          "land": [
+            1,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            50,
+            50,
+            311,
+            50
+          ]
+        },
+        "11": {
+          "name": "贝尔",
+          "gold": 220,
+          "alive": 2,
+          "cases": 3,
+          "land": [
+            2,
+            2,
+            0
+          ],
+          "elimination": [
+            545
+          ]
+        }
+      }
+    },
+    "holdout_before": {
+      "cases": 6,
+      "captures": 35,
+      "deaths": 242,
+      "unified": 0,
+      "protagonistSurvived": 6,
+      "unsafeSiegeSamples": 0,
+      "invalidResourceSamples": 0,
+      "duplicateHeroSamples": 0,
+      "haltedArmySeconds": 0,
+      "auditedRapidTaskReplacements": [
+        {
+          "world": 2,
+          "seed": 787,
+          "country": 9,
+          "tick": 5423,
+          "gapSeconds": 5.95,
+          "summary": "命萨丁亚转向本塔国城池回城整备",
+          "reason": "回安全友城缩减粮草支出，保留其他有效远征",
+          "task": {
+            "hero": "rom-36",
+            "role": "regroup",
+            "deadline": 9023,
+            "commit": 6023,
+            "city": 9,
+            "enemy": null,
+            "points": [
+              [
+                549.0,
+                377.340350850912
+              ]
+            ],
+            "leg": 0,
+            "gold": 1,
+            "slot": true,
+            "reason": "回安全友城缩减粮草支出，保留其他有效远征",
+            "order": 2
+          }
+        }
+      ],
+      "countries": {
+        "0": {
+          "name": "阿尔马",
+          "gold": 50,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            2,
+            2,
+            2,
+            1,
+            2,
+            3
+          ],
+          "elimination": []
+        },
+        "1": {
+          "name": "奥尔梅",
+          "gold": 70,
+          "alive": 5,
+          "cases": 6,
+          "land": [
+            4,
+            1,
+            1,
+            2,
+            0,
+            4
+          ],
+          "elimination": [
+            245
+          ]
+        },
+        "2": {
+          "name": "马易",
+          "gold": 60,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            1,
+            2,
+            3,
+            2,
+            2,
+            3
+          ],
+          "elimination": []
+        },
+        "3": {
+          "name": "鲍罗布",
+          "gold": 80,
+          "alive": 3,
+          "cases": 6,
+          "land": [
+            1,
+            2,
+            0,
+            0,
+            3,
+            0
+          ],
+          "elimination": [
+            244,
+            448,
+            406
+          ]
+        },
+        "4": {
+          "name": "墨尔",
+          "gold": 45,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "elimination": []
+        },
+        "5": {
+          "name": "托洛诺",
+          "gold": 55,
+          "alive": 3,
+          "cases": 6,
+          "land": [
+            1,
+            0,
+            2,
+            1,
+            0,
+            0
+          ],
+          "elimination": [
+            176,
+            387,
+            260
+          ]
+        },
+        "6": {
+          "name": "列穆",
+          "gold": 40,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            0,
+            1,
+            1,
+            1,
+            1,
+            0
+          ],
+          "elimination": [
+            422,
+            201
+          ]
+        },
+        "7": {
+          "name": "迪麦",
+          "gold": 50,
+          "alive": 3,
+          "cases": 6,
+          "land": [
+            0,
+            0,
+            1,
+            0,
+            1,
+            1
+          ],
+          "elimination": [
+            226,
+            100,
+            221
+          ]
+        },
+        "8": {
+          "name": "索朗",
+          "gold": 45,
+          "alive": 0,
+          "cases": 6,
+          "land": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            74,
+            134,
+            99,
+            74,
+            126,
+            99
+          ]
+        },
+        "9": {
+          "name": "本塔",
+          "gold": 80,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            0,
+            2,
+            1,
+            2,
+            1,
+            0
+          ],
+          "elimination": [
+            397,
+            597
+          ]
+        },
+        "10": {
+          "name": "洛埃",
+          "gold": 65,
+          "alive": 0,
+          "cases": 4,
+          "land": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            50,
+            36,
+            50,
+            36
+          ]
+        },
+        "11": {
+          "name": "贝尔",
+          "gold": 60,
+          "alive": 0,
+          "cases": 2,
+          "land": [
+            0,
+            0
+          ],
+          "elimination": [
+            64,
+            64
+          ]
+        }
+      }
+    },
+    "holdout_after": {
+      "cases": 6,
+      "captures": 27,
+      "deaths": 354,
+      "unified": 0,
+      "protagonistSurvived": 6,
+      "unsafeSiegeSamples": 0,
+      "invalidResourceSamples": 0,
+      "duplicateHeroSamples": 0,
+      "haltedArmySeconds": 0,
+      "auditedRapidTaskReplacements": [],
+      "countries": {
+        "0": {
+          "name": "阿尔马",
+          "gold": 50,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            1,
+            1,
+            2,
+            2,
+            2,
+            2
+          ],
+          "elimination": []
+        },
+        "1": {
+          "name": "奥尔梅",
+          "gold": 70,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            1,
+            2,
+            0,
+            2,
+            1,
+            0
+          ],
+          "elimination": [
+            60,
+            108
+          ]
+        },
+        "2": {
+          "name": "马易",
+          "gold": 60,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            1,
+            2,
+            3,
+            2,
+            2,
+            1
+          ],
+          "elimination": []
+        },
+        "3": {
+          "name": "鲍罗布",
+          "gold": 90,
+          "alive": 5,
+          "cases": 6,
+          "land": [
+            1,
+            1,
+            1,
+            0,
+            1,
+            1
+          ],
+          "elimination": [
+            169
+          ]
+        },
+        "4": {
+          "name": "墨尔",
+          "gold": 110,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            0,
+            2,
+            0,
+            1,
+            1,
+            1
+          ],
+          "elimination": [
+            509,
+            277
+          ]
+        },
+        "5": {
+          "name": "托洛诺",
+          "gold": 120,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            2,
+            1,
+            1,
+            2,
+            1,
+            2
+          ],
+          "elimination": []
+        },
+        "6": {
+          "name": "列穆",
+          "gold": 120,
+          "alive": 6,
+          "cases": 6,
+          "land": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "elimination": []
+        },
+        "7": {
+          "name": "迪麦",
+          "gold": 160,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            1,
+            0,
+            1,
+            0,
+            1,
+            1
+          ],
+          "elimination": [
+            102,
+            310
+          ]
+        },
+        "8": {
+          "name": "索朗",
+          "gold": 180,
+          "alive": 1,
+          "cases": 6,
+          "land": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ],
+          "elimination": [
+            431,
+            99,
+            110,
+            119,
+            231
+          ]
+        },
+        "9": {
+          "name": "本塔",
+          "gold": 130,
+          "alive": 4,
+          "cases": 6,
+          "land": [
+            2,
+            1,
+            2,
+            0,
+            0,
+            1
+          ],
+          "elimination": [
+            230,
+            555
+          ]
+        },
+        "10": {
+          "name": "洛埃",
+          "gold": 220,
+          "alive": 1,
+          "cases": 4,
+          "land": [
+            0,
+            0,
+            1,
+            0
+          ],
+          "elimination": [
+            104,
+            50,
+            50
+          ]
+        },
+        "11": {
+          "name": "贝尔",
+          "gold": 220,
+          "alive": 1,
+          "cases": 2,
+          "land": [
+            0,
+            2
+          ],
+          "elimination": [
+            288
+          ]
+        }
+      }
+    }
+  },
+  "inputSha256": {
+    "assets/maps/worlds.json": "8c3053fa57a55deb9dad15f42fa2b52d64f888286a72f821bd31b837a2361bff",
+    "assets/data/rom_heroes.json": "d5e14279ab97b5fa3158a8399f8c9ce64c14aa685c6233bf1f08998d0720953d",
+    "assets/data/rom_weapons.json": "fb123b6e9ff644a6975a24533e7ce7fdf932e64f749cc2c3f438fdc44735945c",
+    "docs/reference/campaign_before_balance.json": "a15b931093b68eabd8e81fedcf9595fb6f66a3a841b075aae209738c1778b6ff",
+    "assets/data/campaign_config.json": "6a16811bdf801076a2659191b1caa8b7d7307eb77a968eba8d6d57fecbd1b051"
+  }
+}

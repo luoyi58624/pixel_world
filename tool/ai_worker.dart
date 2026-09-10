@@ -1,6 +1,6 @@
 import 'dart:js_interop';
 
-import 'package:pixel_world/world/ai/runtime/worker_server.dart';
+import 'package:pixel_world/features/ai/runtime/worker_server.dart';
 
 @JS()
 extension type _WorkerScope._(JSObject _) implements JSObject {

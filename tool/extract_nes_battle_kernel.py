@@ -34,7 +34,7 @@ def main():
             lines.append("      '" + data[offset:offset + 48].hex() + "'")
         lines[-1] += ','
     lines.append('};\n')
-    Path('lib/world/nes_battle_bytes.dart').write_text('\n'.join(lines), encoding='utf-8')
+    Path('lib/features/battle/domain/nes/nes_battle_bytes.dart').write_text('\n'.join(lines), encoding='utf-8')
     opcodes = set()
     records = []
     cases = [dict(name='equal', seed=12345, attack=[15, 15], hp=[99, 88], soldiers=[4, 4], input='none'),

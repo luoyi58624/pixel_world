@@ -13,14 +13,14 @@ def extract(root):
     image = Image.open(source).convert('RGB')
     templates = re.findall(
         r'(\d): CityAppearance\((\d), (\d), \[([^]]+)\]\)',
-        (root / 'lib/world/city_appearance.dart').read_text(encoding='utf-8'),
+        (root / 'lib/features/cities/domain/city_appearance.dart').read_text(encoding='utf-8'),
     )
     output = [
         '// 由 tool/extract_city_contacts.py 从城堡实体像素生成；不修改原图。',
         '// terrain.png SHA256: ' + hashlib.sha256(source.read_bytes()).hexdigest(),
-        "import 'dart:ui';", '',
+        "import '../../../core/geometry/geometry.dart';", '',
         '/// 已包含英雄半宽、半高各八像素的接触轮廓，坐标相对建筑图块左上角。',
-        'const nesCityContactOutlines = <int, List<Offset>>{',
+        'const nesCityContactOutlines = <int, List<GamePoint>>{',
     ]
     for level, width, height, values in templates:
         width, height = int(width), int(height)
@@ -67,13 +67,13 @@ def extract(root):
             if (b[0] - a[0]) * (c[1] - b[1]) != (b[1] - a[1]) * (c[0] - b[0]):
                 corners.append(b)
         output.append('  ' + level + ': [')
-        output.extend('    Offset(%d, %d),' % corner for corner in corners)
+        output.extend('    GamePoint(%d, %d),' % corner for corner in corners)
         output.append('  ],')
         print('level %s: %d contour corners, body y=%d..%d' % (
             level, len(corners), min(y for x, y in body), max(y for x, y in body) + 1))
     assert len(templates) == 5
     output.append('};')
-    (root / 'lib/world/nes_city_contacts.dart').write_text('\n'.join(output) + '\n', encoding='utf-8')
+    (root / 'lib/features/cities/data/nes_city_contacts.dart').write_text('\n'.join(output) + '\n', encoding='utf-8')
 
 
 if __name__ == '__main__':

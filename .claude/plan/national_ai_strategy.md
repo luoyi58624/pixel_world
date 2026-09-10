@@ -27,24 +27,24 @@ AI 禁止创建或调用 `NesBattleKernel`、`BattleSimulation` 试打未来战�
 
 | 规则 | 对 AI 的要求 | 当前依据 |
 |---|---|---|
-| 攻城在开战时记录 `initialCityLevel`，进攻方累计胜轮达到该值，或守军清空，即可占城 | 按真实顺序和剩余名额判断谁可能出战；不模拟逐轮战斗 | `lib/world/campaign.dart:405–482,1780–1817` |
-| 守将从驻军实际顺序的末尾选取，不由 AI 任意指定 | 不能在预测中偷偷让高级将领先上；只能通过合法调出、解雇等改变实际候选名单 | `lib/world/siege_battles.dart:88–103` |
-| 本场轮数和临时城防基于开场快照 | 开战后升级不能挽救本场剩余迎战名额；只能改善后续场次等状态 | `campaign.dart:436–447,466–482`；`test/siege_damage_test.dart:171` |
-| 实际招募容量是等级加一，回城和开局还可超过该值 | 游戏允许的人数不等于安全守城人数；必须增加 AI 自身的安全约束，不修改玩家容量 | `campaign.dart:90–94`；`lib/game_config.dart` |
+| 攻城在开战时记录 `initialCityLevel`，进攻方累计胜轮达到该值，或守军清空，即可占城 | 按真实顺序和剩余名额判断谁可能出战；不模拟逐轮战斗 | `lib/features/campaign/domain/campaign.dart:405–482,1780–1817` |
+| 守将从驻军实际顺序的末尾选取，不由 AI 任意指定 | 不能在预测中偷偷让高级将领先上；只能通过合法调出、解雇等改变实际候选名单 | `lib/features/campaign/domain/battles/siege_battles.dart:88–103` |
+| 本场轮数和临时城防基于开场快照 | 开战后升级不能挽救本场剩余迎战名额；只能改善后续场次等状态 | `campaign.dart:436–447,466–482`；`test/features/battle/siege_damage_test.dart:171` |
+| 实际招募容量是等级加一，回城和开局还可超过该值 | 游戏允许的人数不等于安全守城人数；必须增加 AI 自身的安全约束，不修改玩家容量 | `campaign.dart:90–94`；`lib/core/config/game_config.dart` |
 | 最低留守数 `requiredGarrison` 默认两人，独立于城池等级 | 这是经营偏好，不得覆盖战时安全上限；一级城不能因“最低留两人”而被锁死在危险配置 | `game_config.dart:24–25`；`country_strategy.dart:158–172` |
 | 空城可直接被占领 | `驻军数 <= 等级` 不是守得住的证明，也不是允许清空核心城的理由 | `siege_battles.dart:64–82` |
-| 守城英雄不能使用武器，不能主动战斗撤退 | 消耗战的武器必须由出城野战部队或攻方使用，不能给城内守将虚构武器伤害 | `lib/world/campaign_weapons.dart`；`battle_retreat.dart:6–21` |
+| 守城英雄不能使用武器，不能主动战斗撤退 | 消耗战的武器必须由出城野战部队或攻方使用，不能给城内守将虚构武器伤害 | `lib/features/campaign/domain/economy/campaign_weapons.dart`；`battle_retreat.dart:6–21` |
 | 交战中的英雄不能普通改道、扎营或解雇 | “召回”必须区分自由行军与战斗锁定；不能靠底层 `HeroMarch.moveTo` 免费脱战 | `campaign.dart:794–807,1397–1445` |
 | 战斗撤退失败概率目前为 60%，成功后沿原路返回出发城 | 撤退只有 40% 基础成功率，还要算动画、返程、断粮、拦截和出发城存续 | `battle_retreat.dart:24–114`；`game_config.dart` |
 | 失城会清除仍归属于该城的闲置和在外英雄；已交战者被标记为战后清除 | 离开城门不等于逃生。必须在失城前进驻其他友城，或完成可行的夺城并进驻，改变 `hero.cityId` | `campaign.dart:1820–1863,1912–1924` |
 | 失城后的战后清除标记不可通过改道、撤退或随后占城撤销 | 不得把已经中标记的英雄算作能获救的援军 | `campaign.dart:1866–1886`；`battle_retreat.dart:17,65` |
 | 全国共用金币、兵员储备和武器库存 | 所有城池、远征、回援必须共用一份任务资源预留，不能各自花同一笔钱或同一件武器 | `campaign.dart:731–779`；`country_ai_budget.dart` |
 | 出征和守城开战默认自动领取最多四兵 | 派弱将消耗敌人，可能先把高级守将需要的兵领光；预测必须按真实顺序扣库存 | `campaign.dart:1011–1079,1367–1393` |
-| 零金币不能正常出征；在外断粮会停下，扎营也继续消耗粮草 | “没钱出城”需要先合法解雇筹钱、等待来得及到账的收入，或选择其他方案，不能免费行动 | `campaign.dart:1260–1275`；`lib/world/field_supplies.dart` |
+| 零金币不能正常出征；在外断粮会停下，扎营也继续消耗粮草 | “没钱出城”需要先合法解雇筹钱、等待来得及到账的收入，或选择其他方案，不能免费行动 | `campaign.dart:1260–1275`；`lib/features/campaign/domain/economy/field_supplies.dart` |
 | 调入友城恢复英雄生命、归还生还兵员和剩余武器 | 调防与回援的价值必须按到达时的真实入城结果计算；野战获胜不能无条件回血 | `campaign.dart:1912–1924`；`field_battles.dart:156–204` |
 | 解雇返金币、减少全国容量、把英雄放回共享池 | 解雇不仅是获得金币，也可能裁掉储备、降低后续军力并让对手招回该英雄 | `campaign.dart:787–825,1200` |
 | NPC 招募是随机抽取后自动签约，受费用、月次数、容量和共享池约束 | 不得写成“花钱指定招一名高级将”；不能靠无限抽取或解雇循环制造战力 | `campaign.dart:1080–1209` |
-| 行军沿直线，地形影响速度，沿路敌城及敌军会触发接触 | 到达时间必须沿合法路线积分；绕行只能由合法的分段移动命令实现 | `lib/world/world_movement.dart`；`campaign.dart:1644–1685`；`field_battles.dart:51–154` |
+| 行军沿直线，地形影响速度，沿路敌城及敌军会触发接触 | 到达时间必须沿合法路线积分；绕行只能由合法的分段移动命令实现 | `lib/features/world_map/domain/world_movement.dart`；`campaign.dart:1644–1685`；`field_battles.dart:51–154` |
 
 ### 2.1 现有 AI 的关键缺口
 
@@ -454,7 +454,7 @@ Web 需增加独立 worker 入口及单独编译/部署步骤，第一版可将�
 
 不要继续把全部策略写成能随意访问 `CampaignState` 私有成员的巨大 extension。保留真实战役状态与结算，在其外建立纯数据的规划层。
 
-建议目录为 `lib/world/ai/`，按职责逐步建立以下模块；文件可在规模较小时合并，不为拆文件而拆文件。
+建议目录为 `lib/features/ai/`，按职责逐步建立以下模块；文件可在规模较小时合并，不为拆文件而拆文件。
 
 | 模块 | 职责 |
 |---|---|

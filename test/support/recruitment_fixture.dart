@@ -1,4 +1,4 @@
-import 'package:pixel_world/world/campaign.dart';
+import 'package:pixel_world/features/campaign/domain/campaign.dart';
 
 /// 为商店费用与锁定测试配置足够名额，人数门槛另由 recruitment_supply_test 覆盖。
 void prepareRecruitmentCity(
