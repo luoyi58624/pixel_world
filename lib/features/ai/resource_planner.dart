@@ -10,6 +10,7 @@ import 'threats.dart';
 import 'target_priority.dart';
 import 'raid_assessment.dart';
 import 'offensive_focus.dart';
+import 'coalition_policy.dart';
 
 /// 全国资源整理只在独立周期执行，预算包含在途部队粮草与月俸。
 class ResourcePlanner {
@@ -36,9 +37,50 @@ class ResourcePlanner {
     final groups = <AiCommandGroup>[];
     int? savingTarget, preparedTarget;
     var requiredGold = 0, requiredHeroes = 1;
-    bool affordable(AiLedger next) =>
+    final focusAtStart = OffensiveFocus(
+      view,
+      initial,
+      rules,
+      targetCountry: request.offensiveCountry,
+      targetCity: request.offensiveCity,
+    );
+    final leaders =
+        view.heroes
+            .where((h) => h.country == view.country && h.hp > 0 && !h.marked)
+            .toList()
+          ..sort(
+            (a, b) => heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
+          );
+    final objectives = view.cities
+        .where(
+          (c) =>
+              c.country != view.country &&
+              focusAtStart.allows(c) &&
+              operations.hasCoalitionFront(c),
+        )
+        .toList();
+    if (leaders.isNotEmpty) {
+      objectives.sort(
+        (a, b) => targetPriority(b, leaders.first, view, rules, request.seed)
+            .compareTo(
+              targetPriority(a, leaders.first, view, rules, request.seed),
+            ),
+      );
+    }
+    final objective = objectives.firstOrNull;
+    final coalition = objective == null
+        ? null
+        : CoalitionPolicy(objective.country, view, rules);
+    final earmarked = coalition?.dangerous == true
+        ? math.min(
+            coalition!.extraGold,
+            math.max(0, initial.gold - initial.cash().reserve),
+          )
+        : 0;
+    bool affordable(AiLedger next, {bool civilian = false}) =>
         next.gold >=
-        math.max(next.cash().reserve, rules.tuning.resourceCashBuffer);
+        math.max(next.cash().reserve, rules.tuning.resourceCashBuffer) +
+            (civilian ? earmarked : 0);
     void accept(
       AiLedger next,
       List<AiAction> actions,
@@ -132,7 +174,8 @@ class ResourcePlanner {
                         rules,
                         targetCountry: request.offensiveCountry,
                         targetCity: request.offensiveCity,
-                      ).allows(c),
+                      ).allows(c) &&
+                      operations.canRaidFrom(lead, c),
                 )
                 .toList()
               ..sort(
@@ -144,7 +187,7 @@ class ResourcePlanner {
                   request.seed,
                 ).compareTo(targetPriority(a, lead, view, rules, request.seed)),
               );
-        var team = rules.tuning.maxTeam;
+        var team = targets.isEmpty ? 0 : 2;
         for (final target in targets.take(3)) {
           final readiness = assessRaid(
             lead,
@@ -156,12 +199,21 @@ class ResourcePlanner {
                 ? []
                 : List.filled(rules.integer('carryLimit'), gear.first.id),
           );
-          if (readiness.teamSize > 0) team = math.min(team, readiness.teamSize);
+          if (readiness.teamSize > 0) {
+            if (coalition?.dangerous == true &&
+                target.country == objective?.country) {
+              team = readiness.teamSize;
+              break;
+            }
+            team = readiness.teamSize;
+            break;
+          }
         }
         // 需要轮番进攻时补齐队伍，不能永远停在“留守人数 + 一名远征军”。
         extraHeroes = team;
       }
       final needHero =
+          extraHeroes > 0 &&
           view.cities.any((c) => c.country != view.country) &&
           ledger.occupancy(city.id) <
               ledger.defendersToKeep(city) + extraHeroes;
@@ -172,7 +224,8 @@ class ResourcePlanner {
               reports[city.id]?.risk?.advantage ==
                   CombatAdvantage.unfavorable)) {
         final next = ledger.copy();
-        if (next.upgrade(city, governors.first) && affordable(next)) {
+        if (next.upgrade(city, governors.first) &&
+            affordable(next, civilian: reports[city.id]?.threatened != true)) {
           accept(
             next,
             [
@@ -196,6 +249,7 @@ class ResourcePlanner {
         if (next.recruit(
               city,
               emergency: reports[city.id]?.threatened == true,
+              offensiveCountry: objective?.country,
             ) &&
             affordable(next)) {
           accept(
@@ -242,7 +296,8 @@ class ResourcePlanner {
                       rules,
                       targetCountry: request.offensiveCountry,
                       targetCity: request.offensiveCity,
-                    ).allows(c),
+                    ).allows(c) &&
+                    operations.hasCoalitionFront(c),
               )
               .toList()
             ..sort(
@@ -256,7 +311,17 @@ class ResourcePlanner {
             );
       var equipped = false;
       for (final target in targets.take(rules.tuning.maxTargets)) {
-        for (final gear in operations.loadouts(hero, ledger)) {
+        final nearby = spare
+            .where((h) => operations.canRaidFrom(h, target))
+            .toList();
+        if (nearby.isEmpty) continue;
+        final hero = nearby.first;
+        for (final gear in operations.raidLoadouts(
+          hero,
+          ledger,
+          target,
+          assessor,
+        )) {
           final readiness = assessRaid(
             hero,
             target,
@@ -270,7 +335,7 @@ class ResourcePlanner {
           final secondary = focus.primary != null && focus.primary != target.id;
           if (readiness.teamSize == 0 ||
               needed <= 0 ||
-              needed > spare.length ||
+              needed > nearby.length ||
               secondary &&
                   (readiness.teamSize != 1 ||
                       readiness.lower < rules.tuning.splitAdvantageMargin)) {
@@ -282,7 +347,7 @@ class ResourcePlanner {
           var ready = true;
           var earliest = double.infinity, latest = 0.0;
           for (var i = 0; i < needed; i++) {
-            final member = spare[i];
+            final member = nearby[i];
             final memberRisk = assessRaid(
               member,
               target,
@@ -335,6 +400,7 @@ class ResourcePlanner {
                 math.max(0, quote.capacity - rules.integer('soldierLimit')),
               ),
               queueIndex: queued + i,
+              attrition: readiness.breakthrough,
             );
             if (option == null) {
               ready = false;
@@ -382,9 +448,21 @@ class ResourcePlanner {
         if (equipped) break;
       }
     }
+    final policyTarget = view.city(preparedTarget ?? savingTarget) ?? objective;
+    final selectedPolicy = policyTarget == null
+        ? null
+        : CoalitionPolicy(
+            policyTarget.country,
+            view,
+            rules,
+            levels: ledger.levels,
+          );
     return CountryPlan(
       phase: savingTarget == null ? 'preparing' : 'saving',
-      targetCity: preparedTarget ?? savingTarget,
+      targetCity:
+          preparedTarget ??
+          savingTarget ??
+          (coalition?.dangerous == true ? objective?.id : null),
       requiredGold: requiredGold,
       requiredHeroes: requiredHeroes,
       groups: groups,
@@ -392,7 +470,10 @@ class ResourcePlanner {
       assessments: assessor.work.assessments,
       routeSteps: assessor.work.routeSteps,
       expansions: assessor.work.candidates,
-      notes: groups.isEmpty ? ['本轮无必要且可支付的采购，保留国库'] : const [],
+      notes: [
+        if (groups.isEmpty) '本轮无必要且可支付的采购，保留国库',
+        if (selectedPolicy?.dangerous == true) selectedPolicy!.decisionNote,
+      ],
     );
   }
 }

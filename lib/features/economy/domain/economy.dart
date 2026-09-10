@@ -47,6 +47,7 @@ class MonthlySettlement {
     required this.baseIncome,
     required this.adjustment,
     required this.salary,
+    this.garrisonUpkeep = 0,
     required this.goldBefore,
     required this.goldAfter,
   });
@@ -69,6 +70,9 @@ class MonthlySettlement {
   /// 本月英雄报酬。
   final int salary;
 
+  /// 本月实际驻城时间累积的额外军费，与将领个人月俸分列。
+  final int garrisonUpkeep;
+
   /// 结算前的金币。
   final int goldBefore;
 
@@ -79,7 +83,7 @@ class MonthlySettlement {
   final int adjustment;
 
   /// 应结算净收入，允许负值。
-  int get netIncome => baseIncome + adjustment - salary;
+  int get netIncome => baseIncome + adjustment - salary - garrisonUpkeep;
 
   /// 国库实际变化，金币不足时不产生负债。
   int get actualChange => goldAfter - goldBefore;

@@ -16,6 +16,7 @@ Future<void> main(List<String> arguments) async {
           .toList()
         ..addAll([
           File('lib/features/battle/domain/combat_rules.dart'),
+          File('lib/features/economy/domain/military_upkeep.dart'),
           File('lib/core/config/game_config.dart'),
           File('tool/ai_worker.dart'),
         ])

@@ -227,6 +227,10 @@ extension _AiObservationBridge on CampaignState {
           regionCity: territories.regionAt(position),
           velocity: AiPoint(velocity.dx, velocity.dy),
           state: _aiArmyState(hero),
+          movementPending:
+              own &&
+              march != null &&
+              (march.waitingForDeparture || march.waitingForTraffic),
           soldiers: hero.squad.map((s) => s.hp).toList(),
           weapons: hero.weaponIds,
           morale: battle == null

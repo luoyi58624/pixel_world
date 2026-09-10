@@ -53,6 +53,7 @@ class AiHero {
     this.returnPath = const [],
     this.regionCity,
     this.salaryPaidMonth = -1,
+    this.movementPending = false,
   }) : soldiers = List.unmodifiable(soldiers),
        weapons = List.unmodifiable(weapons);
 
@@ -95,6 +96,7 @@ class AiHero {
     returnPath: [for (final p in d['returnPath']) AiPoint.fromJson(p)],
     regionCity: d['regionCity'] as int?,
     salaryPaidMonth: d['salaryPaidMonth'] as int? ?? -1,
+    movementPending: d['movementPending'] as bool? ?? false,
   );
 
   /// 身份、国家、所属城、显示顺序与类型；类型 0/1/2 为普通/高级/主角。
@@ -149,6 +151,9 @@ class AiHero {
   /// 招募时已经预付工资的月份，用于避免月末重复计费。
   final int salaryPaidMonth;
 
+  /// 仅己方可见的出城排队或避让等待，原移动指令尚未结束。
+  final bool movementPending;
+
   /// 是否占据城内迎战名额。
   bool get stationed =>
       state == AiArmyState.garrison || state == AiArmyState.defending;
@@ -198,6 +203,7 @@ class AiHero {
     'returnPath': [for (final p in returnPath) p.toJson()],
     'regionCity': regionCity,
     'salaryPaidMonth': salaryPaidMonth,
+    'movementPending': movementPending,
   };
 }
 
@@ -335,6 +341,7 @@ class AiCountry {
     this.capacity,
     this.salary,
     this.poorIncome, {
+    this.garrisonAccrued = 0,
     Map<int, int> stock = const {},
     Map<int, int> hatred = const {},
   }) : stock = Map.unmodifiable(stock),
@@ -348,6 +355,7 @@ class AiCountry {
     d['capacity'],
     d['salary'],
     d['poor'],
+    garrisonAccrued: (d['garrisonAccrued'] as num? ?? 0).toDouble(),
     stock: {
       for (final e in (d['stock'] as Map).entries)
         int.parse(e.key): e.value as int,
@@ -361,6 +369,9 @@ class AiCountry {
   /// 国家身份、现金、兵员、上限、月俸及欠收收入。
   final int id, gold, reserves, capacity, salary, poorIncome;
 
+  /// 本国已累计、将于月底支付的驻军军费，不能因重新分配任务消失。
+  final double garrisonAccrued;
+
   /// 库存和有方向的本国仇恨。
   final Map<int, int> stock, hatred;
 
@@ -372,6 +383,7 @@ class AiCountry {
     'capacity': capacity,
     'salary': salary,
     'poor': poorIncome,
+    'garrisonAccrued': garrisonAccrued,
     'stock': {for (final e in stock.entries) '${e.key}': e.value},
     'hate': {for (final e in hatred.entries) '${e.key}': e.value},
   };
