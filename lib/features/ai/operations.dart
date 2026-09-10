@@ -281,7 +281,9 @@ class OperationPlanner {
     if (arrival &&
         target != null &&
         ledger.occupancy(target.id) -
-                (previous?.arrivalSlot == true && previous?.city == target.id
+                (previous?.arrivalSlot == true &&
+                        previous!.deadlineTick >= _view.tick &&
+                        previous.city == target.id
                     ? 1
                     : 0) >=
             (rearSafe

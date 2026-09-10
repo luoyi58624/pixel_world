@@ -11,6 +11,7 @@ import '../features/world_map/domain/world_data.dart';
 import 'scenario.dart';
 import 'commander.dart';
 import 'commander_mine.dart';
+import 'defensive_commander.dart';
 
 /// 纯数据战役验收器：运行真实规则，不创建 Widget、画布或窗口。
 class SimulationRunner {
@@ -229,6 +230,7 @@ class SimulationRunner {
         ? switch (scenario.commanderStrategy) {
             CommanderStrategy.baseline => SimulationCommander(),
             CommanderStrategy.capacityFirst => MineCommander(),
+            CommanderStrategy.defenseOnly => DefensiveCommander(),
           }
         : null;
     final maxTicks = scenario.seconds * 60;
@@ -252,7 +254,9 @@ class SimulationRunner {
           if (tick % 60 != 0) return;
           final ids = c.heroes.map((h) => h.id).toSet();
           if (ids.length != c.heroes.length) duplicateHeroes++;
-          emptyStreak.removeWhere((key, _) => c.cities[key.$2]?.ownerCountryId != key.$1);
+          emptyStreak.removeWhere(
+            (key, _) => c.cities[key.$2]?.ownerCountryId != key.$1,
+          );
           for (final entry in c.cities.entries) {
             final country = entry.value.ownerCountryId;
             final key = (country, entry.key);
@@ -389,6 +393,7 @@ class SimulationRunner {
             ? switch (scenario.commanderStrategy) {
                 CommanderStrategy.baseline => 'command-api',
                 CommanderStrategy.capacityFirst => 'command-api-capacity-first',
+                CommanderStrategy.defenseOnly => 'command-api-defense-only',
               }
             : 'national-ai',
         'outcome': c.defeated

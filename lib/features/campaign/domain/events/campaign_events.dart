@@ -61,11 +61,19 @@ extension _CampaignEventRecording on CampaignState {
     if (!events.enabled) return;
     final plan = reply.plan;
     final stage = coordinator._schedules[reply.country]?.pending?.stage;
-    final state = '${plan.phase}:${plan.targetCity}:${failure ?? ''}';
+    final standby =
+        tasks
+            .where((t) => (t['newTask'] as Map?)?['role'] == 'standby')
+            .map((t) => '${t['heroName']}')
+            .toList()
+          ..sort();
+    final state =
+        '${plan.phase}:${plan.targetCity}:${failure ?? ''}:${standby.join(',')}';
     final previousState = coordinator._lastDecisionLogState[reply.country];
     if (actions.isEmpty) {
       if (previousState == state) return;
       if (failure == null &&
+          standby.isEmpty &&
           plan.phase != 'saving' &&
           plan.phase != 'defending') {
         return;
@@ -82,6 +90,8 @@ extension _CampaignEventRecording on CampaignState {
         ? '${actions.map((a) => a['summary']).join('；')}${failure == null ? '' : '；后续行动已停止'}'
         : failure != null
         ? '本轮行动未执行：$failure'
+        : standby.isNotEmpty
+        ? '命${standby.join('、')}暂时待命，继续复查目标与入城名额'
         : plan.phase == 'saving'
         ? '决定积蓄资金、暂缓出兵$target'
         : '决定维持防守、暂缓出兵$target';
@@ -132,6 +142,7 @@ extension _CampaignEventRecording on CampaignState {
     'evacuate' => '撤离',
     'transfer' => '调防',
     'regroup' => '回城整备',
+    'standby' => '安全待命',
     'newBase' => '建立新据点',
     _ => role,
   };

@@ -58,7 +58,9 @@ void main() {
   });
   test('资源30秒、哨兵8秒，资源结果落地后才防守，最后进攻', () {
     final c = nationalScenario(ai: false);
-    final schedule = CountryAiSchedule(const AiTuning());
+    final schedule = CountryAiSchedule(
+      const AiTuning(resourceIntervalSeconds: 30, intervalSeconds: 8),
+    );
     void complete(int id, double now, AiDecisionStage stage) {
       expect(schedule.due(now), stage);
       final request = _request(c, id, stage);

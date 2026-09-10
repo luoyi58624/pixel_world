@@ -17,6 +17,41 @@ import '../../support/national_ai_fixture.dart';
 import '../../support/weapon_strategy_fixture.dart';
 
 void main() {
+  for (final mutual in [false, true]) {
+    test('攻方战败${mutual ? '且互刺' : ''}时双方各收到唯一完整结束战报', () {
+      final c = nationalScenario(ai: false, level: 2, guards: [0, 18]);
+      addTearDown(c.dispose);
+      final march = c.dispatch(
+        c.garrisonAt(1).first,
+        c.world.cities[2],
+        countryId: 1,
+      )!;
+      march.position = march.destination;
+      c.advance(1 / 60);
+      final battle = c.battles[2]!;
+      battle.attacker.hp = 0;
+      if (mutual) battle.defender.hp = 0;
+      for (var i = 0; i < 1200 && battle.isActive; i++) {
+        c.advance(1 / 60);
+      }
+      expect(battle.isActive, isFalse);
+      for (final country in [1, 2]) {
+        final ended = c.events
+            .forCountry(country)
+            .query()
+            .where((e) => e.kind == GameEventKind.battleEnded)
+            .toList();
+        expect(ended, hasLength(1));
+        expect(
+          ended.single.summary,
+          mutual ? '双方将领阵亡' : '${battle.attacker.name}战败',
+        );
+      }
+      expect(c.cities[2]!.ownerCountryId, 2);
+      expect(c.cities[2]!.level, 2);
+    });
+  }
+
   test('开启事件记录和接收器报错都不改变 AI 行为、月结或游戏随机流', () {
     final world = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),

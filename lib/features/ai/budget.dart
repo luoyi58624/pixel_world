@@ -251,7 +251,7 @@ class AiLedger {
       if (!until.isFinite) until = rules.tuning.maxExpeditionSeconds;
       duration = math.max(duration, until);
       final indefinite =
-          task == null &&
+          (task == null || task.role == 'standby') &&
           hero.targetCity == null &&
           hero.state != AiArmyState.retreating;
       supplies.add(

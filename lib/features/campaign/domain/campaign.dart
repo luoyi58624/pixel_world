@@ -2032,6 +2032,7 @@ class CampaignState {
     required int winnerCountryId,
     int? defendedCityId,
     bool settleCityDefense = true,
+    bool endBattle = true,
   }) {
     final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
     if (hero == null ||
@@ -2052,7 +2053,7 @@ class CampaignState {
     final previousName = cityName(hero.cityId);
     final removed = <String>[hero.id];
     final march = marches[hero.id];
-    if (march != null) _endBattle(march, '${hero.name}战败');
+    if (march != null && endBattle) _endBattle(march, '${hero.name}战败');
     hero.hp = 0;
     marches.remove(hero.id);
     heroes.remove(hero);
@@ -2305,7 +2306,12 @@ class CampaignState {
     );
     if (lostDefender && !lostAttacker) battle.victories++;
     if (lostAttacker) {
-      _removeDefeatedHero(attacker.id, winnerCountryId: defender.countryId);
+      // 先清理本轮全部伤亡，再统一结束；死亡清理不能提前发布不完整或重复战报。
+      _removeDefeatedHero(
+        attacker.id,
+        winnerCountryId: defender.countryId,
+        endBattle: false,
+      );
     }
     if (lostDefender) {
       _removeDefeatedHero(

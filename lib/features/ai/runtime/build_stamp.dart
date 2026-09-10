@@ -1,2 +1,2 @@
 /// 由构建脚本更新，防止旧 Worker 与新 UI 混用。
-const aiBuildStamp = 'b36beff5';
+const aiBuildStamp = '7559bddf';

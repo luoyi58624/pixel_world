@@ -17,7 +17,9 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       '无界面战役验收：dart run tool/simulate.dart --speed 16 --seconds 600 --worlds 0,1,2 --seeds 101,223,337 --label trial\n'
       '--backend deterministic 使用显式测试后端保证可复现；--backend native 使用真实常驻后台并等待其完成。\n'
-      '--config 可选择历史资金配置；--trace 保留原始诊断事件，默认只记录最终决策。\n'
+      '--config 可选择资金配置，--heroes 可选择月俸实验目录；--trace 保留原始诊断事件，默认记录最终决策与月结。\n'
+      '--commander 通过正式指令控制玩家国，主角死亡或全部失城立即判负。\n'
+      '--commander-strategy baseline|capacity-first|defense-only 选择玩家策略；defense-only 正常补兵补将升级但不出击。\n'
       '输出位于 build/simulations/<label>/。',
     );
     return;
@@ -47,24 +49,44 @@ Future<void> main(List<String> args) async {
   }
   final native = backend == 'native';
   final trace = args.contains('--trace');
+  final strategy = option('commander-strategy', 'baseline');
+  if (!['baseline', 'capacity-first', 'defense-only'].contains(strategy)) {
+    throw ArgumentError('未知玩家策略：$strategy');
+  }
+  final commanderStrategy = switch (strategy) {
+    'capacity-first' => CommanderStrategy.capacityFirst,
+    'defense-only' => CommanderStrategy.defenseOnly,
+    _ => CommanderStrategy.baseline,
+  };
   final config = option('config', 'assets/data/campaign_config.json');
+  final heroPath = option('heroes', 'assets/data/rom_heroes.json');
+  // 同一批实验固定输入，避免手动编辑配置让后几局悄悄改变条件。
+  final setupSource = File(config).readAsStringSync();
+  final worldSource = File('assets/maps/worlds.json').readAsStringSync();
+  final heroSource = File(heroPath).readAsStringSync();
+  final weaponSource = File('assets/data/rom_weapons.json').readAsStringSync();
   final out = Directory('build/simulations/$label')
     ..createSync(recursive: true);
+  File('${out.path}/inputs.json').writeAsStringSync(
+    jsonEncode({
+      'config': jsonDecode(setupSource),
+      'worlds': jsonDecode(worldSource),
+      'heroes': jsonDecode(heroSource),
+      'weapons': jsonDecode(weaponSource),
+      'commanderStrategy': strategy,
+    }),
+  );
   final rows = <Map<String, Object?>>[];
   for (final seed in seeds) {
     for (final worldId in worldIds) {
       final row = await Isolate.run(() async {
-        final setup = CampaignSetup.decode(File(config).readAsStringSync());
+        final setup = CampaignSetup.decode(setupSource);
         final world = decodeWorlds(
-          File('assets/maps/worlds.json').readAsStringSync(),
+          worldSource,
           setup: setup,
         ).firstWhere((w) => w.id == worldId);
-        final catalog = decodeRomHeroes(
-          File('assets/data/rom_heroes.json').readAsStringSync(),
-        );
-        final weapons = WeaponCatalog.decode(
-          File('assets/data/rom_weapons.json').readAsStringSync(),
-        );
+        final catalog = decodeRomHeroes(heroSource);
+        final weapons = WeaponCatalog.decode(weaponSource);
         final streams = <int, IOSink>{};
         final runner = SimulationRunner(
           world: world,
@@ -80,9 +102,11 @@ Future<void> main(List<String> args) async {
               seconds: seconds,
               speed: speed,
               deterministic: !native,
+              playerCommander: args.contains('--commander'),
+              commanderStrategy: commanderStrategy,
             ),
             onEvent: (event) {
-              if (!trace && !event.isFinalDecision) return;
+              if (!trace && !event.isVisibleInCountryLog) return;
               final sink = streams.putIfAbsent(
                 event.countryId ?? -1,
                 () => File(
@@ -103,6 +127,9 @@ Future<void> main(List<String> args) async {
       stdout.writeln(
         jsonEncode(
           Map.of(row)
+            ..remove('diagnostics')
+            ..remove('playerCommands')
+            ..remove('exposedCities')
             ..remove('samples')
             ..remove('signature')
             ..remove('initial')

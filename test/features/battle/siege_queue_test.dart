@@ -106,12 +106,15 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
-  test('驻军独立排序以主角开头，波塞伊在威拉斯前，原身份编号不变', () {
+  test('原版驻军按目录以主角开头，扩展将领不改变原身份编号', () {
     final catalog = decodeRomHeroes(
       File('assets/data/rom_heroes.json').readAsStringSync(),
     );
     final heroes =
-        catalog.reversed
+        catalog
+            .where((hero) => hero.id <= 40)
+            .toList()
+            .reversed
             .map((hero) => CampaignHero.fromRom(hero, cityId: 0, countryId: 0))
             .toList()
           ..sort(CampaignHero.compareRosterOrder);
@@ -131,10 +134,11 @@ void main() {
       heroes.skip(11).every((hero) => hero.type == HeroType.normal),
       isTrue,
     );
-    expect(catalog.map((hero) => hero.id).toSet(), {
+    expect(heroes.map((hero) => hero.sourceId).toSet(), {
       for (var id = 0; id <= 40; id++) id,
     });
-    expect(catalog.length, 41);
+    expect(heroes.length, 41);
+    expect(catalog.map((hero) => hero.id).toSet().length, catalog.length);
   });
 
   test('驻军从高到低展示、迎战从末位向前，不受加入列表的先后影响', () {
@@ -147,7 +151,8 @@ void main() {
     expect(roster.map((hero) => hero.sourceId), [3, 4, 6, 10]);
     expect(roster.last.type, HeroType.normal);
     expect(roster.first.type, HeroType.advanced);
-    c.upgradeCity(1, hero: first, countryId: 1);
+    c.settledMonths = 12;
+    expect(c.upgradeCity(1, hero: first, countryId: 1), isTrue);
     final active = _attack(c);
     final battle = c.battles[1]!;
     final defenseOrder = roster.reversed.toList();

@@ -60,6 +60,144 @@ List<GameEvent> _recoveries(CampaignState c, String hero) => c.events
     .toList();
 
 void main() {
+  test('出发城正在交战不阻止伤员转入另一座安全友城', () {
+    final c = nationalScenario(
+      ai: false,
+      level: 1,
+      guards: [0, 18],
+      gold: 500,
+      friendly: true,
+      friendHeroes: [19],
+    );
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    final march = c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!;
+    march.position = const GamePoint(400, 500);
+    march.camp();
+    hero.hp = hero.maxHp * .4;
+    approaching(c, distance: 0);
+    c.advance(1 / 60);
+    expect(c.battles[1]?.isActive, isTrue);
+    final plan = planFor(c);
+    final task = plan.groups
+        .expand((g) => g.tasks)
+        .where((t) => t.hero == hero.id)
+        .singleOrNull;
+    expect(task?.role, 'regroup', reason: plan.toJson().toString());
+    expect(task?.city, 3);
+  });
+
+  test('确无安全行动时明确待命，局势解除后立即重新评估回城', () {
+    final c = nationalScenario(ai: false, level: 1, guards: [0, 18], gold: 500);
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    final march = c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!;
+    march.position = const GamePoint(400, 500);
+    march.camp();
+    hero.hp = hero.maxHp * .4;
+    final enemy = approaching(c, distance: 0);
+    c.advance(1 / 60);
+    final waiting = planFor(c);
+    final standby = waiting.groups
+        .expand((g) => g.tasks)
+        .where((t) => t.hero == hero.id)
+        .single;
+    expect(standby.role, 'standby');
+    expect(standby.reason, contains('继续复查'));
+    final rules = c.aiRulesForTesting(), view = c.aiObservationFor(1);
+    final routes = AiRoutes(
+      c.aiMapForTesting(),
+      rules,
+      AiWorkBudget(rules.tuning),
+    );
+    expect(
+      AiLedger(view, rules, routes, tasks: [standby]).cash().reserve,
+      AiLedger(view, rules, routes).cash().reserve,
+      reason: '待命不能假装停止粮草消耗',
+    );
+    c.battles[1]!.outcome = '测试威胁解除';
+    c.battles[1]!.simulation.stop();
+    enemy.position = const GamePoint(1600, 900);
+    enemy.camp();
+    final resumed = planFor(c, tasks: [standby]);
+    final task = resumed.groups
+        .expand((g) => g.tasks)
+        .where((t) => t.hero == hero.id)
+        .single;
+    expect(task.role, 'regroup', reason: resumed.toJson().toString());
+    expect(task.city, 1);
+  });
+
+  test('过期入城预约不能从实际占用里减掉一人而放行满员城', () {
+    final c = nationalScenario(ai: false, level: 1, guards: [0, 18], gold: 500);
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!.camp();
+    final rules = c.aiRulesForTesting(), view = c.aiObservationFor(1);
+    final routes = AiRoutes(
+      c.aiMapForTesting(),
+      rules,
+      AiWorkBudget(rules.tuning),
+    );
+    final task = ArmyTask(
+      hero: hero.id,
+      role: 'regroup',
+      city: 1,
+      deadlineTick: -1,
+      committedUntil: -1,
+      arrivalSlot: true,
+      points: [view.city(1)!.center],
+    );
+    final request = AiRequest(
+      session: 'expired-slot',
+      id: 1,
+      rulesVersion: rules.version,
+      mapVersion: routes.map.version,
+      observation: view,
+      deadlineTick: 600,
+    );
+    final city = view.city(1)!, h = view.hero(hero.id)!;
+    final result = OperationPlanner(request, rules, routes).send(
+      AiLedger(view, rules, routes, tasks: [task]),
+      h,
+      routes.to(h, city.center, view, target: city),
+      role: 'regroup',
+      reason: '检查过期预约',
+      target: city,
+      arrival: true,
+      emergency: true,
+    );
+    expect(result, isNull);
+  });
+
+  test('无任务野外将领不能回满员战城时，改攻有能力攻取的敌城', () {
+    final c = nationalScenario(ai: false, level: 1, guards: [0, 18], gold: 500);
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    final march = c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!;
+    march.position = const GamePoint(400, 500);
+    march.camp();
+    final enemy = approaching(c, distance: 0);
+    enemy.position = c.cityBounds(c.world.cities[1]).center;
+    c.advance(1 / 60);
+    expect(c.battles[1]?.isActive, isTrue);
+    final plan = planFor(c);
+    final task = plan.groups
+        .expand((g) => g.tasks)
+        .where((t) => t.hero == hero.id)
+        .singleOrNull;
+    expect(task?.role, 'expedition', reason: plan.toJson().toString());
+    expect(task?.city, 2);
+    expect(
+      plan.groups
+          .expand((g) => g.actions)
+          .where((a) => a.hero == hero.id)
+          .single
+          .kind,
+      AiActionKind.move,
+    );
+  });
+
   test('已在敌城接触轮廓内直接开战，不在贴墙与城池拦截间死循环', () {
     final c = nationalScenario(ai: false);
     addTearDown(c.dispose);
