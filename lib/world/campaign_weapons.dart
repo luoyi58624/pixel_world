@@ -24,6 +24,7 @@ extension CampaignWeapons on CampaignState {
 
   /// 购买检查国家归属、解锁和金币，不需要选择英雄。
   String? weaponPurchaseBlockReason(int weaponId, {int countryId = 0}) {
+    if (isPaused) return '游戏已暂停';
     if (defeated || !cities.values.any((c) => c.ownerCountryId == countryId)) {
       return '国家不可用';
     }
@@ -93,7 +94,8 @@ extension CampaignWeapons on CampaignState {
     if (battle == null || battle is CityBattle && battle.defender == hero) {
       return false;
     }
-    return !defeated &&
+    return !isPaused &&
+        !defeated &&
         heroes.contains(hero) &&
         hero.countryId == countryId &&
         slot >= 0 &&

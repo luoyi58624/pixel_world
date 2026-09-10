@@ -14,6 +14,7 @@ import 'city_panel.dart';
 import 'battle_scene.dart';
 import 'unit_panel.dart';
 import 'game_over_panel.dart';
+import 'game_pause_overlay.dart';
 
 const _ink = Color(0xff141b17);
 const _line = Color(0xff354138);
@@ -37,6 +38,7 @@ class _WorldScreenState extends State<WorldScreen>
   WorldController? _controller;
   Ticker? _ticker;
   Duration _previousTick = Duration.zero;
+  bool _skipFirstTick = true;
   Object? _error;
   bool _showMinimap = true;
   Offset _gestureAnchor = Offset.zero;
@@ -70,12 +72,39 @@ class _WorldScreenState extends State<WorldScreen>
       _ticker = createTicker((elapsed) {
         final delta = (elapsed - _previousTick).inMicroseconds / 1000000;
         _previousTick = elapsed;
+        // 暂停后重新启动时，首帧只校准时间，不能补算停顿。
+        if (_skipFirstTick) {
+          _skipFirstTick = false;
+          return;
+        }
         controller.tick(delta);
-      })..start();
+      });
+      controller.uiRevision.addListener(_syncTicker);
+      _syncTicker();
       _focus.requestFocus();
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
+  }
+
+  void _syncTicker() {
+    final ticker = _ticker;
+    if (ticker == null) return;
+    if (_controller?.isPaused == true) {
+      ticker.stop();
+    } else if (!ticker.isActive) {
+      _previousTick = Duration.zero;
+      _skipFirstTick = true;
+      ticker.start();
+    }
+  }
+
+  void _togglePause() {
+    final controller = _controller;
+    if (controller == null || controller.campaign.defeated) return;
+    _clearKeys();
+    controller.setPaused(!controller.isPaused);
+    _focus.requestFocus();
   }
 
   @override
@@ -105,6 +134,7 @@ class _WorldScreenState extends State<WorldScreen>
   }
 
   void _action(VoidCallback action) {
+    if (_controller?.isPaused == true) return;
     _controller?.activeCamera.cancelMotion();
     action();
     _controller?.refreshUi();
@@ -116,6 +146,11 @@ class _WorldScreenState extends State<WorldScreen>
     if (c == null) return KeyEventResult.ignored;
     if (c.campaign.defeated) return KeyEventResult.handled;
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyP) {
+      if (event is KeyDownEvent) _togglePause();
+      return KeyEventResult.handled;
+    }
+    if (c.isPaused) return KeyEventResult.handled;
     if (event is KeyUpEvent) {
       _pressed.remove(key);
     } else {
@@ -239,12 +274,17 @@ class _WorldScreenState extends State<WorldScreen>
               fit: StackFit.expand,
               children: [
                 ExcludeFocus(
-                  excluding: c.campaign.defeated,
+                  excluding: c.campaign.defeated || c.isPaused,
                   child: AbsorbPointer(
-                    absorbing: c.campaign.defeated,
+                    absorbing: c.campaign.defeated || c.isPaused,
                     child: child,
                   ),
                 ),
+                if (c.isPaused)
+                  GamePauseOverlay(
+                    key: const ValueKey('game-paused'),
+                    onResume: _togglePause,
+                  ),
                 if (c.campaign.defeated)
                   GameOverPanel(
                     reason: c.campaign.defeatReason!,
@@ -637,6 +677,12 @@ class _WorldScreenState extends State<WorldScreen>
             ),
             SizedBox(width: compact ? 4 : 20),
             IconButton(
+              key: const ValueKey('game-pause'),
+              tooltip: '暂停游戏（P）',
+              onPressed: _togglePause,
+              icon: const Icon(Icons.pause_rounded, size: 24, color: _gold),
+            ),
+            IconButton(
               tooltip: '操作说明',
               onPressed: _help,
               icon: const Icon(
@@ -776,7 +822,7 @@ class _WorldScreenState extends State<WorldScreen>
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
         content: Text(
-          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、储备、招募和经济\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　守方临时加成逐轮减少2点，城防不加士气\n攻城结束　未占领时，每胜一轮50%概率降一级\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　每城每月限抽 ${GameConfig.heroDrawsPerCityPerMonth} 次，放弃可继续、签约后当月停止，每次 ${GameConfig.heroDrawCost} 金币，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　国家库购买并选最多三件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　开场一件，每次拼杀后50%概率再用一件\n主角无月俸，其他将领按新标准结算\n\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、储备、招募和经济\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　守方临时加成逐轮减少2点，城防不加士气\n攻城结束　未占领时，每胜一轮50%概率降一级\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　每城每月限抽 ${GameConfig.heroDrawsPerCityPerMonth} 次，放弃可继续、签约后当月停止，每次 ${GameConfig.heroDrawCost} 金币，高级签约另付 ${GameConfig.advancedSigningFee} 金币\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　国家库购买并选最多三件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　开场一件，每次拼杀后50%概率再用一件\n主角无月俸，其他将领按新标准结算\n\nP　暂停 / 继续游戏（停止全部资源运行）\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
           style: const TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [
@@ -794,6 +840,7 @@ class _WorldScreenState extends State<WorldScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller?.uiRevision.removeListener(_syncTicker);
     _ticker?.dispose();
     _controller?.dispose();
     _assets?.dispose();

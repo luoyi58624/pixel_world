@@ -113,6 +113,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 初始金币与 `requiredGarrison` 仍在 `campaign_config.json` 中配置；新策略参数使用 `GameConfig.nationalAi`。升级、招募和出征都检查现有部队粮草、月俸与月结前后现金低点，不预支未来占城收益。详细行为、后台构建步骤与验证入口见 [国家战略](docs/country_strategy.md) 和 [验收记录](docs/national_ai_validation.md)。
 
+顶部暂停按钮或 **P** 键可暂停／继续整个游戏。暂停时关闭 AI 后台并停止游戏帧调度，冻结所有国家的行军、战斗、武器动画、年月、收入、月俸、粮草、招募到期和资源操作；当前面板与选点保留。继续后只推进新经过的时间，不补算暂停时长。
+
 修改 AI 核心或全局规则后先运行 `dart run tool/build_ai_worker.dart`，再热重启或构建 Flutter；发布同时包含生成的 `web/ai/worker.js`，可用 `dart run tool/build_ai_worker.dart --check` 校验版本一致。
 
 城池易主统一重置为一级，产出、升级费用和建筑外观同步恢复；同国部队重复进驻不会重置等级。一级、二级为不同的 2×3 模板，三级扩展为 3×3，四级、五级使用不同的 3×4 模板。建筑沿原地图左下地基扩建，点击、出城、接触点和交战标记共用实际尺寸；已在途的目标点随建筑变化更新，守城降级时不重开当前战斗。原始地图数据和 ROM 文件不参与运行时修改。

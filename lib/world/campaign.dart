@@ -578,6 +578,17 @@ class CampaignState {
   final Map<String, Offset> _aiVelocity = {};
   final Map<int, double> _aiRearDeadlines = {};
   final _emptyAiDiagnostics = NationalAiDiagnostics();
+  bool _paused = false;
+
+  /// 暂停时冻结本图全部计时、资源结算和游戏指令。
+  bool get isPaused => _paused;
+
+  /// 保留逻辑时钟的零头，关闭旧 AI 会话，恢复后从下一帧重新规划。
+  void setPaused(bool value) {
+    if (_paused == value) return;
+    _paused = value;
+    if (value) pauseAi();
+  }
 
   /// 离线对抗测试可让玩家国家也使用 AI；正式游戏默认关闭。
   bool aiControlsPlayer = false;
@@ -855,6 +866,7 @@ class CampaignState {
 
   /// 解雇只适用于本国存活将领，正在拼杀或等待收尾者必须先结束战斗。
   String? dismissalBlockReason(CampaignHero? hero, {int countryId = 0}) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
     if (hero == null) return '请选择将领';
     if (!heroes.contains(hero) || !hero.health.alive) return '这位将领已离队';
@@ -1033,6 +1045,7 @@ class CampaignState {
 
   /// 可购买的储备兵数量，同时受容量、国库和城池归属限制。
   int maxSoldierPurchase(int cityId, {int countryId = 0}) {
+    if (isPaused) return 0;
     final city = cities[cityId];
     if (defeated || city == null || city.ownerCountryId != countryId) return 0;
     return math.max(
@@ -1068,6 +1081,7 @@ class CampaignState {
 
   /// 即将出征或迎战的本城将领最多可领取多少人，已在外或交战中不能远程补兵。
   int reinforcementCount(CampaignHero hero, {int countryId = 0}) {
+    if (isPaused) return 0;
     final city = cities[hero.cityId];
     if (defeated ||
         !heroes.contains(hero) ||
@@ -1146,6 +1160,7 @@ class CampaignState {
 
   /// 解释不能抽取英雄的原因，失败不扣钱、不消耗本月次数。
   String? recruitmentBlockReason(int cityId, {int countryId = 0}) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
     if (recruitmentFull(cityId)) return '驻城英雄已满，升级或派出英雄后可招募';
@@ -1204,6 +1219,7 @@ class CampaignState {
 
   /// 检查签约归属、驻军名额和费用，供界面与实际签约共用。
   bool canSignHero(RecruitmentOffer offer, {int countryId = 0}) =>
+      !isPaused &&
       !defeated &&
       !offer.isExpired(settledMonths) &&
       offer.countryId == countryId &&
@@ -1244,7 +1260,8 @@ class CampaignState {
 
   /// 放弃签约返还英雄，但不退抽取费或本月次数。
   bool declineHero(RecruitmentOffer offer, {int countryId = 0}) {
-    if (defeated ||
+    if (isPaused ||
+        defeated ||
         offer.isExpired(settledMonths) ||
         offer.countryId != countryId ||
         !identical(_recruitmentOffers[countryId], offer)) {
@@ -1331,6 +1348,7 @@ class CampaignState {
     int countryId, {
     bool requireGold = true,
   }) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束，请重新开始';
     if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
     if (hero.countryId != countryId ||
@@ -1357,6 +1375,7 @@ class CampaignState {
     CampaignHero? hero,
     int countryId,
   ) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束，请重新开始';
     final city = cities[cityId];
     if (city == null || city.ownerCountryId != countryId) return '只能升级本国城池';
@@ -1477,6 +1496,7 @@ class CampaignState {
     int countryId, {
     bool requireGold = true,
   }) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
     final march = marches[heroId];
     if (march == null ||
@@ -1660,7 +1680,7 @@ class CampaignState {
     required int winnerCountryId,
     int? defendedCityId,
   }) {
-    if (_defeatReason != null) return null;
+    if (isPaused || _defeatReason != null) return null;
     final result = _removeDefeatedHero(
       heroId,
       winnerCountryId: winnerCountryId,
@@ -1730,6 +1750,7 @@ class CampaignState {
 
   /// 固定步长推进行军和拼杀，满一个月结算各国经济；观战不参与计时。
   bool advance(double elapsed) {
+    if (isPaused) return false;
     _ai?.diagnostics.beginFrame();
     final justDefeated = _finishDefeat();
     if (defeated) {

@@ -75,6 +75,23 @@ class WorldController extends ChangeNotifier {
   /// 当前场景的城池与部队状态。
   CampaignState get campaign => campaigns[index];
 
+  /// 所有地图统一暂停，保持当前面板、选点和观战进度。
+  bool get isPaused => campaign.isPaused;
+
+  /// 冻结全部战役及镜头惯性，暂停期间也禁止切图绕过。
+  void setPaused(bool value) {
+    if (isPaused == value || (value && campaign.defeated)) return;
+    for (final state in campaigns) {
+      state.setPaused(value);
+    }
+    keyboardDirection = Offset.zero;
+    fastPan = false;
+    camera.cancelMotion();
+    battleCamera.cancelMotion();
+    _pointer = null;
+    refreshUi();
+  }
+
   /// 选择面板中的英雄编号。
   String? selectedHeroId;
 
@@ -121,6 +138,7 @@ class WorldController extends ChangeNotifier {
 
   /// 角色可以接收行军指令，已经在外的部队允许中途改道。
   bool get canMoveSelected =>
+      !isPaused &&
       !campaign.defeated &&
       campaign.gold > 0 &&
       selectedMapHero?.isPlayer == true &&
@@ -218,7 +236,7 @@ class WorldController extends ChangeNotifier {
 
   /// 切换地图并重置探索位置。
   void switchWorld(int value) {
-    if (campaign.defeated) return;
+    if (isPaused || campaign.defeated) return;
     if (value != index) campaign.pauseAi();
     _clearWeaponSelection();
     _gameOverShown = false;
@@ -251,6 +269,7 @@ class WorldController extends ChangeNotifier {
 
   /// 更新动画与键盘镜头移动。
   void tick(double elapsed) {
+    if (isPaused) return;
     if (campaign.defeated) {
       final changed = campaign.advance(elapsed);
       _showDefeat();
@@ -383,7 +402,7 @@ class WorldController extends ChangeNotifier {
 
   /// 重新创建当前地图的战役，恢复主角、城池和经济，不沿用失败进度。
   void restartCampaign() {
-    if (!campaign.defeated) return;
+    if (isPaused || !campaign.defeated) return;
     campaign.dispose();
     campaigns[index] = CampaignState.fromRom(
       world,
@@ -402,7 +421,7 @@ class WorldController extends ChangeNotifier {
 
   /// 选点指令优先，其余点击按交战标记、角色、城池依次命中。
   void tap(Offset local) {
-    if (campaign.defeated) return;
+    if (isPaused || campaign.defeated) return;
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
     final city = campaign.cityAt(point);

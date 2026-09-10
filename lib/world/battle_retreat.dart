@@ -4,6 +4,7 @@ part of 'campaign.dart';
 extension BattleRetreatCommands on CampaignState {
   /// 不允许守城将领撤退，也不能在胜败过场中改判或重复掷骰。
   String? retreatBlockReason(String heroId, {int countryId = 0}) {
+    if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
     final hero = heroes.where((hero) => hero.id == heroId).firstOrNull;
     if (hero == null || !hero.health.alive) return '将领已阵亡';
