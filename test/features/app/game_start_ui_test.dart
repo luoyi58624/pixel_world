@@ -33,6 +33,19 @@ void main() {
               .controller;
       expect(controller.index, index);
       expect(controller.campaign.world.id, index);
+      expect(find.byKey(const ValueKey('map-0')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('compact-world-selector')),
+        findsNothing,
+      );
+      for (final key in [
+        LogicalKeyboardKey.digit1,
+        LogicalKeyboardKey.digit2,
+        LogicalKeyboardKey.digit3,
+      ]) {
+        await tester.sendKeyEvent(key);
+        expect(controller.index, index);
+      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

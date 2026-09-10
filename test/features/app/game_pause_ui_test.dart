@@ -36,7 +36,7 @@ void main() {
           month = c.campaign.settledMonths;
       await tester.pump(const Duration(minutes: 3));
       await tester.sendKeyEvent(LogicalKeyboardKey.digit2);
-      await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('map-1'))));
+      expect(find.byKey(const ValueKey('map-1')), findsNothing);
       expect(c.index, 0);
       expect(c.time, time);
       expect(c.campaign.gold, gold);

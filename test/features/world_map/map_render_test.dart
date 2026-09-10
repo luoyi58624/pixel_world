@@ -373,14 +373,14 @@ void main() {
     }
     expect(find.byKey(const ValueKey('world-canvas')), findsOneWidget);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byKey(const ValueKey('map-1')));
-    await tester.pump();
+    expect(find.byKey(const ValueKey('map-1')), findsNothing);
+    expect(find.byKey(const ValueKey('compact-world-selector')), findsNothing);
     final painter =
         tester
                 .widget<CustomPaint>(find.byKey(const ValueKey('world-canvas')))
                 .painter!
             as WorldPainter;
-    expect(painter.controller.index, 1);
+    expect(painter.controller.index, 0);
     expect(find.text('长河之境'), findsNothing);
     expect(tester.takeException(), isNull);
     expect(find.byKey(const ValueKey('hero-picker')), findsNothing);

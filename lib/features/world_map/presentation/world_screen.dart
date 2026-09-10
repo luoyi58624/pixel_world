@@ -25,7 +25,7 @@ const _line = Color(0xff354138);
 const _cream = Color(0xffece7d1);
 const _gold = Color(0xffd6bd7c);
 
-/// 可拖动、缩放、切换场景并指挥角色行走的地图界面。
+/// 可拖动、缩放并指挥角色行走的地图界面。
 class WorldScreen extends StatefulWidget {
   /// 创建地图探索界面。
   const WorldScreen({super.key, this.initialWorldIndex = 0})
@@ -204,16 +204,6 @@ class _WorldScreenState extends State<WorldScreen>
         setState(() => _showMinimap = !_showMinimap);
       } else if (key == LogicalKeyboardKey.escape) {
         _action(c.cancelCityAction);
-      } else if (key == LogicalKeyboardKey.digit1 ||
-          key == LogicalKeyboardKey.digit2 ||
-          key == LogicalKeyboardKey.digit3) {
-        c.switchWorld(
-          key == LogicalKeyboardKey.digit1
-              ? 0
-              : key == LogicalKeyboardKey.digit2
-              ? 1
-              : 2,
-        );
       }
     }
     final controls = {
@@ -230,9 +220,6 @@ class _WorldScreenState extends State<WorldScreen>
       LogicalKeyboardKey.keyG,
       LogicalKeyboardKey.keyM,
       LogicalKeyboardKey.escape,
-      LogicalKeyboardKey.digit1,
-      LogicalKeyboardKey.digit2,
-      LogicalKeyboardKey.digit3,
     };
     return controls.contains(key)
         ? KeyEventResult.handled
@@ -636,7 +623,7 @@ class _WorldScreenState extends State<WorldScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '像素远征',
+                    '龙珠英雄',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -660,69 +647,6 @@ class _WorldScreenState extends State<WorldScreen>
                 ],
               ),
             ),
-            if (constraints.maxWidth < 380)
-              PopupMenuButton<int>(
-                key: const ValueKey('compact-world-selector'),
-                tooltip: '切换地图',
-                onSelected: (index) => _action(() => c.switchWorld(index)),
-                itemBuilder: (_) => [
-                  for (var i = 0; i < 3; i++)
-                    PopupMenuItem(
-                      value: i,
-                      child: Text('地图${['一', '二', '三'][i]}'),
-                    ),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 12,
-                  ),
-                  child: Text(
-                    '地图${['Ⅰ', 'Ⅱ', 'Ⅲ'][c.index]}',
-                    style: const TextStyle(color: _cream),
-                  ),
-                ),
-              )
-            else
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xff0b110d),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: _line),
-                ),
-                padding: const EdgeInsets.all(3),
-                child: Row(
-                  children: List.generate(
-                    3,
-                    (index) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 1),
-                      child: TextButton(
-                        key: ValueKey('map-$index'),
-                        onPressed: () => _action(() => c.switchWorld(index)),
-                        style: TextButton.styleFrom(
-                          minimumSize: Size(compact ? 36 : 72, 32),
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          foregroundColor: index == c.index
-                              ? _cream
-                              : const Color(0xff899b8c),
-                          backgroundColor: index == c.index
-                              ? const Color(0xff344336)
-                              : Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        child: Text(
-                          compact
-                              ? ['Ⅰ', 'Ⅱ', 'Ⅲ'][index]
-                              : ['地图一', '地图二', '地图三'][index],
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             SizedBox(width: compact ? 4 : 20),
             PopupMenuButton<int>(
               key: const ValueKey('game-speed'),
@@ -951,7 +875,7 @@ class _WorldScreenState extends State<WorldScreen>
         title: const Text('地图操作', style: TextStyle(color: _cream)),
         scrollable: true,
         content: Text(
-          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、兵员、招募和国家日志\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级；第一年限三级，之后每年解锁一级\n开局即可经营，有钱即可升级、补兵和招募\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　临时城防等级逐轮降一级，加成为1/3/5/8/12，不加士气\n攻城结束　未占领时，每个非互刺胜轮必降一级，互刺不降级不占城\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　抽取不限月度次数，每次 ${GameConfig.heroDrawCost} 金币，签约立即支付首月月俸，关闭窗口即放弃\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　城池武器库内购买、携带，最多一件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　每轮对阵最多一件；每年解锁一行\n专属将领在本国免薪，其他国家聘用按 JSON 月俸结算；解雇仅返还内政金币\n\nP　暂停 / 继续游戏（停止全部资源运行）\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\n1 / 2 / 3　切换地图\nEsc / 鼠标右键　取消选点或关闭面板',
+          '拖动 / 双指手势　移动与缩放地图\n拖拽松手　短暂惯性，按住立即停下\n鼠标滚轮　以指针位置缩放\nW A S D / 方向键　移动镜头\nShift　加速移动镜头\n点击角色　直接查看属性，我方可移动和扎营\n移动 / 出击　切换光标后点击任意位置\n扎营　原地停止，其他部队继续行动\n草地速度 ${(GameConfig.grassSpeedFactor * 100).round()}%，山地 ${(GameConfig.mountainSpeedFactor * 100).round()}%，涉水 ${(GameConfig.waterSpeedFactor * 100).round()}%\n点击城池　查看城防、兵员、招募和国家日志\n我方城池　同页选英雄，右下角出击\n城防方块　点击升级，价格随选中将领内政变化，最高 ${GameConfig.maxCityLevel} 级；第一年限三级，之后每年解锁一级\n开局即可经营，有钱即可升级、补兵和招募\n抵达敌城　后台自动交战\n点击城上刀剑　查看实时战况\n城战结束　存活将领恢复满血，兵损保留\n进攻战败　损失出征英雄，出发城不降级\n连续攻城　临时城防等级逐轮降一级，加成为1/3/5/8/12，不加士气\n攻城结束　未占领时，每个非互刺胜轮必降一级，互刺不降级不占城\n占领城池　赢满初始城防等级轮数或清空守将\n一级城守城失败　失守并清除未出战英雄\n主角阵亡 / 无城可守　游戏结束\n每 ${GameConfig.secondsPerMonth.toInt()} 秒　进入下月，各国独立结算收成与月俸\n兵营　${GameConfig.soldierRecruitCost} 金币征一兵，整块点击最多招10人，离城自动补兵\n商店　抽取不限月度次数，每次 ${GameConfig.heroDrawCost} 金币，签约立即支付首月月俸，关闭窗口即放弃\n其他国家　弱城优先、强城备战，来敌时优先守家\n武器　城池武器库内购买、携带，最多一件出征，回城卸下归库；守城禁用，野外可用\n武器自动释放　每轮对阵最多一件；每年解锁一行\n专属将领在本国免薪，其他国家聘用按 JSON 月俸结算；解雇仅返还内政金币\n\nP　暂停 / 继续游戏（停止全部资源运行）\n空格　回到初始据点\nF　查看全图\nG　切换网格\nM　显示或隐藏小地图\nEsc / 鼠标右键　取消选点或关闭面板',
           style: const TextStyle(fontSize: 13, height: 1.8, color: _cream),
         ),
         actions: [
