@@ -330,8 +330,7 @@ class BattleSimulation {
   int get defenderAttackBonus => fieldTerrain == null
       ? CombatRules.defenseBonus(
           defenderCityLevel,
-          GameConfig.cityDefenseBaseAttack,
-          GameConfig.cityDefenseAttackPerLevel,
+          GameConfig.cityDefenseAttackBonuses,
         )
       : 0;
 

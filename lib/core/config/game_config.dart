@@ -189,11 +189,15 @@ abstract final class GameConfig {
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
-  /// 守城方从二级起，每级增加的整队基础攻击力。
-  static const cityDefenseAttackPerLevel = 1;
+  /// 一级至五级城防增加的攻击力，不增加士气。
+  static const cityDefenseAttackBonuses = [1, 3, 5, 8, 12];
 
-  /// 一级城市增加一点攻击，之后每级再增加一点，不增加士气。
-  static const cityDefenseBaseAttack = 1;
+  /// 按有效城防等级读取加成，连续守城随剩余等级递减。
+  static int cityDefenseAttackBonusFor(int level) =>
+      cityDefenseAttackBonuses[(level - 1).clamp(
+        0,
+        cityDefenseAttackBonuses.length - 1,
+      )];
 
   /// 缩小碰撞强度差对击退速度的影响，避免少一个兵立即变成持续撞墙。
   static const battleRecoilDifferenceScale = 0.25;
@@ -234,8 +238,8 @@ abstract final class GameConfig {
   /// 原版进入提示 20 帧及介绍等待 143 帧。
   static const battleFormationFrames = 163;
 
-  /// 整场未攻下的城池，进攻方每赢一轮独立触发一次降级的概率。
-  static const cityDamageChancePerVictory = 0.8;
+  /// 每个非互刺胜轮必定降低一级实际城防，整场结束时结算，最低一级。
+  static const cityDamageChancePerVictory = 1.0;
 }
 
 /// 从玩法 JSON 读取的国家开局经济。

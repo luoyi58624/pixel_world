@@ -201,13 +201,13 @@ void main() {
     expect(CombatRules.retreatSuccess(1, 100, 0), closeTo(.2, 1e-9));
   });
 
-  test('未被占领的城池按八成边界结算降级', () {
-    for (final roll in [.79, .8]) {
+  test('守城失败必定降级，不受随机值影响', () {
+    for (final roll in [0.0, .79, .8, .999999]) {
       final c = fresh(siege: roll);
       addTearDown(c.dispose);
       final hero = c.garrisonAt(1).last;
       c.defeatHero(hero.id, winnerCountryId: 0, defendedCityId: 1);
-      expect(c.cities[1]!.level, roll < .8 ? 1 : 2);
+      expect(c.cities[1]!.level, 1);
     }
   });
 }

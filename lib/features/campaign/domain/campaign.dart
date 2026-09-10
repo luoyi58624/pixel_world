@@ -1965,11 +1965,12 @@ class CampaignState {
     }
   }
 
-  // 每一胜轮独立掷一次，最低一级；即使达到下限也完成本场全部判定。
+  // 胜轮必定降级时不消费随机数；互刺不增加胜轮，之前的胜轮仍正常结算。
   int _damageCity(int cityId, int victories) {
     var damage = 0;
     for (var round = 0; round < victories; round++) {
-      if (_siegeRandom.nextDouble() < GameConfig.cityDamageChancePerVictory) {
+      if (GameConfig.cityDamageChancePerVictory >= 1 ||
+          _siegeRandom.nextDouble() < GameConfig.cityDamageChancePerVictory) {
         damage++;
       }
     }

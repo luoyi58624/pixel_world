@@ -660,9 +660,9 @@ extension _AiSafety on CampaignState {
                           GameConfig.heroSoldierLimit *
                               BattleSimulation.soldierHp) *
                       (h.combat +
-                          GameConfig.cityDefenseBaseAttack +
-                          (cities[id]!.level - 1) *
-                              GameConfig.cityDefenseAttackPerLevel +
+                          GameConfig.cityDefenseAttackBonusFor(
+                            _aiSafetySlots(id),
+                          ) +
                           GameConfig.heroSoldierLimit * 2) +
                   h.politics * .25;
               return value(a).compareTo(value(b));

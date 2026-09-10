@@ -7,8 +7,6 @@ extension _AiObservationBridge on CampaignState {
       'soldierPower': BattleSimulation.soldierAttack,
       'soldierLimit': GameConfig.heroSoldierLimit,
       'carryLimit': weaponCatalog.carryLimit,
-      'defenseBase': GameConfig.cityDefenseBaseAttack,
-      'defenseStep': GameConfig.cityDefenseAttackPerLevel,
       'marchSpeed': GameConfig.baseMarchSpeed,
       'encounterDistance': GameConfig.fieldEncounterDistance,
       'monthSeconds': GameConfig.secondsPerMonth,
@@ -51,6 +49,7 @@ extension _AiObservationBridge on CampaignState {
       jsonEncode([
         values,
         GameConfig.cityUpgradeCosts,
+        GameConfig.cityDefenseAttackBonuses,
         GameConfig.nationalAi.toJson(),
         [for (final w in weapons) w.toJson()],
       ]).codeUnits,
@@ -59,6 +58,7 @@ extension _AiObservationBridge on CampaignState {
       version: '$aiBuildStamp:$stamp',
       values: values,
       upgradeCosts: GameConfig.cityUpgradeCosts,
+      defenseBonuses: GameConfig.cityDefenseAttackBonuses,
       movementFactors: MovementTerrain.values
           .map((t) => t.speedFactor)
           .toList(),

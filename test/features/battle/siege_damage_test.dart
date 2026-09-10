@@ -85,14 +85,19 @@ void _win(CampaignState c, CityBattle battle) {
 }
 
 void main() {
-  test('三级城临时加成为3、2、1，前三胜不提前改实际等级，第三胜直接占领', () {
+  test('三级城临时加成为5、3、1，真实攻击同步递减，第三胜占领', () {
     final rolls = _Rolls([0]);
     final c = _campaign(rolls);
     final battle = _start(c);
     final remaining = c.garrisonAt(1).map((hero) => hero.id).toSet();
     for (var wave = 1; wave <= 3; wave++) {
       expect(battle.wave, wave);
-      expect(battle.simulation.defenderAttackBonus, 4 - wave);
+      final bonus = [5, 3, 1][wave - 1];
+      expect(battle.simulation.defenderAttackBonus, bonus);
+      expect(
+        battle.simulation.basePower(BattleSide.defender),
+        battle.defender.combat + bonus + battle.defender.soldiers * 2,
+      );
       expect(battle.simulation.cityAppearanceLevel, 3);
       expect(c.cities[1]!.level, 3);
       expect(rolls.calls, 0);
@@ -114,11 +119,11 @@ void main() {
   });
 
   for (final (values, expected) in [
-    ([0.1, 0.9], 2),
+    ([0.1, 0.9], 1),
     ([0.499, 0.01], 1),
-    ([0.8, 0.99], 3),
+    ([0.8, 0.99], 1),
   ]) {
-    test('两胜后进攻失败，每轮独立判定 $values，结束后城防为 $expected 级', () {
+    test('两胜后进攻失败必降两级，随机值 $values 不影响结算', () {
       final rolls = _Rolls(values);
       final c = _campaign(rolls);
       final battle = _start(c);
@@ -136,15 +141,15 @@ void main() {
       expect(c.cities[1]!.ownerCountryId, 1);
       expect(c.cities[1]!.level, expected);
       expect(battle.defenseLoss, 3 - expected);
-      expect(rolls.calls, 2);
+      expect(rolls.calls, 0);
       expect(c.cities[0]!.level, 1);
       c.advance(120);
-      expect(rolls.calls, 2);
+      expect(rolls.calls, 0);
       expect(c.cities[1]!.level, expected);
     });
   }
 
-  test('一胜后主动撤离也在整场结束时判定一次，重新指令不重复结算', () {
+  test('一胜后主动撤离必降一级，重新指令不重复结算', () {
     final rolls = _Rolls([0.49]);
     final c = _campaign(rolls);
     final battle = _start(c);
@@ -154,10 +159,10 @@ void main() {
     _until(c, () => !battle.isActive);
     expect(battle.isActive, isFalse);
     expect(c.cities[1]!.level, 2);
-    expect(rolls.calls, 1);
+    expect(rolls.calls, 0);
     expect(c.retreatHero(battle.attacker.id), isNull);
     c.advance(2);
-    expect(rolls.calls, 1);
+    expect(rolls.calls, 0);
   });
 
   test('零胜或本轮双方阵亡不增加胜轮，不凭空降级', () {
@@ -180,14 +185,15 @@ void main() {
     final battle = _start(c);
     _win(c, battle);
     _until(c, () => battle.wave == 2);
+    c.settledMonths = 24;
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     expect(c.cities[1]!.level, 4);
-    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderAttackBonus, 3);
     expect(battle.initialCityLevel, 3);
     expect(c.retreatHero(battle.attacker.id), isTrue);
     _until(c, () => !battle.isActive);
     expect(c.cities[1]!.level, 3);
-    expect(rolls.calls, 1);
+    expect(rolls.calls, 0);
   });
 
   test('出发城失守的部队打完后消失，并结算这一场已获得的胜轮', () {
@@ -205,6 +211,53 @@ void main() {
     expect(battle.isActive, isFalse);
     expect(c.heroes, isNot(contains(battle.attacker)));
     expect(c.cities[1]!.level, 2);
-    expect(rolls.calls, 1);
+    expect(rolls.calls, 0);
+  });
+
+  test('先胜一轮再互刺只结算先前胜轮，不把互刺当成占城胜利', () {
+    final rolls = _Rolls([.99]);
+    final c = _campaign(rolls);
+    addTearDown(c.dispose);
+    final battle = _start(c);
+    _win(c, battle);
+    _until(c, () => battle.wave == 2);
+    final attacker = battle.attacker, defender = battle.defender;
+    attacker.hp = 0;
+    defender.hp = 0;
+    _until(c, () => !battle.isActive);
+    expect(battle.simulation.result, BattleResult.draw);
+    expect(battle.victories, 1);
+    expect(battle.defenseLoss, 1);
+    expect(c.cities[1]!.level, 2);
+    expect(c.cities[1]!.ownerCountryId, 1);
+    expect(c.heroes, isNot(contains(attacker)));
+    expect(c.heroes, isNot(contains(defender)));
+    c.advance(3);
+    expect(c.cities[1]!.level, 2);
+    expect(rolls.calls, 0);
+  });
+
+  test('一级城最后守将与攻将互刺，不降级也不占领', () {
+    final c = _campaign(_Rolls([0]));
+    addTearDown(c.dispose);
+    c.cities[1] = CitySituation(
+      ownerCountryId: 1,
+      defense: 100,
+      baseIncome: 10,
+      initialLevel: 1,
+    );
+    final guards = c.garrisonAt(1);
+    for (final hero in guards.skip(1)) {
+      c.dismissHero(hero, countryId: 1);
+    }
+    final battle = _start(c);
+    battle.attacker.hp = 0;
+    battle.defender.hp = 0;
+    _until(c, () => !battle.isActive);
+    expect(c.garrisonAt(1), isEmpty);
+    expect(battle.victories, 0);
+    expect(battle.defenseLoss, 0);
+    expect(c.cities[1]!.level, 1);
+    expect(c.cities[1]!.ownerCountryId, 1);
   });
 }

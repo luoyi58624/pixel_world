@@ -45,12 +45,14 @@ class AiRules {
     required this.version,
     required Map<String, num> values,
     required List<int> upgradeCosts,
+    required List<int> defenseBonuses,
     required List<double> movementFactors,
     required List<double> fieldFactors,
     List<AiWeapon> weapons = const [],
     this.tuning = const AiTuning(),
   }) : values = Map.unmodifiable(values),
        upgradeCosts = List.unmodifiable(upgradeCosts),
+       defenseBonuses = List.unmodifiable(defenseBonuses),
        movementFactors = List.unmodifiable(movementFactors),
        fieldFactors = List.unmodifiable(fieldFactors),
        weapons = Map.unmodifiable({for (final w in weapons) w.id: w});
@@ -60,6 +62,7 @@ class AiRules {
     version: d['version'],
     values: Map<String, num>.from(d['values']),
     upgradeCosts: List<int>.from(d['upgrades']),
+    defenseBonuses: List<int>.from(d['defenseBonuses']),
     movementFactors: [for (final v in d['movement']) (v as num).toDouble()],
     fieldFactors: [for (final v in d['field']) (v as num).toDouble()],
     weapons: [for (final v in d['weapons']) AiWeapon.fromJson(v)],
@@ -72,6 +75,9 @@ class AiRules {
   /// 纯数值配置及升级价格。
   final Map<String, num> values;
   final List<int> upgradeCosts;
+
+  /// 实际城防一至五级的攻击加成，随初始化消息传入后台。
+  final List<int> defenseBonuses;
 
   /// 按平地、水、山、建筑排列的行军与野战倍率。
   final List<double> movementFactors, fieldFactors;
@@ -95,11 +101,7 @@ class AiRules {
   }) =>
       (CombatRules.heroAttack(combat, field ? fieldFactors[terrain] : 1) +
               (defenseLevel > 0
-                  ? CombatRules.defenseBonus(
-                      defenseLevel,
-                      integer('defenseBase'),
-                      integer('defenseStep'),
-                    )
+                  ? CombatRules.defenseBonus(defenseLevel, defenseBonuses)
                   : 0))
           .clamp(0, 63);
 
@@ -123,6 +125,7 @@ class AiRules {
     'version': version,
     'values': values,
     'upgrades': upgradeCosts,
+    'defenseBonuses': defenseBonuses,
     'movement': movementFactors,
     'field': fieldFactors,
     'weapons': [for (final w in weapons.values) w.toJson()],

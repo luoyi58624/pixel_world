@@ -5,6 +5,7 @@ import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
+import 'package:pixel_world/features/ai/rules_data.dart';
 
 BattleArmy _army(String id, {int hp = 60, int attack = 10}) => BattleArmy(
   id: id,
@@ -22,7 +23,10 @@ CampaignState _campaign() => CampaignState.fromRom(
 );
 
 void main() {
-  test('一至五级每级只加一点攻击，不增加士气、不修改英雄属性', () {
+  test('一至五级按1、3、5、8、12加攻击，AI与实际战斗一致且不改基础属性', () {
+    final c = _campaign();
+    addTearDown(c.dispose);
+    final rules = AiRules.fromJson(c.aiRulesForTesting().toJson());
     for (var level = 1; level <= 5; level++) {
       final attacker = _army('a')..soldiers.first.hp = 0;
       final defender = _army('d')..soldiers.first.hp = 0;
@@ -34,7 +38,9 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 16);
-      expect(sim.basePower(BattleSide.defender), 16 + level);
+      final bonus = [1, 3, 5, 8, 12][level - 1];
+      expect(sim.basePower(BattleSide.defender), 16 + bonus);
+      expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
       expect(sim.defenderMorale.remaining, sim.defender.morale);
@@ -70,7 +76,7 @@ void main() {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 23);
-    expect(sim.basePower(BattleSide.defender), 28);
+    expect(sim.basePower(BattleSide.defender), 35);
     expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
     expect(sim.lastClash!.defenderDamage, inInclusiveRange(10, 20));
     expect(
@@ -93,7 +99,7 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderAttackBonus, 3);
     expect(battle.simulation.defenderMoraleBonus, 0);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
@@ -131,7 +137,7 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers * 2 + 3,
+      battle.defender.combat + battle.defender.soldiers * 2 + 5,
     );
     expect(
       sim.basePower(BattleSide.attacker),

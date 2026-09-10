@@ -96,7 +96,7 @@ void main() {
       expect(c.upgradeCity(0, hero: _hero(c, 40)), isTrue);
       expect(c.cities[0]!.level, level);
       expect(c.cities[0]!.income, 10 + 5 * (level - 1));
-      expect(before - c.gold, [15, 45, 85, 145][level - 2]);
+      expect(before - c.gold, [15, 35, 65, 105][level - 2]);
     }
     final balance = c.gold;
     expect(c.upgradeCity(0, hero: _hero(c, 40)), isFalse);
@@ -118,7 +118,7 @@ void main() {
         c.advance(120 / frames);
       }
       expect(c.settledTurns, 2);
-      expect(c.gold, 380);
+      expect(c.gold, 374);
     }
     final c = _campaign();
     c.settledMonths = 24;
@@ -126,7 +126,7 @@ void main() {
     c.advance(59.9);
     expect(c.gold, 285);
     c.advance(0.1);
-    expect(c.gold, 330);
+    expect(c.gold, 327);
   });
 
   test('单场已结束的守城战败命中降级判定，同一事件不能重复结算', () {
@@ -211,6 +211,8 @@ void main() {
     march.position = march.destination;
     c.advance(1 / 60);
     final battle = c.battles[1]!;
+    // 本测试只验证换将后的状态继承，不依赖新城防表下的随机胜负。
+    battle.defender.hp = 0;
     for (var i = 0; i < 1200 && battle.nextWaveIn == 0; i++) {
       c.advance(0.05);
     }

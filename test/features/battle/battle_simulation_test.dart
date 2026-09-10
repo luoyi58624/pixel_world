@@ -16,7 +16,7 @@ BattleSimulation battle({
   bool auto = false,
 }) => BattleSimulation(
   attacker: army('a', attack: attack),
-  defender: army('d', attack: defense - GameConfig.cityDefenseBaseAttack),
+  defender: army('d', attack: defense - GameConfig.cityDefenseAttackBonusFor(1)),
   seed: 12345,
   autoCharge: auto,
 );

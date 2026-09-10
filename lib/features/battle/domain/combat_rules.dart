@@ -22,8 +22,7 @@ abstract final class CombatRules {
   /// 城防只增加攻击，野战没有城防加成。
   static int defenseBonus(
     int level,
-    int base,
-    int perLevel, {
+    List<int> bonuses, {
     bool field = false,
-  }) => field ? 0 : base + (level - 1) * perLevel;
+  }) => field ? 0 : bonuses[(level - 1).clamp(0, bonuses.length - 1)];
 }

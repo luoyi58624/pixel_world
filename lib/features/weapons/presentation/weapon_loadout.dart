@@ -1,12 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../campaign/domain/campaign.dart';
 import '../../world_map/presentation/world_controller.dart';
 import '../../cities/presentation/city_panel_style.dart';
 
-/// 出征英雄信息中的三个随身武器格，无武器时整行隐藏。
+/// 出征英雄的随身武器格，无武器时整行隐藏。
 class WeaponLoadout extends StatelessWidget {
   /// 野外和敌方角色详情共用只读展示，驻城面板不使用此行。
   const WeaponLoadout({
@@ -67,8 +65,8 @@ class WeaponLoadout extends StatelessWidget {
   }
 }
 
-/// 国家共用武器库，同类叠加、三列换行，选择出征装备，购买入口位于地图右下角。
-class WeaponLibrary extends StatefulWidget {
+/// 城池内的国家共用武器库，购买入库与携带选择分别操作。
+class WeaponLibrary extends StatelessWidget {
   /// 购买不依赖英雄，携带选择绑定当前驻城英雄且不暂停游戏。
   const WeaponLibrary({
     super.key,
@@ -76,25 +74,17 @@ class WeaponLibrary extends StatefulWidget {
     required this.onAction,
   });
 
-  /// 国家库存和当前出征选择。
+  /// 当前地图、国库和出征选择。
   final WorldController controller;
 
-  /// 操作后归还地图焦点。
+  /// 操作后恢复地图焦点。
   final void Function(VoidCallback) onAction;
 
   @override
-  State<WeaponLibrary> createState() => _WeaponLibraryState();
-}
-
-class _WeaponLibraryState extends State<WeaponLibrary> {
-  @override
   Widget build(BuildContext context) {
-    final c = widget.controller, campaign = c.campaign;
+    final c = controller, campaign = c.campaign;
     final catalog = campaign.weaponCatalog;
     if (catalog.weapons.isEmpty) return const SizedBox.shrink();
-    final inventory = campaign.weaponInventoryFor(0);
-    final ids = inventory.keys.toList()..sort();
-    final count = math.max(3, ((ids.length + 2) ~/ 3) * 3);
     final hero = c.selectedHero;
     final canSelect = hero != null && campaign.canDispatch(hero);
     return Column(
@@ -111,92 +101,109 @@ class _WeaponLibraryState extends State<WeaponLibrary> {
             ),
           ],
         ),
+        const SizedBox(height: CityPanelStyle.headingGap),
         LayoutBuilder(
-          builder: (context, constraints) => Wrap(
-            spacing: CityPanelStyle.gap,
-            runSpacing: CityPanelStyle.gap,
-            children: [
-              for (var slot = 0; slot < count; slot++)
-                SizedBox(
-                  width: (constraints.maxWidth - CityPanelStyle.gap * 2) / 3,
-                  child: slot >= ids.length
-                      ? OutlinedButton(
-                          key: ValueKey('warehouse-empty-$slot'),
-                          style: CityPanelStyle.button(),
-                          onPressed: null,
-                          child: Text('—', style: CityPanelStyle.label),
-                        )
-                      : _stockCard(ids[slot], inventory[ids[slot]]!, canSelect),
-                ),
-            ],
-          ),
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth < 260 ? 2 : 3;
+            return Wrap(
+              spacing: CityPanelStyle.gap,
+              runSpacing: CityPanelStyle.gap,
+              children: [
+                for (final w in catalog.shopWeapons)
+                  SizedBox(
+                    width:
+                        (constraints.maxWidth -
+                            CityPanelStyle.gap * (columns - 1)) /
+                        columns,
+                    child: _card(w.id, canSelect),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 
-  Widget _stockCard(int id, int quantity, bool canSelect) {
-    final c = widget.controller;
-    final selected = c.selectedWeaponCountFor(id);
-    final enabled =
+  Widget _card(int id, bool canSelect) {
+    final c = controller, campaign = c.campaign;
+    final w = campaign.weaponCatalog.weapons[id]!;
+    final quantity = campaign.weaponStockFor(0, id);
+    final selected = c.selectedWeaponCountFor(id) > 0;
+    final buyProblem = campaign.weaponPurchaseBlockReason(id);
+    final canCarry =
         canSelect &&
-        (selected > 0 ||
-            c.selectedWeaponCount < c.campaign.weaponCatalog.carryLimit);
-    return Semantics(
-      selected: selected > 0,
-      child: OutlinedButton(
-        key: ValueKey('warehouse-weapon-$id'),
-        style: CityPanelStyle.button(
-          selected: selected > 0,
-          actionable: enabled,
+        quantity > 0 &&
+        (selected || c.selectedWeaponCount < campaign.weaponCatalog.carryLimit);
+    return Container(
+      key: ValueKey('warehouse-weapon-$id'),
+      padding: CityPanelStyle.padding,
+      decoration: CityPanelStyle.decoration.copyWith(
+        border: Border.all(
+          color: selected ? CityPanelStyle.gold : const Color(0xff43513b),
         ),
-        onPressed: enabled
-            ? () => widget.onAction(() => c.selectWeapon(id))
-            : null,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${c.campaign.weaponCatalog.weapons[id]!.name} ×$quantity',
-                    style: CityPanelStyle.value,
-                  ),
-                  const SizedBox(height: CityPanelStyle.textGap),
-                  Text(
-                    selected > 0
-                        ? '已选 $selected'
-                        : c.campaign.weaponCatalog.weapons[id]!.effectLabel,
-                    style: CityPanelStyle.label,
-                  ),
-                ],
-              ),
-            ),
-            if (selected > 0)
-              SizedBox(
-                width: 24,
-                height: 32,
-                child: IconButton(
-                  key: ValueKey('deselect-weapon-$id'),
-                  tooltip: '少带一件',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 24,
-                    height: 32,
-                  ),
-                  visualDensity: VisualDensity.standard,
-                  onPressed: () => widget.onAction(() => c.deselectWeapon(id)),
-                  icon: const Icon(
-                    Icons.remove,
-                    size: 14,
-                    color: CityPanelStyle.gold,
-                  ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${w.name} ×$quantity', style: CityPanelStyle.value),
+          const SizedBox(height: CityPanelStyle.textGap),
+          Text(w.effectLabel, style: CityPanelStyle.label),
+          Text(
+            campaign.year < w.unlockYear
+                ? '第${w.unlockYear}年解锁'
+                : '${w.price}金币',
+            style: CityPanelStyle.label,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                key: ValueKey('buy-weapon-$id'),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(32, 32),
+                  maximumSize: const Size(32, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                tooltip: buyProblem == null ? '购买${w.name}' : '购买：$buyProblem',
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                onPressed: buyProblem == null
+                    ? () => onAction(() => c.buyCountryWeapon(id))
+                    : null,
+                icon: const Icon(Icons.shopping_cart_outlined),
               ),
-          ],
-        ),
+              IconButton(
+                key: ValueKey('carry-weapon-$id'),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(32, 32),
+                  maximumSize: const Size(32, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                tooltip: selected ? '取消携带${w.name}' : '携带${w.name}',
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                color: selected ? CityPanelStyle.gold : null,
+                onPressed: canCarry
+                    ? () => onAction(
+                        () => selected
+                            ? c.deselectWeapon(id)
+                            : c.selectWeapon(id),
+                      )
+                    : null,
+                icon: Icon(selected ? Icons.backpack : Icons.backpack_outlined),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

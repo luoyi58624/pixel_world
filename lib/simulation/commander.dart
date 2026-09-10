@@ -240,7 +240,7 @@ class SimulationCommander implements PlayerCommander {
           (guards.length > 1 ||
               hero.combat <
                   guards.last.combat +
-                      level * GameConfig.cityDefenseAttackPerLevel +
+                      GameConfig.cityDefenseAttackBonusFor(level) +
                       4);
       final slots = <int, int>{};
       if (needWeapons) {
@@ -260,7 +260,7 @@ class SimulationCommander implements PlayerCommander {
         final guard = guards.last;
         final ownPower = hero.combat + 8;
         final enemyPower =
-            guard.combat + level * GameConfig.cityDefenseAttackPerLevel + 8;
+            guard.combat + GameConfig.cityDefenseAttackBonusFor(level) + 8;
         final enemyHealth =
             guard.hp + math.min(4, c.reserveSoldiersFor(guard.countryId)) * 20;
         // 只按当前可见属性核算静态余量，后两件武器不视为必定释放。

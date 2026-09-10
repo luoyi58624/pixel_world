@@ -7,7 +7,7 @@ import 'package:pixel_world/features/campaign/domain/campaign.dart';
 
 void main() {
   for (final size in [const Size(375, 812), const Size(1280, 720)]) {
-    testWidgets('右下角全局商店无需选城，按年份购买且不暂停 $size', (tester) async {
+    testWidgets('购买入口位于城池武器库，按年份购买且不暂停 $size', (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -33,10 +33,13 @@ void main() {
       );
       final gold = c.campaign.gold, stock = c.campaign.weaponStockFor(0, 0);
       expect(c.selectedCity, isNull);
-      await tester.tap(find.byKey(const ValueKey('weapon-shop-open')));
+      expect(find.byKey(const ValueKey('weapon-shop-open')), findsNothing);
+      expect(find.byKey(const ValueKey('weapon-library')), findsNothing);
+      c.openCity(c.world.cities.first);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
       final buy = find.byKey(const ValueKey('buy-weapon-0'));
+      await tester.ensureVisible(buy);
+      await tester.pump();
       await tester.tap(buy);
       await tester.pump();
       expect(
@@ -46,7 +49,7 @@ void main() {
       expect(c.campaign.weaponStockFor(0, 0), stock + 1);
       expect(
         tester
-            .widget<OutlinedButton>(find.byKey(const ValueKey('buy-weapon-14')))
+            .widget<IconButton>(find.byKey(const ValueKey('buy-weapon-14')))
             .onPressed,
         isNull,
       );
@@ -54,9 +57,6 @@ void main() {
       final before = c.campaign.aiObservationFor(0).tick;
       c.tick(1);
       expect(c.campaign.aiObservationFor(0).tick, greaterThan(before));
-      await tester.tap(find.text('关闭'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
       c.openCity(c.world.cities.first);
       await tester.pump();
       expect(find.byKey(const ValueKey('city-economy')), findsNothing);
