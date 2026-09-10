@@ -235,4 +235,51 @@ void main() {
     expect(am.position, bm.position);
     _expectTouch(a, a.world.cities[1], am.position);
   });
+
+  test('已经贴住敌城时改向城后方，仍立即进攻而不穿城', () {
+    final c = _campaign(1);
+    addTearDown(c.dispose);
+    final city = c.world.cities[1];
+    final march = c.dispatch(c.garrisonAt(0).first, city)!;
+    march.position = march.destination;
+    final contact = march.position;
+    expect(
+      c.moveTo(
+        march.hero.id,
+        c.cityBounds(city).centerRight + const GamePoint(80, 0),
+      ),
+      isTrue,
+    );
+    c.advance(1 / 60);
+    expect(march.position, contact);
+    expect(march.target, city);
+    expect(march.phase, MarchPhase.fighting);
+    expect(c.battles[city.id]!.attacker, march.hero);
+  });
+
+  test('途经正在交战的敌城停在另一侧城墙排队，不能穿城', () {
+    final c = _campaign(1);
+    addTearDown(c.dispose);
+    final city = c.world.cities[1], bounds = c.cityBounds(c.world.cities[1]);
+    final first = c.dispatch(c.garrisonAt(0).first, city)!;
+    first.position = first.destination;
+    c.advance(1 / 60);
+    final battle = c.battles[city.id]!;
+    final rear = c.dispatchTo(
+      c.garrisonAt(0).first,
+      bounds.centerLeft - const GamePoint(80, 0),
+    )!;
+    rear.position = bounds.centerRight + const GamePoint(20, 0);
+    for (var i = 0; i < 120 && rear.phase == MarchPhase.marching; i++) {
+      c.advance(1 / 60);
+    }
+    expect(rear.phase, MarchPhase.awaitingBattle);
+    expect(rear.target, city);
+    expect(c.battles[city.id], same(battle));
+    final stopped = rear.position;
+    c.advance(.1);
+    expect(rear.position, stopped);
+    expect(rear.position.dx, greaterThan(bounds.center.dx));
+    _expectTouch(c, city, rear.position);
+  });
 }

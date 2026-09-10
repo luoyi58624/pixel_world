@@ -2121,7 +2121,11 @@ class CampaignState {
           _nextRetreatLeg(march);
         }
         // 检查实际走过的线段，避免低帧率或远距离指令穿过敌城而不交战。
-        if (previous != march.position && !march.returningFromRetreat) {
+        if (!march.waitingForDeparture &&
+            !march.returningFromRetreat &&
+            (previous != march.position ||
+                march.phase == MarchPhase.marching ||
+                march._trafficBlocked)) {
           CityDefinition? encountered;
           var nearest = 2.0;
           for (final city in world.cities) {
@@ -2129,8 +2133,11 @@ class CampaignState {
               continue;
             }
             final origin = cityBounds(city).topLeft;
-            final fraction = _cityContact(city)
-                .entryFraction(previous - origin, march.position - origin);
+            final contact = _cityContact(city);
+            // 已贴城时也必须拦截，不能利用起点在轮廓内的线段跳过城战。
+            final fraction = contact.contains(previous - origin)
+                ? 0.0
+                : contact.entryFraction(previous - origin, march.position - origin);
             if (fraction != null && fraction < nearest) {
               nearest = fraction;
               encountered = city;
@@ -2142,6 +2149,8 @@ class CampaignState {
             march.position = entry;
             march.destination = entry;
             march.target = encountered;
+            march._trafficBlocked = false;
+            march._trafficRoute.clear();
             march.phase = MarchPhase.awaitingBattle;
             changed = true;
           }
