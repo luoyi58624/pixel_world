@@ -56,10 +56,27 @@ extension CountryRelations on CampaignState {
       GameConfig.countryHatredMaximum,
       before + GameConfig.countryHatredPerAttack,
     );
-    if (next == before) return;
+    if (next == before) {
+      _emitEvent(
+        GameEventKind.hatredChanged,
+        '再次遭到${world.countryName(aggressor)}国侵袭，仇恨已达上限 $before',
+        countryId: victim,
+        targetCountryId: aggressor,
+        source: GameEventSource.system,
+        phase: GameEventPhase.observed,
+        data: {'before': before, 'after': next},
+      );
+      return;
+    }
     _countryHatred.putIfAbsent(victim, () => {})[aggressor] = next;
     _record(
       '${world.countryName(victim)}国受袭，对${world.countryName(aggressor)}国仇恨升至 $next',
+      kind: GameEventKind.hatredChanged,
+      countryId: victim,
+      targetCountryId: aggressor,
+      source: GameEventSource.system,
+      reason: '遭受实际进攻，这笔账记在该国名下',
+      data: {'before': before, 'after': next},
     );
   }
 

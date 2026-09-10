@@ -11,6 +11,7 @@ import 'city_services.dart';
 import 'city_panel_style.dart';
 import 'weapon_loadout.dart';
 import 'hero_dismiss_button.dart';
+import 'country_event_log.dart';
 
 const _ink = Color(0xff141b17);
 const _cream = CityPanelStyle.ink;
@@ -19,7 +20,7 @@ const _muted = CityPanelStyle.muted;
 const _line = Color(0xff43513e);
 
 /// 城池单层详情，我方可直接选英雄出击，底部操作固定。
-class CityPanel extends StatelessWidget {
+class CityPanel extends StatefulWidget {
   /// 根据当前城池选择构建面板。
   const CityPanel({
     super.key,
@@ -40,6 +41,17 @@ class CityPanel extends StatelessWidget {
 
   /// 完成操作后将键盘焦点交回地图。
   final void Function(VoidCallback) onAction;
+
+  @override
+  State<CityPanel> createState() => _CityPanelState();
+}
+
+class _CityPanelState extends State<CityPanel> {
+  WorldController get controller => widget.controller;
+  WorldAssets get assets => widget.assets;
+  double get maxHeight => widget.maxHeight;
+  void Function(VoidCallback) get onAction => widget.onAction;
+  bool _showEvents = false;
 
   @override
   Widget build(BuildContext context) {
@@ -111,14 +123,48 @@ class CityPanel extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: _line),
-          Flexible(
-            child: SingleChildScrollView(
-              key: const ValueKey('city-panel-scroll'),
-              padding: const EdgeInsets.all(16),
-              child: _information(situation),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+            child: Row(
+              children: [
+                for (final entry in [
+                  (false, '国家情况', 'country-info-tab'),
+                  (true, '事件日志', 'country-events-tab'),
+                ])
+                  Expanded(
+                    child: TextButton(
+                      key: ValueKey(entry.$3),
+                      onPressed: () => setState(() => _showEvents = entry.$1),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _showEvents == entry.$1
+                            ? _gold
+                            : _muted,
+                        backgroundColor: _showEvents == entry.$1
+                            ? const Color(0xff263025)
+                            : Colors.transparent,
+                      ),
+                      child: Text(
+                        entry.$2,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          _footer(situation.isPlayer),
+          Flexible(
+            child: _showEvents
+                ? CountryEventLogView(
+                    key: ValueKey('country-log-${situation.ownerCountryId}'),
+                    log: c.campaign.events.forCountry(situation.ownerCountryId),
+                  )
+                : SingleChildScrollView(
+                    key: const ValueKey('city-panel-scroll'),
+                    padding: const EdgeInsets.all(16),
+                    child: _information(situation),
+                  ),
+          ),
+          if (!_showEvents) _footer(situation.isPlayer),
         ],
       ),
     );

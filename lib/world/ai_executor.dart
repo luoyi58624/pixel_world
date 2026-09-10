@@ -82,10 +82,52 @@ extension _AiCommands on CampaignState {
     final watch = Stopwatch()..start();
     final tick = (_strategyTime * 60).round();
     final diagnostics = coordinator.diagnostics;
+    final decisionId = coordinator.decisionId(
+      reply.country,
+      reply.id,
+      workerSession: reply.session,
+    );
+    var appliedInReply = 0;
+    _emitEvent(
+      GameEventKind.planProposed,
+      switch (reply.plan.phase) {
+        'attacking' => '提出进攻计划',
+        'defending' => '提出守城和回援计划',
+        'saving' => '规划积蓄资金与备战',
+        _ => '提出经营与将领调度计划',
+      },
+      countryId: reply.country,
+      cityId: reply.plan.targetCity,
+      source: GameEventSource.ai,
+      phase: GameEventPhase.planned,
+      decisionId: decisionId,
+      reason: reply.plan.notes.join('；'),
+      data: {
+        'observedTick': reply.observedTick,
+        'receivedTick': tick,
+        'planningMicros': reply.planningMicros,
+        'error': reply.error,
+        'plan': reply.plan.toJson(),
+      },
+    );
     bool reject(String why) {
       diagnostics.rejected++;
       diagnostics.record('国家 ${reply.country} 建议过期：$why');
       coordinator.urgent(reply.country);
+      _emitEvent(
+        GameEventKind.planRejected,
+        appliedInReply == 0 ? '计划未执行' : '计划只执行了部分指令，后续已停止',
+        countryId: reply.country,
+        source: GameEventSource.ai,
+        phase: GameEventPhase.rejected,
+        decisionId: decisionId,
+        reason: why,
+        data: {
+          'observedTick': reply.observedTick,
+          'currentTick': tick,
+          'appliedCommandCount': appliedInReply,
+        },
+      );
       return false;
     }
 
@@ -127,6 +169,17 @@ extension _AiCommands on CampaignState {
       tick - reply.observedTick,
     );
     diagnostics.accepted++;
+    _emitEvent(
+      GameEventKind.planAccepted,
+      reply.plan.targetCity != null && cities.containsKey(reply.plan.targetCity)
+          ? '针对${cityName(reply.plan.targetCity!)}国的计划通过校验，开始依次执行'
+          : '计划通过校验，开始依次执行',
+      countryId: reply.country,
+      source: GameEventSource.ai,
+      phase: GameEventPhase.observed,
+      decisionId: decisionId,
+      data: {'groupCount': reply.plan.groups.length},
+    );
     final plan = _warPlans.putIfAbsent(reply.country, CountryWarPlan._);
     plan.targetCityId = reply.plan.targetCity;
     plan.targetCountryId = cities[plan.targetCityId]?.ownerCountryId;
@@ -142,12 +195,20 @@ extension _AiCommands on CampaignState {
       diagnostics.record('${world.countryName(reply.country)}国：$note');
     }
     var changed = false;
+    var groupIndex = 0;
+    final decisionBefore = _eventResources(reply.country);
+    final executedActions = <Map<String, Object?>>[];
+    final assignedTasks = <Map<String, Object?>>[];
+    final decisionReasons = <String>{};
+    String? executionFailure;
     for (final group in reply.plan.groups) {
       if (!_aiGroupBudget(group, reply.country)) {
-        reject('当前资源不足以完成整组动作和预留');
+        executionFailure = '当前资源不足以完成整组动作和预留';
+        reject(executionFailure);
         break;
       }
       var successful = true;
+      var actionIndex = 0;
       for (final action in group.actions) {
         final hero = heroes.where((h) => h.id == action.hero).firstOrNull;
         final point =
@@ -160,62 +221,98 @@ extension _AiCommands on CampaignState {
             ? null
             : Offset(action.point!.x, action.point!.y);
         bool ok;
-        switch (action.kind) {
-          case AiActionKind.upgrade:
-            ok =
-                action.city != null &&
-                hero != null &&
-                upgradeCity(action.city!, hero: hero, countryId: reply.country);
-          case AiActionKind.dismiss:
-            ok =
-                hero != null &&
-                dismissHero(hero, countryId: reply.country) != null;
-          case AiActionKind.recruit:
-            ok = false;
-            if (action.city != null && _aiSafeRecruitment(action.city!)) {
-              final offer = drawHero(action.city!, countryId: reply.country);
-              ok = offer != null;
-              if (ok && reply.country == 0) {
-                ok = signHero(offer, countryId: 0) != null;
+        final before = _eventResources(reply.country);
+        final previousContext = _eventContext;
+        _eventContext = (
+          countryId: reply.country,
+          decisionId: decisionId,
+          reason: group.reason,
+        );
+        try {
+          switch (action.kind) {
+            case AiActionKind.upgrade:
+              ok =
+                  action.city != null &&
+                  hero != null &&
+                  upgradeCity(
+                    action.city!,
+                    hero: hero,
+                    countryId: reply.country,
+                  );
+            case AiActionKind.dismiss:
+              ok =
+                  hero != null &&
+                  dismissHero(hero, countryId: reply.country) != null;
+            case AiActionKind.recruit:
+              ok = false;
+              if (action.city != null && _aiSafeRecruitment(action.city!)) {
+                final offer = drawHero(action.city!, countryId: reply.country);
+                ok = offer != null;
+                if (ok && reply.country == 0) {
+                  ok = signHero(offer, countryId: 0) != null;
+                }
               }
-            }
-          case AiActionKind.soldiers:
-            ok =
-                action.city != null &&
-                buySoldiers(
-                  action.city!,
-                  action.amount,
-                  countryId: reply.country,
-                );
-          case AiActionKind.buyWeapon:
-            ok = buyWeapon(action.amount, countryId: reply.country);
-          case AiActionKind.dispatch:
-            ok =
-                hero != null &&
-                point != null &&
-                dispatchTo(
-                      hero,
-                      point,
-                      countryId: reply.country,
-                      weaponSlots: {
-                        for (var i = 0; i < action.weaponIds.length; i++)
-                          i: action.weaponIds[i],
-                      },
-                    ) !=
-                    null;
-          case AiActionKind.move:
-            ok =
-                hero != null &&
-                point != null &&
-                moveTo(hero.id, point, countryId: reply.country);
-          case AiActionKind.camp:
-            ok = hero != null && camp(hero.id, countryId: reply.country);
-          case AiActionKind.retreat:
-            ok =
-                hero != null &&
-                retreatHero(hero.id, countryId: reply.country) != null;
+            case AiActionKind.soldiers:
+              ok =
+                  action.city != null &&
+                  buySoldiers(
+                    action.city!,
+                    action.amount,
+                    countryId: reply.country,
+                  );
+            case AiActionKind.buyWeapon:
+              ok = buyWeapon(action.amount, countryId: reply.country);
+            case AiActionKind.dispatch:
+              ok =
+                  hero != null &&
+                  point != null &&
+                  dispatchTo(
+                        hero,
+                        point,
+                        countryId: reply.country,
+                        weaponSlots: {
+                          for (var i = 0; i < action.weaponIds.length; i++)
+                            i: action.weaponIds[i],
+                        },
+                      ) !=
+                      null;
+            case AiActionKind.move:
+              ok =
+                  hero != null &&
+                  point != null &&
+                  moveTo(hero.id, point, countryId: reply.country);
+            case AiActionKind.camp:
+              ok = hero != null && camp(hero.id, countryId: reply.country);
+            case AiActionKind.retreat:
+              ok =
+                  hero != null &&
+                  retreatHero(hero.id, countryId: reply.country) != null;
+          }
+        } finally {
+          _eventContext = previousContext;
         }
+        _emitEvent(
+          ok ? GameEventKind.commandApplied : GameEventKind.commandRejected,
+          ok
+              ? '已执行 ${_eventActionLabel(action.kind)}'
+              : '${_eventActionLabel(action.kind)}未执行',
+          countryId: reply.country,
+          hero: hero,
+          cityId: action.city,
+          source: GameEventSource.ai,
+          phase: ok ? GameEventPhase.applied : GameEventPhase.rejected,
+          decisionId: decisionId,
+          reason: group.reason,
+          data: {
+            'groupIndex': groupIndex,
+            'actionIndex': actionIndex++,
+            'action': action.toJson(),
+            'before': before,
+            'after': _eventResources(reply.country),
+          },
+        );
         if (!ok) {
+          executionFailure = '${_eventActionLabel(action.kind)}未能执行，停止后续依赖动作';
           successful = false;
           diagnostics.record(
             '国家 ${reply.country} 的 ${action.kind.name} 已失效，停止后续依赖动作',
@@ -224,7 +321,16 @@ extension _AiCommands on CampaignState {
           break;
         }
         changed = true;
+        appliedInReply++;
         diagnostics.commands++;
+        executedActions.add({
+          'summary': _finalActionSummary(action, hero, group),
+          'action': action.toJson(),
+          'heroName': hero?.name,
+          'before': before,
+          'after': _eventResources(reply.country),
+        });
+        if (group.reason.isNotEmpty) decisionReasons.add(group.reason);
       }
       if (!successful) break;
       for (final task in group.tasks) {
@@ -232,15 +338,53 @@ extension _AiCommands on CampaignState {
             .where((h) => h.id == task.hero && h.countryId == reply.country)
             .firstOrNull;
         if (hero == null || _disbandAfterBattle.contains(hero.id)) continue;
+        final previousTask = coordinator.tasks[task.hero];
         coordinator.tasks[task.hero] = task.withLeg(
           task.leg,
           _aiOrderVersions[task.hero] ?? 0,
+        );
+        coordinator._taskOwners[task.hero] = reply.country;
+        coordinator._taskDecisions[task.hero] = decisionId;
+        coordinator._taskNames[task.hero] = hero.name;
+        assignedTasks.add({
+          'heroName': hero.name,
+          'previousTask': previousTask?.toJson(),
+          'newTask': coordinator.tasks[task.hero]!.toJson(),
+        });
+        _emitEvent(
+          previousTask == null
+              ? GameEventKind.taskAssigned
+              : GameEventKind.taskReplaced,
+          previousTask == null
+              ? '安排${hero.name}执行${_eventTaskLabel(task.role)}${task.city != null && cities.containsKey(task.city) ? '，目标${cityName(task.city!)}国城池' : ''}'
+              : '将${hero.name}从${_eventTaskLabel(previousTask.role)}改派为${_eventTaskLabel(task.role)}',
+          countryId: reply.country,
+          hero: hero,
+          cityId: task.city,
+          source: GameEventSource.ai,
+          decisionId: decisionId,
+          reason: task.reason,
+          data: {
+            'previousTask': previousTask?.toJson(),
+            'newTask': coordinator.tasks[task.hero]!.toJson(),
+          },
         );
       }
       diagnostics.record(
         '${world.countryName(reply.country)}国：${group.reason}',
       );
+      groupIndex++;
     }
+    _finalizeAiDecision(
+      reply,
+      coordinator,
+      decisionId: decisionId,
+      before: decisionBefore,
+      actions: executedActions,
+      tasks: assignedTasks,
+      reasons: decisionReasons,
+      failure: executionFailure,
+    );
     coordinator.idleCycles[reply.country] = changed
         ? 0
         : (coordinator.idleCycles[reply.country] ?? 0) + 1;

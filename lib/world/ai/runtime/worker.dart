@@ -40,6 +40,16 @@ class AiWorkerMetrics {
   /// 主环境接收、解码及由回复触发的下一条发送的累计耗时。
   int receiveMicros = 0;
 
+  /// 主环境可订阅调度事实；观察者失败不能影响后台排队。
+  void Function(String kind, Map<String, Object?> data)? onTrace;
+
+  /// 输出消息身份，不把记录器带入工作 isolate。
+  void trace(String kind, Map<String, Object?> data) {
+    try {
+      onTrace?.call(kind, data);
+    } catch (_) {}
+  }
+
   /// 导出实测数据。
   Map<String, Object?> toJson() => {
     'backend': backend,
@@ -139,6 +149,10 @@ class MessageAiWorker implements AiWorker {
     final transport = transportFactory();
     _transport = transport;
     metrics.backend = transport.name;
+    metrics.trace('starting', {
+      'restarts': metrics.restarts,
+      'backend': metrics.backend,
+    });
     _subscription = transport.messages.listen(
       (raw) {
         if (generation == _generation) _receive(raw);
@@ -191,6 +205,7 @@ class MessageAiWorker implements AiWorker {
             return;
           }
           status = AiWorkerStatus.ready;
+          metrics.trace('ready', {'backend': metrics.backend});
           _dispatch();
         case 'reply':
           final reply = AiReply.fromJson(
@@ -201,6 +216,13 @@ class MessageAiWorker implements AiWorker {
               reply.id != active.request.id ||
               reply.session != active.request.session) {
             metrics.expired++;
+            metrics.trace('replyDropped', {
+              'country': reply.country,
+              'id': reply.id,
+              'session': reply.session,
+              'reason': '回复不属于当前执行请求',
+              'plan': reply.plan.toJson(),
+            });
             return;
           }
           _active = null;
@@ -218,10 +240,18 @@ class MessageAiWorker implements AiWorker {
             _replies.add(reply);
           } else {
             metrics.expired++;
+            metrics.trace('replyDropped', {
+              'country': reply.country,
+              'id': reply.id,
+              'session': reply.session,
+              'reason': '请求已被替换、已过期或接收队列已满',
+              'plan': reply.plan.toJson(),
+            });
           }
           _dispatch();
         case 'cancelled':
           if (_active?.request.id == data['id']) {
+            metrics.trace('cancelled', _requestTrace(_active!.request));
             _active = null;
             metrics.expired++;
             _dispatch();
@@ -243,14 +273,31 @@ class MessageAiWorker implements AiWorker {
     }
     if (_pending.length >= 32 && !_pending.containsKey(request.country)) {
       metrics.expired++;
+      metrics.trace('requestDropped', {
+        ..._requestTrace(request),
+        'reason': '国家队列已满',
+      });
       return;
     }
     _latest[request.country] = request.id;
     // 更新观察不能重置排队资历，否则持续有事件的普通国家会饿死。
     final queuedAt = _pending[request.country]?.queuedAt ?? _now();
+    final replaced = _pending[request.country]?.request;
     _pending[request.country] = _QueuedRequest(request, queuedAt);
+    if (replaced != null) {
+      metrics.trace('requestDropped', {
+        ..._requestTrace(replaced),
+        'reason': '待处理观察被更新',
+        'newRequestId': request.id,
+      });
+    }
+    metrics.trace('queued', _requestTrace(request));
     if (pendingCount > metrics.maxQueue) metrics.maxQueue = pendingCount;
     if (_active?.request.country == request.country && request.priority >= 2) {
+      metrics.trace('cancelRequested', {
+        ..._requestTrace(_active!.request),
+        'newRequestId': request.id,
+      });
       _send({'kind': 'cancel', 'id': _active!.request.id});
     }
     _dispatch();
@@ -261,6 +308,10 @@ class MessageAiWorker implements AiWorker {
     _pending.removeWhere((_, q) {
       if (q.request.deadlineTick < _tick) {
         metrics.expired++;
+        metrics.trace('requestDropped', {
+          ..._requestTrace(q.request),
+          'reason': '排队期间已过期',
+        });
         return true;
       }
       return false;
@@ -285,6 +336,10 @@ class MessageAiWorker implements AiWorker {
       metrics.maxQueueMicros = now - q.queuedAt;
     }
     metrics.sent++;
+    metrics.trace('dispatched', {
+      ..._requestTrace(q.request),
+      'queueMicros': now - q.queuedAt,
+    });
     _send({'kind': 'plan', 'request': q.request.toJson()});
   }
 
@@ -311,6 +366,11 @@ class MessageAiWorker implements AiWorker {
       return;
     }
     metrics.error = reason;
+    metrics.trace('failure', {
+      'reason': reason,
+      'restarts': metrics.restarts,
+      if (_active != null) ..._requestTrace(_active!.request),
+    });
     ++_generation;
     unawaited(_subscription?.cancel());
     _transport?.close();
@@ -320,6 +380,13 @@ class MessageAiWorker implements AiWorker {
       _start();
     } else {
       status = AiWorkerStatus.degraded;
+      metrics.trace('degraded', {'reason': reason});
+      for (final q in _pending.values) {
+        metrics.trace('requestDropped', {
+          ..._requestTrace(q.request),
+          'reason': '后台降级，清理待处理请求',
+        });
+      }
       _pending.clear();
     }
   }
@@ -335,6 +402,21 @@ class MessageAiWorker implements AiWorker {
   void close() {
     if (status == AiWorkerStatus.closed) return;
     status = AiWorkerStatus.closed;
+    metrics.trace('closed', {'pendingCount': pendingCount});
+    for (final q in [?_active, ..._pending.values]) {
+      metrics.trace('requestDropped', {
+        ..._requestTrace(q.request),
+        'reason': '后台关闭，请求作废',
+      });
+    }
+    for (final r in _replies) {
+      metrics.trace('replyDropped', {
+        'country': r.country,
+        'id': r.id,
+        'session': r.session,
+        'reason': '后台关闭，尚未提交的回复作废',
+      });
+    }
     ++_generation;
     unawaited(_subscription?.cancel());
     _transport?.close();
@@ -342,4 +424,13 @@ class MessageAiWorker implements AiWorker {
     _replies.clear();
     _active = null;
   }
+
+  Map<String, Object?> _requestTrace(AiRequest r) => {
+    'country': r.country,
+    'id': r.id,
+    'session': r.session,
+    'observedTick': r.observation.tick,
+    'deadlineTick': r.deadlineTick,
+    'priority': r.priority,
+  };
 }

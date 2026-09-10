@@ -22,6 +22,15 @@ extension _CitySieges on CampaignState {
         cityId: march.target!.id,
         order: ++_siegeArrivalSerial,
       );
+      _emitEvent(
+        GameEventKind.battleQueued,
+        '${march.hero.name}抵达城下，按到达顺序等待攻城',
+        hero: march.hero,
+        cityId: march.target!.id,
+        targetCountryId: cities[march.target!.id]!.ownerCountryId,
+        source: GameEventSource.system,
+        data: {'arrivalOrder': march._siegeArrival!.order},
+      );
     }
   }
 
@@ -117,7 +126,7 @@ extension _CitySieges on CampaignState {
     reinforceHero(defender, countryId: defender.countryId);
     march._siegeArrival = null;
     march.phase = MarchPhase.fighting;
-    return battles[city.id] = CityBattle(
+    final battle = battles[city.id] = CityBattle(
       city,
       march.hero,
       defender,
@@ -125,6 +134,13 @@ extension _CitySieges on CampaignState {
       locationName: () => cityName(city.id),
       seed: (++_battleSerial * 1009) + city.id * 41 + march.hero.sourceId,
     );
+    _battleEvent(
+      GameEventKind.battleStarted,
+      battle,
+      '${march.hero.name}进攻，${defender.name}出城迎战',
+      data: {'initialCityLevel': battle.initialCityLevel},
+    );
+    return battle;
   }
 
   void _finishOccupation(CityBattle battle) {

@@ -41,14 +41,32 @@ extension CampaignWeapons on CampaignState {
 
   /// 购买一件武器计入国家同类库存，不自动装备给英雄。
   bool buyWeapon(int weaponId, {int countryId = 0}) {
-    if (weaponPurchaseBlockReason(weaponId, countryId: countryId) != null) {
+    final problem = weaponPurchaseBlockReason(weaponId, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.weaponPurchased,
+        problem,
+        countryId: countryId,
+        data: {'weaponId': weaponId},
+      );
       return false;
     }
+    final before = _eventResources(countryId);
     final stock = _weaponStock.putIfAbsent(countryId, () => {});
     stock.update(weaponId, (n) => n + 1, ifAbsent: () => 1);
     _countryGold[countryId] =
         goldFor(countryId) - weaponCatalog.weapons[weaponId]!.price;
-    _record('购入${weaponCatalog.weapons[weaponId]!.name}');
+    _record(
+      '购入${weaponCatalog.weapons[weaponId]!.name}',
+      kind: GameEventKind.weaponPurchased,
+      countryId: countryId,
+      data: {
+        'weaponId': weaponId,
+        'cost': weaponCatalog.weapons[weaponId]!.price,
+        'before': before,
+        'after': _eventResources(countryId),
+      },
+    );
     return true;
   }
 
@@ -107,7 +125,16 @@ extension CampaignWeapons on CampaignState {
 
   /// 锁定动作后立即消耗一件武器，失败指令不会扣库存。
   bool useWeapon(CampaignHero hero, int slot, {int countryId = 0}) {
-    if (!canUseWeapon(hero, slot, countryId: countryId)) return false;
+    if (!canUseWeapon(hero, slot, countryId: countryId)) {
+      _rejectEvent(
+        GameEventKind.weaponUsed,
+        '当前状态不允许使用武器',
+        countryId: countryId,
+        hero: hero,
+        data: {'slot': slot},
+      );
+      return false;
+    }
     final battle = activeBattleForHero(hero.id)!;
     final weapon = weaponCatalog.weapons[hero._weaponIds[slot]]!;
     final side = battle.attacker == hero
@@ -116,7 +143,18 @@ extension CampaignWeapons on CampaignState {
     if (!battle.simulation.useWeapon(side, weapon)) return false;
     hero._weaponIds.removeAt(slot);
     battle.record('${hero.name}使用${weapon.name}');
-    _record('${hero.name}使用${weapon.name}');
+    _record(
+      '${hero.name}使用${weapon.name}',
+      kind: GameEventKind.weaponUsed,
+      countryId: countryId,
+      hero: hero,
+      source: GameEventSource.system,
+      data: {
+        'weaponId': weapon.id,
+        'damage': weapon.damage,
+        'remainingWeapons': hero.weaponIds,
+      },
+    );
     return true;
   }
 

@@ -22,7 +22,17 @@ extension BattleRetreatCommands on CampaignState {
 
   /// 锁定成功或失败，双方退回起点后再演出结果；非法指令不消耗随机数。
   bool? retreatHero(String heroId, {int countryId = 0}) {
-    if (retreatBlockReason(heroId, countryId: countryId) != null) return null;
+    final problem = retreatBlockReason(heroId, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.retreatRequested,
+        problem,
+        countryId: countryId,
+        hero: heroes.where((h) => h.id == heroId).firstOrNull,
+        data: {'heroId': heroId},
+      );
+      return null;
+    }
     final battle = activeBattleForHero(heroId)!;
     final side = battle.attacker.id == heroId
         ? BattleSide.attacker
@@ -33,7 +43,13 @@ extension BattleRetreatCommands on CampaignState {
     _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
     final message = battle.simulation.retreatMessage!;
     battle.record(message);
-    _record(message);
+    _record(
+      message,
+      kind: GameEventKind.retreatRequested,
+      countryId: countryId,
+      hero: heroes.firstWhere((h) => h.id == heroId),
+      reason: '申请按真实撤退规则脱离当前战斗',
+    );
     return succeeded;
   }
 
@@ -46,6 +62,12 @@ extension BattleRetreatCommands on CampaignState {
     battle.simulation.stop();
     battle.record(battle.outcome!);
     _record(battle.outcome!);
+    _battleEvent(
+      GameEventKind.retreatResolved,
+      battle,
+      battle.outcome!,
+      data: {'succeeded': true},
+    );
     if (battle is CityBattle) {
       battle.nextWaveIn = 0;
       _releaseDefender(battle);

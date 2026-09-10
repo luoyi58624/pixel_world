@@ -113,6 +113,8 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 初始金币与 `requiredGarrison` 仍在 `campaign_config.json` 中配置；新策略参数使用 `GameConfig.nationalAi`。升级、招募和出征都检查现有部队粮草、月俸与月结前后现金低点，不预支未来占城收益。详细行为、后台构建步骤与验证入口见 [国家战略](docs/country_strategy.md) 和 [验收记录](docs/national_ai_validation.md)。
 
+点击城池后，国家面板新增「国家情况 / 事件日志」标签。同国多城共享日志，面板、计数和复制只包含该国最终 AI 决策：一次计划合并为一条，保留实际行动、原因和资源变化，重复等待不刷屏。模拟默认按国家导出最终决策 JSONL，排查内部流程时可显式启用完整追踪。接口与运行方式见 [国家事件系统](docs/game_events.md)。
+
 顶部暂停按钮或 **P** 键可暂停／继续整个游戏。暂停时关闭 AI 后台并停止游戏帧调度，冻结所有国家的行军、战斗、武器动画、年月、收入、月俸、粮草、招募到期和资源操作；当前面板与选点保留。继续后只推进新经过的时间，不补算暂停时长。
 
 修改 AI 核心或全局规则后先运行 `dart run tool/build_ai_worker.dart`，再热重启或构建 Flutter；发布同时包含生成的 `web/ai/worker.js`，可用 `dart run tool/build_ai_worker.dart --check` 校验版本一致。

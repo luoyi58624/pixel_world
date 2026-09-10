@@ -139,6 +139,12 @@ extension _FieldEncounters on CampaignState {
       _record(
         '${a.hero.name}与${b.hero.name}在${fieldBattles[id]!.terrain.label}遭遇，展开野外决战',
       );
+      _battleEvent(
+        GameEventKind.battleStarted,
+        fieldBattles[id]!,
+        '${a.hero.name}与${b.hero.name}发生野外遭遇战',
+        data: {'fieldBattleId': id, 'terrain': fieldBattles[id]!.terrain.label},
+      );
       changed = true;
     }
     final ended = fieldBattles.values
@@ -169,6 +175,7 @@ extension _FieldEncounters on CampaignState {
     battle.simulation.stop();
     battle.record(battle.outcome!);
     _record(battle.outcome!);
+    _battleEvent(GameEventKind.battleEnded, battle, battle.outcome!);
     if (defeated) return;
     _resumeFieldArmy(first, wasCamped: battle.attackerWasCamped);
     _resumeFieldArmy(second, wasCamped: battle.defenderWasCamped);

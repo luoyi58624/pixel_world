@@ -8,11 +8,18 @@ class _AiCoordinator {
   final AiWorker Function() factory;
   final diagnostics = NationalAiDiagnostics();
   final tasks = <String, ArmyTask>{};
+  final _taskOwners = <String, int>{};
+  final _taskDecisions = <String, String>{};
+  final _taskNames = <String, String>{};
   final latest = <int, int>{},
       applied = <int, int>{},
       idleCycles = <int, int>{};
   final _lastRequest = <int, double>{}, _urgent = <int>{};
   final _seeds = <int, int>{};
+  final _knownThreats = <int, int>{};
+  final _urgentReasons = <int, Set<String>>{};
+  // 仅用于日志去重，不参与规划、预算或将领调度。
+  final _lastDecisionLogState = <int, String>{};
   AiWorker? worker;
   late AiRules rules;
   late AiMap map;
@@ -24,13 +31,71 @@ class _AiCoordinator {
     session = '${campaign.world.id}:${++_aiSessionSerial}';
     rules = campaign._createAiRules();
     map = campaign._createAiMap();
+    if (campaign.events.enabled && campaign.events.captureAiSnapshots) {
+      campaign._emitEvent(
+        GameEventKind.workerState,
+        '保存决策复核所需的静态规则和地图',
+        source: GameEventSource.system,
+        data: {'rules': rules.toJson(), 'map': map.toJson()},
+      );
+    }
     worker = factory();
     diagnostics.worker = worker!.metrics;
+    worker!.metrics.onTrace = _traceWorker;
     worker!.initialize(rules, map);
   }
 
-  void urgent(int country) {
+  void urgent(int country, {String reason = '局势发生变化'}) {
     _urgent.add(country);
+    _urgentReasons.putIfAbsent(country, () => {}).add(reason);
+  }
+
+  String decisionId(int country, int request, {String? workerSession}) =>
+      '${workerSession ?? session}:country:$country:request:$request';
+
+  void _traceWorker(String kind, Map<String, Object?> data) {
+    final country = data['country'] as int?, id = data['id'] as int?;
+    final rejected = [
+      'replyDropped',
+      'requestDropped',
+      'cancelled',
+      'failure',
+      'degraded',
+    ].contains(kind);
+    final label = switch (kind) {
+      'queued' => '决策进入队列',
+      'dispatched' => '后台开始计算',
+      'cancelRequested' => '请求取消旧计算',
+      'cancelled' => '旧计算已取消',
+      'replyDropped' => '丢弃旧回复',
+      'requestDropped' => '请求未执行',
+      'starting' => '国家决策后台启动',
+      'ready' => '国家决策后台就绪',
+      'failure' => '后台发生故障',
+      'degraded' => '后台降级',
+      'closed' => '国家决策后台已关闭',
+      _ => kind,
+    };
+    campaign._emitEvent(
+      rejected
+          ? GameEventKind.workerDropped
+          : country == null
+          ? GameEventKind.workerState
+          : GameEventKind.workerQueue,
+      label,
+      countryId: country,
+      source: GameEventSource.ai,
+      phase: rejected
+          ? GameEventPhase.rejected
+          : kind == 'cancelRequested'
+          ? GameEventPhase.planned
+          : GameEventPhase.observed,
+      decisionId: country == null || id == null
+          ? null
+          : decisionId(country, id, workerSession: data['session'] as String?),
+      reason: data['reason'] as String?,
+      data: {'state': kind, ...data},
+    );
   }
 
   void pause() {
@@ -40,6 +105,7 @@ class _AiCoordinator {
     applied.clear();
     _lastRequest.clear();
     _urgent.clear();
+    _urgentReasons.clear();
     session = 'closed';
   }
 
@@ -60,13 +126,55 @@ class _AiCoordinator {
               .toSet()
               .toList()
             ..sort();
+      // 复用调度所需的威胁检测；只有状态变化才记录，不逐帧刷屏。
+      final threats = <int, int>{};
+      for (final city in campaign.world.cities) {
+        final owner = campaign.cities[city.id]!.ownerCountryId;
+        if (countries.contains(owner) && campaign._aiThreatened(city.id)) {
+          threats[city.id] = owner;
+        }
+      }
+      for (final entry in threats.entries) {
+        if (_knownThreats[entry.key] == entry.value) continue;
+        final battle = campaign.battles[entry.key];
+        campaign._emitEvent(
+          GameEventKind.threatDetected,
+          '${campaign.cityName(entry.key)}国城池出现威胁，准备判断守城、回援或撤离',
+          countryId: entry.value,
+          cityId: entry.key,
+          targetCountryId: battle?.isActive == true
+              ? battle!.attacker.countryId
+              : null,
+          source: GameEventSource.ai,
+          phase: GameEventPhase.observed,
+          reason: battle?.isActive == true ? '已经发生攻城' : '根据可见敌军的位置和运动判断',
+          data: {
+            'garrison': [for (final h in campaign.garrisonAt(entry.key)) h.id],
+            'safeSlots': campaign._aiSafetySlots(entry.key),
+            'resources': campaign._eventResources(entry.value),
+          },
+        );
+      }
+      for (final entry in _knownThreats.entries) {
+        if (threats[entry.key] == entry.value) continue;
+        campaign._emitEvent(
+          GameEventKind.threatCleared,
+          '重新检查城池威胁状态',
+          countryId: entry.value,
+          cityId: entry.key,
+          source: GameEventSource.ai,
+          phase: GameEventPhase.observed,
+          reason: campaign.cities[entry.key]?.ownerCountryId == entry.value
+              ? '当前不再观察到接近中的威胁'
+              : '城池归属已经改变',
+        );
+      }
+      _knownThreats
+        ..clear()
+        ..addAll(threats);
       final waiting = countries.where((id) {
         final age = campaign._strategyTime - (_lastRequest[id] ?? -100);
-        final danger = campaign.world.cities.any(
-          (c) =>
-              campaign.cities[c.id]!.ownerCountryId == id &&
-              campaign._aiThreatened(c.id),
-        );
+        final danger = threats.containsValue(id);
         return !_lastRequest.containsKey(id) ||
             age >= rules.tuning.intervalSeconds ||
             (age >= .5 && (_urgent.contains(id) || danger));
@@ -78,12 +186,7 @@ class _AiCoordinator {
             age > rules.tuning.intervalSeconds * 2) {
           return 3;
         }
-        if (_urgent.contains(country) ||
-            campaign.world.cities.any(
-              (c) =>
-                  campaign.cities[c.id]!.ownerCountryId == country &&
-                  campaign._aiThreatened(c.id),
-            )) {
+        if (_urgent.contains(country) || threats.containsValue(country)) {
           return 2;
         }
         return 0;
@@ -97,6 +200,11 @@ class _AiCoordinator {
       });
       final country = waiting.first;
       final requestPriority = priority(country);
+      final trigger = [
+        if (!_lastRequest.containsKey(country)) '开局或恢复决策',
+        if (threats.containsValue(country)) '家里有危险，重新判断防守',
+        ...?_urgentReasons.remove(country),
+      ];
       _urgent.remove(country);
       final watch = Stopwatch()..start();
       final observation = campaign._observeAi(country);
@@ -120,6 +228,29 @@ class _AiCoordinator {
       latest[country] = request.id;
       _lastRequest[country] = campaign._strategyTime;
       campaign._aiStrategicDecisions++;
+      campaign._emitEvent(
+        GameEventKind.decisionRequested,
+        '开始判断本国局势和将领任务',
+        countryId: country,
+        source: GameEventSource.ai,
+        phase: GameEventPhase.planned,
+        decisionId: decisionId(country, request.id),
+        reason: trigger.isEmpty ? '定期复查任务与资源' : trigger.join('；'),
+        data: {
+          'requestId': request.id,
+          'rulesVersion': rules.version,
+          'mapVersion': map.version,
+          'preferenceSeed': request.seed,
+          'idleCycles': request.idleCycles,
+          'priority': requestPriority,
+          'observedTick': tick,
+          'deadlineTick': request.deadlineTick,
+          'resources': campaign._eventResources(country),
+          'tasks': request.tasks.map((t) => t.toJson()).toList(),
+          if (campaign.events.captureAiSnapshots)
+            'observation': observation.toJson(),
+        },
+      );
       diagnostics.snapshotBytes = utf8
           .encode(jsonEncode(request.toJson()))
           .length;
@@ -174,6 +305,15 @@ class _AiCoordinator {
             campaign._disbandAfterBattle.contains(task.hero) ||
             !hero.health.alive) {
           tasks.remove(task.hero);
+          _taskEnded(
+            task,
+            hero,
+            hero == null
+                ? '将领已经离队'
+                : march == null
+                ? '将领已经进驻城池'
+                : '将领战败或被标记清除',
+          );
           continue;
         }
         if (campaign.activeBattleForHero(task.hero) != null ||
@@ -184,6 +324,13 @@ class _AiCoordinator {
                 (campaign._aiOrderVersions[task.hero] ?? 0) ||
             task.deadlineTick < campaign._strategyTime * 60) {
           tasks.remove(task.hero);
+          _taskEnded(
+            task,
+            hero,
+            task.deadlineTick < campaign._strategyTime * 60
+                ? '任务已超过时限'
+                : '将领收到其他指令',
+          );
           urgent(hero.countryId);
           continue;
         }
@@ -208,6 +355,19 @@ class _AiCoordinator {
               task.leg + 1,
               campaign._aiOrderVersions[hero.id] ?? 0,
             );
+            campaign._emitEvent(
+              GameEventKind.taskAdvanced,
+              '${hero.name}继续任务的下一段路线',
+              hero: hero,
+              cityId: task.city,
+              source: GameEventSource.ai,
+              reason: task.reason,
+              decisionId: _taskDecisions[hero.id],
+              data: {
+                'before': task.toJson(),
+                'after': tasks[hero.id]!.toJson(),
+              },
+            );
             changed = true;
           }
         }
@@ -217,6 +377,24 @@ class _AiCoordinator {
     } finally {
       diagnostics.frameMicros += cost.elapsedMicroseconds;
     }
+  }
+
+  void _taskEnded(ArmyTask task, CampaignHero? hero, String reason) {
+    final country = _taskOwners.remove(task.hero) ?? hero?.countryId;
+    final name = _taskNames.remove(task.hero) ?? hero?.name ?? task.hero;
+    campaign._emitEvent(
+      GameEventKind.taskEnded,
+      '$name 的${campaign._eventTaskLabel(task.role)}任务结束',
+      countryId: country,
+      hero: hero,
+      heroId: task.hero,
+      heroName: name,
+      cityId: task.city,
+      source: GameEventSource.ai,
+      decisionId: _taskDecisions.remove(task.hero),
+      reason: reason,
+      data: {'task': task.toJson()},
+    );
   }
 }
 
@@ -306,9 +484,38 @@ extension _AiSafety on CampaignState {
       return true;
     }
     if (camp(march.hero.id, countryId: march.hero.countryId)) {
-      _ai?.tasks.remove(march.hero.id);
+      final originalDecision = _ai?._taskDecisions[march.hero.id];
+      final ended = _ai?.tasks.remove(march.hero.id);
+      if (ended != null) _ai?._taskEnded(ended, march.hero, '到达时城池没有安全入城名额');
       _ai?.urgent(march.hero.countryId);
       _ai?.diagnostics.record('${march.hero.name}暂缓入城，避免超过本场迎战名额');
+      _emitEvent(
+        GameEventKind.guardIntervention,
+        '${march.hero.name}暂缓入城，现有驻军占满本场迎战名额',
+        hero: march.hero,
+        cityId: id,
+        source: GameEventSource.ai,
+        phase: GameEventPhase.rejected,
+        decisionId: originalDecision,
+        reason: '实际入城检查阻止了原计划',
+        data: {
+          'task': ended?.toJson(),
+          'garrisonCount': garrisonAt(id).length,
+          'safeSlots': _aiSafetySlots(id),
+        },
+      );
+      _finalizeAiIntervention(
+        march.hero.countryId,
+        id,
+        '命${march.hero.name}城外扎营，暂缓入城',
+        reason: '现有驻军占满本场迎战名额',
+        data: {
+          'heroId': march.hero.id,
+          'causedByDecisionId': originalDecision,
+          'garrisonCount': garrisonAt(id).length,
+          'safeSlots': _aiSafetySlots(id),
+        },
+      );
     }
     return false;
   }
@@ -342,6 +549,8 @@ extension _AiSafety on CampaignState {
             .fold<int>(0, (n, t) => n + t.gold) ??
         0;
     var changed = false;
+    final resourcesBefore = _eventResources(country);
+    final finalActions = <String>[];
     // 战前有效升级优先；每次合法筹款后可重新报价，战中绝不增加本场 B。
     void upgradeIfFunded() {
       if (battles[id]?.isActive != true &&
@@ -374,6 +583,7 @@ extension _AiSafety on CampaignState {
             ) {
               if (!upgradeCity(id, hero: governor, countryId: country)) break;
               changed = true;
+              finalActions.add('${governor.name}将城防升至${cities[id]!.level}级');
             }
           }
         }
@@ -402,8 +612,22 @@ extension _AiSafety on CampaignState {
       if (free.isEmpty) break;
       final loser = free.first;
       if (dismissHero(loser, countryId: country) == null) break;
+      finalActions.add('解雇${loser.name}，为核心守将腾出名额');
       _ai?.diagnostics.record('$id 城紧急名额保护：合法解雇 ${loser.name}，避免其挡住未出场的核心守将');
       _ai?.diagnostics.emergencyRepairs++;
+      _emitEvent(
+        GameEventKind.guardIntervention,
+        '紧急解雇${loser.name}，为核心守将腾出迎战名额',
+        countryId: country,
+        hero: loser,
+        cityId: id,
+        source: GameEventSource.ai,
+        reason: '当前驻军超过真实迎战名额',
+        data: {
+          'safeSlots': _aiSafetySlots(id),
+          'garrisonCount': garrisonAt(id).length,
+        },
+      );
       changed = true;
       guards = garrisonAt(id).where((h) => h.health.alive).toList();
       upgradeIfFunded();
@@ -413,6 +637,21 @@ extension _AiSafety on CampaignState {
         guards.any((h) => dismissalBlockReason(h, countryId: country) == null)
             ? 'budgetLimited：$id 城紧急操作已达配额，继续请求修复'
             : 'unsalvageableDefense：$id 城剩余英雄已锁定或当前没有可执行名额修复',
+      );
+    }
+    if (changed) {
+      _finalizeAiIntervention(
+        country,
+        id,
+        finalActions.join('；'),
+        reason: '城池面临危险，紧急调整迎战名额',
+        data: {
+          'actions': finalActions,
+          'before': resourcesBefore,
+          'after': _eventResources(country),
+          'garrisonCount': garrisonAt(id).length,
+          'safeSlots': _aiSafetySlots(id),
+        },
       );
     }
     return changed;

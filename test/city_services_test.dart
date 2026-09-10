@@ -515,7 +515,17 @@ void main() {
       recruitmentRandom: math.Random(7),
     );
     c.refreshUi();
-    await tester.pump(const Duration(seconds: 8));
+    // 正式 AI 为异步后台；推进显示帧并让原生回复实际返回，不能一次补帧后立即断言。
+    for (
+      var frame = 0;
+      frame < 200 && !c.campaign.marches.values.any((m) => !m.hero.isPlayer);
+      frame++
+    ) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 17));
+    }
     expect(find.byKey(const ValueKey('city-panel')), findsOneWidget);
     expect(
       c.campaign.marches.values.any((march) => !march.hero.isPlayer),
@@ -523,6 +533,7 @@ void main() {
     );
     expect(c.campaign.garrisonAt(0), isNotEmpty);
     // 自动经营已经验证；观战入口单独安排交战，避免其他随机行军抢先触发野战。
+    c.campaign.dispose();
     c.campaigns[0] = CampaignState.fromRom(
       c.world,
       painter.assets.heroCatalog,

@@ -104,6 +104,9 @@ void main() {
       deadlineTick: 300,
     );
     final worker = createAiWorker();
+    final traces = <({String kind, Map<String, Object?> data})>[];
+    worker.metrics.onTrace = (kind, data) =>
+        traces.add((kind: kind, data: Map.of(data)));
     addTearDown(worker.close);
     worker.initialize(rules, map);
     await until(() => worker.status == AiWorkerStatus.ready, worker);
@@ -132,6 +135,18 @@ void main() {
     await until(() => worker.metrics.received == 2, worker);
     expect(worker.metrics.restarts, 0);
     expect(worker.metrics.sent, 2);
+    expect(
+      traces.map((t) => t.kind),
+      containsAll(['starting', 'ready', 'queued', 'dispatched']),
+    );
+    expect(
+      traces
+          .where((t) => t.data['id'] == 1)
+          .every(
+            (t) => t.data['country'] == 1 && t.data['session'] == 'native',
+          ),
+      isTrue,
+    );
   });
   test('不匹配的 Worker 构建只重启配置次数，然后显式降级', () async {
     final c = nationalScenario(ai: false),
@@ -148,6 +163,9 @@ void main() {
     var now = 1000000;
     final c = nationalScenario(ai: false), t = _ControlledTransport();
     final worker = MessageAiWorker(() => t, nowMicros: () => now);
+    final audit = <({String kind, Map<String, Object?> data})>[];
+    worker.metrics.onTrace = (kind, data) =>
+        audit.add((kind: kind, data: Map.of(data)));
     addTearDown(worker.close);
     final rules = c.aiRulesForTesting(), map = c.aiMapForTesting();
     worker.initialize(rules, map);
@@ -175,6 +193,19 @@ void main() {
     worker.submit(request(1, 20));
     worker.submit(request(10, 21, priority: 2));
     worker.submit(request(0, 22));
+    expect(
+      audit
+          .where((e) => e.kind == 'requestDropped' && e.data['country'] == 1)
+          .single
+          .data['id'],
+      2,
+    );
+    expect(audit.any((e) => e.kind == 'queued' && e.data['id'] == 20), isTrue);
+    expect(
+      audit.any((e) => e.kind == 'requestDropped' && e.data['id'] == 20),
+      isFalse,
+      reason: '被替换的是旧请求，不能把新请求误记为失败',
+    );
     t.complete(t.plans.first);
     await until(() => t.plans.length == 2, worker);
     expect(t.plans.last.country, 1, reason: '旧国家等待两秒，应优先于刚来的紧急请求');

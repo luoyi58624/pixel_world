@@ -14,6 +14,7 @@ import 'economy.dart';
 import 'recruitment.dart';
 import 'field_terrain.dart';
 import 'weapon.dart';
+import 'events/game_events.dart';
 import 'ai/geometry.dart';
 import 'ai/observation.dart';
 import 'ai/protocol.dart';
@@ -36,6 +37,7 @@ part 'country_relations.dart';
 part 'ai_observation_bridge.dart';
 part 'ai_executor.dart';
 part 'ai_runtime_bridge.dart';
+part 'campaign_events.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
 class CitySituation {
@@ -578,6 +580,11 @@ class CampaignState {
   final Map<String, Offset> _aiVelocity = {};
   final Map<int, double> _aiRearDeadlines = {};
   final _emptyAiDiagnostics = NationalAiDiagnostics();
+  CampaignEvents? _eventLog;
+  ({int countryId, String decisionId, String reason})? _eventContext;
+
+  /// 各国独立的操作及决策日志，观察功能不参与游戏规则。
+  CampaignEvents get events => _eventLog ??= CampaignEvents(worldId: world.id);
   bool _paused = false;
 
   /// 暂停时冻结本图全部计时、资源结算和游戏指令。
@@ -588,6 +595,12 @@ class CampaignState {
     if (_paused == value) return;
     _paused = value;
     if (value) pauseAi();
+    _emitEvent(
+      value ? GameEventKind.gamePaused : GameEventKind.gameResumed,
+      value ? '玩家暂停游戏' : '玩家继续游戏',
+      countryId: 0,
+      source: GameEventSource.player,
+    );
   }
 
   /// 离线对抗测试可让玩家国家也使用 AI；正式游戏默认关闭。
@@ -653,6 +666,7 @@ class CampaignState {
     AiWorker Function()? aiWorkerFactory,
     bool aiControlsPlayer = false,
     bool endOnPlayerDefeat = true,
+    CampaignEvents? eventLog,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
     final home = world.cities.first.id;
@@ -744,10 +758,34 @@ class CampaignState {
     }
     campaign.aiControlsPlayer = aiControlsPlayer;
     campaign.endOnPlayerDefeat = endOnPlayerDefeat;
+    if (eventLog != null && eventLog.worldId != world.id) {
+      throw ArgumentError('事件日志的地图不匹配');
+    }
+    campaign._eventLog = eventLog;
     if (aiEnabled) {
       campaign._ai = _AiCoordinator(
         campaign,
         aiWorkerFactory ?? createAiWorker,
+      );
+    }
+    for (final country in campaign._countryGold.keys) {
+      campaign._emitEvent(
+        GameEventKind.sessionStarted,
+        '${world.countryName(country)}国建立开局记录',
+        countryId: country,
+        source: GameEventSource.system,
+        data: {
+          'resources': campaign._eventResources(country),
+          'cities': [
+            for (final e in campaign.cities.entries)
+              if (e.value.ownerCountryId == country)
+                {'id': e.key, 'level': e.value.level, 'income': e.value.income},
+          ],
+          'heroes': [
+            for (final h in heroes)
+              if (h.countryId == country) campaign._eventHero(h),
+          ],
+        },
       );
     }
     return campaign;
@@ -882,7 +920,17 @@ class CampaignState {
 
   /// 将领离队后回到共享池并返还金币，重复或过期操作不产生收益。
   int? dismissHero(CampaignHero hero, {int countryId = 0}) {
-    if (dismissalBlockReason(hero, countryId: countryId) != null) return null;
+    final problem = dismissalBlockReason(hero, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.heroDismissed,
+        problem,
+        countryId: countryId,
+        hero: hero,
+      );
+      return null;
+    }
+    final before = _eventResources(countryId);
     final reward = dismissalGold(hero);
     // 城内配兵先归还，野外随军直接离队；都不凭空生成新的兵员。
     if (!marches.containsKey(hero.id)) {
@@ -897,7 +945,18 @@ class CampaignState {
     _recycleHero(hero, dismissed: true);
     _countryGold[countryId] = goldFor(countryId) + reward;
     _ai?.urgent(countryId);
-    _record('已解雇${hero.name}，获得 $reward 金币');
+    _record(
+      '已解雇${hero.name}，获得 $reward 金币',
+      kind: GameEventKind.heroDismissed,
+      countryId: countryId,
+      hero: hero,
+      cityId: hero.cityId,
+      data: {
+        'reward': reward,
+        'before': before,
+        'after': _eventResources(countryId),
+      },
+    );
     return reward;
   }
 
@@ -1009,7 +1068,13 @@ class CampaignState {
       }
       battle.simulation.stop();
     }
-    _record('游戏结束 · ${reason.label}');
+    _record(
+      '游戏结束 · ${reason.label}',
+      kind: GameEventKind.gameEnded,
+      countryId: 0,
+      source: GameEventSource.system,
+      reason: reason.label,
+    );
     return true;
   }
 
@@ -1067,15 +1132,34 @@ class CampaignState {
   bool buySoldiers(int cityId, int count, {int countryId = 0}) {
     if (count <= 0 ||
         count > maxSoldierPurchase(cityId, countryId: countryId)) {
+      _rejectEvent(
+        GameEventKind.soldiersRecruited,
+        '数量、金币、容量或城池状态不允许征募',
+        countryId: countryId,
+        cityId: cityId,
+        data: {'count': count},
+      );
       return false;
     }
+    final before = _eventResources(countryId);
     final cost = count * GameConfig.soldierRecruitCost;
     _countryGold[countryId] = goldFor(countryId) - cost;
     countryTroops
             .putIfAbsent(countryId, () => CountryTroops())
             ._reserveSoldiers +=
         count;
-    _record('${_cityName(cityId)}征募 $count 名储备兵，花费 $cost 金币');
+    _record(
+      '${_cityName(cityId)}征募 $count 名储备兵，花费 $cost 金币',
+      kind: GameEventKind.soldiersRecruited,
+      countryId: countryId,
+      cityId: cityId,
+      data: {
+        'count': count,
+        'cost': cost,
+        'before': before,
+        'after': _eventResources(countryId),
+      },
+    );
     return true;
   }
 
@@ -1115,7 +1199,19 @@ class CampaignState {
       }
     }
     countryTroops[countryId]!._reserveSoldiers -= count;
-    _record('${hero.name}补充 $count 名士兵');
+    _record(
+      '${hero.name}补充 $count 名士兵',
+      kind: GameEventKind.soldiersAssigned,
+      countryId: countryId,
+      hero: hero,
+      cityId: hero.cityId,
+      source: GameEventSource.system,
+      data: {
+        'count': count,
+        'reserveAfter': reserveSoldiersFor(countryId),
+        'soldiersAfter': hero.soldiers,
+      },
+    );
     return count;
   }
 
@@ -1187,9 +1283,17 @@ class CampaignState {
 
   /// 从全国家共享池预留英雄；玩家等待签约，其他国家同次调用立即签约归队。
   RecruitmentOffer? drawHero(int cityId, {int countryId = 0}) {
-    if (recruitmentBlockReason(cityId, countryId: countryId) != null) {
+    final problem = recruitmentBlockReason(cityId, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.heroDrawn,
+        problem,
+        countryId: countryId,
+        cityId: cityId,
+      );
       return null;
     }
+    final goldBefore = goldFor(countryId);
     final choices = _heroPool.values.toList();
     final hero = choices[_recruitmentRandom.nextInt(choices.length)];
     _heroPool.remove(hero.id);
@@ -1208,9 +1312,23 @@ class CampaignState {
       drawnMonth: settledMonths,
     );
     _recruitmentOffers[countryId] = offer;
+    _emitEvent(
+      GameEventKind.heroDrawn,
+      '抽到${hero.name}，支付 ${GameConfig.heroDrawCost} 金币；将领已锁定，等待签约',
+      countryId: countryId,
+      cityId: cityId,
+      data: {
+        'sourceHeroId': hero.id,
+        'heroName': hero.name,
+        'goldBefore': goldBefore,
+        'goldAfter': goldFor(countryId),
+        'signingFee': offer.signingFee,
+        'poolRemaining': recruitPool.length,
+      },
+    );
     // 所有操作同步完成，抽取前已备足最高签约费，中途不会被其他国家抽走。
     if (countryId == 0) {
-      _record('${_cityName(cityId)}抽到${hero.name}，等待签约');
+      _record('${_cityName(cityId)}抽到${hero.name}，等待签约', log: false);
     } else {
       signHero(offer, countryId: countryId);
     }
@@ -1239,8 +1357,16 @@ class CampaignState {
   /// 签约时重新验证容量，抽取后回城超员仍保留锁定结果，允许稍后处理。
   CampaignHero? signHero(RecruitmentOffer offer, {int countryId = 0}) {
     if (!canSignHero(offer, countryId: countryId)) {
+      _rejectEvent(
+        GameEventKind.heroSigned,
+        '签约结果、容量、金币或游戏状态已变化',
+        countryId: countryId,
+        cityId: offer.cityId,
+        data: {'sourceHeroId': offer.hero.id},
+      );
       return null;
     }
+    final goldBefore = goldFor(countryId);
     _countryGold[countryId] = goldFor(countryId) - offer.signingFee;
     final hero = CampaignHero.fromRom(
       offer.hero,
@@ -1254,6 +1380,15 @@ class CampaignState {
     _recruitmentOffers.remove(countryId);
     _record(
       '${hero.name}已签约${_cityName(offer.cityId)}，签约费 ${offer.signingFee} 金币',
+      kind: GameEventKind.heroSigned,
+      countryId: countryId,
+      hero: hero,
+      cityId: offer.cityId,
+      data: {
+        'cost': offer.signingFee,
+        'goldBefore': goldBefore,
+        'goldAfter': goldFor(countryId),
+      },
     );
     return hero;
   }
@@ -1265,10 +1400,27 @@ class CampaignState {
         offer.isExpired(settledMonths) ||
         offer.countryId != countryId ||
         !identical(_recruitmentOffers[countryId], offer)) {
+      _rejectEvent(
+        GameEventKind.heroDeclined,
+        '签约结果已失效或游戏暂停',
+        countryId: countryId,
+        cityId: offer.cityId,
+        data: {'sourceHeroId': offer.hero.id},
+      );
       return false;
     }
     _releaseOffer(countryId);
-    _record('已放弃与${offer.hero.name}签约');
+    _record(
+      '已放弃与${offer.hero.name}签约',
+      kind: GameEventKind.heroDeclined,
+      countryId: countryId,
+      cityId: offer.cityId,
+      data: {
+        'sourceHeroId': offer.hero.id,
+        'heroName': offer.hero.name,
+        'poolRemaining': recruitPool.length,
+      },
+    );
     return true;
   }
 
@@ -1325,9 +1477,25 @@ class CampaignState {
         goldAfter: after,
       );
       _settlements[id] = report;
+      _emitEvent(
+        GameEventKind.monthSettled,
+        '${world.countryName(id)}国 $dateLabel ${harvest.label}，收入 $income，月俸 $salary，国库 $before → $after',
+        countryId: id,
+        source: GameEventSource.system,
+        data: {
+          'baseIncome': base,
+          'income': income,
+          'salary': salary,
+          'harvest': harvest.name,
+          'cityCount': owned.length,
+          'goldBefore': before,
+          'goldAfter': after,
+        },
+      );
       if (id == 0) {
         _record(
           '$dateLabel结算 · ${harvest.label} · 收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
+          log: false,
         );
       }
     }
@@ -1335,7 +1503,14 @@ class CampaignState {
     for (final offer in _recruitmentOffers.values.toList()) {
       if (!offer.isExpired(settledMonths)) continue;
       _releaseOffer(offer.countryId);
-      _record('${offer.hero.name}签约期限已过，返回招募池');
+      _record(
+        '${offer.hero.name}签约期限已过，返回招募池',
+        kind: GameEventKind.heroOfferExpired,
+        countryId: offer.countryId,
+        cityId: offer.cityId,
+        source: GameEventSource.system,
+        data: {'sourceHeroId': offer.hero.id, 'heroName': offer.hero.name},
+      );
     }
   }
 
@@ -1426,16 +1601,37 @@ class CampaignState {
     required CampaignHero? hero,
     int countryId = 0,
   }) {
-    if (upgradeBlockReason(cityId, hero, countryId: countryId) != null) {
+    final problem = upgradeBlockReason(cityId, hero, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.cityUpgraded,
+        problem,
+        countryId: countryId,
+        hero: hero,
+        cityId: cityId,
+      );
       return false;
     }
     final city = cities[cityId]!;
+    final before = _eventResources(countryId), oldLevel = city.level;
     final cost = upgradeCostFor(cityId, hero, countryId: countryId)!;
     _countryGold[countryId] = goldFor(countryId) - cost;
     city._level++;
     _refreshCityApproaches(cityId);
     _record(
       '${hero!.name}主持${_cityName(cityId)}升至 ${city.level} 级，花费 $cost 金币，每月收入 ${city.income}',
+      kind: GameEventKind.cityUpgraded,
+      countryId: countryId,
+      hero: hero,
+      cityId: cityId,
+      data: {
+        'levelBefore': oldLevel,
+        'levelAfter': city.level,
+        'politics': hero.politics,
+        'cost': cost,
+        'before': before,
+        'after': _eventResources(countryId),
+      },
     );
     return true;
   }
@@ -1463,13 +1659,32 @@ class CampaignState {
     int countryId = 0,
     Map<int, int> weaponSlots = const {},
   }) {
-    if (!canDispatch(hero, countryId: countryId) || !_containsPoint(point)) {
+    final problem = dispatchBlockReason(hero, countryId: countryId);
+    if (problem != null || !_containsPoint(point)) {
+      _rejectEvent(
+        GameEventKind.heroDispatched,
+        problem ?? '目标不在地图内',
+        countryId: countryId,
+        hero: hero,
+        data: {
+          'target': [point.dx, point.dy],
+        },
+      );
       return null;
     }
     final target = cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
-    if (target == source) return null;
-    if (!_validWeaponSelection(hero, weaponSlots)) return null;
+    if (target == source || !_validWeaponSelection(hero, weaponSlots)) {
+      _rejectEvent(
+        GameEventKind.heroDispatched,
+        target == source ? '目标仍是出发城' : '装备选择已失效',
+        countryId: countryId,
+        hero: hero,
+        cityId: target?.id,
+      );
+      return null;
+    }
+    final before = _eventResources(countryId);
     _loadDispatchWeapons(hero, weaponSlots);
     reinforceHero(hero, countryId: countryId);
     final start = _departurePoint(source, point);
@@ -1484,6 +1699,22 @@ class CampaignState {
     march.moveTo(end, city: target);
     _aiOrderVersions.update(hero.id, (n) => n + 1, ifAbsent: () => 1);
     if (hero.isPlayer) hasDispatched = true;
+    _emitEvent(
+      GameEventKind.heroDispatched,
+      '命令${hero.name}出征${target == null ? '指定位置' : '${cityName(target.id)}国城池'}',
+      countryId: countryId,
+      hero: hero,
+      cityId: source.id,
+      targetCountryId: target == null
+          ? null
+          : cities[target.id]!.ownerCountryId,
+      data: {
+        'targetCityId': target?.id,
+        'before': before,
+        'after': _eventResources(countryId),
+        'hero': _eventHero(hero),
+      },
+    );
     return march;
   }
 
@@ -1518,15 +1749,32 @@ class CampaignState {
 
   /// 为本国已经出征的英雄重新指定目的地，默认仍为玩家国家。
   bool moveTo(String heroId, Offset point, {int countryId = 0}) {
-    if (moveBlockReason(heroId, countryId: countryId) != null) return false;
+    final problem = moveBlockReason(heroId, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.heroMoved,
+        problem,
+        countryId: countryId,
+        hero: marches[heroId]?.hero,
+        data: {'heroId': heroId},
+      );
+      return false;
+    }
     final march = marches[heroId];
     if (activeBattleForHero(heroId) != null ||
         march?.returningFromRetreat == true) {
       return false;
     }
     if (march == null || !_containsPoint(point)) {
+      _rejectEvent(
+        GameEventKind.heroMoved,
+        '目标不在地图内',
+        countryId: countryId,
+        hero: march?.hero,
+      );
       return false;
     }
+    final before = _eventHero(march.hero);
     final city = cityAt(point);
     if (city != null &&
         city == march.target &&
@@ -1544,6 +1792,14 @@ class CampaignState {
       city: city,
     );
     _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
+    _emitEvent(
+      GameEventKind.heroMoved,
+      '命令${march.hero.name}改变行军目标',
+      countryId: countryId,
+      hero: march.hero,
+      cityId: city?.id,
+      data: {'before': before, 'after': _eventHero(march.hero)},
+    );
     return true;
   }
 
@@ -1553,7 +1809,17 @@ class CampaignState {
 
   /// 命令一支部队原地扎营，其他行军和交战照常推进。
   bool camp(String heroId, {int countryId = 0}) {
-    if (campBlockReason(heroId, countryId: countryId) != null) return false;
+    final problem = campBlockReason(heroId, countryId: countryId);
+    if (problem != null) {
+      _rejectEvent(
+        GameEventKind.heroCamped,
+        problem,
+        countryId: countryId,
+        hero: marches[heroId]?.hero,
+        data: {'heroId': heroId},
+      );
+      return false;
+    }
     final march = marches[heroId];
     if (activeBattleForHero(heroId) != null ||
         march?.returningFromRetreat == true) {
@@ -1567,7 +1833,13 @@ class CampaignState {
     }
     march.camp();
     _aiOrderVersions.update(heroId, (n) => n + 1, ifAbsent: () => 1);
-    _record('${march.hero.name}已原地扎营');
+    _record(
+      '${march.hero.name}已原地扎营',
+      kind: GameEventKind.heroCamped,
+      countryId: countryId,
+      hero: march.hero,
+      data: {'hero': _eventHero(march.hero)},
+    );
     return true;
   }
 
@@ -1640,6 +1912,7 @@ class CampaignState {
       battle.simulation.stop();
       _releaseDefender(battle);
       _settleSiegeDamage(battle);
+      _battleEvent(GameEventKind.battleEnded, battle, outcome);
     }
   }
 
@@ -1656,6 +1929,19 @@ class CampaignState {
     city._level = math.max(1, before - damage);
     _trimCountryTroops(city.ownerCountryId);
     if (city.level != before) _refreshCityApproaches(cityId);
+    _emitEvent(
+      GameEventKind.cityDamaged,
+      '攻城结算：城防 $before → ${city.level} 级',
+      countryId: city.ownerCountryId,
+      cityId: cityId,
+      source: GameEventSource.system,
+      data: {
+        'victories': victories,
+        'levelBefore': before,
+        'levelAfter': city.level,
+        'reserveAfter': reserveSoldiersFor(city.ownerCountryId),
+      },
+    );
     return before - city.level;
   }
 
@@ -1738,6 +2024,16 @@ class CampaignState {
           : defendedCityId != null
           ? '${hero.name}守城战败'
           : '${hero.name}进攻战败，出征部队已损失',
+      kind: GameEventKind.heroDied,
+      hero: hero,
+      cityId: hero.cityId,
+      targetCountryId: winnerCountryId,
+      source: GameEventSource.system,
+      data: {
+        'defendedCityId': defendedCityId,
+        'captured': captured,
+        'removedHeroIds': removed,
+      },
     );
     return (
       cityId: hero.cityId,
@@ -1837,7 +2133,7 @@ class CampaignState {
         _monthSeconds = math.max(0, _monthSeconds - GameConfig.secondsPerMonth);
         _settleMonth();
         for (final id in cities.values.map((c) => c.ownerCountryId).toSet()) {
-          _ai?.urgent(id);
+          _ai?.urgent(id, reason: '完成月度结算');
         }
         changed = true;
       }
@@ -1873,8 +2169,8 @@ class CampaignState {
         battle._aiNoticedClashes = battle.rounds;
         battle._aiNoticedAttackerHp = battle.attacker.hp;
         battle._aiNoticedDefenderHp = battle.defender.hp;
-        _ai?.urgent(battle.attacker.countryId);
-        _ai?.urgent(battle.defender.countryId);
+        _ai?.urgent(battle.attacker.countryId, reason: '战况、兵力或武器发生变化');
+        _ai?.urgent(battle.defender.countryId, reason: '战况、兵力或武器发生变化');
       }
       if (!battle.isActive) continue;
       if (!closingOnly) changed = _tryAutomaticWeapons(battle) || changed;
@@ -1891,6 +2187,12 @@ class CampaignState {
           battle.outcome = battle.simulation.retreatMessage;
           battle.record(battle.outcome!);
           _record(battle.outcome!);
+          _battleEvent(
+            GameEventKind.retreatResolved,
+            battle,
+            battle.outcome!,
+            data: {'succeeded': false},
+          );
         }
         _disbandFinishedArmies(battle);
         if (battle is CityBattle && !battle.isActive) {
@@ -1906,6 +2208,12 @@ class CampaignState {
           if (next != null) {
             reinforceHero(next, countryId: next.countryId);
             battle._nextDefender(next);
+            _battleEvent(
+              GameEventKind.battleStarted,
+              battle,
+              '下一轮攻城：${next.name}迎战',
+              data: {'effectiveDefenseLevel': battle.effectiveDefenseLevel},
+            );
           } else if (!garrisonAt(battle.city.id)
               .any((hero) => hero.health.alive)) {
             _finishOccupation(battle);
@@ -1924,6 +2232,12 @@ class CampaignState {
     final defender = battle.defender;
     final lostAttacker = !attacker.health.alive;
     final lostDefender = !defender.health.alive;
+    _battleEvent(
+      GameEventKind.battleWaveEnded,
+      battle,
+      '本轮对阵结束：${lostAttacker ? '攻方战败' : '攻方存活'}，${lostDefender ? '守方战败' : '守方存活'}',
+      data: {'lostAttacker': lostAttacker, 'lostDefender': lostDefender},
+    );
     if (lostDefender && !lostAttacker) battle.victories++;
     if (lostAttacker) {
       _removeDefeatedHero(attacker.id, winnerCountryId: defender.countryId);
@@ -1941,6 +2255,7 @@ class CampaignState {
       battle.outcome = lostDefender ? '双方将领阵亡' : '${attacker.name}战败';
       if (!lostDefender) _releaseDefender(battle);
       battle.simulation.stop();
+      _battleEvent(GameEventKind.battleEnded, battle, battle.outcome!);
       return;
     }
     final city = cities[battle.city.id]!;
@@ -1961,6 +2276,7 @@ class CampaignState {
 
   List<String> _captureCity(int cityId, int winnerCountryId) {
     final previousOwner = cities[cityId]!.ownerCountryId;
+    final oldLevel = cities[cityId]!.level;
     final departed = heroes
         .where(
           (hero) =>
@@ -1983,6 +2299,7 @@ class CampaignState {
       hero.hp = 0;
       _clearSquad(hero);
       _recycleHero(hero);
+      _emitEvent(GameEventKind.heroDisbanded,'城池失守，未出战的${hero.name}离队',hero:hero,cityId:cityId,targetCountryId:winnerCountryId,source:GameEventSource.system);
     }
     for (final hero in departed) {
       final battle = activeBattleForHero(hero.id);
@@ -1994,8 +2311,8 @@ class CampaignState {
       }
     }
     cities[cityId]!.ownerCountryId = winnerCountryId;
-    _ai?.urgent(previousOwner);
-    _ai?.urgent(winnerCountryId);
+    _ai?.urgent(previousOwner, reason: '本国城池失守');
+    _ai?.urgent(winnerCountryId, reason: '占领新城，需要重新安排资源');
     _trimCountryTroops(previousOwner);
     _trimCountryTroops(winnerCountryId);
     for (final offer in _recruitmentOffers.values.toList()) {
@@ -2004,6 +2321,35 @@ class CampaignState {
       }
     }
     _refreshCityApproaches(cityId);
+    final captureData = <String, Object?>{
+      'previousOwner': previousOwner,
+      'newOwner': winnerCountryId,
+      'levelBefore': oldLevel,
+      'levelAfter': cities[cityId]!.level,
+      'removedHeroIds': List.of(removed),
+      'disbandAfterBattle': [
+        for (final h in departed)
+          if (_disbandAfterBattle.contains(h.id)) h.id,
+      ],
+    };
+    _emitEvent(
+      GameEventKind.cityCaptured,
+      '攻下${world.countryName(previousOwner)}国城池，城防重置为一级',
+      countryId: winnerCountryId,
+      targetCountryId: previousOwner,
+      cityId: cityId,
+      source: GameEventSource.system,
+      data: captureData,
+    );
+    _emitEvent(
+      GameEventKind.cityLost,
+      '城池被${world.countryName(winnerCountryId)}国占领，重新判断国家存续',
+      countryId: previousOwner,
+      targetCountryId: winnerCountryId,
+      cityId: cityId,
+      source: GameEventSource.system,
+      data: captureData,
+    );
     return removed;
   }
 
@@ -2050,10 +2396,18 @@ class CampaignState {
     _clearSquad(hero);
     _trimCountryTroops(hero.countryId);
     _recycleHero(hero);
-    _record('${hero.name}的出发城已失守，部队消失');
+    _record(
+      '${hero.name}的出发城已失守，部队消失',
+      kind: GameEventKind.heroDisbanded,
+      hero: hero,
+      cityId: hero.cityId,
+      source: GameEventSource.system,
+    );
   }
 
   void _station(HeroMarch march) {
+    final previousCity = march.hero.cityId,
+        before = _eventResources(march.hero.countryId);
     _endBattle(march, '${march.hero.name}已进驻${cityName(march.target!.id)}');
     marches.remove(march.hero.id);
     march.hero.cityId = march.target!.id;
@@ -2063,6 +2417,17 @@ class CampaignState {
     _returnWeapons(march.hero);
     _record(
       '${march.hero.name}已进驻${cityName(march.target!.id)}，$returned 名士兵归营',
+      kind: GameEventKind.heroStationed,
+      hero: march.hero,
+      cityId: march.target!.id,
+      source: GameEventSource.system,
+      data: {
+        'previousCityId': previousCity,
+        'returnedSoldiers': returned,
+        'before': before,
+        'after': _eventResources(march.hero.countryId),
+        'hero': _eventHero(march.hero),
+      },
     );
   }
 
@@ -2070,9 +2435,35 @@ class CampaignState {
   String cityName(int id) => world.countryName(cities[id]!.ownerCountryId);
 
   String _cityName(int id) => cityName(id);
-  void _record(String event) {
+  void _record(
+    String event, {
+    GameEventKind kind = GameEventKind.message,
+    int? countryId,
+    int? targetCountryId,
+    CampaignHero? hero,
+    int? cityId,
+    GameEventSource? source,
+    GameEventPhase phase = GameEventPhase.applied,
+    String? reason,
+    Map<String, Object?> data = const {},
+    bool log = true,
+  }) {
     lastEvent = event;
     journal.add(event);
     if (journal.length > 8) journal.removeAt(0);
+    if (log) {
+      _emitEvent(
+        kind,
+        event,
+        countryId: countryId,
+        targetCountryId: targetCountryId,
+        hero: hero,
+        cityId: cityId,
+        source: source,
+        phase: phase,
+        reason: reason,
+        data: data,
+      );
+    }
   }
 }

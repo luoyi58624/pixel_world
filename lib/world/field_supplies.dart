@@ -18,8 +18,21 @@ extension _FieldSupplies on CampaignState {
       final due = (hero._supplyDue + 1e-9).floor();
       final paid = math.min(due, goldFor(hero.countryId));
       if (paid <= 0) continue;
+      final before = goldFor(hero.countryId);
       hero._supplyDue = math.max(0, hero._supplyDue - paid);
       _countryGold[hero.countryId] = goldFor(hero.countryId) - paid;
+      _emitEvent(
+        GameEventKind.supplyPaid,
+        '${hero.name}消耗 $paid 金币粮草',
+        hero: hero,
+        source: GameEventSource.system,
+        data: {
+          'cost': paid,
+          'goldBefore': before,
+          'goldAfter': goldFor(hero.countryId),
+          'phase': march.phase.name,
+        },
+      );
       changed = true;
     }
     return _haltUnfundedArmies() || changed;
@@ -31,6 +44,13 @@ extension _FieldSupplies on CampaignState {
       if (goldFor(march.hero.countryId) > 0) continue;
       if (!march.supplyHalted) {
         march._supplyHalted = true;
+        _emitEvent(
+          GameEventKind.supplyHalted,
+          '${march.hero.name}粮草耗尽${activeBattleForHero(march.hero.id) != null ? '，打完当前战斗后停营' : '，停止行军'}',
+          hero: march.hero,
+          source: GameEventSource.system,
+          data: {'gold': 0, 'phase': march.phase.name},
+        );
         changed = true;
       }
       if (march.phase == MarchPhase.fighting ||
@@ -59,6 +79,13 @@ extension _FieldSupplies on CampaignState {
       march.camp();
     }
     march._supplyHalted = true;
-    _record('${march.hero.name}粮草耗尽，原地扎营');
+    _record(
+      '${march.hero.name}粮草耗尽，原地扎营',
+      kind: GameEventKind.heroCamped,
+      hero: march.hero,
+      source: GameEventSource.system,
+      reason: '国库耗尽',
+      data: {'hero': _eventHero(march.hero)},
+    );
   }
 }
