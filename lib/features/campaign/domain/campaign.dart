@@ -280,7 +280,7 @@ class HeroMarch {
   bool _returningFromRetreat = false;
   final Set<int> _provokedCountries = {};
 
-  /// 撤退后沿来路返城，返程结束前不接受新的进攻指令。
+  /// 撤退后默认沿来路返城，手动移动可结束自动返程。
   bool get returningFromRetreat => _returningFromRetreat;
 
   /// 进入城堡交战的进攻军在地图上隐藏，排队和野战部队仍可见。
@@ -291,6 +291,9 @@ class HeroMarch {
   bool _departurePending = false;
   double _departureAt = 0;
   bool _trafficBlocked = false;
+
+  /// 暂时避让时仍保留原行军任务，不能当作主动扎营或抵达目的地。
+  bool get waitingForTraffic => _trafficBlocked;
   final List<GamePoint> _trafficRoute = [];
 
   void _rememberPosition() {
@@ -1754,7 +1757,7 @@ class CampaignState {
     return march;
   }
 
-  /// 玩家和 AI 共用改令权限，交战及撤退返程不能免费脱离。
+  /// 玩家和 AI 共用改令权限，交战及撤退过场不能免费脱离。
   String? moveBlockReason(String heroId, {int countryId = 0}) =>
       _moveProblem(heroId, countryId);
 
@@ -1777,8 +1780,8 @@ class CampaignState {
         cities[march.hero.cityId]?.ownerCountryId != countryId) {
       return '所属城池已失守';
     }
-    if (activeBattleForHero(heroId) != null || march.returningFromRetreat) {
-      return '交战或撤退返程中无法改令';
+    if (activeBattleForHero(heroId) != null) {
+      return '交战或撤退过场中无法改令';
     }
     if (requireGold && goldFor(countryId) == 0) return '金币不足，无法行军';
     return null;
@@ -1798,8 +1801,7 @@ class CampaignState {
       return false;
     }
     final march = marches[heroId];
-    if (activeBattleForHero(heroId) != null ||
-        march?.returningFromRetreat == true) {
+    if (activeBattleForHero(heroId) != null) {
       return false;
     }
     if (march == null || !_containsPoint(point)) {
@@ -1814,6 +1816,7 @@ class CampaignState {
     final before = _eventHero(march.hero);
     final city = cityAt(point);
     if (city != null &&
+        !march.returningFromRetreat &&
         city == march.target &&
         (march.phase == MarchPhase.fighting ||
             march.phase == MarchPhase.awaitingBattle)) {
@@ -1824,6 +1827,9 @@ class CampaignState {
       _disbandHero(march.hero);
       return false;
     }
+    // 仅在合法手动改令落实时取消返程；无效点击不丢失原路。
+    march._returningFromRetreat = false;
+    march._returnRoute.clear();
     march.moveTo(
       city == null ? point : _contactPoint(march.position, point, city),
       city: city,
@@ -1841,8 +1847,13 @@ class CampaignState {
   }
 
   /// 扎营权限与改令共用锁定规则，零金币仍允许停止。
-  String? campBlockReason(String heroId, {int countryId = 0}) =>
-      _moveProblem(heroId, countryId, requireGold: false);
+  String? campBlockReason(String heroId, {int countryId = 0}) {
+    final problem = _moveProblem(heroId, countryId, requireGold: false);
+    if (problem != null) return problem;
+    return marches[heroId]?.returningFromRetreat == true
+        ? '撤退返程中请先指定移动目标'
+        : null;
+  }
 
   /// 命令一支部队原地扎营，其他行军和交战照常推进。
   bool camp(String heroId, {int countryId = 0}) {
@@ -1916,13 +1927,14 @@ class CampaignState {
         continue;
       }
       final target = march.target!;
-      if (march.returningFromRetreat && march.phase == MarchPhase.camped) {
+      if (march.phase == MarchPhase.camped || march.waitingForDeparture) {
         // 断粮返程仍保留目标城，城堡变化只能更新终点，不能把远处营地吸到城边。
         march.destination = _contactPoint(
           march.position,
           cityBounds(target).center,
           target,
         );
+        march._trafficRoute.clear();
         continue;
       }
       if (march.phase == MarchPhase.marching) {
@@ -2137,7 +2149,10 @@ class CampaignState {
             // 已贴城时也必须拦截，不能利用起点在轮廓内的线段跳过城战。
             final fraction = contact.contains(previous - origin)
                 ? 0.0
-                : contact.entryFraction(previous - origin, march.position - origin);
+                : contact.entryFraction(
+                    previous - origin,
+                    march.position - origin,
+                  );
             if (fraction != null && fraction < nearest) {
               nearest = fraction;
               encountered = city;

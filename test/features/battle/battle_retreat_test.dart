@@ -7,6 +7,35 @@ import 'package:pixel_world/features/world_map/domain/world_movement.dart';
 import '../../support/retreat_fixture.dart';
 
 void main() {
+  test('撤退过场后可手动改道，取消自动返城且保留伤势兵员', () {
+    final c = retreatCampaign();
+    addTearDown(c.dispose);
+    final battle = startRetreatSiege(c);
+    final hero = battle.attacker;
+    expect(c.retreatHero(hero.id), isTrue);
+    expect(c.moveTo(hero.id, const GamePoint(400, 300)), isFalse);
+    advanceRetreatUntil(c, () => !battle.isActive);
+    final march = c.marches[hero.id]!;
+    final hp = hero.hp, soldiers = hero.soldiers, position = march.position;
+    expect(march.returningFromRetreat, isTrue);
+    expect(c.moveTo(hero.id, const GamePoint(-10, -10)), isFalse);
+    expect(march.returningFromRetreat, isTrue);
+    // 先离开城墙再改道，避免新目标与敌城接触造成合法的再次攻城。
+    c.advance(1);
+    final before = march.position;
+    const target = GamePoint(400, 300);
+    expect(c.moveTo(hero.id, target), isTrue);
+    expect(march.position, before);
+    expect(march.returningFromRetreat, isFalse);
+    expect(march.destination, target);
+    expect(hero.hp, hp);
+    expect(hero.soldiers, soldiers);
+    c.advance(.5);
+    expect(march.destination, target);
+    expect(march.position, isNot(before));
+    expect(march.position, isNot(position));
+  });
+
   for (final (roll, success) in [
     (0.0, false),
     (.099999, false),
@@ -91,7 +120,7 @@ void main() {
     expect(march.destination, cornerB);
     expect(hero.hp, 31);
     expect(hero.squad[1].hp, 7);
-    expect(c.moveTo(hero.id, const GamePoint(1000, 400)), isFalse);
+    expect(c.moveBlockReason(hero.id), isNull);
     advanceRetreatUntil(c, () => march.destination == cornerA);
     expect(march.position.dx, lessThanOrEqualTo(cornerB.dx));
     expect(march.position.dy, closeTo(240, .0001));

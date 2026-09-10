@@ -141,7 +141,9 @@ void main() {
       final c = await _load(tester, size, random);
       final battle = _siege(c);
       await tester.pump();
-      expect(find.text('撤退 · 60% 失败即阵亡'), findsOneWidget);
+      final percent =
+          (c.campaign.retreatSuccessChance(battle.attacker.id) * 100).round();
+      expect(find.text('撤退 · 成功率 $percent%'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('battle-return')));
       await tester.pump();
       expect(random.calls, 0);
@@ -175,6 +177,17 @@ void main() {
         c.campaign.marches[battle.attacker.id]!.returningFromRetreat,
         isTrue,
       );
+      c.openUnit(battle.attacker.id);
+      await tester.pump();
+      expect(
+        tester
+            .widget<OutlinedButton>(find.byKey(const ValueKey('unit-move')))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const ValueKey('unit-move')));
+      c.tick(1 / 60);
+      expect(c.movingHeroId, battle.attacker.id);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

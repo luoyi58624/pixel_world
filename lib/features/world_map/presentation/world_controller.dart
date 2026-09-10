@@ -158,8 +158,7 @@ class WorldController extends ChangeNotifier {
       campaign.gold > 0 &&
       selectedMapHero?.isPlayer == true &&
       selectedUnit != null &&
-      !selectedUnit!.returningFromRetreat &&
-      campaign.activeBattleForHero(selectedUnitId!) == null;
+      campaign.moveBlockReason(selectedUnitId!) == null;
 
   String? _targetReturnUnitId;
   GamePoint? _pointer;
@@ -405,8 +404,7 @@ class WorldController extends ChangeNotifier {
     }
     if (movingHeroId != null &&
         (!campaign.marches.containsKey(movingHeroId) ||
-            campaign.activeBattleForHero(movingHeroId!) != null ||
-            campaign.marches[movingHeroId]?.returningFromRetreat == true)) {
+            campaign.activeBattleForHero(movingHeroId!) != null)) {
       movingHeroId = null;
       _targetReturnUnitId = null;
       message = '该英雄已结束行军，请重新选择';
