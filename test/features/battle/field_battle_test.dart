@@ -328,6 +328,8 @@ void main() {
 
   test('野战中原目标城池升级不会把部队拖到城门', () {
     final c = _campaign();
+    // 第三年才开放五级城，确保此处实际验证升级与野战位置的隔离。
+    c.settledMonths = 24;
     final (a, b) = _approach(c);
     a.moveTo(c.cityBounds(c.world.cities[1]).center, city: c.world.cities[1]);
     b.position = a.position + const GamePoint(15, 0);

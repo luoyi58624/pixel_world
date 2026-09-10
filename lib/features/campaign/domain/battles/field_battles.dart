@@ -62,6 +62,7 @@ extension _FieldEncounters on CampaignState {
             .where(
               (march) =>
                   march.hero.health.alive &&
+                  !march.waitingForDeparture &&
                   (march.phase == MarchPhase.marching ||
                       march.phase == MarchPhase.camped ||
                       march.phase == MarchPhase.awaitingBattle) &&

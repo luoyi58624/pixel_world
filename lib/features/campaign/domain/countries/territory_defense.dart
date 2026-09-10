@@ -8,7 +8,8 @@ extension TerritoryDefense on CampaignState {
   void _scanTerritoryEntries() {
     _lastTerritoryOwner.removeWhere((id, _) => !marches.containsKey(id));
     for (final march in marches.values) {
-      if (!march.hero.health.alive ||
+      if (march.waitingForDeparture ||
+          !march.hero.health.alive ||
           _disbandAfterBattle.contains(march.hero.id)) {
         continue;
       }

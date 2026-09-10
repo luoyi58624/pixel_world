@@ -19,6 +19,8 @@ extension _AiObservationBridge on CampaignState {
       'battleBudget': GameConfig.countryAiBattleBudgetSeconds,
       'incomeStep': GameConfig.cityIncomePerLevel,
       'countryIncome': GameConfig.countryMonthlyIncome,
+      'garrisonFree': GameConfig.freeGarrisonHeroes,
+      'garrisonFactor': GameConfig.garrisonUpkeepFactor,
       'poorPenalty': GameConfig.poorHarvestPenalty,
       'foreignYield': GameConfig.foreignCityYieldFactor,
       'maxLevel': GameConfig.maxCityLevel,
@@ -188,6 +190,7 @@ extension _AiObservationBridge on CampaignState {
           march = marches[hero.id],
           battle = activeBattleForHero(hero.id);
       final city = cityViews.firstWhere((c) => c.id == hero.cityId);
+      if (!own && march?.waitingForDeparture == true) continue;
       final position =
           march?.position ?? GamePoint(city.center.x, city.center.y);
       final velocity = march?.phase == MarchPhase.marching
@@ -300,6 +303,7 @@ extension _AiObservationBridge on CampaignState {
               .where((c) => c.country == id)
               .fold(0, (n, c) => n + c.poorIncome),
           stock: id == countryId ? (_weaponStock[id] ?? {}) : {},
+          garrisonAccrued: id == countryId ? garrisonUpkeepAccruedFor(id) : 0,
           hatred: id == countryId ? (_countryHatred[id] ?? {}) : {},
         ),
       );

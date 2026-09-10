@@ -14,6 +14,7 @@ import '../../world_map/domain/world_data.dart';
 import '../../world_map/domain/world_movement.dart';
 import '../../world_map/domain/territory.dart';
 import '../../economy/domain/economy.dart';
+import '../../economy/domain/military_upkeep.dart';
 import '../../heroes/domain/recruitment.dart';
 import '../../battle/domain/field_terrain.dart';
 import '../../weapons/domain/weapon.dart';
@@ -34,6 +35,8 @@ part 'economy/country_ai_budget.dart';
 part 'battles/field_battles.dart';
 part 'battles/siege_battles.dart';
 part 'economy/field_supplies.dart';
+part 'march_traffic.dart';
+part 'economy/garrison_upkeep.dart';
 part 'economy/country_troops.dart';
 part 'economy/war_spoils.dart';
 part 'battles/battle_retreat.dart';
@@ -281,7 +284,14 @@ class HeroMarch {
   bool get returningFromRetreat => _returningFromRetreat;
 
   /// 进入城堡交战的进攻军在地图上隐藏，排队和野战部队仍可见。
-  bool get visibleOnMap => phase != MarchPhase.fighting;
+  bool get visibleOnMap => !_departurePending && phase != MarchPhase.fighting;
+
+  /// 已承诺出征、正在城内等候安全放行，不参与地图碰撞。
+  bool get waitingForDeparture => _departurePending;
+  bool _departurePending = false;
+  double _departureAt = 0;
+  bool _trafficBlocked = false;
+  final List<GamePoint> _trafficRoute = [];
 
   void _rememberPosition() {
     if (!_returningFromRetreat && _outboundRoute.last != position) {
@@ -321,6 +331,8 @@ class HeroMarch {
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(GamePoint point, {CityDefinition? city}) {
+    _trafficBlocked = false;
+    _trafficRoute.clear();
     _rememberPosition();
     _supplyHalted = false;
     if (phase != MarchPhase.marching) _walkAnimation.reset();
@@ -337,6 +349,8 @@ class HeroMarch {
 
   /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
   void camp() {
+    _trafficBlocked = false;
+    _trafficRoute.clear();
     _rememberPosition();
     _walkAnimation.reset();
     _siegeArrival = null;
@@ -815,6 +829,7 @@ class CampaignState {
 
   /// 已出征部队。
   final Map<String, HeroMarch> marches = {};
+  final Map<int, double> _nextAiDeparture = {};
 
   // 出发城失守是不可撤回的标记，交战结束后即使已进驻另一城也要清除。
   final Set<String> _disbandAfterBattle = {};
@@ -964,6 +979,16 @@ class CampaignState {
 
   /// 已经结束并完成结算的月份数。
   int settledMonths = 0;
+
+  final Map<int, double> _garrisonBills = {};
+
+  /// 本月已经发生的驻军维持费，出征或解雇不会抹掉此前费用。
+  double garrisonUpkeepAccruedFor(int countryId) =>
+      _garrisonBills[countryId] ?? 0;
+
+  /// 按当前驻军人数计算的月费，用于国库规划与模拟诊断。
+  int garrisonUpkeepFor(int countryId) =>
+      _garrisonMonthlyCosts()[countryId] ?? 0;
 
   /// 当前游戏年份。
   int get year =>
@@ -1433,7 +1458,10 @@ class CampaignState {
                 .fold(0, (sum, hero) => sum + hero.salary)
           : 0;
       final before = goldFor(id);
-      final after = math.max(0, before + income - salary);
+      final accrued = owned.isEmpty ? 0.0 : garrisonUpkeepAccruedFor(id);
+      final upkeep = (accrued + 1e-9).floor();
+      _garrisonBills[id] = math.max(0, accrued - upkeep);
+      final after = math.max(0, before + income - salary - upkeep);
       _countryGold[id] = after;
       final report = MonthlySettlement(
         year: year,
@@ -1443,13 +1471,14 @@ class CampaignState {
         baseIncome: base,
         adjustment: income - base,
         salary: salary,
+        garrisonUpkeep: upkeep,
         goldBefore: before,
         goldAfter: after,
       );
       _settlements[id] = report;
       _emitEvent(
         GameEventKind.monthSettled,
-        '${world.countryName(id)}国 $dateLabel ${harvest.label}，收入 $income，月俸 $salary，国库 $before → $after',
+        '${world.countryName(id)}国 $dateLabel ${harvest.label}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
         countryId: id,
         source: GameEventSource.system,
         data: {
@@ -1467,6 +1496,7 @@ class CampaignState {
           ],
           'income': income,
           'salary': salary,
+          'garrisonUpkeep': upkeep,
           'harvest': harvest.name,
           'cityCount': owned.length,
           'goldBefore': before,
@@ -1475,7 +1505,7 @@ class CampaignState {
       );
       if (id == 0) {
         _record(
-          '$dateLabel结算 · ${harvest.label} · 收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
+          '$dateLabel结算 · ${harvest.label} · 收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，军费 -$upkeep，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
           log: false,
         );
       }
@@ -1654,12 +1684,13 @@ class CampaignState {
     );
   }
 
-  /// 确认有效目的地后补兵并按 weaponSlots 取用国家武器，无效指令不扣资源。
+  /// 确认目标后预留兵器与兵员，staggerDeparture 使同国出征至少间隔两秒。
   HeroMarch? dispatchTo(
     CampaignHero hero,
     GamePoint point, {
     int countryId = 0,
     Map<int, int> weaponSlots = const {},
+    bool staggerDeparture = false,
   }) {
     final problem = dispatchBlockReason(hero, countryId: countryId);
     if (problem != null || !_containsPoint(point)) {
@@ -1699,6 +1730,9 @@ class CampaignState {
     );
     marches[hero.id] = march;
     march.moveTo(end, city: target);
+    // 同点派遣先在城内候发，避免出城瞬间生成重叠人物。
+    march._departurePending = _trafficOccupied(start, except: march);
+    if (staggerDeparture) _scheduleDeparture(march);
     _aiOrderVersions.update(hero.id, (n) => n + 1, ifAbsent: () => 1);
     if (hero.isPlayer) hasDispatched = true;
     _emitEvent(
@@ -1737,6 +1771,7 @@ class CampaignState {
         !march.hero.health.alive) {
       return '英雄已不在野外';
     }
+    if (march.waitingForDeparture) return '将领正在等待离城';
     if (march.hero.countryId != countryId) return '只能指挥本国将领';
     if (_disbandAfterBattle.contains(heroId) ||
         cities[march.hero.cityId]?.ownerCountryId != countryId) {
@@ -2069,6 +2104,7 @@ class CampaignState {
       _simulationFraction = math.max(0, _simulationFraction - dt);
       _strategyTime += dt;
       changed = (_ai?.commitAndTasks() ?? false) || changed;
+      _accrueGarrisonUpkeep(dt);
       changed = _advanceSupplies(dt) || changed;
       changed = _advanceRetreatReturns() || changed;
       final previousPositions = {
@@ -2077,7 +2113,7 @@ class CampaignState {
       for (final march in marches.values) {
         final terrain = world.movementTerrainAt(cellAt(world, march.position));
         final previous = march.position;
-        changed = march.tick(world, dt) || changed;
+        changed = _advanceMarchTraffic(march, dt) || changed;
         if (march.returningFromRetreat &&
             march.phase == MarchPhase.camped &&
             march.target == null &&

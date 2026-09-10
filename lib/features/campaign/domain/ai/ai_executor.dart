@@ -197,6 +197,11 @@ extension _AiCommands on CampaignState {
       plan.offensiveCityId = null;
     }
     final candidateCountry = cities[reply.plan.targetCity]?.ownerCountryId;
+    final expeditionInProgress = coordinator.tasks.values.any(
+      (task) =>
+          task.role == 'expedition' &&
+          marches[task.hero]?.hero.countryId == reply.country,
+    );
     final committingAttack =
         reply.plan.requiredGold > 0 ||
         reply.plan.groups.any(
@@ -214,7 +219,8 @@ extension _AiCommands on CampaignState {
         candidateCountry != null &&
         candidateCountry != reply.country &&
         (plan.offensiveCountryId == null ||
-            plan.offensiveCountryId == candidateCountry)) {
+            plan.offensiveCountryId == candidateCountry ||
+            !expeditionInProgress)) {
       plan.offensiveCountryId = candidateCountry;
       plan.offensiveCityId = reply.plan.targetCity;
     }
@@ -322,6 +328,7 @@ extension _AiCommands on CampaignState {
                         hero,
                         point,
                         countryId: reply.country,
+                        staggerDeparture: true,
                         weaponSlots: {
                           for (var i = 0; i < action.weaponIds.length; i++)
                             i: action.weaponIds[i],

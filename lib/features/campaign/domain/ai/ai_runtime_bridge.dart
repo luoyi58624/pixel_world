@@ -347,7 +347,9 @@ class _AiCoordinator {
           continue;
         }
         if (campaign.activeBattleForHero(task.hero) != null ||
-            march.returningFromRetreat) {
+            march.returningFromRetreat ||
+            march.waitingForDeparture ||
+            march._trafficBlocked) {
           continue;
         }
         if (task.expectedOrderRevision !=

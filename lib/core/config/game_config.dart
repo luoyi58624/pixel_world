@@ -35,8 +35,11 @@ abstract final class GameConfig {
   /// 每位在外将领支付一金币粮草所需的行军或交战秒数。
   static const fieldSupplySecondsPerGold = 10.0;
 
-  /// 扎营的粮草消耗倍率，一半消耗即二十秒一金币。
-  static const campSupplyRate = 0.5;
+  /// 扎营与行军按相同速率消耗粮草。
+  static const campSupplyRate = 1.0;
+
+  /// 同国 AI 将领实际离城的最短间隔，单位为游戏秒。
+  static const aiDepartureInterval = 2.0;
 
   /// 电脑在已预留粮草和月俸之外保留的应急金币。
   static const countryAiEmergencyGold = 5;
@@ -133,6 +136,12 @@ abstract final class GameConfig {
 
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;
+
+  /// 每座城免维持费的驻军人数，个人月俸规则独立计算。
+  static const freeGarrisonHeroes = 2;
+
+  /// 超额驻軍人数的平方乘此值，作为每月国家军费，按驻城时间累计。
+  static const garrisonUpkeepFactor = 3;
 
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;

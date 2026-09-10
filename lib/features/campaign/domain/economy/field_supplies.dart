@@ -4,7 +4,9 @@ part of '../campaign.dart';
 extension _FieldSupplies on CampaignState {
   bool _advanceSupplies(double dt) {
     var changed = _haltUnfundedArmies();
-    final active = marches.values.where((march) => march.hero.health.alive);
+    final active = marches.values.where(
+      (march) => march.hero.health.alive && !march.waitingForDeparture,
+    );
     for (final march in active) {
       if (goldFor(march.hero.countryId) == 0) continue;
       final rate = march.phase == MarchPhase.camped
@@ -41,6 +43,7 @@ extension _FieldSupplies on CampaignState {
   bool _haltUnfundedArmies() {
     var changed = false;
     for (final march in marches.values) {
+      if (march.waitingForDeparture) continue;
       if (goldFor(march.hero.countryId) > 0) continue;
       if (!march.supplyHalted) {
         march._supplyHalted = true;
@@ -76,7 +79,12 @@ extension _FieldSupplies on CampaignState {
       march.phase = MarchPhase.camped;
       march._walkAnimation.reset();
     } else {
+      final destination = march.destination, target = march.target;
       march.camp();
+      // 自动断粮保留行程；资金恢复时仍须通过周围占位检查。
+      march.destination = destination;
+      march.target = target;
+      march._trafficBlocked = true;
     }
     march._supplyHalted = true;
     _record(

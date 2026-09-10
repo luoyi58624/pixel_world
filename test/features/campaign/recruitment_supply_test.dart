@@ -166,7 +166,7 @@ void main() {
     expect(c.drawHero(2), isNotNull);
   });
 
-  test('行军10秒一金币，扎营20秒一金币，驻城不扣粮草', () {
+  test('行军和扎营均10秒一金币，驻城不扣粮草', () {
     final home = _campaign();
     home.advance(40);
     expect(home.gold, 100);
@@ -177,7 +177,7 @@ void main() {
     c.advance(0.1);
     expect(c.gold, 99);
     c.camp('rom-0');
-    c.advance(19.9);
+    c.advance(9.9);
     expect(c.gold, 99);
     c.advance(0.1);
     expect(c.gold, 98);
@@ -188,7 +188,7 @@ void main() {
     final march = _leave(c, 0);
     c.advance(5);
     c.camp(march.hero.id);
-    c.advance(10);
+    c.advance(5);
     expect(c.gold, 99);
     c.moveTo(march.hero.id, const GamePoint(2000, 40));
     c.advance(5);
