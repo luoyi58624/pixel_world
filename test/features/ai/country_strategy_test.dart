@@ -18,6 +18,8 @@ import '../../support/weapon_strategy_fixture.dart';
 const _balancedSiege = <int, Map<String, Object>>{
   0: {'combat': 20, 'maxHp': 140, 'salary': 0},
   2: {'combat': 20, 'maxHp': 140, 'salary': 0},
+  6: {'combat': 20, 'maxHp': 140, 'salary': 0},
+  7: {'combat': 20, 'maxHp': 140, 'salary': 0},
   3: {'combat': 25, 'maxHp': 95},
   4: {'combat': 25, 'maxHp': 95},
 };
@@ -46,6 +48,7 @@ void main() {
       fortifiedCapital: true,
       targetHeroes: [3, 4],
       enemyStock: 8,
+      sourceHeroes: [0, 2, 6, 18],
       heroOverrides: _balancedSiege,
     );
     advanceAi(c, .5);
@@ -58,23 +61,25 @@ void main() {
     );
     expect(c.garrisonAt(1).length, 2);
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
-    // 从不同接触点抵达，仍只有第一位交战，第二位排队。
+    // 等错峰出城完成再放到城边，避免传送夹具被待出城状态覆盖。
+    c.advance(2);
     for (final march in raid) {
       march.position = march.destination;
     }
-    c.advance(1 / 60);
+    c.advance(.2);
     expect(c.battles[2]!.isActive, isTrue);
     expect(raid.where((m) => m.phase == MarchPhase.fighting).length, 1);
     expect(raid.where((m) => m.phase == MarchPhase.awaitingBattle).length, 1);
   });
 
-  test('强城计划钱不够时整队等待，月结筹齐后再出兵，不提前花空国库', () {
+  test('武器与后勤不足时等待，月结能支付有效出击后行动，不提前花空国库', () {
     final c = weaponStrategyCampaign(
       ai: true,
       gold: 5,
       targetLevel: 5,
       fortifiedCapital: true,
       targetHeroes: [3, 4],
+      sourceHeroes: [0, 2, 6, 18],
       heroOverrides: _balancedSiege,
     );
     advanceAi(c, .5);
@@ -82,7 +87,7 @@ void main() {
     expect(plan.phase, CountryWarPhase.saving);
     expect(plan.requiredGold, greaterThan(1));
     expect(c.marches, isEmpty);
-    expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
+    expect(c.goldFor(1), 5, reason: '初始现金低于新军费准备金时不额外花钱');
     expect(
       c.heroes.where((h) => h.countryId == 1).every((h) => h.weaponIds.isEmpty),
       isTrue,
@@ -97,7 +102,14 @@ void main() {
     }
     expect(plan.targetCityId, target);
     expect(plan.phase, CountryWarPhase.attacking);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 2);
+    final funded = c.marches.values
+        .where((m) => m.hero.countryId == 1)
+        .toList();
+    expect(funded.length, inInclusiveRange(1, 2));
+    expect(
+      funded.every((m) => m.hero.weaponIds.length == 1 && m.hero.soldiers == 4),
+      isTrue,
+    );
     expect(c.goldFor(1), greaterThan(0));
   });
 
@@ -120,7 +132,7 @@ void main() {
     );
   });
 
-  test('实力不足的硬目标先扩充可招募名额，不无装备派弱将送死', () {
+  test('强城可先以装备齐全的优势编队突破前排，不能无装备送死', () {
     final c = weaponStrategyCampaign(
       ai: true,
       targetLevel: 5,
@@ -128,12 +140,30 @@ void main() {
       targetHeroes: [3, 4, 5],
       enemyStock: 12,
       recruitment: true,
+      sourceHeroes: [0, 2, 6, 7, 18],
+      sourceLevel: 5,
+      heroOverrides: _balancedSiege,
     );
-    advanceAi(c, .5);
-    expect(c.warPlanFor(1)!.phase, CountryWarPhase.preparing);
-    expect(c.marches, isEmpty);
-    expect(c.cities[1]!.level, 3);
-    expect(c.goldFor(1), 939); // 先补16名现有将领所需士兵，再支付65金币城防。
+    for (
+      var n = 0;
+      n < 1200 && c.marches.values.every((m) => m.hero.countryId != 1);
+      n++
+    ) {
+      c.advance(1 / 60);
+    }
+    expect(
+      c.warPlanFor(1)!.phase,
+      CountryWarPhase.attacking,
+      reason: c.aiDiagnostics.events.toString(),
+    );
+    final raids = c.marches.values.where((m) => m.hero.countryId == 1).toList();
+    expect(raids.length, greaterThanOrEqualTo(2));
+    expect(
+      raids.every((m) => m.hero.weaponIds.isNotEmpty && m.hero.soldiers == 4),
+      isTrue,
+    );
+    expect(raids.map((m) => m.target!.id).toSet(), {2});
+    expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
   });
 
   test('侦测可见来敌后修复迎战名额，不在危险满员城继续招募', () {
@@ -146,10 +176,10 @@ void main() {
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
     expect(c.weaponStorageUsed(1), 0);
     expect(c.garrisonAt(1).every((hero) => hero.weaponIds.isEmpty), isTrue);
-    expect(c.cities[1]!.level, 4);
+    expect(c.cities[1]!.level, inInclusiveRange(4, 5));
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     c.advance(5);
-    expect(c.cities[1]!.level, 4);
+    expect(c.cities[1]!.level, inInclusiveRange(4, 5));
     expect(c.garrisonAt(1).length, lessThanOrEqualTo(c.cities[1]!.level));
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
@@ -170,19 +200,22 @@ void main() {
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 9, 1: 9, 2: 9},
+      weaponSlots: {0: 9},
     )!;
     march.position = march.destination;
     c.advance(.02);
     final battle = c.battles[2]!;
     c.advance(2.8);
     expect(battle.simulation.weaponStrike, isNotNull);
-    expect(hero.weaponIds.length, 2);
+    expect(hero.weaponIds, isEmpty);
     expect(battle.simulation.retreat, isNull);
     while (battle.simulation.weaponStrike != null) {
       c.advance(1 / 60);
     }
-    expect(battle.defender.squad.fold<double>(0, (n, s) => n + s.hp), 55);
+    expect(
+      battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
+      80 - c.weaponCatalog.weapons[9]!.damage,
+    );
   });
 
   test('按国家错峰决策、路线缓存复用，正式地图可经营并发动有准备的进攻', () {

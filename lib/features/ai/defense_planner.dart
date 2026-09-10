@@ -483,7 +483,11 @@ class DefensePlanner {
 
     final interceptors =
         mobile
-            .where((h) => h.combat <= rules.tuning.attritionCombatCeiling)
+            .where(
+              (h) =>
+                  h.combat <= rules.tuning.attritionCombatCeiling &&
+                  !valuableGovernor(h),
+            )
             .toList()
           ..sort((a, b) {
             final lowA = a.combat <= rules.tuning.attritionCombatCeiling;
@@ -499,7 +503,7 @@ class DefensePlanner {
 
     final desperateSortie =
         mobile.length > 1 &&
-        _risk(report, base)?.advantage == CombatAdvantage.unfavorable;
+        _risk(report, base)?.advantage != CombatAdvantage.favorable;
     for (final incoming in report.incoming.take(2)) {
       if (!desperateSortie ||
           incoming.hero.opponent != null ||
@@ -605,9 +609,9 @@ class DefensePlanner {
                   )
                   .toList()
                 ..sort((a, b) => b.damage.compareTo(a.damage));
-          if (strongest.isEmpty) continue;
           for (final gear in [
-            <int>[strongest.first.id],
+            if (strongest.isNotEmpty) <int>[strongest.first.id],
+            <int>[],
           ]) {
             final score = assessor.compare(
               hero,
@@ -624,6 +628,34 @@ class DefensePlanner {
             var useful = score.advantage == CombatAdvantage.favorable;
             var improvement = 0.0;
             var securesDefense = useful;
+            if (!useful &&
+                gear.isEmpty &&
+                core != null &&
+                incoming.hero.openingAvailable &&
+                incoming.hero.weaponReady &&
+                score.enemyWeaponUpper >= rules.integer('soldierHp')) {
+              // 无装备弱将也可吸收已知开场武器；只比较公开装备造成的防守余量变化。
+              final before = assessor.compare(
+                core,
+                incoming.hero,
+                ownDefense: funded.slots(city),
+                ownSoldiers: rules.integer('soldierLimit'),
+              );
+              final after = assessor.compare(
+                core,
+                incoming.hero,
+                ownDefense: funded.slots(city),
+                ownSoldiers: rules.integer('soldierLimit'),
+                enemyLoadout: const [],
+                enemyOpening: false,
+              );
+              improvement = after.lower - before.lower;
+              useful =
+                  improvement >= rules.tuning.attritionMinImprovement &&
+                  (before.releaseRisk ||
+                      report.risk?.advantage == CombatAdvantage.unfavorable);
+              securesDefense = false;
+            }
             if (!useful &&
                 hero.combat <= rules.tuning.attritionCombatCeiling &&
                 core != null &&
@@ -668,7 +700,7 @@ class DefensePlanner {
                   score.ownWeaponLower >= rules.integer('soldierHp') &&
                   improvement >= rules.tuning.attritionMinImprovement &&
                   (securesDefense ||
-                      report.risk?.advantage == CombatAdvantage.unfavorable);
+                      report.risk?.advantage != CombatAdvantage.favorable);
             }
             if (!useful) continue;
             if (left.isEmpty &&
@@ -681,7 +713,9 @@ class DefensePlanner {
               hero,
               route,
               role: 'intercept',
-              reason: improvement > 0
+              reason: gear.isEmpty && improvement > 0
+                  ? '低攻击且非高内政将领出城吸收来敌开场武器，保留主力和城防，等待实际战果再复核'
+                  : improvement > 0
                   ? '低攻击将领携一件强武器消耗来敌，保留高攻击守将与城防接战'
                   : '低攻击余将携当前最强武器迎战，保留城内主力接敌',
               target: city,

@@ -74,8 +74,8 @@ void main() {
     expect(c.gold, 50);
     c.advance(0.01);
     expect(c.dateLabel, '1年2月');
-    expect(c.gold, 87);
-    expect(c.lastSettlementFor(0)!.garrisonUpkeep, 3);
+    expect(c.gold, 50 + 30 - c.salaryCost);
+    expect(c.lastSettlementFor(0)!.garrisonUpkeep, 0);
     expect(c.lastSettlementFor(0)!.month, 1);
     final foreign = c.lastSettlementFor(1)!;
     expect(
@@ -85,7 +85,7 @@ void main() {
     c.advance(660);
     expect(c.dateLabel, '2年1月');
     expect(c.settledMonths, 12);
-    expect(c.gold, 494);
+    expect(c.gold, 50 + 12 * (30 - c.salaryCost));
   });
 
   test('三种收成等权抽取，每种恰好覆盖三分之一随机取值', () {
@@ -100,7 +100,7 @@ void main() {
     });
   });
 
-  test('城池月收入10起每级加5，占领地全额并在国家层面计算收成', () {
+  test('城池一至五级始终产出10，占领地全额并在国家层面计算收成', () {
     for (var level = 1; level <= 5; level++) {
       final city = CitySituation(
         ownerCountryId: 0,
@@ -108,7 +108,7 @@ void main() {
         baseIncome: 10,
         initialLevel: level,
       );
-      expect(city.income, 10 + (level - 1) * 5);
+      expect(city.income, 10);
     }
     for (final entry in {0: 0, 1: -20, 2: 10}.entries) {
       final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
@@ -122,17 +122,20 @@ void main() {
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 2);
-      expect(report.baseIncome, 60);
+      expect(report.baseIncome, 40);
       expect(report.adjustment, entry.value);
-      expect(report.salary, 0);
-      expect(c.gold, before + 60 + entry.value);
+      expect(report.salary, c.salaryCost);
+      expect(c.gold, before + 40 + entry.value - c.salaryCost);
     }
   });
 
-  test('专属将领免薪，国库按实际工资和收成结算', () {
+  test('本国将领同样付薪，国库按实际工资和收成结算', () {
     final c = _campaign();
-    expect(_hero(c, 0).salary, 0);
-    expect(_hero(c, 2).salary, 0);
+    final catalog = decodeRomHeroes(
+      File('assets/data/rom_heroes.json').readAsStringSync(),
+    );
+    expect(_hero(c, 0).salary, catalog.firstWhere((h) => h.id == 0).salary);
+    expect(_hero(c, 2).salary, catalog.firstWhere((h) => h.id == 2).salary);
     expect(_hero(c, 40).salary, 0);
     final definition = RomHeroDefinition.fromJson({
       'id': 40,
@@ -149,10 +152,11 @@ void main() {
     expect(CampaignHero.fromRom(definition, cityId: 0, countryId: 0).salary, 0);
     final poor = _campaign(gold: 1, economy: _RandomValue(1));
     poor.advance(60);
-    expect(poor.gold, 18);
-    expect(poor.lastSettlementFor(0)!.garrisonUpkeep, 3);
-    expect(poor.lastSettlementFor(0)!.netIncome, 17);
-    expect(poor.lastSettlementFor(0)!.actualChange, 17);
+    final net = 10 - poor.salaryCost;
+    expect(poor.gold, math.max(0, 1 + net));
+    expect(poor.lastSettlementFor(0)!.garrisonUpkeep, 0);
+    expect(poor.lastSettlementFor(0)!.netIncome, net);
+    expect(poor.lastSettlementFor(0)!.actualChange, math.max(0, 1 + net) - 1);
     expect(poor.defeated, isFalse);
   });
 

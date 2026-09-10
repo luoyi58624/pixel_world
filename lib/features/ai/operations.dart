@@ -7,7 +7,6 @@ import 'routes.dart';
 import 'rules_data.dart';
 import 'coalition_policy.dart';
 import 'combat_assessment.dart';
-import 'raid_assessment.dart';
 
 /// 一组已经核算资源的调动候选。
 class PlannedOperation {
@@ -31,20 +30,18 @@ class OperationPlanner {
   AiObservation get _view => request.observation;
   bool get _canPurchase => request.stage != AiDecisionStage.attack;
 
-  /// 国家需要具备近程前沿据点才参与围攻，远方威胁不挤占当前军费。
+  /// 小国优先近程围攻；多城国家可以直接远征，是否可支付交给完整粮草报价。
   bool hasCoalitionFront(AiCity target) =>
       !CoalitionPolicy(target.country, _view, rules).dangerous ||
+      _view.owned.length >= 3 ||
       _view.owned.any(
         (city) =>
             routes.seconds(city.center, target.outline.nearest(city.center)) <=
             rules.tuning.coalitionMaxTravelSeconds,
       );
 
-  /// 新出征部队按实际地形成本检查围攻距离，在途任务不受该筛选改令。
-  bool canRaidFrom(AiHero hero, AiCity target) =>
-      !CoalitionPolicy(target.country, _view, rules).dangerous ||
-      routes.seconds(hero.position, target.outline.nearest(hero.position)) <=
-          rules.tuning.coalitionMaxTravelSeconds;
+  /// 全国具备参战条件后允许后方主力直达，不为每名英雄重复设置前沿距离门槛。
+  bool canRaidFrom(AiHero hero, AiCity target) => hasCoalitionFront(target);
 
   /// 有限的低价优先配装候选，不把后续三件全部当作必定释放。
   List<List<int>> loadouts(
@@ -94,90 +91,109 @@ class OperationPlanner {
     return result;
   }
 
-  /// 危险国家使用追加预算提升整队装备；未备齐时等待采购，不在进攻阶段降回廉价方案。
+  /// 攻城从第一次就携带当前已解锁的高伤害武器，资金由采购与出征账本统一校验。
   List<List<int>> raidLoadouts(
     AiHero hero,
     AiLedger ledger,
     AiCity target,
     CombatAssessor assessor,
   ) {
-    final policy = CoalitionPolicy(
-      target.country,
-      _view,
-      rules,
-      levels: ledger.levels,
-    );
-    if (!hero.stationed) return loadouts(hero, ledger);
-    final surplus = math.max(
-      0,
-      ledger.gold - ledger.cash().reserve - policy.monthlyIncome * 2,
-    );
-    if (!policy.dangerous && surplus == 0) return loadouts(hero, ledger);
-    final defenders = math.min(
-      _view.garrison(target.id).length,
-      target.safeSlots,
-    );
-    if (defenders == 0) return [const []];
-    final ordinary = loadouts(hero, ledger, considerPurchases: true);
-    int price(List<int> gear) =>
-        gear.fold(0, (n, id) => n + rules.weapons[id]!.price);
-    List<int>? baseline;
-    var baselineTeam = 1;
-    for (final gear in ordinary) {
-      final readiness = assessRaid(hero, target, _view, rules, assessor, gear);
-      if (readiness.teamSize > 0 &&
-          (baseline == null || price(gear) < price(baseline))) {
-        baseline = gear;
-        baselineTeam = readiness.teamSize;
-      }
-    }
-    if (baseline == null) return ordinary;
-    final allowance =
-        price(baseline) +
-        (policy.extraGold + (surplus * .15).floor()) ~/ baselineTeam;
-    final candidates = <List<int>>[baseline];
-    for (final weapon in rules.weapons.values) {
-      if ((ledger.stock[weapon.id] ?? 0) == 0 &&
-          !(weapon.shopEnabled && _view.year >= weapon.unlockYear)) {
-        continue;
-      }
-      for (
-        var count = 1;
-        count <= math.min(defenders, rules.integer('carryLimit'));
-        count++
-      ) {
-        if ((weapon.price * count <= allowance ||
-                (ledger.stock[weapon.id] ?? 0) >= count) &&
-            weapon.selfDamage <
-                hero.hp +
-                    rules.integer('soldierLimit') *
-                        rules.integer('soldierHp')) {
-          candidates.add(List.filled(count, weapon.id));
-        }
-      }
-    }
-    double strength(List<int> gear) {
-      var result = 0.0;
-      for (var i = 0; i < gear.length; i++) {
-        final weapon = rules.weapons[gear[i]]!;
-        result +=
-            (weapon.damage - weapon.selfDamage) *
-            (i == 0 ? 1 : rules.tuning.laterWeaponCredit);
-      }
-      return result;
-    }
+    if (!hero.stationed) return hero.weapons.isEmpty ? [] : [hero.weapons];
+    final candidates =
+        rules.weapons.values
+            .where(
+              (w) =>
+                  ((ledger.stock[w.id] ?? 0) > 0 ||
+                      w.shopEnabled && _view.year >= w.unlockYear) &&
+                  w.selfDamage <
+                      hero.hp +
+                          rules.integer('soldierLimit') *
+                              rules.integer('soldierHp'),
+            )
+            .toList()
+          ..sort((a, b) {
+            final power = (b.damage - b.selfDamage).compareTo(
+              a.damage - a.selfDamage,
+            );
+            return power != 0 ? power : a.price.compareTo(b.price);
+          });
+    if (candidates.isEmpty) return [];
+    // 不因暂时买不起便降成裸装或低级装备，后台先筹款采购，再执行已核算的出征。
+    return [
+      [candidates.first.id],
+    ];
+  }
 
-    candidates.sort((a, b) {
-      final power = strength(b).compareTo(strength(a));
-      return power != 0 ? power : price(a).compareTo(price(b));
-    });
-    // 最多十二种武器、每种三个槽位，只评估预算内的有限候选。
-    for (final gear in candidates.take(rules.tuning.maxTeam)) {
-      if (assessRaid(hero, target, _view, rules, assessor, gear).teamSize > 0) {
-        return [gear];
-      }
+  /// 后期按现有强攻将领与资金准备二至四人轮攻，不因凑不齐满队而永远停战。
+  int raidTeamSize(
+    int minimum,
+    AiCity target,
+    AiLedger ledger, {
+    AiHero? lead,
+  }) {
+    if (minimum == 0 ||
+        _view.year < 3 ||
+        target.safeSlots < 3 ||
+        _view.garrison(target.id).length < 2) {
+      return minimum;
     }
-    return [baseline];
+    final price = rules.weapons.values
+        .where((w) => w.shopEnabled && _view.year >= w.unlockYear)
+        .fold<int>(0, (n, w) => math.max(n, w.price));
+    final strongest = _view.heroes
+        .where((h) => h.country == _view.country && !h.marked)
+        .fold<int>(0, (n, h) => math.max(n, h.combat));
+    final leadSeconds = lead == null
+        ? null
+        : routes.seconds(lead.position, target.outline.nearest(lead.position));
+    final available = _view.heroes
+        .where(
+          (h) =>
+              h.country == _view.country &&
+              !h.marked &&
+              h.hp >= h.maxHp * .65 &&
+              h.combat >= strongest * .8 &&
+              (h.canDispatch &&
+                      (leadSeconds == null ||
+                          (routes.seconds(
+                                        h.position,
+                                        target.outline.nearest(h.position),
+                                      ) -
+                                      leadSeconds)
+                                  .abs() <=
+                              rules.tuning.raidArrivalSpread) &&
+                      ledger.canSpareForOffense(h) &&
+                      !ledger.reservedHeroes.contains(h.id) ||
+                  ledger.tasks[h.id]?.role == 'expedition' &&
+                      ledger.tasks[h.id]?.city == target.id),
+        )
+        .length;
+    final spendable = math.max(0, ledger.gold - ledger.cash().reserve - 20);
+    final funded =
+        spendable ~/ math.max(1, price + rules.integer('soldierLimit'));
+    final team = math.min(rules.tuning.maxTeam, math.min(available, funded));
+    return math.max(minimum, team);
+  }
+
+  /// 资金充足时补充二至四名可出战主力，不把普通留守人数误当作攻城队伍已经备齐。
+  int desiredAssaultHeroes(AiLedger ledger) {
+    if (_view.year < 3) return 1;
+    final price = rules.weapons.values
+        .where((w) => w.shopEnabled && _view.year >= w.unlockYear)
+        .fold<int>(0, (n, w) => math.max(n, w.price));
+    final funded =
+        math.max(
+          0,
+          ledger.gold - ledger.cash().reserve - rules.tuning.resourceCashBuffer,
+        ) ~/
+        math.max(
+          1,
+          price +
+              rules.integer('drawCost') +
+              _view.maximumSalary +
+              rules.integer('soldierLimit'),
+        );
+    return math.max(1, math.min(rules.tuning.maxTeam, funded));
   }
 
   /// 依赖版本只绑定真正会使用的实体，不随无关国家移动失效。
@@ -215,10 +231,7 @@ class OperationPlanner {
       return null;
     }
     if (route.seconds + rules.tuning.reactionMargin >= deadline) return null;
-    if (role == 'expedition' &&
-        target != null &&
-        CoalitionPolicy(target.country, _view, rules).dangerous &&
-        route.seconds > rules.tuning.coalitionMaxTravelSeconds) {
+    if (role == 'expedition' && target != null && !hasCoalitionFront(target)) {
       return null;
     }
     final previous = base.tasks[hero.id];

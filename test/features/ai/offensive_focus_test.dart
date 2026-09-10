@@ -4,6 +4,7 @@ import 'package:pixel_world/features/ai/offensive_focus.dart';
 import 'package:pixel_world/features/ai/routes.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
+import 'package:pixel_world/features/ai/rules_data.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 
 import '../../support/national_ai_fixture.dart';
@@ -13,8 +14,18 @@ OffensiveFocus _focus(
   List<ArmyTask> tasks, {
   int? country,
   int? city,
+  int? singleFrontMonths,
 }) {
-  final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
+  final view = c.aiObservationFor(1), original = c.aiRulesForTesting();
+  final rules = singleFrontMonths == null
+      ? original
+      : AiRules.fromJson({
+          ...original.toJson(),
+          'tuning': {
+            ...original.tuning.toJson(),
+            'singleFrontMonths': singleFrontMonths,
+          },
+        });
   final ledger = AiLedger(
     view,
     rules,
@@ -31,7 +42,7 @@ OffensiveFocus _focus(
 }
 
 void main() {
-  test('首年强到可碾压也只集中一个战线，次年才允许明显优势下分兵', () {
+  test('配置首年只开一线时，强到可碾压也等到次年才分兵', () {
     final c = nationalScenario(
       ai: false,
       guards: [0, 4, 5, 18],
@@ -50,12 +61,12 @@ void main() {
       expectedOrderRevision: 1,
     );
     c.settledMonths = 0;
-    final early = _focus(c, [task]);
+    final early = _focus(c, [task], singleFrontMonths: 12);
     expect(early.primary, 2);
     expect(early.coverage(2), greaterThanOrEqualTo(2.25));
     expect(early.allows(c.aiObservationFor(1).city(0)!), isFalse);
     c.settledMonths = 12;
-    expect(_focus(c, [task]).mayOpenFront, isTrue);
+    expect(_focus(c, [task], singleFrontMonths: 12).mayOpenFront, isTrue);
   });
 
   test('兵力不占绝对优势时已有攻城队伍阻止另开战线', () {
@@ -94,7 +105,7 @@ void main() {
     expect(focus.objectiveCountry, isNull);
   });
 
-  test('真实计划将普通优势编成同目标队伍，预算不足不会只派第一位', () {
+  test('完整配装后执行同目标攻城，预算不足不先派裸装部队', () {
     final c = nationalScenario(
       ai: false,
       guards: [0, 4, 5, 18],
@@ -119,7 +130,13 @@ void main() {
     for (final group in plan.groups.where(
       (g) => g.tasks.any((t) => t.role == 'expedition'),
     )) {
-      expect(group.tasks.length, greaterThanOrEqualTo(2));
+      expect(group.tasks, isNotEmpty);
+      expect(
+        group.actions
+            .where((a) => a.kind == AiActionKind.dispatch)
+            .every((a) => a.weaponIds.length == 1),
+        isTrue,
+      );
       expect(
         group.actions.where((a) => a.kind == AiActionKind.dispatch).length,
         group.tasks.length,

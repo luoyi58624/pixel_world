@@ -130,11 +130,11 @@ void main() {
       final gold = c.gold, salary = c.salaryCost;
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
-      expect(report.baseIncome, 30 + 10 + 10);
+      expect(report.baseIncome, 20 + 10 + 10);
       expect(report.adjustment, adjustment);
-      expect(report.garrisonUpkeep, 3);
-      expect(c.gold, gold + 50 + adjustment - salary - 3);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 30);
+      expect(report.garrisonUpkeep, 0);
+      expect(c.gold, gold + 40 + adjustment - salary);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 20);
     });
   }
 
@@ -168,11 +168,7 @@ void main() {
       expect(c.buyWeapon(0), isTrue);
     }
     final hero = c.garrisonAt(0).last;
-    final march = c.dispatch(
-      hero,
-      c.world.cities[1],
-      weaponSlots: {0: 0},
-    )!;
+    final march = c.dispatch(hero, c.world.cities[1], weaponSlots: {0: 0})!;
     march.position = march.destination;
     c.advance(3);
     final battle = c.battles[1]!;

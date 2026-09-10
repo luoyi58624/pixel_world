@@ -44,8 +44,8 @@ class RomHeroDefinition {
   /// 独立配置的开场士气，范围 0 到 100。
   final int morale;
 
-  /// 专属国任职免费，其他国家按 JSON 的月俸支付。
-  int salaryFor(int countryId) => nativeCountryId == countryId ? 0 : salary;
+  /// 所有国家统一按 JSON 月俸支付，本国核心将领不再免薪。
+  int salaryFor(int countryId) => salary;
 
   /// 文件数组中的位置，只用于展示和守将选择，不替代英雄身份编号。
   final int rosterOrder;

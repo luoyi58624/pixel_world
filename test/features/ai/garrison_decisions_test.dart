@@ -28,6 +28,7 @@ void main() {
       overrides: {18: {'combat': 25, 'maxHp': 90}},
     );
     addTearDown(c.dispose);
+    c.settledMonths = 0; // 此例只验既有编制，后期追加强攻补员由独立测试覆盖。
     final hero = c.garrisonAt(1).first;
     c.dispatch(hero, c.world.cities[2], countryId: 1);
     expect(ledgerFor(c).assignedHeroCount(1), 2);

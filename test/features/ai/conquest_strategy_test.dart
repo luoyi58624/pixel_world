@@ -99,7 +99,7 @@ void main() {
     );
   });
 
-  test('远方危险目标不可出击时允许改攻其他目标或安全前移', () {
+  test('远方危险目标不可出击时不为缩短账面距离而无意义转驻友城', () {
     final c = coalitionCampaign();
     addTearDown(c.dispose);
     final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
@@ -135,12 +135,8 @@ void main() {
     );
     for (final _ in brain.steps()) {}
     final tasks = brain.result!.groups.expand((g) => g.tasks).toList();
-    expect(tasks, isNotEmpty);
     expect(tasks.where((t) => t.role == 'expedition' && t.city == 2), isEmpty);
-    for (final task in tasks.where((t) => t.role == 'transfer')) {
-      expect(task.city, 3);
-      expect(task.arrivalSlot, isTrue);
-    }
+    expect(tasks.where((t) => t.role == 'transfer'), isEmpty);
   });
 
   test('首轮允许交换就先派单将突破，无需装备或凑齐全队', () {

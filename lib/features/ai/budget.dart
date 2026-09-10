@@ -6,6 +6,7 @@ import 'routes.dart';
 import 'rules_data.dart';
 import 'coalition_policy.dart';
 import 'combat_assessment.dart';
+import 'rear_safety.dart';
 import '../economy/domain/military_upkeep.dart';
 
 /// 一名部队的连续粮草承诺，返城时才停止计费。
@@ -87,6 +88,7 @@ class AiLedger {
 
   final Set<int> recruited = {}, abandoned = {};
   final List<SupplyCommitment> newSupplies = [];
+  final Map<int, bool> _rearSafety = {};
 
   /// 复制候选账本，用于比较有限复合方案。
   AiLedger copy() {
@@ -107,6 +109,7 @@ class AiLedger {
     next.recruited.addAll(recruited);
     next.abandoned.addAll(abandoned);
     next.newSupplies.addAll(newSupplies);
+    next._rearSafety.addAll(_rearSafety);
     return next;
   }
 
@@ -142,15 +145,85 @@ class AiLedger {
       (arrivals[city] ?? 0) +
       (recruited.contains(city) ? 1 : 0);
 
-  /// 每座未明确放弃的城至少需要一名实际守将，空城也保留补防需求。
+  /// 安全后方允许空城，边境、受威胁城市和小国仍需要实际守将。
   int defendersToKeep(AiCity city) {
-    return abandoned.contains(city.id) ? 0 : 1;
+    return abandoned.contains(city.id) || safeRear(city) ? 0 : 1;
   }
 
-  /// 远征保留实际有战力的守将，不能用最弱兵牌替代防线。
+  /// 同一观察下缓存后方判断；敌情或领土变化后的新账本必须重新计算。
+  bool safeRear(AiCity city) => _rearSafety.putIfAbsent(city.id, () {
+    double radius(AiCity c) => c.outline.points.fold<double>(
+      0,
+      (n, p) => math.max(n, c.center.distance(p)),
+    );
+    return city.country == view.country &&
+        safeRearArea(
+          ownedCities: view.owned.length,
+          fighting: city.initialBattleLevel != null,
+          center: city.center,
+          radius: radius(city),
+          fastestSpeed:
+              rules.number('marchSpeed') *
+              rules.movementFactors.reduce(math.max),
+          threatSeconds: rules.tuning.threatSeconds,
+          enemyCities: view.cities
+              .where((c) => c.country != view.country)
+              .map((c) => (c.center, radius(c))),
+          enemyArmies: view.heroes
+              .where(
+                (h) =>
+                    h.country != view.country &&
+                    !h.stationed &&
+                    !h.marked &&
+                    h.hp > 0,
+              )
+              .map((h) => (h.position, h.regionCity == city.id)),
+        );
+  });
+
+  /// 每个进攻目标只在最近可达的友城补员，警报中的本地招募另走防守流程。
+  Set<int> recruitmentFronts(Iterable<AiCity> targets) {
+    final result = <int>{};
+    for (final target in targets.take(rules.tuning.maxTargets)) {
+      final candidates =
+          view.owned
+              .where(
+                (c) =>
+                    !abandoned.contains(c.id) &&
+                    c.recruitAllowed &&
+                    (c.initialBattleLevel == null ||
+                        occupancy(c.id) < slots(c)),
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.center
+                  .distance(target.center)
+                  .compareTo(b.center.distance(target.center)),
+            );
+      AiCity? best;
+      var cost = double.infinity;
+      for (final city in candidates.take(3)) {
+        final seconds = routes.seconds(
+          city.center,
+          target.outline.nearest(city.center),
+        );
+        if (seconds < cost) {
+          best = city;
+          cost = seconds;
+        }
+      }
+      if (best != null) result.add(best.id);
+    }
+    return result;
+  }
+
+  /// 前线保留有战力的守将，安全后方释放主力，但不将低攻击内政将领用于攻城。
   bool canSpareForOffense(AiHero hero) {
     final city = view.city(hero.city);
     if (city == null) return false;
+    if (safeRear(city)) {
+      return hero.type != 2 && !(valuableGovernor(hero) && hero.combat < 12);
+    }
     final guards = view
         .garrison(hero.city)
         .where((h) => !removed.contains(h.id))
@@ -165,6 +238,12 @@ class AiLedger {
       math.min(rules.integer('soldierLimit'), reserves),
     );
     guards.sort((a, b) => strength(b).compareTo(strength(a)));
+    final governors = guards.where(valuableGovernor).toList()
+      ..sort((a, b) {
+        final politics = b.politics.compareTo(a.politics);
+        return politics != 0 ? politics : a.combat.compareTo(b.combat);
+      });
+    if (governors.isNotEmpty) return hero.id != governors.first.id;
     // 留下达到本城最强守将六成战力的较弱者，让更强主力仍可出击。
     final threshold = strength(guards.first) * .6;
     final keeper = guards.where((h) => strength(h) >= threshold).last;
@@ -454,8 +533,13 @@ class AiLedger {
               0,
               (n, c) =>
                   n +
-                  c.baseIncome +
-                  ((levels[c.id] ?? c.level) - 1) * rules.integer('incomeStep'),
+                  ((c.baseIncome +
+                              ((levels[c.id] ?? c.level) - 1) *
+                                  rules.integer('incomeStep')) *
+                          (c.country == c.nativeCountry
+                              ? 1
+                              : rules.number('foreignYield')))
+                      .floor(),
             );
     final free = (rules.values['garrisonFree'] ?? 2).toInt();
     final factor = (rules.values['garrisonFactor'] ?? 0).toInt();
@@ -468,12 +552,10 @@ class AiLedger {
           factor: factor,
         ) -
         MilitaryUpkeep.monthlyCost(count, freeHeroes: free, factor: factor);
-    if (!city.recruitAllowed ||
-        recruited.contains(city.id) ||
-        view.poolCount <= recruited.length ||
-        gold < cost ||
-        futureSalary + futureUpkeep > monthlyIncome * (emergency ? 1.3 : 1.1) ||
-        futureSalary >
+    final withinIncome =
+        futureSalary + futureUpkeep <=
+            monthlyIncome * (emergency ? 1.3 : 1.1) &&
+        futureSalary <=
             monthlyIncome *
                 (emergency
                     ? 1
@@ -483,7 +565,19 @@ class AiLedger {
                         offensiveCountry,
                         view,
                         rules,
-                      ).payrollRatio)) {
+                      ).payrollRatio);
+    // 后期或警报中允许用现有积蓄扩军；只额外覆盖新将近期工资与驻军费，不强留多年现金。
+    final cashBacked =
+        (view.year >= 3 || emergency) &&
+        gold - cost >=
+            cash(emergency: emergency).reserve +
+                view.maximumSalary +
+                math.max(0, futureUpkeep - monthlyGarrisonUpkeep);
+    if (!city.recruitAllowed ||
+        recruited.contains(city.id) ||
+        view.poolCount <= recruited.length ||
+        gold < cost ||
+        !(withinIncome || cashBacked)) {
       return false;
     }
     gold -= cost;
@@ -503,6 +597,7 @@ class AiLedger {
     }
     // 入城预约与刚抽取但尚未落地的将领都不能替代真实留守。
     if (garrison(hero.city).length <= 1 &&
+        !(view.city(hero.city) != null && safeRear(view.city(hero.city)!)) &&
         !(abandoned.contains(hero.city) &&
             task.role == 'evacuate' &&
             task.arrivalSlot)) {

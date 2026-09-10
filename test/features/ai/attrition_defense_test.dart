@@ -22,7 +22,7 @@ void main() {
         reserves: 12,
         attackerCombat: enemyAttack,
         overrides: {
-          33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+          33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
           34: {'combat': 14, 'maxHp': 60, 'morale': 100},
           35: {'combat': 12, 'maxHp': 60, 'morale': 80},
         },
@@ -47,7 +47,7 @@ void main() {
       gold: 200,
       attackerCombat: 32,
       overrides: {
-        33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+        33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
         34: {'combat': 14, 'maxHp': 60, 'morale': 100},
       },
     );
@@ -147,7 +147,7 @@ void main() {
       gold: 200,
       attackerCombat: 32,
       overrides: {
-        33: {'combat': 2, 'maxHp': 35, 'morale': 30},
+        33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
         34: {'combat': 14, 'maxHp': 60, 'morale': 100},
       },
     );

@@ -48,13 +48,16 @@ void main() {
     for (final h in c.heroes) {
       final definition = _catalog.firstWhere((d) => d.id == h.sourceId);
       expect(definition.nativeCountryId, h.countryId, reason: h.name);
-      expect(h.salary, 0, reason: h.name);
+      expect(h.salary, definition.salary, reason: h.name);
       expect(definition.salaryFor((h.countryId + 1) % 16), definition.salary);
     }
     expect(_catalog.first.id, 40);
     expect(_catalog.first.salary, greaterThanOrEqualTo(0));
     expect(
-      _catalog.where((h) => h.nativeCountryId == null).map((h) => h.id).toSet(),
+      _catalog
+          .where((h) => h.id < 100 && h.nativeCountryId == null)
+          .map((h) => h.id)
+          .toSet(),
       {1, 15, 36, 38, 39},
     );
   });
@@ -94,7 +97,7 @@ void main() {
     expect(game.gold, 0);
   });
 
-  test('本国专属将领重新聘用免费，解雇仅返还内政', () {
+  test('本国专属将领重新聘用同样支付月俸，解雇仅返还内政', () {
     final choice = _Choice(), c = _game(choice);
     addTearDown(c.dispose);
     final hero = c.heroes.firstWhere((h) => h.sourceId == 0);
@@ -103,10 +106,10 @@ void main() {
     expect(c.gold, before + 15);
     choice.index = c.recruitPool.indexWhere((h) => h.id == 0);
     final offer = c.drawHero(0)!;
-    expect(offer.initialSalary, 0);
+    expect(offer.initialSalary, hero.salary);
     final signed = c.signHero(offer)!;
-    expect(signed.salary, 0);
-    expect(c.gold, before + 15 - 5);
+    expect(signed.salary, hero.salary);
+    expect(c.gold, before + 15 - 5 - hero.salary);
   });
 
   test('关闭面板、切换城池与切换地图均释放候选，不退抽取费', () {

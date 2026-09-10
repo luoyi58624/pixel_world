@@ -14,6 +14,7 @@ import 'package:pixel_world/features/cities/domain/city_contact.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
 import '../../support/national_ai_fixture.dart';
+import '../../support/fixed_siege_random.dart';
 
 void _assign(CampaignState c, ManualAiWorker worker, AiCommandGroup group) {
   for (var n = 0; n < 120 && !worker.requests.any((r) => r.country == 1); n++) {
@@ -60,6 +61,48 @@ List<GameEvent> _recoveries(CampaignState c, String hero) => c.events
     .toList();
 
 void main() {
+  test('撤退返程到满员战城等待，不强行入城挤掉下一场守军', () {
+    final c = nationalScenario(
+      workerFactory: ManualAiWorker.new,
+      gold: 1000,
+      guards: [0, 18],
+      level: 1,
+      retreatRandom: const FixedSiegeRandom(.99),
+    );
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    final march = c.dispatch(hero, c.world.cities[2], countryId: 1)!;
+    march.position = march.destination;
+    c.advance(1 / 60);
+    final original = c.battles[2]!;
+    expect(c.retreatHero(hero.id, countryId: 1), isTrue);
+    for (var n = 0; n < 600 && original.isActive; n++) {
+      c.advance(1 / 60);
+    }
+    expect(march.returningFromRetreat, isTrue);
+    final invader = c.dispatch(
+      c.garrisonAt(2).first,
+      c.world.cities[1],
+      countryId: 2,
+    )!;
+    invader.position = invader.destination;
+    c.advance(1 / 60);
+    final defense = c.battles[1]!;
+    march.position = c.cityBounds(c.world.cities[1]).center;
+    march.moveTo(march.position, city: c.world.cities[1]);
+    c.advance(.1);
+    expect(c.marches[hero.id], same(march));
+    expect(march.phase, MarchPhase.awaitingBattle);
+    expect(march.returningFromRetreat, isTrue);
+    expect(c.garrisonAt(1), [defense.defender]);
+    defense.attacker.hp = 0;
+    for (var n = 0; n < 1200 && c.marches.containsKey(hero.id); n++) {
+      c.advance(1 / 60);
+    }
+    expect(c.garrisonAt(1), contains(hero));
+    expect(c.garrisonAt(1), contains(defense.defender));
+  });
+
   test('出发城正在交战不阻止伤员转入另一座安全友城', () {
     final c = nationalScenario(
       ai: false,
@@ -171,10 +214,23 @@ void main() {
   });
 
   test('无任务野外将领不能回满员战城时，改攻有能力攻取的敌城', () {
-    final c = nationalScenario(ai: false, level: 1, guards: [0, 18], gold: 500);
+    final c = nationalScenario(
+      ai: false,
+      level: 1,
+      guards: [0, 18],
+      gold: 500,
+      stock: {
+        '1': {'0': 1},
+      },
+    );
     addTearDown(c.dispose);
     final hero = c.garrisonAt(1).first;
-    final march = c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!;
+    final march = c.dispatchTo(
+      hero,
+      const GamePoint(400, 500),
+      countryId: 1,
+      weaponSlots: {0: 0},
+    )!;
     march.position = const GamePoint(400, 500);
     march.camp();
     final enemy = approaching(c, distance: 0);
@@ -461,6 +517,9 @@ void main() {
         guards: [0, 18],
         friendly: true,
         friendHeroes: [19],
+        stock: {
+          '1': {'0': 1},
+        },
         overrides: {
           0: {'combat': 8},
           40: {'combat': 63},
@@ -468,7 +527,7 @@ void main() {
       );
       addTearDown(c.dispose);
       final hero = c.garrisonAt(1).first;
-      c.dispatch(hero, c.world.cities[2], countryId: 1);
+      c.dispatch(hero, c.world.cities[2], countryId: 1, weaponSlots: {0: 0});
       final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
       final view = AiObservation.fromJson({
         ...original.toJson(),

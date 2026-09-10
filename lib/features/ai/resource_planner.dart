@@ -68,6 +68,7 @@ class ResourcePlanner {
       );
     }
     final objective = objectives.firstOrNull;
+    final recruitmentFronts = initial.recruitmentFronts(objectives);
     final coalition = objective == null
         ? null
         : CoalitionPolicy(objective.country, view, rules);
@@ -149,6 +150,58 @@ class ResourcePlanner {
     }
     for (final city in cities) {
       if (groups.length >= rules.tuning.maxCommands - 2) break;
+      final desiredAssault = operations.desiredAssaultHeroes(ledger);
+      final strongest = view.heroes
+          .where((h) => h.country == view.country && !h.marked)
+          .fold<int>(0, (n, h) => math.max(n, h.combat));
+      final strongThreshold = math.max(12, strongest * .8);
+      final readyAssault = view.heroes
+          .where(
+            (h) =>
+                h.country == view.country &&
+                !h.marked &&
+                !ledger.removed.contains(h.id) &&
+                h.hp >= h.maxHp * .65 &&
+                h.combat >= strongThreshold &&
+                (!h.stationed || ledger.canSpareForOffense(h)),
+          )
+          .length;
+      final needQuality =
+          desiredAssault >= 2 &&
+          readyAssault + ledger.recruited.length < desiredAssault &&
+          view.cities.any((c) => c.country != view.country);
+      if (needQuality &&
+          reports[city.id]?.threatened != true &&
+          ledger.garrison(city.id).length >= city.rearStagingCapacity) {
+        final redundant =
+            ledger
+                .garrison(city.id)
+                .where(
+                  (h) =>
+                      h.canDismiss &&
+                      h.combat <= rules.tuning.attritionCombatCeiling &&
+                      h.politics <= rules.integer('drawCost') &&
+                      !valuableGovernor(h) &&
+                      ledger.canSpareForOffense(h),
+                )
+                .toList()
+              ..sort(
+                (a, b) =>
+                    heroStrategicValue(a).compareTo(heroStrategicValue(b)),
+              );
+        if (redundant.isNotEmpty) {
+          final next = ledger.copy(), hero = redundant.first;
+          if (next.dismiss(hero)) {
+            accept(
+              next,
+              [AiAction(AiActionKind.dismiss, hero: hero.id)],
+              '安全后方清理低价值冗余编制，保留实际守将和内政将领，为强攻主力补员',
+              city,
+              hero: hero,
+            );
+          }
+        }
+      }
       final local = ledger.garrison(city.id);
       final governors = local.where((h) => h.canUpgrade).toList()
         ..sort((a, b) => b.politics.compareTo(a.politics));
@@ -206,10 +259,20 @@ class ResourcePlanner {
           if (readiness.teamSize > 0) {
             if (coalition?.dangerous == true &&
                 target.country == objective?.country) {
-              team = readiness.teamSize;
+              team = operations.raidTeamSize(
+                readiness.teamSize,
+                target,
+                ledger,
+                lead: lead,
+              );
               break;
             }
-            team = readiness.teamSize;
+            team = operations.raidTeamSize(
+              readiness.teamSize,
+              target,
+              ledger,
+              lead: lead,
+            );
             break;
           }
         }
@@ -217,8 +280,11 @@ class ResourcePlanner {
         extraHeroes = team;
       }
       final needHero =
+          (recruitmentFronts.contains(city.id) ||
+              reports[city.id]?.threatened == true) &&
           view.cities.any((c) => c.country != view.country) &&
-          (local.isEmpty ||
+          (needQuality ||
+              local.isEmpty ||
               extraHeroes > 0 &&
                   ledger.assignedHeroCount(city.id) <
                       ledger.defendersToKeep(city) + extraHeroes);
@@ -340,13 +406,19 @@ class ResourcePlanner {
             gear,
           );
           final queued = focus.assignedTo(target.id);
-          final needed = readiness.teamSize - queued;
+          final teamSize = operations.raidTeamSize(
+            readiness.teamSize,
+            target,
+            ledger,
+            lead: hero,
+          );
+          final needed = teamSize - queued;
           final secondary = focus.primary != null && focus.primary != target.id;
           if (readiness.teamSize == 0 ||
               needed <= 0 ||
               needed > nearby.length ||
               secondary &&
-                  (readiness.teamSize != 1 ||
+                  (teamSize != 1 ||
                       readiness.lower < rules.tuning.splitAdvantageMargin)) {
             continue;
           }
@@ -427,7 +499,7 @@ class ResourcePlanner {
           if (ledger.gold < neededGold) {
             if (requiredGold == 0 || neededGold < requiredGold) {
               requiredGold = neededGold;
-              requiredHeroes = readiness.teamSize;
+              requiredHeroes = teamSize;
               savingTarget = target.id;
             }
             continue;
@@ -444,7 +516,7 @@ class ResourcePlanner {
             accept(
               next,
               purchases,
-              '按目标城防与守将配齐${readiness.teamSize}名进攻将领的武器，预留整队粮草',
+              '按目标城防与守将配齐$teamSize名进攻将领的高级武器，预留整队粮草',
               view.city(hero.city)!,
             );
           }

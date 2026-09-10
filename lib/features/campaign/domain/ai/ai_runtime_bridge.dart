@@ -455,6 +455,48 @@ class _AiCoordinator {
 extension _AiSafety on CampaignState {
   bool _automatedCountry(int id) => aiEnabled && (id != 0 || aiControlsPlayer);
 
+  bool _aiSafeRear(int id) {
+    final owner = cities[id]!.ownerCountryId;
+    final definition = world.cities.firstWhere((c) => c.id == id);
+    (AiPoint, double) area(CityDefinition c) {
+      final bounds = cityBounds(c), center = bounds.center;
+      final radius = _cityContact(c).outline.fold<double>(
+        0,
+        (n, p) => math.max(n, (p + bounds.topLeft - center).distance),
+      );
+      return (AiPoint(center.dx, center.dy), radius);
+    }
+
+    final ownArea = area(definition);
+    return safeRearArea(
+      ownedCities: cities.values.where((c) => c.ownerCountryId == owner).length,
+      fighting: battles[id]?.isActive == true,
+      center: ownArea.$1,
+      radius: ownArea.$2,
+      fastestSpeed:
+          GameConfig.baseMarchSpeed *
+          MovementTerrain.values.map((t) => t.speedFactor).reduce(math.max),
+      threatSeconds: GameConfig.nationalAi.threatSeconds,
+      enemyCities: world.cities
+          .where((c) => cities[c.id]!.ownerCountryId != owner)
+          .map(area),
+      enemyArmies: marches.values
+          .where(
+            (m) =>
+                m.hero.countryId != owner &&
+                m.hero.health.alive &&
+                m.visibleOnMap &&
+                !_disbandAfterBattle.contains(m.hero.id),
+          )
+          .map(
+            (m) => (
+              AiPoint(m.position.dx, m.position.dy),
+              territories.regionAt(m.position) == id,
+            ),
+          ),
+    );
+  }
+
   int _aiSafetySlots(int id, {int? overrideLevel}) {
     final battle = battles[id];
     return battle?.isActive == true
@@ -558,13 +600,20 @@ extension _AiSafety on CampaignState {
       return true;
     }
     if (march.returningFromRetreat) {
-      _protectAiCity(id, force: true, expectedArrivals: 1);
-      if (garrisonAt(id).length >= _aiSafetySlots(id)) {
-        _ai?.diagnostics.record(
-          'unsalvageableDefense：$id 城无法为已锁定返程的将领腾出名额，按原入城规则结算',
+      // 返程也不能突破本场迎战名额，更不能为了入城解雇仍在守城的将领。
+      if (!march._arrivalWaitLogged) {
+        march._arrivalWaitLogged = true;
+        _ai?.urgent(march.hero.countryId, reason: '返程将领等待安全入城名额');
+        _emitEvent(
+          GameEventKind.guardIntervention,
+          '${march.hero.name}返程抵城，等待安全入城名额',
+          hero: march.hero,
+          cityId: id,
+          source: GameEventSource.ai,
+          reason: '本场守军名额已满，保留返程和现有守将，名额恢复后自动入城',
         );
       }
-      return true;
+      return false;
     }
     if (camp(march.hero.id, countryId: march.hero.countryId)) {
       final originalDecision = _ai?._taskDecisions[march.hero.id];

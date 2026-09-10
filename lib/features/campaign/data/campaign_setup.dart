@@ -6,10 +6,10 @@ import '../../../core/config/game_config.dart';
 class CitySetup {
   const CitySetup._({required this.baseIncome, required this.initialLevel});
 
-  /// 一级城市的基础月产出，后续升级增量沿用全局规则。
+  /// 城市固定月产出，正式地图统一为十金币，升级不增加。
   final int baseIncome;
 
-  /// 开局等级，影响建筑外观、收入、储备容量和守城加成。
+  /// 开局等级，影响建筑外观、储备容量和守城加成。
   final int initialLevel;
 }
 

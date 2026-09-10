@@ -84,17 +84,20 @@ void main() {
     expect(c.battles[0]!.defender.sourceId, 0);
   });
 
-  test('JSON按文件顺序配置月俸，专属国免薪且主角仍排首位', () {
+  test('JSON按文件顺序配置月俸，不因本国身份免薪且主角仍排首位', () {
     final c = _campaign();
     final order = _catalog()
         .where((hero) => hero.id != 40)
         .map((hero) => hero.id)
         .toList();
-    expect(_catalog().length, 41);
+    expect(
+      _catalog().map((h) => h.id),
+      containsAll([0, 40, 100, 101, 102, 103, 104, 105]),
+    );
     expect(_catalog().first.id, 40);
     for (var rank = 0; rank < order.length; rank++) {
       final definition = _catalog().firstWhere((h) => h.id == order[rank]);
-      final expected = definition.nativeCountryId == 0 ? 0 : definition.salary;
+      final expected = definition.salary;
       expect(
         c.salaryFor(_catalog().firstWhere((hero) => hero.id == order[rank])),
         expected,
@@ -128,7 +131,7 @@ void main() {
     final before = c.gold;
     c.advance(60);
     expect(c.lastSettlementFor(0)!.salary, 7); // 新签约将领已预付本月。
-    expect(c.gold, before + 70 - 7);
+    expect(c.gold, before + 40 - 7);
     expect(c.lastSettlementFor(1)!.salary, 0);
   });
 

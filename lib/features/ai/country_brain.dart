@@ -227,7 +227,15 @@ class CountryBrain {
               !ledger.reservedHeroes.contains(h.id),
         )
         .toList();
+    if (ledger.gold > 0 && ledger.gold < ledger.cash().reserve) {
+      final recovery = _regroupTogether(ledger, availableField);
+      if (recovery != null) {
+        ledger = recovery.ledger;
+        groups.add(recovery.group);
+      }
+    }
     for (final hero in availableField) {
+      if (ledger.reservedHeroes.contains(hero.id)) continue;
       final task = ledger.tasks[hero.id];
       final lowFunds = ledger.gold < ledger.cash().reserve;
       final expired = task != null && task.deadlineTick < _view.tick;
@@ -544,7 +552,12 @@ class CountryBrain {
                 : 0,
           );
           final lower = readiness.lower;
-          final neededTeam = readiness.teamSize;
+          final neededTeam = operations.raidTeamSize(
+            readiness.teamSize,
+            target,
+            ledger,
+            lead: hero,
+          );
           acceptable = neededTeam > 0;
           if (!acceptable) continue;
           final secondary = focus.primary != null && target.id != focus.primary;
@@ -662,6 +675,14 @@ class CountryBrain {
         !launched &&
         groups.fold(0, (n, g) => n + g.actions.length) <
             rules.tuning.maxCommands - 3) {
+      final recruitmentFronts = ledger.recruitmentFronts(
+        _view.cities.where(
+          (c) =>
+              c.country != _view.country &&
+              openingFocus.allows(c) &&
+              operations.hasCoalitionFront(c),
+        ),
+      );
       for (final city in _view.owned) {
         if (_reports[city.id]?.threatened == true) continue;
         if (!work.candidate()) break;
@@ -674,6 +695,7 @@ class CountryBrain {
                 .toList()
               ..sort((a, b) => b.politics.compareTo(a.politics));
         final needHero =
+            recruitmentFronts.contains(city.id) &&
             _view.cities.any((c) => c.country != _view.country) &&
             (local.isEmpty ||
                 ledger.assignedHeroCount(city.id) <
@@ -793,10 +815,79 @@ class CountryBrain {
     );
   }
 
-  // 只移动安全后方的闲置驻军，抵达后再从前线重新规划；不改令任何在途军队。
+  // 多支营地同时缺钱时一起核算回城，否则每支都被其余营地的长期粮草承诺卡死。
+  PlannedOperation? _regroupTogether(AiLedger base, List<AiHero> field) {
+    final idle = field
+        .where(
+          (h) =>
+              (h.state == AiArmyState.camped ||
+                  base.tasks[h.id] == null &&
+                      !assaultIsCommitted(h, _view, base, rules)) &&
+              !h.movementPending &&
+              h.opponent == null,
+        )
+        .take(8)
+        .toList();
+    if (idle.length < 2) return null;
+    // 仅为无采购的返程合并报价；提交前恢复真实金币，并用整组任务重新验证现金低点。
+    var quote = base.copy()..gold = 1000000;
+    final groups = <AiCommandGroup>[];
+    for (final hero in idle) {
+      final destinations =
+          _view.owned.where((c) => _reports[c.id]?.threatened != true).toList()
+            ..sort(
+              (a, b) => a.center
+                  .distance(hero.position)
+                  .compareTo(b.center.distance(hero.position)),
+            );
+      for (final city in destinations.take(3)) {
+        if (!work.candidate()) return null;
+        final route = routes.to(
+          hero,
+          city.center,
+          _view,
+          target: city,
+          safe: true,
+        );
+        final option = operations.send(
+          quote,
+          hero,
+          route,
+          role: 'regroup',
+          target: city,
+          arrival: true,
+          rearSafe: true,
+          emergency: true,
+          reason: '同时安排缺钱营地回城，缩短全国粮草承诺',
+        );
+        if (option == null) continue;
+        quote = option.ledger;
+        groups.add(option.group);
+        break;
+      }
+    }
+    if (groups.length < 2) return null;
+    quote.gold = base.gold;
+    final floor = quote.cash(emergency: true).reserve;
+    if (quote.gold < floor) return null;
+    return PlannedOperation(
+      quote,
+      AiCommandGroup(
+        reason: '合并核算各支返程费用，以现有现金组织回城，不再互相预留长期扎营费',
+        actions: groups.expand((g) => g.actions).toList(),
+        tasks: groups.expand((g) => g.tasks).toList(),
+        dependencies: {for (final group in groups) ...group.dependencies},
+        minimumGold: floor,
+        emergency: true,
+      ),
+    );
+  }
+
+  // 前线空城需要接防，安全后方允许保持空城；不改令任何在途军队。
   PlannedOperation? _reinforceEmptyCities(AiLedger ledger) {
     for (final city in _view.owned) {
       if (ledger.garrison(city.id).isNotEmpty ||
+          ledger.safeRear(city) ||
           ledger.occupancy(city.id) > 0 ||
           ledger.abandoned.contains(city.id)) {
         continue;
@@ -831,7 +922,7 @@ class CountryBrain {
           hero,
           route,
           role: 'transfer',
-          reason: '空城优先接防，援军出发城保留实际守将',
+          reason: '前线空城优先接防，安全后方无需为留守牵制部队',
           target: city,
           arrival: true,
           emergency: true,
@@ -849,6 +940,7 @@ class CountryBrain {
     AiHero hero,
     ArmyTask? task,
   ) {
+    if (hero.weapons.isEmpty) return null;
     final previousTarget = task?.role == 'expedition' ? task?.city : null;
     final targets =
         _view.cities.where((c) => c.country != _view.country).toList()
@@ -963,6 +1055,15 @@ class CountryBrain {
                     heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
               );
         for (final hero in spare.take(2)) {
+          // 主力不靠转驻缩短账面距离；只调遣确实能提升前线建设效率的内政将领。
+          if (!valuableGovernor(hero) ||
+              front.level >= rules.cityUpgradeLimit(_view.year) ||
+              rear.level < rules.cityUpgradeLimit(_view.year) ||
+              ledger
+                  .garrison(front.id)
+                  .any((h) => h.politics >= hero.politics)) {
+            continue;
+          }
           if (!work.candidate()) return null;
           final route = routes.to(
             hero,
@@ -979,7 +1080,7 @@ class CountryBrain {
             target: front,
             arrival: true,
             rearSafe: true,
-            reason: '将后方闲置主力前移到安全前沿据点，缩短后续征服的行军与粮草成本',
+            reason: '后方建设已完成，安全转移高内政将领主持前线城防建设',
           );
           if (option != null) return option;
         }
@@ -1122,10 +1223,9 @@ class CountryBrain {
       final route = teamRoutes[hero.id]!;
       PlannedOperation? chosen;
       for (final gear
-          in index == 0 ||
-                  CoalitionPolicy(target.country, _view, rules).dangerous
+          in index == 0
               ? [leadGear]
-              : operations.loadouts(hero, ledger)) {
+              : operations.raidLoadouts(hero, ledger, target, assessor)) {
         if (index > 0 &&
             (breakthrough ? guards.take(1) : guards).any((guard) {
               final score = assessor.compare(

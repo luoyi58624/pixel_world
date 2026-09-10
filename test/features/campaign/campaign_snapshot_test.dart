@@ -24,6 +24,45 @@ void main() {
   Map<String, dynamic> jsonState(CampaignState c) =>
       jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
 
+  test('旧档续玩采用新月俸且取消旧驻军账单，回放不改历史数值', () {
+    final original = CampaignState.fromRom(
+      worlds.first,
+      heroes,
+      aiEnabled: false,
+      weaponCatalog: weapons,
+    );
+    addTearDown(original.dispose);
+    final data = jsonState(original)..remove('payrollVersion');
+    for (final h in data['people']) h['salary'] = 0;
+    data['garrisonBills'] = {'0': 12.5};
+    final gold = original.gold;
+    final restored = CampaignSnapshots.restore(
+      data,
+      worlds.first,
+      heroes,
+      weapons,
+    );
+    final replay = CampaignSnapshots.restore(
+      data,
+      worlds.first,
+      heroes,
+      weapons,
+      replay: true,
+    );
+    addTearDown(restored.dispose);
+    addTearDown(replay.dispose);
+    for (final h in restored.heroes) {
+      expect(h.salary, heroes.firstWhere((d) => d.id == h.sourceId).salary);
+    }
+    expect(restored.gold, gold, reason: '不追扣历史月俸');
+    expect(restored.garrisonUpkeepAccruedFor(0), 0);
+    expect(replay.heroes.every((h) => h.salary == 0), isTrue);
+    expect(replay.garrisonUpkeepAccruedFor(0), 12.5);
+    restored.advance(60);
+    expect(restored.lastSettlementFor(0)!.salary, restored.salaryCost);
+    expect(restored.lastSettlementFor(0)!.garrisonUpkeep, 0);
+  });
+
   test('完整快照恢复后经济随机流与时间零头连续，连续推进仍得到同一结果', () {
     final original = CampaignState.fromRom(
       worlds.first,

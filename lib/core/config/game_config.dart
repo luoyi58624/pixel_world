@@ -80,14 +80,14 @@ abstract final class GameConfig {
   /// 丰收概率权重。
   static const abundantHarvestWeight = 1;
 
-  /// 一级城每月基础收入。
+  /// 正式地图每座城的固定月产出，升级不增收。
   static const cityBaseIncome = 10;
 
-  /// 每提升一级增加的月收入。
-  static const cityIncomePerLevel = 5;
+  /// 城防升级的收入增量保持为零，扩张城池才增加产出。
+  static const cityIncomePerLevel = 0;
 
-  /// 仍拥有城池的国家每月获得一次固定收入。
-  static const countryMonthlyIncome = 30;
+  /// 有城国家正常月基础收入，丰收加十、欠收减二十。
+  static const countryMonthlyIncome = 20;
 
   /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
   static const foreignCityYieldFactor = 1.0;
@@ -140,8 +140,8 @@ abstract final class GameConfig {
   /// 每座城免维持费的驻军人数，个人月俸规则独立计算。
   static const freeGarrisonHeroes = 2;
 
-  /// 超额驻軍人数的平方乘此值，作为每月国家军费，按驻城时间累计。
-  static const garrisonUpkeepFactor = 3;
+  /// 额外驻军费已取消，保留零值供旧存档与公共预算协议兼容。
+  static const garrisonUpkeepFactor = 0;
 
   /// 城池最高等级；现有原版建筑支持 1 到 5 级。
   static const maxCityLevel = 5;

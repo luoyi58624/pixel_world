@@ -203,6 +203,7 @@ double heroStrategicValue(AiHero h) =>
     h.hp * .15 +
     h.politics * 1.5 -
     h.salary * 2 +
+    (valuableGovernor(h) ? 500 : 0) +
     (h.type == 2
         ? 1000
         : h.type == 1
@@ -211,7 +212,7 @@ double heroStrategicValue(AiHero h) =>
 
 /// 同等战力下优先派出低内政将领，让重要主持者继续在城中发挥作用。
 double heroDeploymentValue(AiHero h, {bool preserveGovernor = true}) =>
-    h.combat * 3 +
+    h.combat * 100 +
     h.maxHp * .35 +
     h.hp * .15 -
     h.salary * 2 -
@@ -221,6 +222,9 @@ double heroDeploymentValue(AiHero h, {bool preserveGovernor = true}) =>
         : h.type == 2
         ? -200
         : 0);
+
+/// 高内政将领保留建设价值，不作为主动消耗敌军的牺牲人选。
+bool valuableGovernor(AiHero hero) => hero.politics >= 15;
 
 /// 仅用于选择需要细评的对手或守军，避免内政和稀有度冒充当前战力。
 double heroCombatValue(AiHero h, AiRules rules) =>

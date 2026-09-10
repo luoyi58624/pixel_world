@@ -68,6 +68,8 @@ CampaignState nationalScenario({
   int required = 2,
   bool ai = true,
   bool friendly = false,
+  bool rearEmpire = false,
+  bool hostileEmpire = false,
   int friendlyLevel = 3,
   List<int> friendHeroes = const [],
   bool recruitment = false,
@@ -77,12 +79,26 @@ CampaignState nationalScenario({
   Map<String, dynamic> stock = const {},
   int terrain = 0,
   bool originalWeapons = false,
+  math.Random? retreatRandom,
 }) {
   final records = [
     (0, 110, 48, 0, [40], 5),
     (1, 10, 20, 1, guards, level),
-    (2, 50, 20, 2, [2], 2),
-    if (friendly) (3, 16, 30, 1, friendHeroes, friendlyLevel),
+    (2, rearEmpire ? 100 : 50, 20, 2, [2], 2),
+    if (friendly || rearEmpire)
+      (
+        3,
+        rearEmpire ? 75 : 16,
+        rearEmpire ? 20 : 30,
+        1,
+        friendHeroes,
+        friendlyLevel,
+      ),
+    if (rearEmpire) (4, 60, 45, 1, [4], friendlyLevel),
+    if (hostileEmpire) ...[
+      (5, 116, 10, 2, <int>[], 1),
+      (6, 116, 50, 2, <int>[], 1),
+    ],
   ];
   final setup = CampaignSetup.decode(
     jsonEncode({
@@ -168,7 +184,7 @@ CampaignState nationalScenario({
     economyRandom: math.Random(11),
     recruitmentRandom: math.Random(7),
     siegeRandom: math.Random(3),
-    retreatRandom: math.Random(5),
+    retreatRandom: retreatRandom ?? math.Random(5),
     weaponRandom: math.Random(17),
   );
   campaign.settledMonths = 36; // 此组检验完整武器与经营调度，开局限制由独立测试覆盖。

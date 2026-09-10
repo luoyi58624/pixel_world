@@ -25,7 +25,7 @@ void main() {
       expect(policy.dangerous, cities >= 3);
       expect(
         policy.extraGold,
-        cities < 3 ? 0 : (50 * (.5 + (cities - 3) * .25)).ceil(),
+        cities < 3 ? 0 : (30 * (.5 + (cities - 3) * .25)).ceil(),
       );
       if (cities >= 3) {
         expect(policy.extraGold, greaterThan(previous));
@@ -189,18 +189,18 @@ void main() {
 
   test('围攻提高招聘月俸预算，实际签约成本照常扣除，不修改资源', () {
     for (final cities in [2, 3]) {
-      final c = coalitionCampaign(enemyCities: cities);
+      final c = coalitionCampaign(enemyCities: cities, year: 1);
       addTearDown(c.dispose);
       final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
       final view = AiObservation.fromJson({
         ...original.toJson(),
         'pool': 5,
-        'salary': 10,
+        'salary': 6,
         'heroes': [
           for (final h in original.heroes)
             // 三名现役使本测试隔离月俸门槛，避免先触发新增驻军维持费上限。
             if (h.id != 'rom-18')
-              {...h.toJson(), 'pay': h.country == 1 ? 8 : 0},
+              {...h.toJson(), 'pay': h.country == 1 ? 5 : 0},
         ],
         'cities': [
           for (final city in original.cities)
@@ -213,7 +213,7 @@ void main() {
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
       expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), cities == 3);
-      expect(ledger.gold, cities == 3 ? 985 : 1000);
+      expect(ledger.gold, cities == 3 ? 989 : 1000);
       expect(c.goldFor(1), 1000);
     }
   });

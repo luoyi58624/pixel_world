@@ -593,7 +593,12 @@ extension _AiCommands on CampaignState {
                       cities[t.city]?.ownerCountryId == countryId,
                 ),
           );
-      if (!evacuation) return false;
+      final mobilization =
+          guards.every(
+            (h) => !removed.contains(h.id) && departing.contains(h.id),
+          ) &&
+          _aiSafeRear(entry.key);
+      if (!evacuation && !mobilization) return false;
     }
     final incoming = <int, int>{};
     for (final task in _ai?.tasks.values ?? <ArmyTask>[]) {

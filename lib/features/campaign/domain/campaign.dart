@@ -22,6 +22,7 @@ import '../../weapons/domain/weapon.dart';
 import '../../events/domain/game_events.dart';
 import '../../ai/geometry.dart';
 import '../../ai/threat_geometry.dart';
+import '../../ai/rear_safety.dart';
 import '../../ai/observation.dart';
 import '../../ai/protocol.dart';
 import '../../ai/rules_data.dart';
@@ -92,7 +93,7 @@ class CitySituation {
   /// 基础城防，用于界面展示。
   final int defense;
 
-  /// 一级城市的基础月收入。
+  /// 城市固定月产出，升级不提高。
   final int baseIncome;
   int _level;
 
@@ -105,7 +106,7 @@ class CitySituation {
   /// AI 后方部队分布参考值，不限制招募或玩家驻军。
   int get rearStagingCapacity => level + 1;
 
-  /// 正常月收入随等级增长，占领地按相同规则计算。
+  /// 城池固定产出，占领地与本土同额。
   int get income => incomeFor(Harvest.normal);
 
   /// 收成在国家月结中只算一次，单城不重复添加丰欠收奖励。
@@ -942,7 +943,7 @@ class CampaignState {
   List<RomHeroDefinition> get recruitPool =>
       List.unmodifiable(_heroPool.values);
 
-  /// 招募预览和签约共用实际月俸，专属国家不收费。
+  /// 招募预览和签约共用 JSON 月俸，本国将领同样付薪。
   int salaryFor(RomHeroDefinition hero, {int countryId = 0}) =>
       hero.salaryFor(countryId);
 
@@ -1502,7 +1503,9 @@ class CampaignState {
                 .fold(0, (sum, hero) => sum + hero.salary)
           : 0;
       final before = goldFor(id);
-      final accrued = owned.isEmpty ? 0.0 : garrisonUpkeepAccruedFor(id);
+      final accrued = owned.isEmpty || GameConfig.garrisonUpkeepFactor == 0
+          ? 0.0
+          : garrisonUpkeepAccruedFor(id);
       final upkeep = (accrued + 1e-9).floor();
       _garrisonBills[id] = math.max(0, accrued - upkeep);
       final after = math.max(0, before + income - salary - upkeep);

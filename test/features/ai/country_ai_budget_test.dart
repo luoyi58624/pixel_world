@@ -27,7 +27,7 @@ class _Poor implements math.Random {
   @override
   int nextInt(int max) {
     calls++;
-    return 50 % max;
+    return 1 % max;
   }
 
   @override
@@ -210,9 +210,14 @@ void main() {
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, greaterThan(5)); // 欠收仍有五金币，预算只抵扣实际月结后到账的收入。
+    expect(moving.reserveGold, greaterThan(5)); // 欠收无净产出，已有远征仍需留足工资和粮草。
     b.camp();
-    expect(c.aiBudgetFor(1).reserveGold, lessThan(moving.reserveGold));
+    expect(
+      c.aiBudgetFor(1).reserveGold,
+      GameConfig.campSupplyRate == 1
+          ? moving.reserveGold
+          : lessThan(moving.reserveGold),
+    );
     expect(c.aiBudgetFor(0).reserveGold, 5);
     c.advance(59.9);
     expect(
@@ -290,7 +295,7 @@ void main() {
   });
 
   test('先保护既有远征，连续经营经过欠收月结仍有粮草，资金充足也确实派兵', () {
-    final c = _campaign(salary: 2);
+    final c = _campaign(salary: 2, gold: 500);
     advanceAi(c, 8);
     expect(c.marches, isNotEmpty);
     expect(c.garrisonAt(1), isNotEmpty);
@@ -308,7 +313,7 @@ void main() {
       );
     }
     expect(c.lastSettlementFor(1)!.harvest.name, 'poor');
-    expect(c.goldFor(0), 110); // 玩家国库只受自己的月结影响。
+    expect(c.goldFor(0), 110); // 单城欠收产出十金币，玩家国库不受敌国经营影响。
   });
 
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {
@@ -337,7 +342,7 @@ void main() {
     final c = _campaign(gold: 2, income: 0, stock: 0);
     final a = c.dispatchTo(
       _hero(c, 0),
-      const GamePoint(1900, 30),
+      const GamePoint(400, 100),
       countryId: 1,
     )!;
     final b = c.dispatchTo(
@@ -356,7 +361,12 @@ void main() {
     for (var i = 0; i < 600; i++) {
       c.advance(1 / 60);
     }
-    expect(c.marches, isEmpty);
+    expect(
+      c.marches,
+      isEmpty,
+      reason:
+          '${c.aiDiagnostics.events}\n${c.aiBudgetFor(1).reserveGold} / ${c.goldFor(1)}\n${c.aiTasks.values.map((t) => t.toJson()).toList()}\n${c.aiObservationFor(1).heroes.where((h) => h.country == 1).map((h) => h.toJson()).toList()}',
+    );
     expect(c.garrisonAt(1), isNotEmpty);
     expect(c.goldFor(1), greaterThan(0));
   });
