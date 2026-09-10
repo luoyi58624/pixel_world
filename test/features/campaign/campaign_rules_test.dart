@@ -50,7 +50,7 @@ void main() {
     final catalog = _catalog();
     final heroes = {for (final hero in catalog) hero.id: hero};
     expect(catalog.first.id, 40);
-    expect(heroes.length, 51);
+    expect(heroes.length, 47);
     expect(heroes[0]!.name, '泽拉斯');
     expect(
       [

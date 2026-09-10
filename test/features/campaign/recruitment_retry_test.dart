@@ -32,15 +32,20 @@ CampaignState _campaign({int gold = 500, _Pick? random}) {
 }
 
 void main() {
-  test('十位扩展将领可逐个抽取签约，使用配置姓名、类型和月俸', () {
+  test('六位扩展将领可逐个抽取签约，使用配置姓名、类型和月俸', () {
     final random = _Pick();
     final c = _campaign(random: random);
     addTearDown(c.dispose);
     final added = c.recruitPool.where((hero) => hero.id >= 100).toList();
-    expect(added.length, 10);
-    expect(added.where((hero) => hero.type == HeroType.advanced).length, 3);
-    expect(added.where((hero) => hero.type == HeroType.normal).length, 7);
-    expect(added.map((hero) => hero.name).toSet().length, 10);
+    expect(added.length, 6);
+    expect(added.map((hero) => hero.name), [
+      '哈梅耶',
+      '扎克',
+      '莫莫',
+      '巴库',
+      '基拉',
+      '戈鲁格',
+    ]);
     for (final definition in added) {
       expect(definition.nativeCountryId, isNull);
       random.index = c.recruitPool.indexWhere(
