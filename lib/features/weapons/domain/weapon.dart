@@ -65,7 +65,7 @@ class WeaponCatalog {
   );
 
   /// 简化测试地图可不启用武器系统。
-  static const empty = WeaponCatalog._({}, 3, {});
+  static const empty = WeaponCatalog._({}, 1, {});
 
   /// 读取配置，拒绝重复编号、非法库存及超出原版的携带上限。
   factory WeaponCatalog.decode(String source) {
@@ -115,7 +115,7 @@ class WeaponCatalog {
         return year != 0 ? year : a.price.compareTo(b.price);
       });
 
-  /// 一位将领的携带上限，默认三件。
+  /// 一位将领的携带上限，正式目录为一件；原版分析目录仍可保留原值。
   final int carryLimit;
 
   /// 每张地图初始化时复制的国家库存，可配置原版事件武器。

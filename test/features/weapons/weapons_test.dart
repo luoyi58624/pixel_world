@@ -27,14 +27,16 @@ void main() {
       File('docs/nes_weapons_evidence.json').readAsStringSync(),
     );
     expect(catalog.weapons.length, 12);
-    expect(catalog.carryLimit, 3);
+    expect(catalog.carryLimit, 1);
+    expect(catalog.shopWeapons.map((w) => w.price),
+        List.generate(12, (i) => (i + 1) * 5));
     expect(catalog.weapons.values.where((w) => w.shopEnabled).length, 12);
     for (final row in evidence['examples']) {
       if ([6, 7, 8].contains(row['id'])) continue;
-      expect(catalog.weapons[row['id']]!.damage, row['damage']);
+      expect(catalog.weapons[row['id']]!.damage, (row['damage'] as int) + 5);
     }
     expect(catalog.weapons[0]!.name, '箭');
-    expect(catalog.weapons[0]!.price, 3);
+    expect(catalog.weapons[0]!.price, 5);
     expect(catalog.weapons.keys, isNot(contains(anyOf(6, 7, 8))));
     expect(
       catalog.weapons.values.every(
@@ -108,7 +110,7 @@ void main() {
     for (var i = 0; i < 12; i++) {
       expect(c.buyWeapon(0, countryId: 1), isTrue);
     }
-    expect(c.goldFor(1), 57);
+    expect(c.goldFor(1), 25);
     expect(c.weaponInventoryFor(1), {1: 1, 0: 12});
     expect(c.weaponStorageUsed(1), 13);
     expect(a.weaponIds, isEmpty);
@@ -116,7 +118,7 @@ void main() {
     expect(c.buyWeapon(0, countryId: 9), isFalse);
     c.cities[2]!.ownerCountryId = 1;
     expect(c.buyWeapon(1, countryId: 1), isTrue);
-    expect(c.goldFor(1), 50);
+    expect(c.goldFor(1), 10);
     expect(() => c.weaponInventoryFor(1)[0] = 99, throwsUnsupportedError);
     final stocked = weaponStrategyCampaign(
       catalog: testWeaponCatalog(
@@ -130,7 +132,7 @@ void main() {
     expect(stocked.weaponStockFor(1, 0), 10001);
   });
 
-  test('出征按同类实际件数原子取用，非法目标、超三件、重复命令均不扣库存或兵员', () {
+  test('出征只带一件，非法目标、超一件、重复命令均不扣库存或兵员', () {
     final c = weaponStrategyCampaign();
     final a = weaponHero(c, 0), b = weaponHero(c, 2);
     for (var i = 0; i < 3; i++) {
@@ -156,20 +158,20 @@ void main() {
     expect(c.weaponStockFor(1, 0), 3);
     expect(c.reserveSoldiersFor(1), troops);
     expect(
-      c.dispatch(a, target, countryId: 1, weaponSlots: {0: 0, 1: 0}),
+      c.dispatch(a, target, countryId: 1, weaponSlots: {0: 0}),
       isNotNull,
     );
-    expect(a.weaponIds, [0, 0]);
+    expect(a.weaponIds, [0]);
     expect(
       c.dispatch(b, target, countryId: 1, weaponSlots: {0: 0, 1: 0}),
       isNull,
     );
-    expect(c.weaponStockFor(1, 0), 1);
+    expect(c.weaponStockFor(1, 0), 2);
     expect(c.dispatch(b, target, countryId: 1, weaponSlots: {0: 0}), isNotNull);
-    expect(c.weaponInventoryFor(1), isEmpty);
+    expect(c.weaponInventoryFor(1), {0: 1});
     expect(c.dispatch(a, target, countryId: 1, weaponSlots: {0: 0}), isNull);
     expect(c.buyWeapon(0, countryId: 1), isTrue);
-    expect(a.weaponIds, [0, 0]);
+    expect(a.weaponIds, [0]);
   });
 
   test('武器锁定动作即消耗一次，守城模型拒绝使用，野战双方仍可使用', () {
@@ -181,7 +183,7 @@ void main() {
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 0, 1: 0},
+      weaponSlots: {0: 0},
     )!;
     march.position = march.destination;
     c.advance(.02);
@@ -197,9 +199,9 @@ void main() {
     }
     expect(
       battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
-      before - 20,
+      before - 25,
     );
-    expect(hero.weaponIds, [0]);
+    expect(hero.weaponIds, isEmpty);
     final sim = BattleSimulation(
       attacker: _army('a'),
       defender: _army('b'),
@@ -231,7 +233,7 @@ void main() {
       hero,
       const GamePoint(380, 340),
       countryId: 1,
-      weaponSlots: {0: 1, 1: 0, 2: 0},
+      weaponSlots: {0: 1},
     )!;
     expect(other.weaponStockFor(1, 1), 1);
     for (var i = 0; i < 8; i++) {

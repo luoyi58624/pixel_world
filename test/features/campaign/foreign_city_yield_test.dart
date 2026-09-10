@@ -106,14 +106,14 @@ void main() {
 
   for (final (roll, income, adjustment) in [
     (0, 76, 0),
-    (50, 46, -30),
-    (75, 106, 30),
+    (1, 56, -20),
+    (2, 86, 10),
   ]) {
     test('收成 $roll：本土和占领地同额结算，月结、记录与AI保守收入一致', () {
       final c = _campaign(harvestRoll: roll);
       c.cities[1]!.ownerCountryId = 0;
       expect(c.cities[1]!.income, 21);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 46);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 56);
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 3);
@@ -126,16 +126,16 @@ void main() {
   }
 
   test('NPC占据玩家本土同样全额，计算收益不按玩家身份特判', () {
-    final c = _campaign(harvestRoll: 50);
+    final c = _campaign(harvestRoll: 1);
     c.cities[2]!.ownerCountryId = 1;
     expect(c.cities[2]!.nativeCountryId, 0);
     expect(c.cities[2]!.income, 10);
     expect(c.reserveCapacityFor(1), 20);
-    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 41);
+    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 51);
     c.advance(60);
     expect(c.lastSettlementFor(1)!.baseIncome, 71);
-    expect(c.lastSettlementFor(1)!.adjustment, -30);
-    expect(c.goldFor(1), 1000 + 41 - c.lastSettlementFor(1)!.salary);
+    expect(c.lastSettlementFor(1)!.adjustment, -20);
+    expect(c.goldFor(1), 1000 + 51 - c.lastSettlementFor(1)!.salary);
   });
 
   test('占城及升级仅增加折算后的国家容量，英雄容量与现有库存不减半', () {

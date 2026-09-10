@@ -1,13 +1,13 @@
 {
   "version": 1,
   "sourceSha256": "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59",
-  "carryLimit": 3,
+  "carryLimit": 1,
   "weapons": [
     {
       "id": 0,
       "name": "箭",
-      "price": 3,
-      "damage": 20,
+      "price": 5,
+      "damage": 25,
       "selfDamage": 0,
       "romPrice": 3,
       "romDamage": 20,
@@ -32,8 +32,8 @@
     {
       "id": 1,
       "name": "矛",
-      "price": 7,
-      "damage": 30,
+      "price": 15,
+      "damage": 35,
       "selfDamage": 0,
       "romPrice": 7,
       "romDamage": 30,
@@ -58,8 +58,8 @@
     {
       "id": 2,
       "name": "刀",
-      "price": 12,
-      "damage": 40,
+      "price": 25,
+      "damage": 45,
       "selfDamage": 0,
       "romPrice": 12,
       "romDamage": 40,
@@ -87,8 +87,8 @@
     {
       "id": 3,
       "name": "枪",
-      "price": 16,
-      "damage": 50,
+      "price": 35,
+      "damage": 55,
       "selfDamage": 0,
       "romPrice": 16,
       "romDamage": 50,
@@ -117,8 +117,8 @@
     {
       "id": 4,
       "name": "圣枪",
-      "price": 20,
-      "damage": 60,
+      "price": 45,
+      "damage": 65,
       "selfDamage": 0,
       "romPrice": 20,
       "romDamage": 60,
@@ -147,8 +147,8 @@
     {
       "id": 5,
       "name": "陆龙卷",
-      "price": 25,
-      "damage": 70,
+      "price": 55,
+      "damage": 75,
       "selfDamage": 0,
       "romPrice": 25,
       "romDamage": 70,
@@ -176,8 +176,8 @@
     {
       "id": 9,
       "name": "斧",
-      "price": 5,
-      "damage": 25,
+      "price": 10,
+      "damage": 30,
       "selfDamage": 0,
       "romPrice": 5,
       "romDamage": 25,
@@ -204,8 +204,8 @@
     {
       "id": 10,
       "name": "剑",
-      "price": 10,
-      "damage": 35,
+      "price": 20,
+      "damage": 40,
       "selfDamage": 0,
       "romPrice": 10,
       "romDamage": 35,
@@ -232,8 +232,8 @@
     {
       "id": 11,
       "name": "钩",
-      "price": 14,
-      "damage": 45,
+      "price": 30,
+      "damage": 50,
       "selfDamage": 0,
       "romPrice": 14,
       "romDamage": 45,
@@ -261,8 +261,8 @@
     {
       "id": 12,
       "name": "戟",
-      "price": 18,
-      "damage": 55,
+      "price": 40,
+      "damage": 60,
       "selfDamage": 0,
       "romPrice": 18,
       "romDamage": 55,
@@ -290,8 +290,8 @@
     {
       "id": 13,
       "name": "杖",
-      "price": 22,
-      "damage": 65,
+      "price": 50,
+      "damage": 70,
       "selfDamage": 0,
       "romPrice": 22,
       "romDamage": 65,
@@ -319,8 +319,8 @@
     {
       "id": 14,
       "name": "炮",
-      "price": 27,
-      "damage": 75,
+      "price": 60,
+      "damage": 80,
       "selfDamage": 0,
       "romPrice": 27,
       "romDamage": 75,
@@ -354,6 +354,6 @@
     "damage": "DE8D–DE92 取高五位，bank5 A92A 读取 A966+效果ID，调用 E40C 直接伤害。",
     "selfDamage": "bank5 A934–A93F：效果8追加对己方255点伤害。",
     "consume": "DE82–DE8A：先读取705D+英雄ID×3+槽号，再以FF清空。",
-    "gameplay": "每个对阵最多使用一件，攻城更换守将后重新获得一次机会。商店按每行三件排序，每年解锁一行，共四行。"
+    "gameplay": "每名将领最多携带一件，用完后战斗中不补装；十二种武器伤害在原值上增加5，售价按商店顺序从5起每种增加5。商店每行三种，每年解锁一行，共四行。原始价格和伤害保留在romPrice、romDamage中。"
   }
 }

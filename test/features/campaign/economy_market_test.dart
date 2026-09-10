@@ -74,25 +74,29 @@ void main() {
     expect(c.gold, 50);
     c.advance(0.01);
     expect(c.dateLabel, '1年2月');
-    expect(c.gold, 90);
+    expect(c.gold, 87);
+    expect(c.lastSettlementFor(0)!.garrisonUpkeep, 3);
     expect(c.lastSettlementFor(0)!.month, 1);
     final foreign = c.lastSettlementFor(1)!;
-    expect(c.goldFor(1), 50 + foreign.baseIncome - foreign.salary);
+    expect(
+      c.goldFor(1),
+      50 + foreign.baseIncome - foreign.salary - foreign.garrisonUpkeep,
+    );
     c.advance(660);
     expect(c.dateLabel, '2年1月');
     expect(c.settledMonths, 12);
-    expect(c.gold, 530);
+    expect(c.gold, 494);
   });
 
-  test('概率边界严格为正常50份、欠收25份、丰收25份', () {
+  test('三种收成等权抽取，每种恰好覆盖三分之一随机取值', () {
     final counts = {for (final value in Harvest.values) value: 0};
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 300; i++) {
       counts.update(Harvest.draw(_RandomValue(i)), (value) => value + 1);
     }
     expect(counts, {
-      Harvest.normal: 50,
-      Harvest.poor: 25,
-      Harvest.abundant: 25,
+      Harvest.normal: 100,
+      Harvest.poor: 100,
+      Harvest.abundant: 100,
     });
   });
 
@@ -106,7 +110,7 @@ void main() {
       );
       expect(city.income, 10 + (level - 1) * 5);
     }
-    for (final entry in {0: 0, 50: -30, 75: 30}.entries) {
+    for (final entry in {0: 0, 1: -20, 2: 10}.entries) {
       final c = _campaign(gold: 10000, economy: _RandomValue(entry.key));
       c.cities[1]!.ownerCountryId = 0;
       final governor = _hero(c, 0)..cityId = 1;
@@ -143,11 +147,12 @@ void main() {
       'soldierLimit': 4,
     });
     expect(CampaignHero.fromRom(definition, cityId: 0, countryId: 0).salary, 0);
-    final poor = _campaign(gold: 1, economy: _RandomValue(50));
+    final poor = _campaign(gold: 1, economy: _RandomValue(1));
     poor.advance(60);
-    expect(poor.gold, 11);
-    expect(poor.lastSettlementFor(0)!.netIncome, 10);
-    expect(poor.lastSettlementFor(0)!.actualChange, 10);
+    expect(poor.gold, 18);
+    expect(poor.lastSettlementFor(0)!.garrisonUpkeep, 3);
+    expect(poor.lastSettlementFor(0)!.netIncome, 17);
+    expect(poor.lastSettlementFor(0)!.actualChange, 17);
     expect(poor.defeated, isFalse);
   });
 

@@ -71,14 +71,14 @@ abstract final class GameConfig {
   /// 每点仇恨增加的反击目标权重，满值提供三倍权重。
   static const countryHatredWeightPerPoint = 0.02;
 
-  /// 正常、欠收、丰收的相对权重，默认对应 50%、25%、25%。
-  static const normalHarvestWeight = 50;
+  /// 正常、欠收、丰收等概率，各占三分之一。
+  static const normalHarvestWeight = 1;
 
   /// 欠收概率权重。
-  static const poorHarvestWeight = 25;
+  static const poorHarvestWeight = 1;
 
   /// 丰收概率权重。
-  static const abundantHarvestWeight = 25;
+  static const abundantHarvestWeight = 1;
 
   /// 一级城每月基础收入。
   static const cityBaseIncome = 10;
@@ -129,10 +129,10 @@ abstract final class GameConfig {
   static const aiRaidRetrySeconds = 15.0;
 
   /// 丰收时整个国家额外增加一次的收入。
-  static const abundantHarvestBonus = 30;
+  static const abundantHarvestBonus = 10;
 
   /// 欠收时整个国家额外减少一次的收入。
-  static const poorHarvestPenalty = 30;
+  static const poorHarvestPenalty = 20;
 
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;
@@ -160,7 +160,7 @@ abstract final class GameConfig {
           .clamp(1, maxCityLevel);
 
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
-  static const List<int> cityUpgradeCosts = [30, 60, 100, 160];
+  static const List<int> cityUpgradeCosts = [30, 50, 80, 120];
 
   /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;

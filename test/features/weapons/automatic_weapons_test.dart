@@ -39,7 +39,7 @@ class _Roll implements math.Random {
   final march = c.dispatch(
     hero,
     c.world.cities[2],
-    weaponSlots: {0: 0, 1: 0, 2: 0},
+    weaponSlots: {0: 0},
   )!;
   march.position = march.destination;
   c.advance(1 / 60);
@@ -93,7 +93,7 @@ void main() {
     expect(random.calls, 0);
   });
 
-  test('连续对阵新守将时重新执行开场规则，每个对阵只消耗一件', () {
+  test('首轮消耗唯一武器，换守将不会从国家仓库自动补装', () {
     final data = jsonDecode(
       File('assets/data/rom_weapons.json').readAsStringSync(),
     );
@@ -112,21 +112,18 @@ void main() {
     final march = c.dispatch(
       hero,
       c.world.cities[2],
-      weaponSlots: {0: 0, 1: 0, 2: 0},
+      weaponSlots: {0: 0},
     )!;
     march.position = march.destination;
     c.advance(1 / 60);
     final battle = c.battles[2]!;
-    for (var wave = 1; wave <= 3; wave++) {
-      _until(
-        c,
-        () => battle.wave == wave && battle.simulation.weaponStrike != null,
-      );
-      expect(hero.weaponIds.length, 3 - wave);
-      expect(battle.simulation.clashes, 0);
-      _until(c, () => battle.simulation.weaponStrike == null);
-    }
-    _until(c, () => c.cities[2]!.ownerCountryId == 0);
+    _until(c, () => battle.simulation.weaponStrike != null);
+    expect(hero.weaponIds, isEmpty);
+    _until(c, () => battle.wave == 2);
+    c.advance(3);
+    expect(battle.simulation.weaponStrike, isNull);
+    expect(hero.weaponIds, isEmpty);
+    expect(c.weaponStockFor(0, 0), 2);
     expect(random.calls, 0);
   });
 
@@ -134,22 +131,22 @@ void main() {
     test('玩家开场自动消耗一件，碰撞分位 $value 不再消费武器，空余帧不掷骰', () {
       final random = _Roll(value);
       final (c, battle) = _battle(random);
-      expect(battle.attacker.weaponIds.length, 3);
+      expect(battle.attacker.weaponIds.length, 1);
       _until(c, () => battle.simulation.weaponStrike != null);
-      expect(battle.attacker.weaponIds.length, 2);
+      expect(battle.attacker.weaponIds, isEmpty);
       expect(battle.simulation.clashes, 0);
       expect(random.calls, 0);
       c.advance(.5);
-      expect(battle.attacker.weaponIds.length, 2);
+      expect(battle.attacker.weaponIds, isEmpty);
       expect(random.calls, 0);
       _until(c, () => battle.simulation.weaponStrike == null);
-      expect(battle.attacker.weaponIds.length, 2);
+      expect(battle.attacker.weaponIds, isEmpty);
       _until(c, () => battle.simulation.clashes == 1);
       expect(random.calls, 0);
-      expect(battle.attacker.weaponIds.length, 2);
+      expect(battle.attacker.weaponIds, isEmpty);
       c.advance(.1);
       expect(random.calls, 0);
-      expect(battle.attacker.weaponIds.length, 2);
+      expect(battle.attacker.weaponIds, isEmpty);
     });
   }
 

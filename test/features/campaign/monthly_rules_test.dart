@@ -119,7 +119,7 @@ void main() {
     expect(c.upgradeWindowBlockReason(0), isNull);
   });
 
-  for (final (roll, adjustment) in [(0.0, 0), (.5, -30), (.75, 30)]) {
+  for (final (roll, adjustment) in [(0.0, 0), (.5, -20), (.75, 10)]) {
     test('全国固定收入与收成只结算一次：$adjustment', () {
       final c = fresh(harvest: roll);
       addTearDown(c.dispose);
@@ -134,7 +134,7 @@ void main() {
       expect(report.adjustment, adjustment);
       expect(report.garrisonUpkeep, 3);
       expect(c.gold, gold + 50 + adjustment - salary - 3);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 20);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 30);
     });
   }
 
@@ -161,7 +161,7 @@ void main() {
     expect(available().length, 12);
   });
 
-  test('每个守将对阵只使用一件武器，换守将后才获得下一次机会', () {
+  test('唯一武器使用后换守将也不会重新补装', () {
     final c = fresh();
     addTearDown(c.dispose);
     for (var i = 0; i < 3; i++) {
@@ -171,16 +171,16 @@ void main() {
     final march = c.dispatch(
       hero,
       c.world.cities[1],
-      weaponSlots: {0: 0, 1: 0, 2: 0},
+      weaponSlots: {0: 0},
     )!;
     march.position = march.destination;
     c.advance(3);
     final battle = c.battles[1]!;
-    expect(hero.weaponIds.length, 2);
+    expect(hero.weaponIds, isEmpty);
     for (var i = 0; i < 180; i++) {
       c.advance(1 / 60);
     }
-    expect(hero.weaponIds.length, 2);
+    expect(hero.weaponIds, isEmpty);
     expect(c.useWeapon(hero, 0), isFalse);
     battle.defender.hp = 0;
     for (var i = 0; i < 3000 && battle.wave == 1; i++) {
@@ -188,7 +188,8 @@ void main() {
     }
     expect(battle.wave, 2);
     c.advance(3);
-    expect(hero.weaponIds.length, 1);
+    expect(hero.weaponIds, isEmpty);
+    expect(c.weaponStockFor(0, 0), 2);
   });
 
   test('撤退概率按缺兵与每四分之一失血分档', () {

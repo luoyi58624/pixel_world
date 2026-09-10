@@ -217,7 +217,7 @@ class CampaignHero {
   final List<BattleHealth> squad;
   final List<int> _weaponIds = [];
 
-  /// 将领出征携带的武器，回城归库，守城禁用，最多三件。
+  /// 将领出征携带的武器，回城归库，守城禁用，上限读取武器目录。
   List<int> get weaponIds => List.unmodifiable(_weaponIds);
 
   // 未满一金币的粮草累计保留在英雄身上，进城或改令不能抹去已用粮草。

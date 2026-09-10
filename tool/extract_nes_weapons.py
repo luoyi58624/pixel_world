@@ -103,12 +103,17 @@ def main():
                 if weapon['id'] in old and key in old[weapon['id']]: weapon[key]=old[weapon['id']][key]
         catalog['initialCountryStock']=previous.get('initialCountryStock',{})
     catalog['weapons']=[w for w in catalog['weapons'] if w['id'] not in (6,7,8)]
+    catalog['carryLimit']=1
     for weapon in catalog['weapons']:
+        order=[0,9,1,10,2,11,3,12,4,13,5,14].index(weapon['id'])
+        # 重新提取保留用户调参；首次导出采用单件武器的新默认数值。
+        weapon['price']=old.get(weapon['id'], {}).get('price', (order+1)*5)
+        weapon['damage']=old.get(weapon['id'], {}).get('damage', weapon['romDamage']+5)
         weapon['romMinimumCities']=weapon['minimumCities']
         weapon.pop('minimumCities')
         weapon['unlockYear'] = old.get(weapon['id'], {}).get('unlockYear', [0,9,1,10,2,11,3,12,4,13,5,14].index(weapon['id']) // 3 + 1)
         weapon['shopEnabled']=True
-    catalog['notes']['gameplay']='商店每年解锁一行三种武器；每名将领每轮对阵最多自动使用一件；移除台风、强击手、死枪。原始完整记录位于 docs/reference/rom_weapons_original.json。'
+    catalog['notes']['gameplay']='每名将领最多携带一件武器；默认伤害在原版基础上加5，售价按商店顺序从5递增5；商店每年解锁一行三种，每轮最多自动使用一件；移除台风、强击手、死枪。原始记录位于 docs/reference/rom_weapons_original.json。'
     out.write_text(json.dumps(catalog,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
     Path('docs/nes_weapons_evidence.json').write_text(json.dumps(
         dict(sourceSha256=ROM_SHA256, examples=evidence),ensure_ascii=False,indent=2)+'\n',encoding='utf8')
