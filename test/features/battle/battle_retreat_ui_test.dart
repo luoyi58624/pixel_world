@@ -185,6 +185,8 @@ void main() {
             .onPressed,
         isNotNull,
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('unit-move')));
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('unit-move')));
       c.tick(1 / 60);
       expect(c.movingHeroId, battle.attacker.id);
