@@ -230,8 +230,34 @@ class CountryBrain {
     for (final hero in availableField) {
       final task = ledger.tasks[hero.id];
       final lowFunds = ledger.gold < ledger.cash().reserve;
+      final expired = task != null && task.deadlineTick < _view.tick;
+      final changedOwner =
+          task?.role == 'expedition' &&
+          task?.targetCountry != null &&
+          _view.city(task?.city)?.country != task?.targetCountry &&
+          _view.city(task?.city)?.country != _view.country;
+      final stopped =
+          task != null &&
+          hero.state == AiArmyState.camped &&
+          !hero.movementPending &&
+          task.leg + 1 >= task.points.length;
+      final reconsider = changedOwner || stopped;
+      if ((changedOwner || stopped && task.role == 'expedition') &&
+          !lowFunds &&
+          hero.hp >= hero.maxHp * .65) {
+        final attack = _redirectFieldAttack(ledger, hero, task!);
+        if (attack != null) {
+          ledger = attack.ledger;
+          groups.add(attack.group);
+          continue;
+        }
+        // 配额不足不等于无路可走，保留当前行动等待下一次完整评估。
+        if (work.limited) continue;
+      }
       if (task?.arrivalSlot == true &&
           hero.targetCity == task?.city &&
+          !expired &&
+          !reconsider &&
           !lowFunds) {
         continue;
       }
@@ -245,8 +271,8 @@ class CountryBrain {
           hero.hp >= hero.maxHp * .65) {
         continue;
       }
-      final expired = task != null && task.deadlineTick < _view.tick;
       if (task != null &&
+          !reconsider &&
           !expired &&
           !lowFunds &&
           !completedIntercept &&
@@ -259,7 +285,8 @@ class CountryBrain {
         continue;
       }
       final assault = assaultTarget(hero, _view, ledger);
-      if (assaultIsCommitted(hero, _view, ledger, rules) &&
+      if (!reconsider &&
+          assaultIsCommitted(hero, _view, ledger, rules) &&
           ledger.gold > 0 &&
           (hero.hp >= hero.maxHp * .25 ||
               _view.garrison(assault!.id).isEmpty)) {
@@ -268,6 +295,7 @@ class CountryBrain {
       }
       // 分段行军在路点会短暂停靠，下一段仍由原任务推进，不能误判为闲置营地。
       if (task?.role == 'expedition' &&
+          !reconsider &&
           !expired &&
           !lowFunds &&
           hero.hp >= hero.maxHp * .65 &&
@@ -275,6 +303,7 @@ class CountryBrain {
         continue;
       }
       if (!lowFunds &&
+          !reconsider &&
           !completedIntercept &&
           !expired &&
           hero.hp >= hero.maxHp * .65 &&
@@ -323,6 +352,10 @@ class CountryBrain {
               ? '现有国库不足以继续供养远程任务，回城缩减粮草支出'
               : hero.hp < hero.maxHp * .65
               ? '将领受伤，回城恢复生命后再战'
+              : changedOwner
+              ? '目标易主后原城与附近敌城均不适合继续进攻，回城整备'
+              : stopped
+              ? '原路线持续受阻，重新选择有安全名额的城池整备'
               : expired
               ? '原任务已超过执行时限，回城重新整备'
               : completedIntercept
@@ -763,6 +796,76 @@ class CountryBrain {
         );
         if (operation != null) return operation;
       }
+    }
+    return null;
+  }
+
+  // 只比较眼前守军和真实随身兵力；目标易主不应自动取消已经走完的远征路程。
+  PlannedOperation? _redirectFieldAttack(
+    AiLedger ledger,
+    AiHero hero,
+    ArmyTask task,
+  ) {
+    final targets =
+        _view.cities.where((c) => c.country != _view.country).toList()
+          ..sort((a, b) {
+            if (a.id == task.city) return -1;
+            if (b.id == task.city) return 1;
+            return _targetScore(b, hero).compareTo(_targetScore(a, hero));
+          });
+    for (final city in targets.take(rules.tuning.maxTargets)) {
+      if (!work.candidate()) return null;
+      if (!operations.canRaidFrom(hero, city)) continue;
+      final assigned = ledger.tasks.values
+          .where(
+            (t) =>
+                t.hero != hero.id &&
+                t.role == 'expedition' &&
+                t.city == city.id &&
+                _view.hero(t.hero)?.marked == false,
+          )
+          .length;
+      if (assigned >= rules.tuning.maxTeam) continue;
+      final guard = _view
+          .garrison(city.id)
+          .reversed
+          .take(city.safeSlots)
+          .firstOrNull;
+      if (guard != null) {
+        final reserve = _view.countries
+            .firstWhere((c) => c.id == city.country)
+            .reserves;
+        final risk = assessor.compare(
+          hero,
+          guard,
+          enemyDefense: city.safeSlots,
+          enemySoldiers: math.min(
+            rules.integer('soldierLimit'),
+            guard.soldierCount + reserve,
+          ),
+          enemyOpening: false,
+        );
+        if (risk.releaseRisk ||
+            risk.upper <= 0 ||
+            risk.lower < rules.tuning.breakthroughMargin) {
+          continue;
+        }
+      }
+      final route = routes.to(hero, city.center, _view, target: city);
+      final operation = operations.send(
+        ledger,
+        hero,
+        route,
+        role: 'expedition',
+        target: city,
+        emergency: true,
+        queueIndex: assigned,
+        attrition: guard != null,
+        reason: city.id == task.city
+            ? '重新核对当前守军与路费后，继续进攻原目标'
+            : '原目标不再适合进攻，转向附近可形成有效交换的敌城',
+      );
+      if (operation != null) return operation;
     }
     return null;
   }

@@ -75,6 +75,7 @@ class ArmyTask {
     this.leg = 0,
     this.gold = 0,
     this.arrivalSlot = false,
+    this.rearStaging = false,
     this.reason = '',
     this.expectedOrderRevision = 0,
     this.targetCountry,
@@ -87,10 +88,10 @@ class ArmyTask {
   /// 目标城市或可见敌军。
   final int? city;
 
-  /// 出征时目标国家，城池被第三国抢先占领时据此停止误攻。
+  /// 上次评估的目标国家，城池易主时重新评估进攻而非直接返程。
   final int? targetCountry;
 
-  /// 消耗截击只承诺削弱来敌，不能据此宣布城防已经安全。
+  /// 消耗行动只承诺削弱来敌或突破前排，不能据此宣布已经守住或攻下城池。
   final bool attrition;
   final String? enemy;
 
@@ -103,6 +104,9 @@ class ArmyTask {
 
   /// 是否预留入城名额及接管时的己方命令版本。
   final bool arrivalSlot;
+
+  /// 规划已核算和平时期的临时整备名额，实际入城仍须复查威胁和容量。
+  final bool rearStaging;
   final int expectedOrderRevision;
 
   /// 推进路段时保留全部其他任务属性。
@@ -117,6 +121,7 @@ class ArmyTask {
     leg: next,
     gold: gold,
     arrivalSlot: arrivalSlot,
+    rearStaging: rearStaging,
     reason: reason,
     expectedOrderRevision: revision,
     targetCountry: targetCountry,
@@ -135,6 +140,7 @@ class ArmyTask {
     'leg': leg,
     'gold': gold,
     'slot': arrivalSlot,
+    'rearStaging': rearStaging,
     'reason': reason,
     'order': expectedOrderRevision,
     'targetCountry': targetCountry,
@@ -153,6 +159,7 @@ class ArmyTask {
     leg: d['leg'],
     gold: d['gold'],
     arrivalSlot: d['slot'],
+    rearStaging: d['rearStaging'] as bool? ?? false,
     reason: d['reason'],
     expectedOrderRevision: d['order'],
     targetCountry: d['targetCountry'] as int?,

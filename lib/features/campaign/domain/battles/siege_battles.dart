@@ -89,6 +89,9 @@ extension _CitySieges on CampaignState {
 
   bool _atCityContact(HeroMarch march) {
     final city = march.target!;
+    final origin = cityBounds(city).topLeft;
+    // 城堡扩建或在途拦截后可能已在轮廓内，不能要求向外走再被逐帧拦回。
+    if (_cityContact(city).contains(march.position - origin)) return true;
     final point = _contactPoint(march.position, cityBounds(city).center, city);
     if ((point - march.position).distanceSquared <= 1e-8) return true;
     march._resumeToward(point, city: city);

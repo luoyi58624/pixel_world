@@ -17,6 +17,13 @@ class _AiCoordinator {
   final _lastRequest = <int, double>{}, _urgent = <int>{};
   final _seeds = <int, int>{};
   final _knownThreats = <int, int>{};
+  final _changedTargetOwners = <String, int>{};
+  final _marchProgress =
+      <
+        String,
+        ({GamePoint position, double time, int revision, int retries})
+      >{};
+  double _nextMarchCheck = 0;
   final _urgentReasons = <int, Set<String>>{};
   // 仅用于日志去重，不参与规划、预算或将领调度。
   final _lastDecisionLogState = <int, String>{};
@@ -121,6 +128,7 @@ class _AiCoordinator {
     _lastRequest.clear();
     _urgent.clear();
     _urgentReasons.clear();
+    _marchProgress.clear();
     for (final schedule in _schedules.values) {
       schedule.suspend();
     }
@@ -300,7 +308,7 @@ class _AiCoordinator {
   bool commitAndTasks() {
     final cost = Stopwatch()..start();
     try {
-      var changed = false;
+      var changed = _recoverStalledMarches();
       worker?.pump((campaign._strategyTime * 60).round());
       for (final reply in worker?.takeReplies() ?? <AiReply>[]) {
         campaign._aiRouteEstimates += reply.plan.routeSteps;
@@ -366,16 +374,18 @@ class _AiCoordinator {
           urgent(hero.countryId);
           continue;
         }
+        final targetOwner = campaign.cities[task.city]?.ownerCountryId;
         if (task.role == 'expedition' &&
             task.targetCountry != null &&
-            campaign.cities[task.city]?.ownerCountryId != task.targetCountry &&
-            campaign.cities[task.city]?.ownerCountryId != hero.countryId) {
-          campaign.camp(hero.id, countryId: hero.countryId);
-          tasks.remove(hero.id);
-          _taskEnded(task, hero, '目标城已被第三国占领，停止误攻并重整主攻计划');
-          urgent(hero.countryId, reason: '原目标城池易主，重新集中力量');
-          changed = true;
-          continue;
+            targetOwner != null &&
+            targetOwner != task.targetCountry &&
+            targetOwner != hero.countryId) {
+          if (_changedTargetOwners[hero.id] != targetOwner) {
+            _changedTargetOwners[hero.id] = targetOwner;
+            urgent(hero.countryId, reason: '目标城池易主，评估继续进攻或附近新目标');
+          }
+        } else {
+          _changedTargetOwners.remove(hero.id);
         }
         if (march.phase == MarchPhase.camped &&
             task.leg + 1 < task.points.length &&
@@ -423,6 +433,7 @@ class _AiCoordinator {
   }
 
   void _taskEnded(ArmyTask task, CampaignHero? hero, String reason) {
+    _changedTargetOwners.remove(task.hero);
     final country = _taskOwners.remove(task.hero) ?? hero?.countryId;
     final name = _taskNames.remove(task.hero) ?? hero?.name ?? task.hero;
     campaign._emitEvent(
@@ -526,10 +537,15 @@ extension _AiSafety on CampaignState {
         _aiSafetySlots(id)) {
       return true;
     }
+    final task = _ai?.tasks[march.hero.id];
     final rear =
         !_aiThreatened(id) &&
         (march.returningFromRetreat ||
-            _ai?.tasks[march.hero.id]?.role == 'regroup');
+            _ai?.tasks[march.hero.id]?.role == 'regroup' ||
+            task != null &&
+                task.city == id &&
+                task.arrivalSlot &&
+                task.rearStaging);
     if (rear &&
         garrisonAt(id).length <
             cities[id]!.rearStagingCapacity +

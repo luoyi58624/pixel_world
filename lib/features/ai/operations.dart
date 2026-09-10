@@ -226,6 +226,7 @@ class OperationPlanner {
       if (previous.committedUntil > _view.tick && !emergency) return null;
       if (previous.role == role &&
           previous.city == target?.id &&
+          (role != 'expedition' || previous.targetCountry == target?.country) &&
           previous.enemy == enemy?.id &&
           previous.points.isNotEmpty &&
           previous.points.last.distance(route.points.last) < 32 &&
@@ -271,6 +272,7 @@ class OperationPlanner {
       points: route.points,
       gold: (duration / rules.number('supplySeconds')).ceil(),
       arrivalSlot: arrival,
+      rearStaging: arrival && rearSafe,
       reason: reason,
       expectedOrderRevision: hero.orderRevision + 1,
       targetCountry: role == 'expedition' ? target?.country : null,

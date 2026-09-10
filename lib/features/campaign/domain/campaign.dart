@@ -47,6 +47,7 @@ part 'countries/territory_defense.dart';
 part 'ai/ai_observation_bridge.dart';
 part 'ai/ai_executor.dart';
 part 'ai/ai_runtime_bridge.dart';
+part 'ai/ai_march_recovery.dart';
 part 'events/campaign_events.dart';
 
 /// 新游戏的城池状态，经济和等级规则独立于原 ROM。
