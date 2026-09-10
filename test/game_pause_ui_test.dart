@@ -54,6 +54,26 @@ void main() {
       await tester.pump();
       expect(c.isPaused, isFalse);
       expect(find.byKey(const ValueKey('game-paused')), findsNothing);
+      // 模拟旧热重载实例：暂停标记已生效，但尚未通知停止原来的 Ticker。
+      c.campaign.setPaused(true);
+      expect(tester.binding.transientCallbackCount, greaterThan(0));
+      final reloadTime = c.time;
+      final reloading = tester.binding.reassembleApplication();
+      await tester.pump();
+      await reloading;
+      await tester.pump(const Duration(seconds: 2));
+      expect(c.time, reloadTime);
+      expect(tester.binding.transientCallbackCount, 0);
+      expect(find.byKey(const ValueKey('game-paused')), findsOneWidget);
+      // 多次热重载不得重复绑定，也不能让暂停画面继续调度帧。
+      final reloadingAgain = tester.binding.reassembleApplication();
+      await tester.pump();
+      await reloadingAgain;
+      expect(tester.binding.transientCallbackCount, 0);
+      await tester.tap(find.byKey(const ValueKey('game-resume')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(c.time, closeTo(reloadTime + .1, 1e-8));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

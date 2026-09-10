@@ -79,12 +79,20 @@ class _WorldScreenState extends State<WorldScreen>
         }
         controller.tick(delta);
       });
-      controller.uiRevision.addListener(_syncTicker);
-      _syncTicker();
+      _bindGameTicker();
       _focus.requestFocus();
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
+  }
+
+  void _bindGameTicker() {
+    // 热重载保留旧 State，不会重跑 _load；重新绑定才能接管旧时钟，且不累积监听。
+    final controller = _controller;
+    if (controller == null) return;
+    controller.uiRevision.removeListener(_syncTicker);
+    controller.uiRevision.addListener(_syncTicker);
+    _syncTicker();
   }
 
   void _syncTicker() {
@@ -123,6 +131,7 @@ class _WorldScreenState extends State<WorldScreen>
   void reassemble() {
     super.reassemble();
     _controller?.campaign.pauseAi();
+    _bindGameTicker();
   }
 
   void _clearKeys() {
