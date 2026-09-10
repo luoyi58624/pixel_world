@@ -41,6 +41,9 @@ class ReplayReader {
       if ((frames[i]['at'] as num) > at) break;
       offset = i;
     }
-    return GameArchive.decodeFrame(block, offset);
+    return archive.hydrateReplay(
+      entry.run,
+      GameArchive.decodeFrame(block, offset),
+    );
   }
 }

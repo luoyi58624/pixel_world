@@ -40,21 +40,30 @@ extension _WorldSession on _WorldScreenState {
       signature: signature,
       previous: entry,
     );
-    _recording!.capture({...controller.saveState(), 'minimap': _showMinimap});
+    _recording!.capture({
+      ...controller.saveState(replay: true),
+      'minimap': _showMinimap,
+    });
+    _recording!.checkpoint({
+      ...controller.saveState(),
+      'minimap': _showMinimap,
+    });
     await _recording!.flush();
-    // 固定小批次落盘，暂停时也完成最后一次操作的写入。
+    // 按真实时间每十秒保存，暂停时也保存最近的进度；退出另行等待保存完成。
     _saveTimer = Timer.periodic(
-      const Duration(milliseconds: 250),
+      const Duration(seconds: 10),
       (_) => unawaited(_flushSession()),
     );
   }
 
-  bool _captureSession({bool flush = false}) {
+  bool _captureSession() {
     final c = _controller;
     if (_recording == null || c == null || widget.replay) return true;
     try {
-      _recording!.capture({...c.saveState(), 'minimap': _showMinimap});
-      if (flush) unawaited(_flushSession());
+      _recording!.capture({
+        ...c.saveState(replay: true),
+        'minimap': _showMinimap,
+      });
       return true;
     } catch (error) {
       if (mounted) _sessionChanged(() => _saveError = error);
@@ -76,6 +85,11 @@ extension _WorldSession on _WorldScreenState {
   Future<bool> _flushSession() async {
     if (_recording == null) return true;
     try {
+      _captureSession();
+      _recording!.checkpoint({
+        ..._controller!.saveState(),
+        'minimap': _showMinimap,
+      });
       await _recording!.flush();
       if (mounted && _saveError != null) {
         _sessionChanged(() => _saveError = null);
@@ -96,6 +110,10 @@ extension _WorldSession on _WorldScreenState {
       return;
     }
     try {
+      _recording!.checkpoint({
+        ..._controller!.saveState(),
+        'minimap': _showMinimap,
+      });
       await _recording!.saveReplay();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -249,7 +267,7 @@ extension _WorldSession on _WorldScreenState {
             if (widget.replay) {
               _seekReplay(_playhead);
             } else {
-              _captureSession(flush: true);
+              _flushSession();
             }
           },
         ),
@@ -373,7 +391,7 @@ extension _WorldSession on _WorldScreenState {
                               _sessionChanged(() => _replayPlaying = !value);
                             } else {
                               c.setPaused(value);
-                              _captureSession(flush: true);
+                              _captureSession();
                             }
                           });
                         },
@@ -398,7 +416,7 @@ extension _WorldSession on _WorldScreenState {
                             _sessionChanged(() => _replaySpeed = value);
                           } else {
                             c.setGameSpeed(value);
-                            _captureSession(flush: true);
+                            _captureSession();
                           }
                         });
                       },
@@ -426,7 +444,7 @@ extension _WorldSession on _WorldScreenState {
                       setDialogState(
                         () => _sessionChanged(() => _showMinimap = value),
                       );
-                      _captureSession(flush: true);
+                      _captureSession();
                     },
                   ),
                   SwitchListTile.adaptive(
@@ -436,7 +454,7 @@ extension _WorldSession on _WorldScreenState {
                     value: c.showTerritoryBorders,
                     onChanged: (value) {
                       setDialogState(() => c.setTerritoryBorders(value));
-                      _captureSession(flush: true);
+                      _captureSession();
                     },
                   ),
                   if (_recording != null) ...[

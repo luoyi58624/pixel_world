@@ -192,7 +192,7 @@ class _WorldScreenState extends State<WorldScreen>
     if (controller == null || controller.campaign.defeated) return;
     _clearKeys();
     controller.setPaused(!controller.isPaused);
-    _captureSession(flush: true);
+    _captureSession();
     _focus.requestFocus();
   }
 
@@ -234,7 +234,7 @@ class _WorldScreenState extends State<WorldScreen>
     _controller?.activeCamera.cancelMotion();
     action();
     _controller?.refreshUi();
-    _captureSession(flush: true);
+    _captureSession();
     _focus.requestFocus();
   }
 
@@ -872,7 +872,11 @@ class _WorldScreenState extends State<WorldScreen>
                 key: const ValueKey('game-pause'),
                 tooltip: c.isPaused ? '继续游戏（P）' : '暂停游戏（P）',
                 onPressed: _togglePause,
-                icon: Icon(c.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 24, color: _gold),
+                icon: Icon(
+                  c.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  size: 24,
+                  color: _gold,
+                ),
               ),
             if (_saveError != null)
               IconButton(
@@ -882,7 +886,7 @@ class _WorldScreenState extends State<WorldScreen>
                   if (widget.replay) {
                     _seekReplay(_playhead);
                   } else {
-                    _captureSession(flush: true);
+                    _flushSession();
                   }
                 },
                 icon: const Icon(
@@ -896,7 +900,7 @@ class _WorldScreenState extends State<WorldScreen>
                 tooltip: _showMinimap ? '收起小地图' : '展开小地图',
                 onPressed: () {
                   setState(() => _showMinimap = !_showMinimap);
-                  _captureSession(flush: true);
+                  _captureSession();
                 },
                 icon: Icon(
                   Icons.map_outlined,

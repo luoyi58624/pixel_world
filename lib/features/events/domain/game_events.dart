@@ -158,7 +158,7 @@ class GameEvent {
       '$year年$month月 ${(tick ~/ 60).toString().padLeft(4, '0')}.${((tick % 60) * 1000 ~/ 60).toString().padLeft(3, '0')}秒';
 
   /// 持久化格式保持稳定字段，不使用本地化文字充当类型标识。
-  Map<String, Object?> toJson() => {
+  Map<String, Object?> toJson() => _jsonCache ??= Map.unmodifiable({
     'version': 1,
     'runId': runId,
     'worldId': worldId,
@@ -183,7 +183,8 @@ class GameEvent {
     'summary': summary,
     'reason': reason,
     'data': data,
-  };
+  });
+  Map<String, Object?>? _jsonCache;
 
   /// 单行结构化日志，可直接逐行写入模拟记录。
   String toJsonLine() => jsonEncode(toJson());
@@ -334,7 +335,17 @@ class CountryEventLog {
 /// 一张地图的国家事件目录；只做观察，绝不反馈给 AI 决策或消耗游戏随机数。
 class CampaignEvents {
   /// 保存有界日志和连续编号，读档后月结与决策记录不断档。
-  Map<String, dynamic> saveState() => _saveEvents(this);
+  Map<String, dynamic> saveState({bool replay = false}) {
+    if (!replay) return _saveEvents(this);
+    if (_savedReplaySequence != _sequence) {
+      _savedReplaySequence = _sequence;
+      _replaySnapshot = _saveEvents(this, replay: true);
+    }
+    return _replaySnapshot!;
+  }
+
+  int _savedReplaySequence = -1;
+  Map<String, dynamic>? _replaySnapshot;
 
   /// 恢复日志，不重新触发监听器或重复产生游戏事件。
   static CampaignEvents restoreState(Map<String, dynamic> data) =>

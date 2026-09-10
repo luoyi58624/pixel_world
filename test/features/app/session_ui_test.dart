@@ -14,6 +14,27 @@ import 'package:pixel_world/features/world_map/presentation/world_painter.dart';
 
 import 'archive_test.dart' show FailingArchive;
 
+class CountingArchive extends FailingArchive {
+  int writes = 0;
+  @override
+  Future<void> write(
+    String id,
+    Map<String, dynamic> meta,
+    Map<int, Map<String, dynamic>> chunks, {
+    Map<String, dynamic>? checkpoint,
+    Map<String, Map<String, dynamic>> events = const {},
+  }) {
+    writes++;
+    return super.write(
+      id,
+      meta,
+      chunks,
+      checkpoint: checkpoint,
+      events: events,
+    );
+  }
+}
+
 Future<void> waitFor(WidgetTester tester, bool Function() ready) async {
   for (var i = 0; i < 250 && !ready(); i++) {
     await tester.runAsync(
@@ -81,6 +102,37 @@ Future<T> storage<T>(WidgetTester tester, Future<T> operation) async {
 }
 
 void main() {
+  testWidgets('普通操作不额外写盘，每十秒保存且确认退出立即保存', (tester) async {
+    rootBundle.clear();
+    final archive = CountingArchive();
+    await tester.pumpWidget(PixelWorldApp(archive: archive));
+    await waitFor(
+      tester,
+      () =>
+          tester
+              .widget<FilledButton>(find.byKey(const ValueKey('start-game')))
+              .onPressed !=
+          null,
+    );
+    await tap(tester, 'start-game');
+    await waitFor(
+      tester,
+      () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
+    );
+    final c = controller(tester);
+    c.buyCountryWeapon(0);
+    c.setPaused(true);
+    expect(archive.writes, 1);
+    await tester.pump(const Duration(seconds: 8));
+    expect(archive.writes, 1);
+    await tester.pump(const Duration(seconds: 2));
+    await waitFor(tester, () => archive.writes == 2);
+    await tap(tester, 'exit-game');
+    await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    expect(archive.writes, 3);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await storage(tester, archive.close());
+  });
   testWidgets('写入失败时退出保留当前游戏，重试成功后才返回主页面', (tester) async {
     rootBundle.clear();
     final archive = FailingArchive();
@@ -231,6 +283,25 @@ void main() {
     expect(find.byKey(const ValueKey('save-replay')), findsNothing);
     await tap(tester, 'exit-game');
     await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    await waitFor(
+      tester,
+      () => find
+          .byKey(ValueKey('delete-save-${saves.single.id}'))
+          .evaluate()
+          .isNotEmpty,
+    );
+    await tap(tester, 'delete-save-${saves.single.id}');
+    await tap(tester, 'cancel-delete');
+    expect(find.byKey(ValueKey('resume-${saves.single.id}')), findsOneWidget);
+    await tap(tester, 'delete-save-${saves.single.id}');
+    await tap(tester, 'confirm-delete');
+    await waitFor(
+      tester,
+      () =>
+          find.byKey(ValueKey('resume-${saves.single.id}')).evaluate().isEmpty,
+    );
+    expect(await storage(tester, archive.list()), isEmpty);
+    expect(await storage(tester, archive.list(replays: true)), hasLength(1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await storage(tester, archive.close());

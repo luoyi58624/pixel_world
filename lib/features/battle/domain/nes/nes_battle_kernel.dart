@@ -18,29 +18,38 @@ class NesBattleKernel {
   }();
 
   /// 只记录可变内存与寄存器，不在每个回放帧中重复保存 ROM。
-  Map<String, dynamic> saveState() => {
-    'ram': {
-      for (var i = 0; i < ram.length; i++)
-        if (ram[i] != _romImage[i]) '$i': ram[i],
-    },
-    'registers': [
-      frames,
-      clashes,
-      ...wallHits,
-      ...committed,
-      _attackerChargePhase,
-      _attackerChargeClock,
-      _a,
-      _x,
-      _y,
-      _p,
-      _pc,
-      _sp,
-    ],
-  };
+  Map<String, dynamic>? _frozenSnapshot;
+
+  /// 已结束的战斗内核不会再变化，不再每次扫描整段内存。
+  Map<String, dynamic> saveState({bool frozen = false}) {
+    if (frozen && _frozenSnapshot != null) return _frozenSnapshot!;
+    final value = <String, dynamic>{
+      'ram': {
+        for (var i = 0; i < ram.length; i++)
+          if (ram[i] != _romImage[i]) '$i': ram[i],
+      },
+      'registers': [
+        frames,
+        clashes,
+        ...wallHits,
+        ...committed,
+        _attackerChargePhase,
+        _attackerChargeClock,
+        _a,
+        _x,
+        _y,
+        _p,
+        _pc,
+        _sp,
+      ],
+    };
+    if (frozen) _frozenSnapshot = value;
+    return value;
+  }
 
   /// 原位恢复战斗内核，单位继续引用同一个内存对象。
   void restoreState(Map<String, dynamic> data) {
+    _frozenSnapshot = null;
     ram.setAll(0, _romImage);
     (data['ram'] as Map).forEach((key, value) {
       ram[int.parse(key as String)] = value as int;

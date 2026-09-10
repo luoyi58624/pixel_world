@@ -39,6 +39,46 @@ class _GameStartScreenState extends State<GameStartScreen> {
   ArchiveEntry? _entry;
   bool _replay = false, _loadingHistory = true;
   Object? _historyError;
+  final _deleting = <String>{};
+
+  Future<void> _deleteEntry(ArchiveEntry entry, bool replay) async {
+    final key = '$replay:${entry.id}';
+    if (_deleting.contains(key)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(replay ? '删除回放？' : '删除存档？'),
+        content: Text(
+          replay ? '这条回放将被删除，不影响自动存档。' : '删除后无法从这条进度继续游戏。已手动保存的回放会保留。',
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('cancel-delete'),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-delete'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认删除'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _deleting.add(key));
+    try {
+      await _archive!.delete(entry, replay: replay);
+      await _loadHistory();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('删除失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting.remove(key));
+    }
+  }
 
   @override
   void initState() {
@@ -316,16 +356,33 @@ class _GameStartScreenState extends State<GameStartScreen> {
             subtitle: Text(
               '${entry.dateLabel} · ${entry.updated.toString().split('.').first}${entry.ended ? ' · 已结束' : ''}',
             ),
-            trailing: TextButton(
-              key: ValueKey('${replay ? 'replay' : 'resume'}-${entry.id}'),
-              onPressed: () => _open(entry, replay: replay),
-              child: Text(
-                replay
-                    ? '回放'
-                    : entry.ended
-                    ? '查看'
-                    : '继续',
-              ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  key: ValueKey('${replay ? 'replay' : 'resume'}-${entry.id}'),
+                  onPressed: _deleting.contains('$replay:${entry.id}')
+                      ? null
+                      : () => _open(entry, replay: replay),
+                  child: Text(
+                    replay
+                        ? '回放'
+                        : entry.ended
+                        ? '查看'
+                        : '继续',
+                  ),
+                ),
+                IconButton(
+                  key: ValueKey(
+                    'delete-${replay ? 'replay' : 'save'}-${entry.id}',
+                  ),
+                  tooltip: replay ? '删除回放' : '删除存档',
+                  onPressed: _deleting.contains('$replay:${entry.id}')
+                      ? null
+                      : () => _deleteEntry(entry, replay),
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                ),
+              ],
             ),
           ),
         ),

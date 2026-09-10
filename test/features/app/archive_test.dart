@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sembast/sembast_io.dart';
 import 'package:sembast/sembast_memory.dart';
 import 'package:pixel_world/features/app/data/game_archive.dart';
+import 'package:pixel_world/features/app/data/archive_backend.dart';
 import 'package:pixel_world/features/app/data/replay_reader.dart';
 import 'package:pixel_world/features/app/data/state_delta.dart';
 
@@ -28,14 +29,45 @@ class FailingArchive extends GameArchive {
   Future<void> write(
     String id,
     Map<String, dynamic> meta,
-    Map<int, Map<String, dynamic>> chunks,
-  ) {
+    Map<int, Map<String, dynamic>> chunks, {
+    Map<String, dynamic>? checkpoint,
+    Map<String, Map<String, dynamic>> events = const {},
+  }) {
     if (fail) throw const FileSystemException('模拟写入失败');
-    return super.write(id, meta, chunks);
+    return super.write(
+      id,
+      meta,
+      chunks,
+      checkpoint: checkpoint,
+      events: events,
+    );
   }
 }
 
 void main() {
+  test('追加回放只编码新帧，关键帧在一个块中只写一次', () async {
+    var bases = 0, frames = 0;
+    final db = await databaseFactoryMemory.openDatabase('append-count');
+    final archive = GameArchive(
+      backend: () async => PackedArchiveBackend(
+        db,
+        pack: (value) async {
+          if (value.containsKey('counter')) bases++;
+          if (value.containsKey('delta')) frames++;
+          return value;
+        },
+        unpack: (value) async => value,
+      ),
+    );
+    addTearDown(archive.close);
+    final recording = SessionRecording(archive, mapIndex: 0, signature: 'test');
+    for (var i = 0; i < 25; i++) {
+      recording.capture(frame(i));
+      await recording.flush();
+    }
+    expect(bases, 2);
+    expect(frames, 25);
+  });
   test('增量覆盖删除、列表槽位与类型变化，不改写旧帧', () {
     final before = frame(0), after = frame(1), original = jsonEncode(before);
     expect(applyStateDelta(before, stateDelta(before, after)!), after);

@@ -1,6 +1,7 @@
 import 'package:sembast/sembast_memory.dart';
 
 import 'archive_database.dart';
+import 'archive_backend.dart';
 import 'state_delta.dart';
 
 /// 主页面一条自动存档或手动保存的回放。
@@ -38,79 +39,145 @@ class ArchiveEntry {
 
 /// 自动存档与手动回放共用帧数据，但拥有独立目录和不可变的回放终点。
 class GameArchive {
-  /// 默认使用平台持久化数据库，测试显式提供内存数据库。
-  GameArchive({Future<Database> Function()? open})
-    : _open = open ?? openArchiveDatabase;
+  final _eventCache = <String, Map<String, dynamic>>{};
 
-  /// 隔离测试所用的内存存储，不影响玩家存档。
+  /// 正式运行使用平台后台，测试可注入隔离数据库或后台。
+  GameArchive({
+    Future<Database> Function()? open,
+    Future<ArchiveBackend> Function()? backend,
+  }) : _open =
+           backend ??
+           (open == null
+               ? openArchiveDatabase
+               : () async => PackedArchiveBackend(
+                   await open(),
+                   pack: (v) async => v,
+                   unpack: (v) async => v,
+                 ));
+
+  /// 测试使用隔离的内存存储。
   factory GameArchive.memory() => GameArchive(
     open: () => databaseFactoryMemory.openDatabase('test-${_serial++}'),
   );
   static int _serial = 0;
-  final Future<Database> Function() _open;
-  Future<Database>? _database;
-  final _runs = stringMapStoreFactory.store('runs');
-  final _replays = stringMapStoreFactory.store('replays');
-  final _chunks = stringMapStoreFactory.store('chunks');
-  Future<Database> get _db => _database ??= _open().catchError((Object e) {
-    _database = null;
-    throw e;
-  });
+  final Future<ArchiveBackend> Function() _open;
+  Future<ArchiveBackend>? _database;
+  Future<ArchiveBackend> get _db =>
+      _database ??= _open().catchError((Object e) {
+        _database = null;
+        throw e;
+      });
 
-  /// 读取最近的历史记录，不加载所有回放帧。
+  /// 只读取概要，不将所有历史回放展开到主线程。
   Future<List<ArchiveEntry>> list({bool replays = false}) async {
-    final values = await (replays ? _replays : _runs).find(
-      await _db,
-      finder: Finder(sortOrders: [SortOrder('updated', false)]),
-    );
+    final values = await (await _db).call('list', {'replays': replays}) as List;
     return [
       for (final v in values)
-        ArchiveEntry(v.key, Map<String, dynamic>.from(v.value)),
+        ArchiveEntry(v['id'], Map<String, dynamic>.from(v['data'])),
     ];
   }
 
-  /// 存档概要与新增帧同一事务提交，任何写入失败都不会推进存档终点。
+  /// 检查点与新增回放帧一起提交，已写入的关键帧不会反复编码。
   Future<void> write(
     String id,
     Map<String, dynamic> meta,
-    Map<int, Map<String, dynamic>> chunks,
-  ) async {
-    final db = await _db;
-    await db.transaction((txn) async {
-      for (final e in chunks.entries) {
-        await _chunks.record('$id:${e.key}').put(txn, e.value);
-      }
-      await _runs.record(id).put(txn, meta);
+    Map<int, Map<String, dynamic>> chunks, {
+    Map<String, dynamic>? checkpoint,
+    Map<String, Map<String, dynamic>> events = const {},
+  }) async {
+    await (await _db).call('write', {
+      'run': id,
+      'meta': meta,
+      'checkpoint': checkpoint,
+      'events': events,
+      'chunks': {for (final e in chunks.entries) '${e.key}': e.value},
     });
   }
 
-  /// 手动冻结当前终点，后续继续游戏不会改写这条回放。
+  /// 手动保存冻结终点。
   Future<void> saveReplay(Map<String, dynamic> meta) async {
     final id =
         '${meta['run']}-${DateTime.now().microsecondsSinceEpoch}-${_serial++}';
-    await _replays.record(id).put(await _db, meta);
+    await (await _db).call('replay', {'id': id, 'meta': meta});
   }
 
-  /// 回放块包含一个完整关键帧与少量增量，拖动时无需从开局重演。
-  Future<Map<String, dynamic>> chunk(String run, int number) async {
-    final result = await _chunks.record('$run:$number').get(await _db);
-    if (result == null) throw const FormatException('记录数据不完整');
-    return Map<String, dynamic>.from(result);
+  /// 删除单条目录，仍被回放引用的底层数据会保留。
+  Future<void> delete(ArchiveEntry entry, {bool replay = false}) async {
+    await (await _db).call('delete', {'id': entry.id, 'replay': replay});
   }
 
-  /// 恢复最后一次成功提交的完整状态。
+  /// 回放日志按事件编号单独读取，只缓存最近的可见事件。
+  Future<Map<String, dynamic>> hydrateReplay(
+    String run,
+    Map<String, dynamic> state,
+  ) async {
+    final campaign = state['campaign'] as Map?,
+        log = (state['campaign'] as Map?)?['eventLog'] as Map?;
+    if (log == null || log['external'] != true) return state;
+    final countries = log['countries'] as Map;
+    final ids = <String>{};
+    for (final country in countries.values) {
+      for (final key in ['recent', 'decisions', 'timeline']) {
+        ids.addAll((country[key] as List).map((id) => '$id'));
+      }
+    }
+    final missing = ids
+        .where((id) => !_eventCache.containsKey('$run:$id'))
+        .toList();
+    if (missing.isNotEmpty) {
+      final values =
+          await (await _db).call('events', {'run': run, 'ids': missing}) as Map;
+      for (final e in values.entries) {
+        _eventCache['$run:${e.key}'] = Map<String, dynamic>.from(e.value);
+      }
+    }
+    final expanded = <String, dynamic>{};
+    for (final entry in countries.entries) {
+      final value = Map<String, dynamic>.from(entry.value);
+      final selected = <String>{};
+      for (final key in ['recent', 'decisions', 'timeline']) {
+        selected.addAll((value[key] as List).map((id) => '$id'));
+      }
+      value['events'] = {
+        for (final id in selected)
+          id:
+              _eventCache['$run:$id'] ??
+              (throw const FormatException('回放日志不完整')),
+      };
+      expanded[entry.key as String] = value;
+    }
+    while (_eventCache.length > 4096) {
+      _eventCache.remove(_eventCache.keys.first);
+    }
+    return {
+      ...state,
+      'campaign': {
+        ...campaign!,
+        'eventLog': {...log, 'countries': expanded},
+      },
+    };
+  }
+
+  /// 按需展开一个回放块，同时兼容旧版整块记录。
+  Future<Map<String, dynamic>> chunk(String run, int number) async =>
+      Map<String, dynamic>.from(
+        await (await _db).call('chunk', {'run': run, 'number': number}),
+      );
+
+  /// 续玩使用独立完整检查点，旧记录回退到原有关键帧恢复。
   Future<Map<String, dynamic>> resume(ArchiveEntry entry) async {
-    final block = await chunk(
-      entry.run,
-      entry.lastFrame ~/ SessionRecording.framesPerChunk,
-    );
+    final checkpoint = await (await _db).call('checkpoint', {'run': entry.run});
+    if (checkpoint != null) return Map<String, dynamic>.from(checkpoint);
     return decodeFrame(
-      block,
+      await chunk(
+        entry.run,
+        entry.lastFrame ~/ SessionRecording.framesPerChunk,
+      ),
       entry.lastFrame % SessionRecording.framesPerChunk,
     );
   }
 
-  /// 从一个关键帧定位至指定槽位，返回独立的逻辑状态。
+  /// 应用有界增量，不修改之前的帧。
   static Map<String, dynamic> decodeFrame(
     Map<String, dynamic> block,
     int offset,
@@ -129,10 +196,11 @@ class GameArchive {
     return Map<String, dynamic>.from(state);
   }
 
-  /// 关闭存储，主要用于验证重新打开后的异常退出恢复。
+  /// 等待后台关闭，测试或应用销毁时调用。
   Future<void> close() async {
     if (_database != null) await (await _database!).close();
     _database = null;
+    _eventCache.clear();
   }
 }
 
@@ -178,13 +246,43 @@ class SessionRecording {
   final List<List<dynamic>> _blocks;
   final _dirty = <int, Map<String, dynamic>>{};
   Map<String, dynamic>? _block;
+  Map<String, dynamic>? _checkpoint;
+  final _pendingEvents = <String, Map<String, dynamic>>{};
+  int _eventSequence = 0;
   Future<void>? _writing;
 
   /// 获取最后捕获帧的信息，手动回放以此终点冻结。
   Map<String, dynamic> get metadata => Map<String, dynamic>.from(_meta!);
 
+  /// 完整续玩状态只在自动保存周期或明确保存时生成。
+  void checkpoint(Map<String, dynamic> state) => _checkpoint = state;
+
   /// 捕获一次完整状态，压缩为增量；不在这里执行磁盘操作。
   void capture(Map<String, dynamic> state) {
+    final log = (state['campaign'] as Map?)?['eventLog'] as Map?;
+    if (log != null) {
+      final countries = <String, dynamic>{};
+      for (final e in (log['countries'] as Map).entries) {
+        final data = Map<String, dynamic>.from(e.value);
+        final events = data.remove('events') as Map;
+        for (final event in events.entries) {
+          if (int.parse(event.key) > _eventSequence) {
+            _pendingEvents[event.key as String] = Map<String, dynamic>.from(
+              event.value,
+            );
+          }
+        }
+        countries[e.key as String] = data;
+      }
+      _eventSequence = log['sequence'] as int;
+      state = {
+        ...state,
+        'campaign': {
+          ...(state['campaign'] as Map),
+          'eventLog': {...log, 'external': true, 'countries': countries},
+        },
+      };
+    }
     final number = _nextFrame ~/ framesPerChunk,
         offset = _nextFrame % framesPerChunk;
     if (offset == 0) {
@@ -219,14 +317,32 @@ class SessionRecording {
   }
 
   /// 串行提交并合并期间产生的新帧，失败保留待写内容供重试。
-  Future<void> flush() =>
-      _writing ??= _drain().whenComplete(() => _writing = null);
+  Future<void> flush() {
+    final writing = _writing;
+    if (writing != null) return writing.then((_) => flush());
+    return _writing = _drain().whenComplete(() => _writing = null);
+  }
+
   Future<void> _drain() async {
-    while (_dirty.isNotEmpty) {
+    if (_dirty.isNotEmpty || _checkpoint != null || _pendingEvents.isNotEmpty) {
       final pending = Map<int, Map<String, dynamic>>.of(_dirty),
           meta = metadata;
+      final checkpoint = _checkpoint;
+      final events = Map<String, Map<String, dynamic>>.of(_pendingEvents);
       // 事务必须拿到冻结数据，后续 capture 只创建新块对象。
-      await archive.write(run, meta, pending);
+      await archive.write(
+        run,
+        meta,
+        pending,
+        checkpoint: checkpoint,
+        events: events,
+      );
+      for (final e in events.entries) {
+        if (identical(_pendingEvents[e.key], e.value)) {
+          _pendingEvents.remove(e.key);
+        }
+      }
+      if (identical(_checkpoint, checkpoint)) _checkpoint = null;
       for (final e in pending.entries) {
         if (identical(_dirty[e.key], e.value)) _dirty.remove(e.key);
       }

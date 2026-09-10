@@ -19,7 +19,7 @@ void _intMap<T>(Map<int, T> target, dynamic data, T Function(dynamic) read) {
 /// 保存实际发生的战役状态，回放与继续游戏使用同一份快照。
 extension CampaignSnapshots on CampaignState {
   /// 完整保留对象共享关系、经济零头、行军队列和正在进行的战斗。
-  Map<String, dynamic> saveState() {
+  Map<String, dynamic> saveState({bool replay = false}) {
     final health = <BattleHealth>[];
     final healthIds = Map<BattleHealth, int>.identity();
     int healthId(BattleHealth h) => healthIds.putIfAbsent(h, () {
@@ -122,6 +122,7 @@ extension CampaignSnapshots on CampaignState {
     final ai = _ai;
     return {
       'version': 1,
+      'payrollVersion': 1,
       'world': world.id,
       'aiEnabled': aiEnabled,
       'cities': {
@@ -220,8 +221,8 @@ extension CampaignSnapshots on CampaignState {
       'defeat': _defeatReason?.index,
       'message': lastEvent,
       'journal': List.of(journal),
-      'eventLog': events.saveState(),
-      'ai': ai == null
+      'eventLog': events.saveState(replay: replay),
+      'ai': replay || ai == null
           ? null
           : {
               'tasks': {
@@ -254,6 +255,15 @@ extension CampaignSnapshots on CampaignState {
     if (d['version'] != 1 || d['world'] != world.id) {
       throw const FormatException('存档版本或地图不匹配');
     }
+    final definitions = {for (final h in catalog) h.id: h};
+    int salary(int saved, int source, int country) {
+      final definition = definitions[source];
+      // 续玩旧档采用新月俸并取消本国免薪；回放保留历史数值，不追扣已结算工资。
+      return !replay && d['payrollVersion'] == null && definition != null
+          ? definition.salary
+          : saved;
+    }
+
     final health = [for (final h in d['health']) BattleHealth(h[0], hp: h[1])];
     final people = <CampaignHero>[
       for (final h in d['people'])
@@ -270,7 +280,7 @@ extension CampaignSnapshots on CampaignState {
             combat: h['combat'],
             morale: h['morale'],
             politics: h['politics'],
-            salary: h['salary'],
+            salary: salary(h['salary'], h['source'], h['country']),
             squad: [for (final id in h['squad']) health[id]],
           )
           .._salaryPaidMonth = h['paid']
@@ -404,7 +414,7 @@ extension CampaignSnapshots on CampaignState {
         hero: c._catalog[o[0]]!,
         cityId: o[1],
         countryId: o[2],
-        initialSalary: o[3],
+        initialSalary: salary(o[3], o[0], o[2]),
         drawnMonth: o[4],
       );
     }
@@ -450,6 +460,9 @@ extension CampaignSnapshots on CampaignState {
     );
     _intMap(c._initialTroopCapacity, d['capacity'], (v) => v as int);
     _intMap(c._garrisonBills, d['garrisonBills'], _double);
+    if (!replay && GameConfig.garrisonUpkeepFactor == 0) {
+      c._garrisonBills.clear();
+    }
     _intMap(
       c._settlements,
       d['settlements'],

@@ -3,10 +3,10 @@ part of 'world_controller.dart';
 /// 视角和待确认操作与战役一起记录，回放能还原玩家当时看的画面。
 extension WorldSnapshots on WorldController {
   /// 保存当前地图和界面，不保存其他尚未进入的地图。
-  Map<String, dynamic> saveState() => {
+  Map<String, dynamic> saveState({bool replay = false}) => {
     'version': 1,
     'index': index,
-    'campaign': campaign.saveState(),
+    'campaign': campaign.saveState(replay: replay),
     'clock': _clock.saveState(),
     'time': time,
     'camera': [camera.center.dx, camera.center.dy, camera.scale],

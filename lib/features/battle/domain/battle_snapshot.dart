@@ -20,7 +20,7 @@ extension BattleSnapshots on BattleSimulation {
       'terrain': fieldTerrain?.index,
       'perspective': resultPerspective.index,
       'auto': autoCharge,
-      'kernel': _kernel.saveState(),
+      'kernel': _kernel.saveState(frozen: finished),
       'time': [elapsed, _accumulator, _ticks, _endingTicks, _endingCompleteAt],
       'stage': stage.index,
       'result': result?.index,

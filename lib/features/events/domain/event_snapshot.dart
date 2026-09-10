@@ -1,6 +1,14 @@
 part of 'game_events.dart';
 
-Map<String, dynamic> _saveEvents(CampaignEvents log) => {
+// 回放的相邻帧引用同一不可变事件，避免反复冻结大型事件负载。
+final _restoredEvents = Expando<GameEvent>('replay events');
+
+// 回放界面最多显示 200 条可见日志，后台诊断和更早的导出记录只进入续玩检查点。
+Iterable<GameEvent> _replayTimeline(CountryEventLog log) => log._timeline.skip(
+  log._timeline.length > 200 ? log._timeline.length - 200 : 0,
+);
+
+Map<String, dynamic> _saveEvents(CampaignEvents log, {bool replay = false}) => {
   'world': log.worldId,
   'run': log.runId,
   'sequence': log._sequence,
@@ -18,15 +26,24 @@ Map<String, dynamic> _saveEvents(CampaignEvents log) => {
         ],
         'events': {
           for (final v in {
-            ...e.value._events,
-            ...e.value._decisions,
-            ...e.value._timeline,
+            if (!replay) ...e.value._events,
+            if (!replay) ...e.value._decisions,
+            ...(replay ? _replayTimeline(e.value) : e.value._timeline),
           })
             '${v.sequence}': v.toJson(),
         },
-        'recent': e.value._events.map((v) => v.sequence).toList(),
-        'decisions': e.value._decisions.map((v) => v.sequence).toList(),
-        'timeline': e.value._timeline.map((v) => v.sequence).toList(),
+        'recent': (replay ? _replayTimeline(e.value) : e.value._events)
+            .map((v) => v.sequence)
+            .toList(),
+        'decisions':
+            (replay
+                    ? _replayTimeline(e.value).where((v) => v.isFinalDecision)
+                    : e.value._decisions)
+                .map((v) => v.sequence)
+                .toList(),
+        'timeline': (replay ? _replayTimeline(e.value) : e.value._timeline)
+            .map((v) => v.sequence)
+            .toList(),
       },
   },
 };
@@ -43,7 +60,7 @@ CampaignEvents _restoreEvents(Map<String, dynamic> d) {
     final country = log.forCountry(id == -1 ? null : id);
     final events = <int, GameEvent>{};
     for (final e in (v['events'] as Map).values) {
-      final event = GameEvent._(
+      final event = _restoredEvents[e] ??= GameEvent._(
         runId: e['runId'],
         worldId: e['worldId'],
         sequence: e['sequence'],
