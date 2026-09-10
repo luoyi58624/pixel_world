@@ -169,6 +169,14 @@ class CountryBrain {
       }
     }
     if (urgent.isNotEmpty) phase = 'defending';
+    if (request.stage != AiDecisionStage.attack) {
+      final repair = _reinforceEmptyCities(ledger);
+      if (repair != null) {
+        ledger = repair.ledger;
+        groups.add(repair.group);
+        notes.add('空城优先接防，其他安全城池继续组织进攻');
+      }
+    }
     yield 2;
 
     // 撤退只参考已发生的碰撞与当前生命，不额外抽样未来伤害。
@@ -238,6 +246,15 @@ class CountryBrain {
         continue;
       }
       final expired = task != null && task.deadlineTick < _view.tick;
+      if (task != null &&
+          !expired &&
+          !lowFunds &&
+          !completedIntercept &&
+          task.committedUntil > _view.tick &&
+          !assaultIsCommitted(hero, _view, ledger, rules) &&
+          hero.hp >= hero.maxHp * .5) {
+        continue;
+      }
       if (hero.movementPending && task != null && !expired && ledger.gold > 0) {
         continue;
       }
@@ -334,6 +351,7 @@ class CountryBrain {
               (h) =>
                   h.country == _view.country &&
                   h.canDispatch &&
+                  ledger.canSpareForOffense(h) &&
                   request.stage != AiDecisionStage.defense &&
                   !h.marked &&
                   !ledger.removed.contains(h.id),
@@ -581,7 +599,9 @@ class CountryBrain {
               ..sort((a, b) => b.politics.compareTo(a.politics));
         final needHero =
             _view.cities.any((c) => c.country != _view.country) &&
-            local.length < ledger.defendersToKeep(city) + requiredHeroes;
+            (local.isEmpty ||
+                ledger.assignedHeroCount(city.id) <
+                    ledger.defendersToKeep(city) + requiredHeroes);
         if (governors.isNotEmpty &&
             (local.length >= ledger.slots(city) ||
                 needHero && local.length >= city.rearStagingCapacity)) {
@@ -698,6 +718,55 @@ class CountryBrain {
   }
 
   // 只移动安全后方的闲置驻军，抵达后再从前线重新规划；不改令任何在途军队。
+  PlannedOperation? _reinforceEmptyCities(AiLedger ledger) {
+    for (final city in _view.owned) {
+      if (ledger.garrison(city.id).isNotEmpty ||
+          ledger.occupancy(city.id) > 0 ||
+          ledger.abandoned.contains(city.id)) {
+        continue;
+      }
+      final donors =
+          _view.heroes
+              .where(
+                (h) =>
+                    h.country == _view.country &&
+                    h.canDispatch &&
+                    ledger.canSpareForOffense(h) &&
+                    !ledger.reservedHeroes.contains(h.id) &&
+                    _reports[h.city]?.threatened != true,
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.position
+                  .distance(city.center)
+                  .compareTo(b.position.distance(city.center)),
+            );
+      for (final hero in donors.take(4)) {
+        if (!work.candidate()) return null;
+        final route = routes.to(
+          hero,
+          city.center,
+          _view,
+          target: city,
+          safe: true,
+        );
+        final operation = operations.send(
+          ledger,
+          hero,
+          route,
+          role: 'transfer',
+          reason: '空城优先接防，援军出发城保留实际守将',
+          target: city,
+          arrival: true,
+          emergency: true,
+          deadline: _reports[city.id]?.deadline ?? double.infinity,
+        );
+        if (operation != null) return operation;
+      }
+    }
+    return null;
+  }
+
   PlannedOperation? _stageFrontier(AiLedger ledger, OffensiveFocus focus) {
     final fronts = _view.owned
         .where((c) => _reports[c.id]?.threatened != true)
@@ -826,6 +895,7 @@ class CountryBrain {
                 (h) =>
                     h.canDispatch &&
                     !base.reservedHeroes.contains(h.id) &&
+                    base.canSpareForOffense(h) &&
                     operations.canRaidFrom(h, target),
               )
               .toList()

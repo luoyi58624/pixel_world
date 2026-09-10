@@ -5,6 +5,7 @@ import 'protocol.dart';
 import 'routes.dart';
 import 'rules_data.dart';
 import 'coalition_policy.dart';
+import 'combat_assessment.dart';
 import '../economy/domain/military_upkeep.dart';
 
 /// 一名部队的连续粮草承诺，返城时才停止计费。
@@ -126,37 +127,48 @@ class AiLedger {
       (arrivals[city] ?? 0) +
       (recruited.contains(city) ? 1 : 0);
 
-  /// 留守由来敌和现有队伍决定，单将国家在没有已知威胁时也能扩张。
+  /// 仍归属本城的在途与交战将领也计入编制，只有战损才形成替补缺口。
+  int assignedHeroCount(int city) =>
+      view.heroes
+          .where(
+            (h) =>
+                h.country == view.country &&
+                h.city == city &&
+                h.hp > 0 &&
+                !h.marked &&
+                !removed.contains(h.id),
+          )
+          .length +
+      (arrivals[city] ?? 0) +
+      (recruited.contains(city) ? 1 : 0);
+
+  /// 每座未明确放弃的城至少需要一名实际守将，空城也保留补防需求。
   int defendersToKeep(AiCity city) {
-    final original = view.garrison(city.id);
-    final guards = garrison(city.id);
-    final danger =
-        city.initialBattleLevel != null ||
-        view.heroes.any(
-          (h) =>
-              h.country != view.country &&
-              !h.stationed &&
-              !h.marked &&
-              h.hp > 0 &&
-              (h.regionCity == city.id ||
-                  h.position.distance(city.center) < 96),
-        );
-    if (danger) return guards.isEmpty ? 0 : 1;
-    if (guards.any((h) => h.type == 2)) return 1;
-    if (original.length <= 1) return 0;
-    final enemyDistance = view.cities
-        .where((c) => c.country != view.country)
-        .fold<double>(
-          double.infinity,
-          (d, c) => math.min(d, c.center.distance(city.center)),
-        );
-    final friendlyDistance = view.owned
-        .where((c) => c.id != city.id)
-        .fold<double>(
-          double.infinity,
-          (d, c) => math.min(d, c.center.distance(city.center)),
-        );
-    return enemyDistance > friendlyDistance * 1.5 ? 0 : 1;
+    return abandoned.contains(city.id) ? 0 : 1;
+  }
+
+  /// 远征保留实际有战力的守将，不能用最弱兵牌替代防线。
+  bool canSpareForOffense(AiHero hero) {
+    final city = view.city(hero.city);
+    if (city == null) return false;
+    final guards = view
+        .garrison(hero.city)
+        .where((h) => !removed.contains(h.id))
+        .toList();
+    if (guards.length <= 1) return false;
+    final protagonist = guards.where((h) => h.type == 2).firstOrNull;
+    if (protagonist != null) return hero.id != protagonist.id;
+    double strength(AiHero h) => heroDefenseValue(
+      h,
+      rules,
+      slots(city),
+      math.min(rules.integer('soldierLimit'), reserves),
+    );
+    guards.sort((a, b) => strength(b).compareTo(strength(a)));
+    // 留下达到本城最强守将六成战力的较弱者，让更强主力仍可出击。
+    final threshold = strength(guards.first) * .6;
+    final keeper = guards.where((h) => strength(h) >= threshold).last;
+    return hero.id != keeper.id;
   }
 
   /// 核算已有部队、候选任务和月结前后现金低点。
@@ -380,6 +392,11 @@ class AiLedger {
     if (!hero.canDismiss || hero.type == 2 || removed.contains(hero.id)) {
       return false;
     }
+    if (hero.stationed &&
+        !abandoned.contains(hero.city) &&
+        garrison(hero.city).length <= 1) {
+      return false;
+    }
     removed.add(hero.id);
     tasks.remove(hero.id);
     reservedHeroes.add(hero.id);
@@ -451,13 +468,11 @@ class AiLedger {
           factor: factor,
         ) -
         MilitaryUpkeep.monthlyCost(count, freeHeroes: free, factor: factor);
-    if (view.monthIndex == 0 ||
-        !city.recruitAllowed ||
+    if (!city.recruitAllowed ||
         recruited.contains(city.id) ||
         view.poolCount <= recruited.length ||
         gold < cost ||
-        futureSalary + futureUpkeep >
-            monthlyIncome * (emergency ? 1.3 : 1.1) ||
+        futureSalary + futureUpkeep > monthlyIncome * (emergency ? 1.3 : 1.1) ||
         futureSalary >
             monthlyIncome *
                 (emergency
@@ -484,6 +499,13 @@ class AiLedger {
         reservedHeroes.contains(hero.id) ||
         removed.contains(hero.id) ||
         gold <= 0) {
+      return false;
+    }
+    // 入城预约与刚抽取但尚未落地的将领都不能替代真实留守。
+    if (garrison(hero.city).length <= 1 &&
+        !(abandoned.contains(hero.city) &&
+            task.role == 'evacuate' &&
+            task.arrivalSlot)) {
       return false;
     }
     final stockCopy = Map<int, int>.of(stock);

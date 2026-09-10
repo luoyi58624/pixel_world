@@ -104,6 +104,10 @@ class ResourcePlanner {
 
     final cities = view.owned.toList()
       ..sort((a, b) {
+        final empty = (ledger.garrison(b.id).isEmpty ? 1 : 0).compareTo(
+          ledger.garrison(a.id).isEmpty ? 1 : 0,
+        );
+        if (empty != 0) return empty;
         final danger = (reports[b.id]?.threatened == true ? 1 : 0).compareTo(
           reports[a.id]?.threatened == true ? 1 : 0,
         );
@@ -213,10 +217,11 @@ class ResourcePlanner {
         extraHeroes = team;
       }
       final needHero =
-          extraHeroes > 0 &&
           view.cities.any((c) => c.country != view.country) &&
-          ledger.occupancy(city.id) <
-              ledger.defendersToKeep(city) + extraHeroes;
+          (local.isEmpty ||
+              extraHeroes > 0 &&
+                  ledger.assignedHeroCount(city.id) <
+                      ledger.defendersToKeep(city) + extraHeroes);
       if (governors.isNotEmpty &&
           city.initialBattleLevel == null &&
           (local.length > ledger.slots(city) ||
@@ -265,10 +270,14 @@ class ResourcePlanner {
     for (final city in cities) {
       if (reports[city.id]?.threatened == true) continue;
       final local = ledger.garrison(city.id);
-      final free = local.where((h) => h.canDispatch).toList()
-        ..sort(
-          (a, b) => heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
-        );
+      final free =
+          local
+              .where((h) => h.canDispatch && ledger.canSpareForOffense(h))
+              .toList()
+            ..sort(
+              (a, b) =>
+                  heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
+            );
       spare.addAll(
         free.take(math.max(0, local.length - ledger.defendersToKeep(city))),
       );

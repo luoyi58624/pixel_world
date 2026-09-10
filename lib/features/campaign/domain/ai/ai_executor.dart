@@ -563,6 +563,38 @@ extension _AiCommands on CampaignState {
         .where((a) => a.kind == AiActionKind.dispatch)
         .map((a) => a.hero)
         .toSet();
+    // 执行前按整个复合动作重新核对，拦住旧快照或多动作合并后派空/解雇空城。
+    for (final entry in cities.entries.where(
+      (e) => e.value.ownerCountryId == countryId,
+    )) {
+      final guards = garrisonAt(entry.key)
+          .where((h) => h.health.alive)
+          .toList();
+      if (guards.isEmpty ||
+          guards.any(
+            (h) => !removed.contains(h.id) && !departing.contains(h.id),
+          )) {
+        continue;
+      }
+      final evacuation =
+          group.emergency &&
+          cities.values.where((c) => c.ownerCountryId == countryId).length >
+              1 &&
+          _aiThreatened(entry.key) &&
+          guards.every(
+            (h) =>
+                !removed.contains(h.id) &&
+                group.tasks.any(
+                  (t) =>
+                      t.hero == h.id &&
+                      t.role == 'evacuate' &&
+                      t.arrivalSlot &&
+                      t.city != entry.key &&
+                      cities[t.city]?.ownerCountryId == countryId,
+                ),
+          );
+      if (!evacuation) return false;
+    }
     final incoming = <int, int>{};
     for (final task in _ai?.tasks.values ?? <ArmyTask>[]) {
       final march = marches[task.hero];

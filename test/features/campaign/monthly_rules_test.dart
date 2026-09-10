@@ -39,37 +39,18 @@ CampaignState fresh({double harvest = 0, double siege = 0}) =>
     );
 
 void main() {
-  test('首月所有国家禁止招将且不扣钱，跨月后开放', () {
+  test('所有国家从首月即可招将，逐次支付实际抽取与签约费用', () {
     final c = fresh();
     addTearDown(c.dispose);
-    final pool = c.recruitPool.length;
-    void checkBlocked() {
-      for (final city in c.world.cities) {
-        final country = c.cities[city.id]!.ownerCountryId;
-        final gold = c.goldFor(country);
-        expect(c.drawHero(city.id, countryId: country), isNull);
-        expect(c.goldFor(country), gold);
-        expect(
-          c.recruitmentBlockReason(city.id, countryId: country),
-          contains('首月'),
-        );
-      }
-      expect(c.recruitPool.length, pool);
-    }
-
-    checkBlocked();
-    c.advance(59.9);
-    checkBlocked();
-    c.advance(.1);
-    expect(c.settledMonths, 1);
     for (final city in c.world.cities) {
       final country = c.cities[city.id]!.ownerCountryId;
-      expect(
-        c.recruitmentBlockReason(city.id, countryId: country),
-        isNot(contains('首月')),
-      );
+      final before = c.goldFor(country);
+      final offer = c.drawHero(city.id, countryId: country);
+      expect(offer, isNotNull);
+      if (country == 0) expect(c.signHero(offer!), isNotNull);
+      expect(c.goldFor(country), before - 5 - offer!.initialSalary);
+      expect(c.settledMonths, 0);
     }
-    expect(c.drawHero(0), isNotNull);
   });
 
   test('开局满编，解锁后资金充足可连续升至五级，不生成免费士兵', () {
@@ -110,7 +91,6 @@ void main() {
   test('一级城超员仍可同月连续签约，候选锁定与首月月俸逐次生效', () {
     final c = fresh();
     addTearDown(c.dispose);
-    c.advance(60);
     expect(c.cities[0]!.level, 1);
     final initial = c.garrisonAt(0).length;
     for (var n = 0; n < 2; n++) {
@@ -121,7 +101,7 @@ void main() {
       expect(c.signHero(offer), isNull);
     }
     expect(c.garrisonAt(0).length, initial + 2);
-    expect(c.settledMonths, 1);
+    expect(c.settledMonths, 0);
   });
 
   test('多次升级始终校验余额，失败不扣钱也不增加城防', () {
