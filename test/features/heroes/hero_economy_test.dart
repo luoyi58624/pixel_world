@@ -72,6 +72,28 @@ CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
 void main() {
+  test('正式月俸为普通1至3、高级4至5，主角5且各国均不免薪', () {
+    final catalog = _catalog();
+    for (final hero in catalog) {
+      expect(hero.salary, switch (hero.type) {
+        HeroType.normal => inInclusiveRange(1, 3),
+        HeroType.advanced => inInclusiveRange(4, 5),
+        HeroType.protagonist => equals(5),
+      }, reason: hero.name ?? '主角');
+      for (var country = 0; country < 16; country++) {
+        expect(hero.salaryFor(country), hero.salary);
+      }
+    }
+    final c = _campaign();
+    addTearDown(c.dispose);
+    expect(_hero(c, 40).salary, 5);
+    expect(c.aiObservationFor(0).nation.salary, c.salaryCost);
+    final before = c.gold, salary = c.salaryCost;
+    c.advance(60);
+    expect(c.lastSettlementFor(0)!.salary, salary);
+    expect(c.gold, before + c.lastSettlementFor(0)!.baseIncome - salary);
+  });
+
   test('调整英雄JSON顺序后驻军与迎战顺序同步改变，主角仍排首位', () {
     final data = _config();
     data['heroes'] = (data['heroes'] as List).reversed.toList();
@@ -103,7 +125,7 @@ void main() {
         expected,
       );
     }
-    expect(_hero(c, 40).salary, 0);
+    expect(_hero(c, 40).salary, 5);
     expect(_catalog().firstWhere((hero) => hero.id == 0).romSalary, 8);
     expect(() => _catalog().clear(), throwsUnsupportedError);
   });
@@ -195,7 +217,7 @@ void main() {
     expect(c.marches, isEmpty);
     expect(hero.soldiers, 0);
     expect(c.soldiersAt(0), 4);
-    expect(c.salaryAt(0), _hero(c, 18).salary);
+    expect(c.salaryAt(0), _hero(c, 18).salary + _hero(c, 40).salary);
     c.advance(30);
     expect(c.gold, before + 15);
   });

@@ -65,7 +65,7 @@ class RomHeroDefinition {
   /// 内政能力。
   final int politics;
 
-  /// 其他国家聘用时的月俸金币，专属国任职不收费。
+  /// 任意国家任职时的月俸金币，本国核心将领与主角同样付薪。
   final int salary;
 
   /// 原版提取的报酬，仅作分析对照，不参与游戏月结。

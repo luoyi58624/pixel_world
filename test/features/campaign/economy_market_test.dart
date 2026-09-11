@@ -136,7 +136,7 @@ void main() {
     );
     expect(_hero(c, 0).salary, catalog.firstWhere((h) => h.id == 0).salary);
     expect(_hero(c, 2).salary, catalog.firstWhere((h) => h.id == 2).salary);
-    expect(_hero(c, 40).salary, 0);
+    expect(_hero(c, 40).salary, 5);
     final definition = RomHeroDefinition.fromJson({
       'id': 40,
       'name': null,
