@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/nes/nes_battle_kernel.dart';
+import 'package:pixel_world/features/weapons/domain/weapon.dart';
 
 /// 独立对照当前战斗规则，结果仅用于离线验收，不供运行时AI决策。
 void main(List<String> args) {
@@ -14,6 +15,9 @@ void main(List<String> args) {
 
   final count = option('--samples', 256);
   final seed = option('--seed', 20260911);
+  final cannon = WeaponCatalog.decode(
+    File('assets/data/rom_weapons.json').readAsStringSync(),
+  ).weapons[11]!;
   if (count < 1 || count > 4096) throw ArgumentError('样本数必须为1到4096');
   final random = math.Random(seed);
   final seeds = List.generate(count, (_) => random.nextInt(1 << 24));
@@ -25,6 +29,8 @@ void main(List<String> args) {
       'cityRecoil': GameConfig.cityDefenseRecoilScale,
       'moralePowerScale': GameConfig.battleMoralePowerScale,
       'chargeFrames': GameConfig.battleChargeIntervalFrames,
+      'cannonDamage': cannon.damage,
+      'cannonPrice': cannon.price,
     }),
   );
   final scenarios = <Map<String, int>>[
@@ -36,7 +42,7 @@ void main(List<String> args) {
     ])
       for (var level = 0; level <= 5; level++)
         {'attack': h[0], 'hp': h[1], 'morale': h[2], 'level': level},
-    for (final level in [1, 3, 5]) {'level': level, 'weapon': 80},
+    for (final level in [1, 3, 5]) {'level': level, 'weapon': cannon.damage},
     {'attackerMorale': 100, 'defenderMorale': 50},
     {'attackerMorale': 50, 'defenderMorale': 100},
     {'attackerSoldiers': 4, 'defenderSoldiers': 3},

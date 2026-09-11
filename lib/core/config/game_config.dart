@@ -183,8 +183,8 @@ abstract final class GameConfig {
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
-  /// 每级城防增加一点攻击力，优势随等级增加但不提高士气和冲锋速度。
-  static const cityDefenseAttackBonuses = [1, 2, 3, 4, 5];
+  /// 一至五级城防攻击加成，不提高士气和冲锋速度。
+  static const cityDefenseAttackBonuses = [1, 3, 5, 8, 12];
 
   /// 按有效城防等级读取加成，连续守城随剩余等级递减。
   static int cityDefenseAttackBonusFor(int level) =>

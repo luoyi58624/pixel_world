@@ -23,7 +23,7 @@ CampaignState _campaign() => CampaignState.fromRom(
 );
 
 void main() {
-  test('每级城防加一点攻击，AI与实际战斗一致且不改基础属性', () {
+  test('城防按配置增加攻击，AI与实际战斗一致且不改基础属性', () {
     final c = _campaign();
     addTearDown(c.dispose);
     final rules = AiRules.fromJson(c.aiRulesForTesting().toJson());
@@ -38,7 +38,7 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 13);
-      final bonus = level;
+      final bonus = [1, 3, 5, 8, 12][level - 1];
       expect(sim.basePower(BattleSide.defender), 13 + bonus);
       expect(rules.integer('soldierPower'), 1);
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
@@ -78,7 +78,7 @@ void main() {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 19);
-    expect(sim.basePower(BattleSide.defender), 24);
+    expect(sim.basePower(BattleSide.defender), 31);
     expect(sim.lastClash!.attackerDamage, greaterThan(0));
     expect(sim.lastClash!.defenderDamage, greaterThan(0));
     expect(
@@ -101,7 +101,7 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderAttackBonus, 3);
     expect(battle.simulation.defenderMoraleBonus, 0);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
@@ -139,7 +139,7 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers + 3,
+      battle.defender.combat + battle.defender.soldiers + 5,
     );
     expect(
       sim.basePower(BattleSide.attacker),
