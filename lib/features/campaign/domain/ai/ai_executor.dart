@@ -460,6 +460,7 @@ extension _AiCommands on CampaignState {
     final levels = {for (final c in cities.entries) c.key: c.value.level},
         stock = Map<int, int>.of(_weaponStock[countryId] ?? {}),
         removed = <String>{};
+    final upgraded = <int>{}, recruited = <int>{};
     for (final action in group.actions) {
       if (action.city != null && !cities.containsKey(action.city)) return false;
       final hero = heroes.where((h) => h.id == action.hero).firstOrNull;
@@ -475,6 +476,7 @@ extension _AiCommands on CampaignState {
         case AiActionKind.upgrade:
           if (hero == null ||
               city?.ownerCountryId != countryId ||
+              !upgraded.add(action.city!) ||
               upgradeWindowBlockReason(action.city!) != null ||
               _upgradeParticipantProblem(action.city!, hero, countryId) !=
                   null ||
@@ -504,6 +506,7 @@ extension _AiCommands on CampaignState {
           reserve = math.min(capacity, reserve);
         case AiActionKind.recruit:
           if (city?.ownerCountryId != countryId ||
+              !recruited.add(action.city!) ||
               recruitmentBlockReason(action.city!, countryId: countryId) !=
                   null ||
               !_aiSafeRecruitment(action.city!)) {

@@ -1020,8 +1020,15 @@ class CampaignState {
   RecruitmentOffer? recruitmentOfferFor(int countryId) =>
       _recruitmentOffers[countryId];
 
-  /// 招募不设月度额度，null 表示无限次；仍需逐次校验金币和候选锁定。
-  int? remainingHeroDraws(int cityId) => cities.containsKey(cityId) ? null : 0;
+  /// 本城本月剩余签约次数，抽取后放弃或签约失败不消耗次数。
+  int remainingHeroDraws(int cityId) =>
+      cities.containsKey(cityId) &&
+          _cityRecruitmentMonths[cityId] != settledMonths
+      ? 1
+      : 0;
+
+  // 次数跟随城池，防止读档或易主后在同一个月重复购买。
+  final Map<int, int> _cityRecruitmentMonths = {}, _cityUpgradeMonths = {};
 
   /// 已完成的经济结算次数。
   int get settledTurns => settledMonths;
@@ -1318,6 +1325,7 @@ class CampaignState {
     if (defeated) return '游戏已结束';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
+    if (remainingHeroDraws(cityId) == 0) return '本城本月已招募，下月可再次招募';
     if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';
     final budget =
         GameConfig.heroDrawCost +
@@ -1391,6 +1399,7 @@ class CampaignState {
       offer.countryId == countryId &&
       identical(_recruitmentOffers[countryId], offer) &&
       cities[offer.cityId]?.ownerCountryId == countryId &&
+      remainingHeroDraws(offer.cityId) > 0 &&
       goldFor(countryId) > 0 &&
       goldFor(countryId) >= offer.initialSalary &&
       !heroes.any((hero) => hero.sourceId == offer.hero.id);
@@ -1420,6 +1429,7 @@ class CampaignState {
     );
     hero._salaryPaidMonth = settledMonths;
     heroes.add(hero);
+    _cityRecruitmentMonths[offer.cityId] = settledMonths;
     _recruitmentOffers.remove(countryId);
     _record(
       '${hero.name}已签约${_cityName(offer.cityId)}，首月月俸 ${offer.initialSalary} 金币',
@@ -1666,8 +1676,11 @@ class CampaignState {
   /// 当前年份允许升级到的城防等级，不影响开局已有等级。
   int get cityUpgradeLevelLimit => GameConfig.cityUpgradeLimitForYear(year);
 
-  /// 升级次数不限，超过本年度城防上限须等待新年。
+  /// 每城每月只能升级一次，同时遵守本年度城防上限。
   String? upgradeWindowBlockReason(int cityId) {
+    if (_cityUpgradeMonths[cityId] == settledMonths) {
+      return '本城本月已升级，下月可再次升级';
+    }
     final level = cities[cityId]?.level;
     if (level == null ||
         level >= GameConfig.maxCityLevel ||
@@ -1720,6 +1733,7 @@ class CampaignState {
     final cost = upgradeCostFor(cityId, hero, countryId: countryId)!;
     _countryGold[countryId] = goldFor(countryId) - cost;
     city._level++;
+    _cityUpgradeMonths[cityId] = settledMonths;
     _refreshCityApproaches(cityId);
     _record(
       '${hero!.name}主持${_cityName(cityId)}升至 ${city.level} 级，花费 $cost 金币，每月收入 ${city.income}',
@@ -2443,7 +2457,7 @@ class CampaignState {
       }
     }
     cities[cityId]!.ownerCountryId = winnerCountryId;
-    _inheritWarSpoils(previousOwner, winnerCountryId, cityId);
+    _clearDefeatedTreasury(previousOwner);
     _ai?.urgent(previousOwner, reason: '本国城池失守');
     _ai?.urgent(winnerCountryId, reason: '占领新城，需要重新安排资源');
     _trimCountryTroops(previousOwner);

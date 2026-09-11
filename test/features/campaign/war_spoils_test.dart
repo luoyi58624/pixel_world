@@ -51,7 +51,7 @@ CampaignState spoilsCampaign() => CampaignState.fromRom(
 
 void main() {
   for (final winner in [0, 2]) {
-    test('最后攻下的国家 $winner 接管剩余金币及武器，部分占领不转交', () {
+    test('国家 $winner 攻占城池和灭国均不继承金币武器，败国库存清空', () {
       final c = spoilsCampaign();
       addTearDown(c.dispose);
       c.buyWeapon(0, countryId: 1);
@@ -64,24 +64,25 @@ void main() {
       expect(c.events.forCountry(1).timeline(), isEmpty);
       c.defeatHero('rom-4', winnerCountryId: winner, defendedCityId: 2);
       expect(c.goldFor(1), 0);
-      expect(c.goldFor(winner), winnerGold + defeatedGold);
+      expect(c.goldFor(winner), winnerGold);
       expect(c.weaponInventoryFor(1), isEmpty);
-      expect(c.weaponStockFor(winner, 0), 3);
+      expect(c.weaponStockFor(winner, 0), 1);
       expect(c.reserveCapacityFor(1), 0);
       expect(c.reserveSoldiersFor(1), 0);
-      final event = c.events.forCountry(winner).timeline().single;
-      expect(event.kind, GameEventKind.treasuryCaptured);
-      expect(event.data['gold'], defeatedGold);
-      expect(event.data['weapons'], [
-        {'id': 0, 'name': '箭', 'quantity': 2},
-      ]);
+      expect(
+        c.events
+            .forCountry(winner)
+            .timeline()
+            .where((e) => e.kind == GameEventKind.treasuryCaptured),
+        isEmpty,
+      );
       expect(
         c.defeatHero('rom-4', winnerCountryId: winner, defendedCityId: 2),
         isNull,
       );
-      expect(c.goldFor(winner), winnerGold + defeatedGold);
-      expect(c.weaponStockFor(winner, 0), 3);
-      expect(c.events.forCountry(winner).timeline().length, 1);
+      expect(c.goldFor(winner), winnerGold);
+      expect(c.weaponStockFor(winner, 0), 1);
+      expect(c.events.forCountry(winner).timeline(), isEmpty);
     });
   }
 

@@ -12,91 +12,91 @@
       "id": 1,
       "name": "奥尔梅",
       "initialGold": 70,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 2,
       "name": "马易",
       "initialGold": 60,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 3,
       "name": "鲍罗布",
       "initialGold": 90,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 4,
       "name": "墨尔",
       "initialGold": 110,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 5,
       "name": "托洛诺",
       "initialGold": 120,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 6,
       "name": "列穆",
       "initialGold": 120,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 7,
       "name": "迪麦",
       "initialGold": 160,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 8,
       "name": "索朗",
       "initialGold": 180,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 9,
       "name": "本塔",
       "initialGold": 130,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 10,
       "name": "洛埃",
       "initialGold": 220,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 11,
       "name": "贝尔",
       "initialGold": 220,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 12,
       "name": "艾布林",
       "initialGold": 40,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 13,
       "name": "格商尔",
       "initialGold": 40,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 14,
       "name": "格林福",
       "initialGold": 40,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     },
     {
       "id": 15,
       "name": "沃塔",
       "initialGold": 40,
-      "monthlyBaseIncome": 20
+      "monthlyBaseIncome": 10
     }
   ],
   "worlds": [

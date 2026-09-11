@@ -205,7 +205,7 @@ void main() {
     expect(c.soldiersAt(1), 12);
     expect(c.cities[1]!.level, 2);
     expect(c.heroes.length, count);
-    expect(c.remainingHeroDraws(1), isNull);
+    expect(c.remainingHeroDraws(1), 1);
   });
 
   test('全国在外部队只预留欠收与月俸，不再按距离或扎营增加费用', () {
@@ -224,12 +224,12 @@ void main() {
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
     expect(moving.planningSeconds, 90);
-    expect(moving.minimumMonthlyIncome, 0);
+    expect(moving.minimumMonthlyIncome, -10);
     expect(
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, 11); // 欠收无净产出，只预留六金币月俸和五金币应急金。
+    expect(moving.reserveGold, 21); // 十金币保底不足抵扣极端欠收，另留月俸和应急金。
     b.camp();
     expect(c.aiBudgetFor(1).reserveGold, moving.reserveGold);
     expect(c.aiBudgetFor(0).reserveGold, 5);
@@ -327,7 +327,7 @@ void main() {
       );
     }
     expect(c.lastSettlementFor(1)!.harvest?.name, 'poor');
-    expect(c.goldFor(0), 110); // 单城欠收产出十金币，玩家国库不受敌国经营影响。
+    expect(c.goldFor(0), 100); // 十金币保底抵扣单城欠收，玩家国库不受敌国经营影响。
   });
 
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {
@@ -387,6 +387,7 @@ void main() {
   test('多城共用同一份国库预算，支出后即时重算，不把预留重复花掉', () {
     final c = _campaign(
       gold: 45,
+      income: 20, // 与正式地图的基础产出一致，升级不再增加收入。
       secondCity: true,
       recruitment: true,
       stock: 0,

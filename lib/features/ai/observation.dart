@@ -221,6 +221,7 @@ class AiCity {
     required this.recruitAllowed,
     required this.revision,
     this.baseIncome = 10,
+    this.upgradeAllowed = true,
     this.initialBattleLevel,
     this.victories = 0,
     this.attacker,
@@ -246,6 +247,7 @@ class AiCity {
     capacityContribution: d['cap'],
     rearStagingCapacity: d['recruitCap'],
     recruitAllowed: d['recruit'],
+    upgradeAllowed: d['upgrade'] as bool? ?? true,
     revision: d['rev'],
     baseIncome: d['baseIncome'],
     initialBattleLevel: d['initial'],
@@ -273,6 +275,9 @@ class AiCity {
 
   /// 当前真实规则是否允许抽取。
   final bool recruitAllowed;
+
+  /// 本城当月升级额度和年度上限是否允许升级，费用及主持将领另行校验。
+  final bool upgradeAllowed;
 
   /// 归属、等级和本场守军序列的版本。
   final String revision;
@@ -316,6 +321,7 @@ class AiCity {
     'cap': capacityContribution,
     'recruitCap': rearStagingCapacity,
     'recruit': recruitAllowed,
+    'upgrade': upgradeAllowed,
     'rev': revision,
     'initial': initialBattleLevel,
     'wins': victories,

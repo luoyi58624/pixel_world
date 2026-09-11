@@ -149,6 +149,9 @@ extension CampaignSnapshots on CampaignState {
         for (final e in countryConfigs.entries)
           '${e.key}': [e.value.initialGold, e.value.monthlyBaseIncome],
       },
+      'fixedIncomeVersion': 2,
+      'cityRecruitmentMonths': _keys(_cityRecruitmentMonths),
+      'cityUpgradeMonths': _keys(_cityUpgradeMonths),
       'random': [
         for (final r in [
           _economyRandom,
@@ -343,7 +346,16 @@ extension CampaignSnapshots on CampaignState {
               for (final e in (d['countryConfigs'] as Map).entries)
                 int.parse(e.key): CountryConfig(
                   initialGold: e.value[0],
-                  monthlyBaseIncome: e.value[1],
+                  monthlyBaseIncome:
+                      !replay &&
+                          (d['fixedIncomeVersion'] as int? ?? 0) < 2 &&
+                          int.parse(e.key) != 0
+                      ? world
+                                .setup
+                                .countries[int.parse(e.key)]
+                                ?.monthlyBaseIncome ??
+                            GameConfig.countryMonthlyIncome
+                      : e.value[1],
                 ),
             }),
       weapons,
@@ -532,6 +544,16 @@ extension CampaignSnapshots on CampaignState {
       ),
     );
     c.settledMonths = d['time'][0];
+    _intMap(
+      c._cityRecruitmentMonths,
+      d['cityRecruitmentMonths'] ?? {},
+      (v) => v as int,
+    );
+    _intMap(
+      c._cityUpgradeMonths,
+      d['cityUpgradeMonths'] ?? {},
+      (v) => v as int,
+    );
     c._monthSeconds = _double(d['time'][1]);
     c._simulationFraction = _double(d['time'][2]);
     c._battleSerial = d['time'][3];

@@ -118,7 +118,7 @@ extension _AiObservationBridge on CampaignState {
   String _aiCityRevision(int id) {
     final city = cities[id]!, battle = battles[id];
     final active = battle?.isActive == true ? battle : null;
-    return '${city.ownerCountryId}:${city.level}:${garrisonAt(id).map((h) => h.id).join(',')}:${active?.attacker.id}:${active?.initialCityLevel}:${active?.victories}:${active?.defender.id}';
+    return '${city.ownerCountryId}:${city.level}:${garrisonAt(id).map((h) => h.id).join(',')}:${active?.attacker.id}:${active?.initialCityLevel}:${active?.victories}:${active?.defender.id}:${remainingHeroDraws(id)}:${_cityUpgradeMonths[id] == settledMonths}';
   }
 
   AiObservation _observeAi(int countryId) {
@@ -145,6 +145,7 @@ extension _AiObservationBridge on CampaignState {
           baseIncome: city.baseIncome,
           capacityContribution: city.reserveCapacity,
           rearStagingCapacity: city.rearStagingCapacity,
+          upgradeAllowed: upgradeWindowBlockReason(definition.id) == null,
           recruitAllowed:
               city.ownerCountryId == countryId &&
               recruitmentBlockReason(definition.id, countryId: countryId) ==

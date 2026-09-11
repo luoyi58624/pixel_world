@@ -77,11 +77,11 @@ abstract final class GameConfig {
   /// 正式地图一级城池的正常月产出。
   static const cityBaseIncome = 20;
 
-  /// 城防每升一级增加的正常月产出。
-  static const cityIncomePerLevel = 5;
+  /// 城防升级不增加月收入，城池按基础产出结算。
+  static const cityIncomePerLevel = 0;
 
   /// 未单独配置国家时的月保底，正式各国由 JSON 的 monthlyBaseIncome 指定。
-  static const countryMonthlyIncome = 20;
+  static const countryMonthlyIncome = 10;
 
   /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
   static const foreignCityYieldFactor = 1.0;
@@ -154,7 +154,7 @@ abstract final class GameConfig {
           .clamp(1, maxCityLevel);
 
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
-  static const List<int> cityUpgradeCosts = [30, 60, 80, 100];
+  static const List<int> cityUpgradeCosts = [30, 60, 90, 120];
 
   /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;

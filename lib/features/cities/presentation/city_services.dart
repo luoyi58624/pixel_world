@@ -64,11 +64,14 @@ class CityServices extends StatelessWidget {
                       city.isPlayer &&
                           upgradeProblem != null &&
                           city.baseUpgradeCost != null
-                      ? upgradeProblem.contains('年')
+                      ? upgradeProblem.contains('年') ||
+                                upgradeProblem.contains('本月')
                             ? upgradeProblem
                             : upgradeProblem.contains('金币')
                             ? '金币不足'
                             : '请选择空闲将领'
+                      : city.isPlayer
+                      ? '每城每月一次'
                       : null,
                   onTap: city.isPlayer && upgradeProblem == null
                       ? () => onAction(c.upgradeSelectedCity)
@@ -104,7 +107,9 @@ class CityServices extends StatelessWidget {
                   valueKey: 'city-recruit-pool',
                   action: '${GameConfig.heroDrawCost}金币',
                   actionKey: 'city-recruit-quota',
-                  hint: city.isPlayer && localOffer == null ? blocked : null,
+                  hint: city.isPlayer && localOffer == null
+                      ? blocked ?? '每城每月签约一次'
+                      : null,
                   onTap: city.isPlayer && localOffer == null && blocked == null
                       ? () => onAction(c.drawCityHero)
                       : null,

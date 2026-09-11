@@ -47,6 +47,7 @@ void main() {
       '戈鲁格',
     ]);
     for (final definition in added) {
+      c.settledMonths++;
       expect(definition.nativeCountryId, isNull);
       random.index = c.recruitPool.indexWhere(
         (hero) => hero.id == definition.id,
@@ -82,6 +83,8 @@ void main() {
     final hero = c.signHero(offer)!;
     expect(c.signHero(offer), isNull);
     expect(c.heroes.where((h) => h.sourceId == hero.sourceId).length, 1);
+    expect(c.drawHero(0), isNull);
+    c.settledMonths++;
     final next = c.drawHero(0)!;
     expect(next.hero.id, isNot(hero.sourceId));
     expect(c.signHero(next), isNotNull);
@@ -103,18 +106,17 @@ void main() {
     expect(c.drawHero(0), isNull);
   });
 
-  test('电脑国家也能同月连续招募，所有候选保持全局唯一', () {
+  test('玩家和电脑国家同城每月仅签约一次，所有候选保持全局唯一', () {
     final c = _campaign();
     addTearDown(c.dispose);
     final month = c.settledMonths;
-    for (var n = 0; n < 3; n++) {
-      final offer = c.drawHero(0, countryId: 0)!;
-      expect(c.signHero(offer), isNotNull);
-    }
+    final offer = c.drawHero(0)!;
+    expect(c.signHero(offer), isNotNull);
+    expect(c.drawHero(0), isNull);
     final first = c.drawHero(1, countryId: 1);
     expect(first, isNotNull);
     expect(c.recruitmentOfferFor(1), isNull);
-    expect(c.drawHero(1, countryId: 1), isNotNull);
+    expect(c.drawHero(1, countryId: 1), isNull);
     expect(c.heroes.map((h) => h.sourceId).toSet().length, c.heroes.length);
     expect(c.settledMonths, month);
   });

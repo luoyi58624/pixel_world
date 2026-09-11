@@ -74,6 +74,8 @@ class AiLedger {
   }
 
   final Set<int> recruited = {}, abandoned = {};
+  // 同一轮候选规划也必须消耗本城的月度升级次数。
+  final Set<int> _upgraded = {};
   final Map<int, bool> _rearSafety = {};
 
   /// 复制候选账本，用于比较有限复合方案。
@@ -93,6 +95,7 @@ class AiLedger {
     next.departed.addAll(departed);
     next.reservedHeroes.addAll(reservedHeroes);
     next.recruited.addAll(recruited);
+    next._upgraded.addAll(_upgraded);
     next.abandoned.addAll(abandoned);
     next._rearSafety.addAll(_rearSafety);
     return next;
@@ -324,7 +327,9 @@ class AiLedger {
 
   /// 合法升级报价及容量变化，主持将领仍留在城内。
   bool upgrade(AiCity city, AiHero governor) {
-    if (!governor.canUpgrade ||
+    if (!city.upgradeAllowed ||
+        _upgraded.contains(city.id) ||
+        !governor.canUpgrade ||
         removed.contains(governor.id) ||
         departed.contains(governor.id)) {
       return false;
@@ -344,6 +349,7 @@ class AiLedger {
         (level * rules.integer('capacityPerLevel') * factor).floor();
     gold -= cost;
     levels[city.id] = level + 1;
+    _upgraded.add(city.id);
     return true;
   }
 

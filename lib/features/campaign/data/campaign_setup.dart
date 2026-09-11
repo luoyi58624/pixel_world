@@ -6,7 +6,7 @@ import '../../../core/config/game_config.dart';
 class CitySetup {
   const CitySetup._({required this.baseIncome, required this.initialLevel});
 
-  /// 一级城池正常月产出，实际产出另加等级收益。
+  /// 城池正常月产出，不随城防等级增长。
   final int baseIncome;
 
   /// 开局等级，影响建筑外观、储备容量和守城加成。

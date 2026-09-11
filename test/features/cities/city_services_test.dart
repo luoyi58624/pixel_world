@@ -87,7 +87,12 @@ void main() {
     final campaign = c.campaign, hero = c.selectedHero!;
     campaign.settledMonths = 0;
     expect(campaign.upgradeCity(0, hero: hero), isTrue);
+    c.refreshUi();
+    await tester.pump();
+    expect(find.byTooltip('本城本月已升级，下月可再次升级'), findsOneWidget);
+    campaign.settledMonths++;
     expect(campaign.upgradeCity(0, hero: hero), isTrue);
+    campaign.settledMonths++;
     c.refreshUi();
     await tester.pump();
     final button = find.byKey(const ValueKey('city-upgrade'));
@@ -126,7 +131,7 @@ void main() {
     expect(find.byKey(const ValueKey('city-recruit-offer')), findsNothing);
     expect(expiry, findsNothing);
     expect(c.campaign.signHero(offer), isNull);
-    expect(c.campaign.remainingHeroDraws(0), isNull);
+    expect(c.campaign.remainingHeroDraws(0), 1);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
