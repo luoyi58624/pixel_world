@@ -11,6 +11,7 @@ void main() {
   for (final scenario in reference['cases'] as List) {
     test('原始 6502 逐帧一致：${scenario['name']}（位置、速度、随机数、伤害、阵亡）', () {
       final kernel = NesBattleKernel(
+        originalSoldierRules: true,
         attack: List<int>.from(scenario['attack']),
         hp: List<int>.from(scenario['hp']),
         slots: [

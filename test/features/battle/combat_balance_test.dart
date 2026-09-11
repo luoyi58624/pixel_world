@@ -40,7 +40,7 @@ void main() {
       recoil: GameConfig.battleRecoilDifferenceScale,
       wall: GameConfig.battleWallDamageScale,
     );
-    expect(unchangedHero, inInclusiveRange(35, 63));
+    expect(unchangedHero, inInclusiveRange(35, 64));
     expect(
       victories(
         attack: 18,

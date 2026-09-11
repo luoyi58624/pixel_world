@@ -290,7 +290,7 @@ class BattleSimulation {
   /// 原版小兵为共享兵力提供的生命。
   static const soldierHp = NesBattleKernel.soldierHp;
 
-  /// 小兵对开场碰撞强度的贡献。
+  /// 每名存活小兵对当前碰撞强度的贡献。
   static const soldierAttack = NesBattleKernel.soldierPower;
 
   /// 固定六十帧逻辑步长。

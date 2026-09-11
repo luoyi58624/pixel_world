@@ -28,13 +28,13 @@ void round(BattleSimulation sim, int n) {
 }
 
 void main() {
-  test('原版兵力20、每兵强度2，首轮碰撞7到13点而非全属性直接扣血', () {
+  test('每兵20生命与1点强度，碰撞伤害不等于直接扣除全属性', () {
     final sim = battle();
-    expect(sim.basePower(BattleSide.attacker), 23);
+    expect(sim.basePower(BattleSide.attacker), 19);
     expect(sim.attackerMorale.maximum, 100);
     round(sim, 1);
-    expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
-    expect(sim.lastClash!.defenderDamage, inInclusiveRange(7, 13));
+    expect(sim.lastClash!.attackerDamage, inInclusiveRange(5, 10));
+    expect(sim.lastClash!.defenderDamage, inInclusiveRange(5, 10));
     expect(sim.attacker.general.hp, 95);
     expect(sim.defender.general.hp, 95);
     expect(sim.survivors(BattleSide.attacker), 4);
@@ -71,7 +71,7 @@ void main() {
   test('原版槽位随机减员、总兵力守恒、士兵不在纵向补位', () {
     final sim = battle();
     var aDamage = 0.0, dDamage = 0.0;
-    for (var n = 1; n <= 2; n++) {
+    for (var n = 1; n <= 3; n++) {
       round(sim, n);
       aDamage += sim.lastClash!.defenderDamage;
       dDamage += sim.lastClash!.attackerDamage;

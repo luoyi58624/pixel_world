@@ -67,13 +67,14 @@ class NesBattleKernel {
     _p = r[11];
     _pc = r[12];
     _sp = r[13];
+    _refreshSoldierPower();
   }
 
   /// ROM 固定的每兵共享生命，对应 E4B5 减员阈值。
   static const soldierHp = 20;
 
-  /// ROM 固定的每兵碰撞强度，对应 E1E6 的左移。
-  static const soldierPower = 2;
+  /// 每名存活士兵提供一点碰撞强度，阵亡立即扣除。
+  static const soldierPower = 1;
 
   /// 双方开场阵形锚点，顺序为右军、左军。
   static const initialFormationX = [200, 16];
@@ -88,6 +89,7 @@ class NesBattleKernel {
     List<int>? initialMorale,
     this.recoilDifferenceScale = 1,
     this.wallDamageScale = 1,
+    this.originalSoldierRules = false,
   }) {
     if (!recoilDifferenceScale.isFinite ||
         recoilDifferenceScale < 0 ||
@@ -147,6 +149,18 @@ class NesBattleKernel {
       }
       ram[0x1a + side] = strength;
       _call(0xe758, x: side);
+    }
+    _refreshSoldierPower();
+  }
+
+  /// 仅供原 ROM 逐帧对照测试保留开场每兵两点且不随减员变化的旧规则。
+  final bool originalSoldierRules;
+
+  // 保留将领与城防基础值，只重算存活兵员；不能影响正在执行的寄存器和进位。
+  void _refreshSoldierPower() {
+    if (originalSoldierRules) return;
+    for (var side = 0; side < 2; side++) {
+      ram[0x1c + side] = ram[0x1a + side] + ram[0x702f + side] * soldierPower;
     }
   }
 
@@ -521,6 +535,8 @@ class NesBattleKernel {
         case 0xde:
           final p = (_word() + _x) & 65535;
           ram[p] = _nz(ram[p] - 1);
+          // 普通碰撞、撞墙和武器共用减员指令，同帧后续计算必须读到新强度。
+          if (p == 0x702f || p == 0x7030) _refreshSoldierPower();
         case 0xe0:
           _cmp(_x, _byte());
         case 0xe5:

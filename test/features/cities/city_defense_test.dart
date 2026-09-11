@@ -37,9 +37,10 @@ void main() {
         seed: 1,
         defenderCityLevel: level,
       );
-      expect(sim.basePower(BattleSide.attacker), 16);
+      expect(sim.basePower(BattleSide.attacker), 13);
       final bonus = level * 2;
-      expect(sim.basePower(BattleSide.defender), 16 + bonus);
+      expect(sim.basePower(BattleSide.defender), 13 + bonus);
+      expect(rules.integer('soldierPower'), 1);
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
@@ -75,8 +76,8 @@ void main() {
     for (var i = 0; i < 1000 && sim.clashes == 0; i++) {
       sim.advance(1 / 60);
     }
-    expect(sim.basePower(BattleSide.attacker), 23);
-    expect(sim.basePower(BattleSide.defender), 33);
+    expect(sim.basePower(BattleSide.attacker), 19);
+    expect(sim.basePower(BattleSide.defender), 29);
     expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
     expect(sim.lastClash!.defenderDamage, inInclusiveRange(10, 20));
     expect(
@@ -137,11 +138,11 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers * 2 + 6,
+      battle.defender.combat + battle.defender.soldiers + 6,
     );
     expect(
       sim.basePower(BattleSide.attacker),
-      battle.attacker.combat + battle.attacker.soldiers * 2,
+      battle.attacker.combat + battle.attacker.soldiers,
     );
     final idle = c.garrisonAt(0).firstWhere((hero) => hero != governor);
     c.settledMonths++;

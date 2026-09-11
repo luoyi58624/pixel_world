@@ -11,6 +11,7 @@ void main() {
   for (final entry in fixture['cases'] as List) {
     test('双方自动士气与 py65 原始指令逐帧一致：${entry['name']}', () {
       final kernel = NesBattleKernel(
+        originalSoldierRules: true,
         attack: (entry['attack'] as List).cast<int>(),
         hp: (entry['hp'] as List).cast<int>(),
         slots: [
