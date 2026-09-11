@@ -341,6 +341,7 @@ class AiCountry {
     this.capacity,
     this.salary,
     this.poorIncome, {
+    this.baseIncome,
     this.garrisonAccrued = 0,
     Map<int, int> stock = const {},
     Map<int, int> hatred = const {},
@@ -355,6 +356,7 @@ class AiCountry {
     d['capacity'],
     d['salary'],
     d['poor'],
+    baseIncome: d['baseIncome'] as int?,
     garrisonAccrued: (d['garrisonAccrued'] as num? ?? 0).toDouble(),
     stock: {
       for (final e in (d['stock'] as Map).entries)
@@ -368,6 +370,9 @@ class AiCountry {
 
   /// 国家身份、现金、兵员、上限、月俸及欠收收入。
   final int id, gold, reserves, capacity, salary, poorIncome;
+
+  /// 本国固定月保底；旧观察未提供时由规则默认值兼容。
+  final int? baseIncome;
 
   /// 本国已累计、将于月底支付的驻军军费，不能因重新分配任务消失。
   final double garrisonAccrued;
@@ -383,6 +388,7 @@ class AiCountry {
     'capacity': capacity,
     'salary': salary,
     'poor': poorIncome,
+    'baseIncome': baseIncome,
     'garrisonAccrued': garrisonAccrued,
     'stock': {for (final e in stock.entries) '${e.key}': e.value},
     'hate': {for (final e in hatred.entries) '${e.key}': e.value},

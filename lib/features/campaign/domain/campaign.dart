@@ -93,7 +93,7 @@ class CitySituation {
   /// 基础城防，用于界面展示。
   final int defense;
 
-  /// 城市固定月产出，升级不提高。
+  /// 一级城池正常产出，实际月收入另加每级增长。
   final int baseIncome;
   int _level;
 
@@ -106,14 +106,20 @@ class CitySituation {
   /// AI 后方部队分布参考值，不限制招募或玩家驻军。
   int get rearStagingCapacity => level + 1;
 
-  /// 城池固定产出，占领地与本土同额。
-  int get income => incomeFor(Harvest.normal);
-
-  /// 收成在国家月结中只算一次，单城不重复添加丰欠收奖励。
-  int incomeFor(Harvest harvest) =>
+  /// 城池正常产出，按当前等级计算，占领地与本土同额。
+  int get income =>
       ((baseIncome + (level - 1) * GameConfig.cityIncomePerLevel) *
               _yieldFactor)
           .floor();
+
+  /// 只读预算极值：欠收最多减三十、丰收最多加三十，不抽取或预知实际收成。
+  int incomeFor(Harvest harvest) =>
+      income +
+      switch (harvest) {
+        Harvest.normal => 0,
+        Harvest.poor => -GameConfig.harvestAdjustmentMax,
+        Harvest.abundant => GameConfig.harvestAdjustmentMax,
+      };
 
   /// 本城贡献给全国的兵员容量，英雄提供的容量由国家另行统计。
   int get reserveCapacity =>
@@ -351,7 +357,7 @@ class HeroMarch {
   /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
 
-  /// 断粮而停止行军，交战时表示本场结束后必须扎营。
+  /// 旧存档保留的断粮标记；新规则允许军费透支，恢复模拟时清除。
   bool get supplyHalted => _supplyHalted;
   bool _supplyHalted = false;
 
@@ -1064,7 +1070,7 @@ class CampaignState {
       .where((city) => city.isPlayer)
       .fold(
         cities.values.any((city) => city.isPlayer)
-            ? GameConfig.countryMonthlyIncome
+            ? configFor(0).monthlyBaseIncome
             : 0,
         (sum, city) => sum + city.income,
       );
@@ -1166,17 +1172,14 @@ class CampaignState {
       ? heroesAt(cityId).fold(0, (sum, hero) => sum + hero.salary)
       : 0;
 
-  /// 可购买的储备兵数量，同时受容量、国库和城池归属限制。
+  /// 补兵允许透支国库，数量仍受全国容量和城池归属限制。
   int maxSoldierPurchase(int cityId, {int countryId = 0}) {
     if (isPaused) return 0;
     final city = cities[cityId];
     if (defeated || city == null || city.ownerCountryId != countryId) return 0;
     return math.max(
       0,
-      math.min(
-        reserveCapacityFor(countryId) - reserveSoldiersFor(countryId),
-        goldFor(countryId) ~/ GameConfig.soldierRecruitCost,
-      ),
+      reserveCapacityFor(countryId) - reserveSoldiersFor(countryId),
     );
   }
 
@@ -1485,17 +1488,37 @@ class CampaignState {
 
   void _settleMonth() {
     for (final id in _countryGold.keys.toList()..sort()) {
-      final owned = cities.values
-          .where((city) => city.ownerCountryId == id)
-          .toList();
-      final harvest = owned.isEmpty
+      final owned =
+          cities.entries
+              .where((entry) => entry.value.ownerCountryId == id)
+              .toList()
+            ..sort((a, b) => a.key.compareTo(b.key));
+      final fixed = owned.isEmpty ? 0 : configFor(id).monthlyBaseIncome;
+      final cityIncomes = <CityIncomeSettlement>[];
+      for (final entry in owned) {
+        final harvest = Harvest.draw(_economyRandom);
+        cityIncomes.add(
+          CityIncomeSettlement(
+            cityId: entry.key,
+            level: entry.value.level,
+            harvest: harvest,
+            baseIncome: entry.value.income,
+            adjustment: harvest.drawAdjustment(_economyRandom),
+          ),
+        );
+      }
+      final harvestKinds = cityIncomes.map((city) => city.harvest).toSet();
+      final harvest = harvestKinds.isEmpty
           ? Harvest.normal
-          : Harvest.draw(_economyRandom);
-      final base = owned.fold(
-        owned.isEmpty ? 0 : GameConfig.countryMonthlyIncome,
-        (sum, city) => sum + city.income,
+          : harvestKinds.length == 1
+          ? harvestKinds.single
+          : null;
+      final base = cityIncomes.fold(
+        fixed,
+        (sum, city) => sum + city.baseIncome,
       );
-      final income = base + (owned.isEmpty ? 0 : harvest.nationalAdjustment);
+      // 欠收负产出照常抵扣国家保底；只在最终国库结算时限制余额最低为零。
+      final income = cityIncomes.fold(fixed, (sum, city) => sum + city.income);
       final salary = GameConfig.chargeHeroSalary
           ? heroes
                 .where(
@@ -1511,8 +1534,12 @@ class CampaignState {
           ? 0.0
           : garrisonUpkeepAccruedFor(id);
       final upkeep = (accrued + 1e-9).floor();
-      _garrisonBills[id] = math.max(0, accrued - upkeep);
-      final after = math.max(0, before + income - salary - upkeep);
+      if (GameConfig.garrisonUpkeepFactor == 0) {
+        _garrisonBills.remove(id); // 零驻军费不生成空账单，保持保存与恢复后的状态一致。
+      } else {
+        _garrisonBills[id] = math.max(0, accrued - upkeep);
+      }
+      final after = before + income - salary - upkeep;
       _countryGold[id] = after;
       final report = MonthlySettlement(
         year: year,
@@ -1525,31 +1552,25 @@ class CampaignState {
         garrisonUpkeep: upkeep,
         goldBefore: before,
         goldAfter: after,
+        fixedIncome: fixed,
+        cityIncomes: cityIncomes,
       );
       _settlements[id] = report;
       _rollMonthlyWeaponDrops(id, owned.length);
       _emitEvent(
         GameEventKind.monthSettled,
-        '${world.countryName(id)}国 $dateLabel ${harvest.label}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
+        '${world.countryName(id)}国 $dateLabel ${report.harvestLabel}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
         countryId: id,
         source: GameEventSource.system,
         data: {
           'baseIncome': base,
-          'fixedIncome': owned.isEmpty ? 0 : GameConfig.countryMonthlyIncome,
-          'cities': [
-            for (final entry in cities.entries.where(
-              (e) => e.value.ownerCountryId == id,
-            ))
-              {
-                'id': entry.key,
-                'level': entry.value.level,
-                'income': entry.value.income,
-              },
-          ],
+          'economyVersion': 2,
+          'fixedIncome': fixed,
+          'cities': [for (final city in cityIncomes) city.toJson()],
           'income': income,
           'salary': salary,
           'garrisonUpkeep': upkeep,
-          'harvest': harvest.name,
+          'harvest': harvest?.name ?? 'mixed',
           'cityCount': owned.length,
           'goldBefore': before,
           'goldAfter': after,
@@ -1557,7 +1578,7 @@ class CampaignState {
       );
       if (id == 0) {
         _record(
-          '$dateLabel结算 · ${harvest.label} · 收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，军费 -$upkeep，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
+          '$dateLabel结算 · ${report.harvestLabel} · 正常收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，军费 -$upkeep，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
           log: false,
         );
       }
@@ -1581,11 +1602,7 @@ class CampaignState {
   String? dispatchBlockReason(CampaignHero hero, {int countryId = 0}) =>
       _dispatchProblem(hero, countryId);
 
-  String? _dispatchProblem(
-    CampaignHero hero,
-    int countryId, {
-    bool requireGold = true,
-  }) {
+  String? _dispatchProblem(CampaignHero hero, int countryId) {
     if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束，请重新开始';
     if (!heroes.contains(hero) || hero.hp <= 0) return '这位英雄已不存在';
@@ -1594,7 +1611,6 @@ class CampaignState {
       return '英雄不在本国城池中';
     }
     if (marches.containsKey(hero.id)) return '这位英雄已经出征';
-    if (requireGold && goldFor(countryId) == 0) return '金币不足，无法支付出征粮草';
     if (_disbandAfterBattle.contains(hero.id)) return '所属城池已失守';
     if (battles.values.any(
       (battle) => battle.isActive && battle.defender == hero,
@@ -1810,11 +1826,7 @@ class CampaignState {
   String? moveBlockReason(String heroId, {int countryId = 0}) =>
       _moveProblem(heroId, countryId);
 
-  String? _moveProblem(
-    String heroId,
-    int countryId, {
-    bool requireGold = true,
-  }) {
+  String? _moveProblem(String heroId, int countryId) {
     if (isPaused) return '游戏已暂停';
     if (defeated) return '游戏已结束';
     final march = marches[heroId];
@@ -1832,7 +1844,6 @@ class CampaignState {
     if (activeBattleForHero(heroId) != null) {
       return '交战或撤退过场中无法改令';
     }
-    if (requireGold && goldFor(countryId) == 0) return '金币不足，无法行军';
     return null;
   }
 
@@ -1897,7 +1908,7 @@ class CampaignState {
 
   /// 扎营权限与改令共用锁定规则，零金币仍允许停止。
   String? campBlockReason(String heroId, {int countryId = 0}) {
-    final problem = _moveProblem(heroId, countryId, requireGold: false);
+    final problem = _moveProblem(heroId, countryId);
     if (problem != null) return problem;
     return marches[heroId]?.returningFromRetreat == true
         ? '撤退返程中请先指定移动目标'
@@ -2251,7 +2262,6 @@ class CampaignState {
         }
         changed = true;
       }
-      changed = _haltUnfundedArmies() || changed;
     }
     // 一次补帧只提交最新观察；后台结果在后续固定命令阶段落地。
     if (elapsed.isFinite && elapsed > 0) {
@@ -2383,13 +2393,7 @@ class CampaignState {
         !garrisonAt(battle.city.id).any((hero) => hero.health.alive)) {
       _finishOccupation(battle);
     } else {
-      final march = marches[attacker.id];
-      if (march != null && march.supplyHalted) {
-        _endBattle(march, '${attacker.name}粮草耗尽，停止进攻');
-        _campForSupply(march);
-      } else {
-        battle.nextWaveIn = 1.2;
-      }
+      battle.nextWaveIn = 1.2;
     }
   }
 

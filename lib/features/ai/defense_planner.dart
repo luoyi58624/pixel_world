@@ -159,12 +159,7 @@ class DefensePlanner {
     );
     if (needed > 0) {
       final supplied = base.copy();
-      final affordable = math.max(
-        0,
-        (supplied.gold - supplied.cash(emergency: true).reserve) ~/
-            rules.integer('soldierCost'),
-      );
-      final count = math.min(needed, affordable);
+      final count = needed; // 补充现有守军允许透支，仍受全国容量约束。
       if (count > 0 && supplied.buySoldiers(count)) {
         yield _simple(report, base, supplied, [
           AiAction(AiActionKind.soldiers, city: city.id, amount: count),

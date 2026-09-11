@@ -11,7 +11,7 @@ class _HarvestRoll implements math.Random {
   _HarvestRoll(this.roll);
   final int roll;
   @override
-  int nextInt(int max) => roll % max;
+  int nextInt(int max) => max == 4 ? [0, 2, 3][roll] : max - 1;
   @override
   bool nextBool() => false;
   @override
@@ -75,7 +75,7 @@ void main() {
         baseIncome: 21,
         initialLevel: level,
       );
-      expect(city.income, 21);
+      expect(city.income, 21 + (level - 1) * 5);
       expect(city.reserveCapacity, level * 4);
       expect(city.level, level);
       expect(city.defense, 100);
@@ -88,7 +88,7 @@ void main() {
     final city = c.cities[1]!;
     expect(city.nativeCountryId, 1);
     expect(city.isNative, isTrue);
-    expect(city.income, 21);
+    expect(city.income, 31);
     city.ownerCountryId = 0;
     expect(c.cityName(1), c.world.countryName(0));
     expect(city.level, 1);
@@ -105,19 +105,19 @@ void main() {
   });
 
   for (final (roll, income, adjustment) in [
-    (0, 61, 0),
-    (1, 41, -20),
-    (2, 71, 10),
+    (0, 86, 0),
+    (1, -4, -90),
+    (2, 176, 90),
   ]) {
     test('收成 $roll：本土和占领地同额结算，月结、记录与AI保守收入一致', () {
       final c = _campaign(harvestRoll: roll);
       c.cities[1]!.ownerCountryId = 0;
       expect(c.cities[1]!.income, 21);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 41);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, -4);
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
       expect(report.cityCount, 3);
-      expect(report.baseIncome, 61);
+      expect(report.baseIncome, 86);
       expect(report.adjustment, adjustment);
       expect(report.salary, c.salaryCost);
       expect(report.netIncome, income - c.salaryCost);
@@ -129,13 +129,13 @@ void main() {
     final c = _campaign(harvestRoll: 1);
     c.cities[2]!.ownerCountryId = 1;
     expect(c.cities[2]!.nativeCountryId, 0);
-    expect(c.cities[2]!.income, 10);
+    expect(c.cities[2]!.income, 20);
     expect(c.reserveCapacityFor(1), 20);
-    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 31);
+    expect(c.aiBudgetFor(1).minimumMonthlyIncome, 11);
     c.advance(60);
-    expect(c.lastSettlementFor(1)!.baseIncome, 51);
-    expect(c.lastSettlementFor(1)!.adjustment, -20);
-    expect(c.goldFor(1), 1000 + 31 - c.lastSettlementFor(1)!.salary);
+    expect(c.lastSettlementFor(1)!.baseIncome, 71);
+    expect(c.lastSettlementFor(1)!.adjustment, -60);
+    expect(c.goldFor(1), 1000 + 11 - c.lastSettlementFor(1)!.salary);
   });
 
   test('占城及升级仅增加折算后的国家容量，英雄容量与现有库存不减半', () {
@@ -157,7 +157,7 @@ void main() {
     expect(c.soldiersAt(1), c.soldiersAt(0));
     c.upgradeCity(1, hero: hero);
     expect(c.cities[1]!.level, 2);
-    expect(c.cities[1]!.income, 21);
+    expect(c.cities[1]!.income, 26);
     expect(c.reserveCapacityFor(0), 28);
     expect(c.reserveSoldiersFor(0), 20);
     expect(c.buySoldiers(1, 9), isFalse);
@@ -165,7 +165,7 @@ void main() {
     expect(c.reserveSoldiersFor(0), 24);
   });
 
-  test('收成只在国家层面结算，不改变单城产出', () {
+  test('单城丰欠收预算取最大增减幅度，允许负产出', () {
     final city = CitySituation(
       ownerCountryId: 0,
       nativeCountryId: 1,
@@ -174,7 +174,7 @@ void main() {
       initialLevel: 1,
     );
     expect(city.incomeFor(Harvest.normal), 21);
-    expect(city.incomeFor(Harvest.abundant), 21);
-    expect(city.incomeFor(Harvest.poor), 21);
+    expect(city.incomeFor(Harvest.abundant), 51);
+    expect(city.incomeFor(Harvest.poor), -9);
   });
 }

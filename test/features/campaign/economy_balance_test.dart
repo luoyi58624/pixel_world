@@ -41,24 +41,28 @@ void main() {
     return c;
   }
 
-  for (final (roll, fixed) in [(0, 20), (1, 0), (2, 30)]) {
-    test('基础收入 $fixed 只按国家结算一次，每城固定10，升级不增收', () {
+  for (final (roll, adjustment) in [(0, 0), (2, -7), (3, 8)]) {
+    test('国家保底只发一次，每城独立调整$adjustment，升级增加产出', () {
       final c = game(roll)..settledMonths = 24;
       final governor = c.garrisonAt(0).first;
       while (c.upgradeCity(0, hero: governor)) {}
       expect(c.cities[0]!.level, 5);
       for (final city in c.cities.values) {
-        expect(city.income, 10);
+        expect(city.income, 20 + (city.level - 1) * 5);
       }
       c.cities[1]!.ownerCountryId = 0;
+      final normalIncome = c.grossIncome;
       final before = c.gold,
           count = c.cities.values.where((v) => v.isPlayer).length;
       c.advance(60);
       final bill = c.lastSettlementFor(0)!;
-      expect(bill.baseIncome + bill.adjustment, fixed + count * 10);
+      expect(
+        bill.baseIncome + bill.adjustment,
+        normalIncome + count * adjustment,
+      );
       expect(bill.garrisonUpkeep, 0);
-      expect(c.gold, before + fixed + count * 10 - bill.salary);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, count * 10);
+      expect(c.gold, before + normalIncome + count * adjustment - bill.salary);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, normalIncome - count * 30);
       expect(c.aiBudgetFor(0).monthlySalary, c.salaryCost);
     });
   }

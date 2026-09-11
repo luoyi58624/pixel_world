@@ -15,7 +15,6 @@ extension _AiMarchRecovery on _AiCoordinator {
           march.waitingForDeparture ||
           march.returningFromRetreat ||
           march.supplyHalted ||
-          campaign.goldFor(hero.countryId) <= 0 ||
           campaign.activeBattleForHero(hero.id) != null ||
           march.phase == MarchPhase.awaitingBattle ||
           (march.phase != MarchPhase.marching && !march.waitingForTraffic)) {

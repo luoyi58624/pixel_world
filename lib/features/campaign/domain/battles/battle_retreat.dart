@@ -116,7 +116,6 @@ extension BattleRetreatCommands on CampaignState {
       // 返程再次遭遇敌军时，胜出或逃脱后继续未完成的同一路段。
       march._resumeToward(march.destination, city: march.target);
     }
-    if (goldFor(hero.countryId) == 0) _campForSupply(march);
   }
 
   void _nextRetreatLeg(HeroMarch march) {
@@ -146,7 +145,6 @@ extension BattleRetreatCommands on CampaignState {
         changed = true;
         continue;
       }
-      if (goldFor(march.hero.countryId) == 0) continue;
       if (march.supplyHalted) {
         march._resumeToward(march.destination, city: march.target);
         changed = true;

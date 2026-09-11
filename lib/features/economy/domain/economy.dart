@@ -2,24 +2,32 @@ import 'dart:math' as math;
 
 import '../../../core/config/game_config.dart';
 
-/// 国家每个月独立抽取的收成。
+/// 每座城池每月独立抽取的收成，正常五成，丰欠收各二成五。
 enum Harvest {
   /// 基础城池收入。
-  normal('正常营收', 0),
+  normal('正常营收'),
 
-  /// 每国只扣减一次收入。
-  poor('欠收', -GameConfig.poorHarvestPenalty),
+  /// 本城随机减产，允许扣减超过本城正常产出。
+  poor('欠收'),
 
-  /// 每国只追加一次收入。
-  abundant('丰收', GameConfig.abundantHarvestBonus);
+  /// 本城随机增产。
+  abundant('丰收');
 
-  const Harvest(this.label, this.nationalAdjustment);
+  const Harvest(this.label);
 
   /// 对玩家显示的收成名称。
   final String label;
 
-  /// 整个国家的一次性丰欠收调整。
-  final int nationalAdjustment;
+  /// 抽取本城本月的实际增减额，正常月份不再消耗幅度随机数。
+  int drawAdjustment(math.Random random) {
+    if (this == Harvest.normal) return 0;
+    final amount =
+        GameConfig.harvestAdjustmentMin +
+        random.nextInt(
+          GameConfig.harvestAdjustmentMax - GameConfig.harvestAdjustmentMin + 1,
+        );
+    return this == Harvest.poor ? -amount : amount;
+  }
 
   /// 按配置权重抽取，经济随机源与战斗、抽将分开。
   static Harvest draw(math.Random random) {
@@ -36,10 +44,51 @@ enum Harvest {
   }
 }
 
-/// 某国家刚结算月份的完整收支，实际金币最低为零。
+/// 冻结单座城池一次真实月结，后续升级或易主不改变历史账单。
+class CityIncomeSettlement {
+  /// 保存本城结算时的等级、收成和已抽取金额。
+  const CityIncomeSettlement({
+    required this.cityId,
+    required this.level,
+    required this.harvest,
+    required this.baseIncome,
+    required this.adjustment,
+  });
+
+  /// 结算时的城池身份、等级、正常产出与本次随机增减。
+  final int cityId, level, baseIncome, adjustment;
+
+  /// 本城独立抽到的收成。
+  final Harvest harvest;
+
+  /// 本城实际收入，欠收时允许为负。
+  int get income => baseIncome + adjustment;
+
+  /// 供日志与存档共用的逐城账目。
+  Map<String, Object> toJson() => {
+    'id': cityId,
+    'level': level,
+    'harvest': harvest.name,
+    'baseIncome': baseIncome,
+    'adjustment': adjustment,
+    'income': income,
+  };
+
+  /// 恢复已经发生的结算，不重新抽取收成。
+  factory CityIncomeSettlement.fromJson(Map<String, dynamic> data) =>
+      CityIncomeSettlement(
+        cityId: data['id'],
+        level: data['level'],
+        harvest: Harvest.values.byName(data['harvest']),
+        baseIncome: data['baseIncome'],
+        adjustment: data['adjustment'],
+      );
+}
+
+/// 某国家刚结算月份的完整收支，国库允许负数。
 class MonthlySettlement {
   /// 保存结算时的城池数和薪酬，不随下月城池变动而改变。
-  const MonthlySettlement({
+  MonthlySettlement({
     required this.year,
     required this.month,
     required this.harvest,
@@ -50,7 +99,9 @@ class MonthlySettlement {
     this.garrisonUpkeep = 0,
     required this.goldBefore,
     required this.goldAfter,
-  });
+    this.fixedIncome = 0,
+    List<CityIncomeSettlement> cityIncomes = const [],
+  }) : cityIncomes = List.unmodifiable(cityIncomes);
 
   /// 已结算的年份。
   final int year;
@@ -58,13 +109,23 @@ class MonthlySettlement {
   /// 已结算的月份。
   final int month;
 
-  /// 本次收成。
-  final Harvest harvest;
+  /// 各城收成相同时显示该类型，混合收成为空；兼容旧版全国收成记录。
+  final Harvest? harvest;
+
+  /// 不把混合收成误标为全国正常或全国丰收。
+  String get harvestLabel =>
+      cityCount == 0 ? '无城池' : harvest?.label ?? '各城收成不同';
+
+  /// 本月国家固定保底，不随城池数量重复发放。
+  final int fixedIncome;
+
+  /// 逐城的实际结算明细。
+  final List<CityIncomeSettlement> cityIncomes;
 
   /// 本月结算时实际拥有的城池数。
   final int cityCount;
 
-  /// 所有城池的基础收入合计。
+  /// 国家保底与所有城池正常产出的合计，未计收成增减。
   final int baseIncome;
 
   /// 本月英雄报酬。
@@ -76,7 +137,7 @@ class MonthlySettlement {
   /// 结算前的金币。
   final int goldBefore;
 
-  /// 扣除支出且限制最低为零后的金币。
+  /// 扣除支出后的金币，允许透支为负。
   final int goldAfter;
 
   /// 收成带来的额外收支。
@@ -85,6 +146,6 @@ class MonthlySettlement {
   /// 应结算净收入，允许负值。
   int get netIncome => baseIncome + adjustment - salary - garrisonUpkeep;
 
-  /// 国库实际变化，金币不足时不产生负债。
+  /// 国库实际变化，收入、工资与透支完整计入。
   int get actualChange => goldAfter - goldBefore;
 }

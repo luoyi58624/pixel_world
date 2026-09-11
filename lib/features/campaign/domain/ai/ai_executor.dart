@@ -525,8 +525,7 @@ extension _AiCommands on CampaignState {
         case AiActionKind.dispatch:
           if (hero == null ||
               removed.contains(hero.id) ||
-              _dispatchProblem(hero, countryId, requireGold: false) != null ||
-              gold <= 0) {
+              _dispatchProblem(hero, countryId) != null) {
             return false;
           }
           reserve -= math.min(
@@ -539,9 +538,7 @@ extension _AiCommands on CampaignState {
             stock[id] = stock[id]! - 1;
           }
         case AiActionKind.move:
-          if (hero == null ||
-              _moveProblem(hero.id, countryId, requireGold: false) != null ||
-              gold <= 0) {
+          if (hero == null || _moveProblem(hero.id, countryId) != null) {
             return false;
           }
         case AiActionKind.camp:
@@ -555,9 +552,23 @@ extension _AiCommands on CampaignState {
             return false;
           }
       }
-      if (gold < 0) return false;
+      if (gold < 0 &&
+          [
+            AiActionKind.upgrade,
+            AiActionKind.recruit,
+            AiActionKind.buyWeapon,
+          ].contains(action.kind))
+        return false;
     }
-    if (gold < group.minimumGold) return false;
+    // 纯军务允许透支；包含招将、武器或升级的经营计划仍保留其现金底线。
+    final militaryOnly = group.actions.every(
+      (a) => ![
+        AiActionKind.upgrade,
+        AiActionKind.recruit,
+        AiActionKind.buyWeapon,
+      ].contains(a.kind),
+    );
+    if (!militaryOnly && gold < group.minimumGold) return false;
     final replacing = group.tasks.map((t) => t.hero).toSet();
     final departing = group.actions
         .where((a) => a.kind == AiActionKind.dispatch)

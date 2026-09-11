@@ -40,12 +40,22 @@ def audit(directory):
                     if key in months:
                         errors.append({'file': file.name, 'event': e['sequence'], 'error': '同一月份重复结算'})
                     months.add(key)
-                    if after != max(0, before + d['income'] - d['salary']):
+                    upkeep = d.get('garrisonUpkeep', 0)
+                    credit = d.get('economyVersion', 1) >= 2
+                    expected = before + d['income'] - d['salary'] - upkeep
+                    if after != (expected if credit else max(0, expected)):
                         errors.append({'file': file.name, 'event': e['sequence'], 'error': '月结算式错误'})
-                    if 'fixedIncome' in d and d['baseIncome'] != d['fixedIncome'] + sum(c['income'] for c in d['cities']):
+                    if 'fixedIncome' in d and d['baseIncome'] != d['fixedIncome'] + sum(c.get('baseIncome', c['income']) for c in d['cities']):
                         errors.append({'file': file.name, 'event': e['sequence'], 'error': '城池收入重复或漏算'})
+                    if credit:
+                        if d['income'] != d['fixedIncome'] + sum(c['income'] for c in d['cities']):
+                            errors.append({'file': file.name, 'event': e['sequence'], 'error': '逐城实际收入合计错误'})
+                        for city in d['cities']:
+                            if city['income'] != city['baseIncome'] + city['adjustment']:
+                                errors.append({'file': file.name, 'event': e['sequence'], 'error': '单城收成算式错误', 'city': city['id']})
                     changes['grossIncome'] += d['income']
-                    changes['salaryCharged'] += min(d['salary'], max(0, before + d['income']))
+                    changes['salaryCharged'] += d['salary'] if credit else min(d['salary'], max(0, before + d['income']))
+                    changes['garrisonUpkeepCharged'] += upkeep if credit else min(upkeep, max(0, before + d['income'] - d['salary']))
                 changes[kind] += after - before
                 balance = after
             if balance != final[country]['gold']:

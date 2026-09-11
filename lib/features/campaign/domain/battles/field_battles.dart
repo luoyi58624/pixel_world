@@ -197,15 +197,7 @@ extension _FieldEncounters on CampaignState {
     final march = marches[hero.id];
     if (march == null || !hero.health.alive) return;
     if (march.returningFromRetreat) {
-      if (goldFor(hero.countryId) == 0) {
-        _campForSupply(march);
-      } else {
-        march._resumeToward(march.destination, city: march.target);
-      }
-      return;
-    }
-    if (march.supplyHalted || goldFor(hero.countryId) == 0) {
-      _campForSupply(march);
+      march._resumeToward(march.destination, city: march.target);
       return;
     }
     if (wasCamped) {

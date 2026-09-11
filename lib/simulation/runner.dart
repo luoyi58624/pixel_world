@@ -274,8 +274,8 @@ class SimulationRunner {
             }
           }
           for (final country in countries) {
-            if (c.goldFor(country) < 0 ||
-                c.reserveSoldiersFor(country) < 0 ||
+            // 负国库属于允许的军费透支，只有兵员越界才是资源错误。
+            if (c.reserveSoldiersFor(country) < 0 ||
                 c.reserveSoldiersFor(country) > c.reserveCapacityFor(country)) {
               invalidResources++;
             }

@@ -153,7 +153,7 @@ void main() {
     final before = c.gold;
     c.advance(60);
     expect(c.lastSettlementFor(0)!.salary, 7); // 新签约将领已预付本月。
-    expect(c.gold, before + 40 - 7);
+    expect(c.gold, before + 80 - 7);
     expect(c.lastSettlementFor(1)!.salary, 0);
   });
 

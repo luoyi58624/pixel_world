@@ -25,7 +25,7 @@ void main() {
       expect(policy.dangerous, cities >= 3);
       expect(
         policy.extraGold,
-        cities < 3 ? 0 : (30 * (.5 + (cities - 3) * .25)).ceil(),
+        cities < 3 ? 0 : (50 * (.5 + (cities - 3) * .25)).ceil(),
       );
       if (cities >= 3) {
         expect(policy.extraGold, greaterThan(previous));
@@ -198,9 +198,9 @@ void main() {
         'salary': 6,
         'heroes': [
           for (final h in original.heroes)
-            // 三名现役使本测试隔离月俸门槛，避免先触发新增驻军维持费上限。
+            // 正常收入五十：三名现役工资三十，再招六金币将领跨过普通预算但符合围攻预算。
             if (h.id != 'rom-18')
-              {...h.toJson(), 'pay': h.country == 1 ? 5 : 0},
+              {...h.toJson(), 'pay': h.country == 1 ? 10 : 0},
         ],
         'cities': [
           for (final city in original.cities)

@@ -101,14 +101,14 @@ void main() {
     }
   });
 
-  test('电脑断粮后等待月收入，恢复资金后分帧决策并回城整备', () {
+  test('电脑粮草可透支，不因零或负国库自动停军', () {
     final c = _campaign(gold: 1, ai: true);
     final march = _leave(c, 18, country: 1, y: 160);
     c.advance(10);
-    expect(march.phase, MarchPhase.camped);
+    expect(march.supplyHalted, isFalse);
     final point = march.position;
     c.advance(40);
-    expect(march.position, point);
+    expect(march.position, isNot(point));
     for (var i = 0; i < 3000; i++) {
       c.advance(1 / 60);
     }
@@ -220,64 +220,73 @@ void main() {
     }
   });
 
-  test('最后一金币耗尽全军扎营，不透支且无法出征或改道，有钱仍可正常扎营', () {
+  test('多军共同透支仍可出征改道，主动扎营也继续扣粮草', () {
     final c = _campaign(gold: 1);
-    final a = _leave(c, 0), b = _leave(c, 2);
+    final a = _leave(c, 0), b = _leave(c, 2, y: 80);
     c.advance(10);
-    expect(c.gold, 0);
-    expect(a.phase, MarchPhase.camped);
-    expect(b.phase, MarchPhase.camped);
-    expect(a.supplyHalted, isTrue);
+    expect(c.gold, -1);
+    expect(a.phase, MarchPhase.marching);
+    expect(b.phase, MarchPhase.marching);
+    expect(a.supplyHalted, isFalse);
     final position = a.position;
-    expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isFalse);
+    expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isTrue);
     expect(
       c.dispatchTo(c.garrisonAt(0).first, const GamePoint(2000, 40)),
-      isNull,
+      isNotNull,
     );
     c.advance(20);
-    expect(a.position, position);
-    expect(c.gold, 0);
-    c.advance(30); // 月收入恢复后玩家仍停营，等待自己的下一条指令。
-    expect(c.gold, greaterThan(0));
+    expect(a.position, isNot(position));
+    expect(c.gold, -7);
+    expect(c.camp(a.hero.id), isTrue);
+    final camp = a.position;
+    c.advance(10);
+    expect(c.gold, -10);
+    expect(a.position, camp);
     expect(a.phase, MarchPhase.camped);
     expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isTrue);
     expect(a.supplyHalted, isFalse);
   });
 
   for (final level in [1, 3]) {
-    test('城战断粮保留收尾动作，等级$level的城不再开启下一位守将', () {
+    test('城战透支仍结算占领或接替守将，等级$level', () {
       final c = _campaign(gold: 1, level: level);
       final hero = c.heroes.firstWhere((hero) => hero.sourceId == 0);
       final march = c.dispatch(hero, c.world.cities[1])!;
       march.position = march.destination;
       c.advance(1 / 60);
       final battle = c.battles[1]!;
-      c.buySoldiers(0, 1);
+      c.buySoldiers(0, 2);
       c.advance(1 / 60);
       expect(march.phase, MarchPhase.fighting);
-      expect(march.supplyHalted, isTrue);
+      expect(march.supplyHalted, isFalse);
+      expect(c.gold, lessThan(0));
       battle.defender.hp = 0;
       c.advance(0.1);
       expect(battle.isActive, isTrue);
-      _until(c, () => !battle.isActive);
-      expect(battle.wave, 1);
-      expect(march.phase, MarchPhase.camped);
-      expect(c.cities[1]!.ownerCountryId, level == 1 ? 0 : 1);
-      expect(c.marches[hero.id], same(march));
+      _until(c, () => !battle.isActive || battle.wave > 1);
+      if (level == 1) {
+        expect(c.cities[1]!.ownerCountryId, 0);
+        expect(c.marches[hero.id], isNull);
+        expect(hero.cityId, 1);
+      } else {
+        expect(battle.wave, 2);
+        expect(march.phase, MarchPhase.fighting);
+        expect(c.marches[hero.id], same(march));
+      }
     });
   }
 
-  test('野战断粮仍可防守，当前战斗结束后生还者原地扎营', () {
+  test('野战中透支不改变战斗，获胜后继续原行程', () {
     final c = _campaign(gold: 1);
     final a = _leave(c, 0), b = _leave(c, 18, country: 1);
     c.advance(1 / 60);
     final battle = c.fieldBattles.values.single;
-    c.buySoldiers(0, 1);
+    c.buySoldiers(0, 2);
     c.advance(1 / 60);
     expect(a.phase, MarchPhase.dueling);
     b.hero.hp = 0;
     _until(c, () => !battle.isActive);
-    expect(a.phase, MarchPhase.camped);
-    expect(a.supplyHalted, isTrue);
+    expect(a.phase, MarchPhase.marching);
+    expect(a.supplyHalted, isFalse);
   });
 }

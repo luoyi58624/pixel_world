@@ -119,22 +119,22 @@ void main() {
     expect(c.upgradeWindowBlockReason(0), isNull);
   });
 
-  for (final (roll, adjustment) in [(0.0, 0), (.5, -20), (.75, 10)]) {
-    test('全国固定收入与收成只结算一次：$adjustment', () {
+  for (final (roll, adjustment) in [(0.0, 0), (.5, -36), (.75, 48)]) {
+    test('国家保底只结算一次，两个城市独立收成合计：$adjustment', () {
       final c = fresh(harvest: roll);
       addTearDown(c.dispose);
       c.cities[1]!.ownerCountryId = 0;
-      expect(c.cities[1]!.income, 10);
+      expect(c.cities[1]!.income, 20);
       expect(c.cities[1]!.reserveCapacity, 4);
       expect(c.reserveCapacityFor(0), 20);
       final gold = c.gold, salary = c.salaryCost;
       c.advance(60);
       final report = c.lastSettlementFor(0)!;
-      expect(report.baseIncome, 20 + 10 + 10);
+      expect(report.baseIncome, 10 + 20 + 20);
       expect(report.adjustment, adjustment);
       expect(report.garrisonUpkeep, 0);
-      expect(c.gold, gold + 40 + adjustment - salary);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 20);
+      expect(c.gold, gold + 50 + adjustment - salary);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, -10);
     });
   }
 

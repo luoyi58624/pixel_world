@@ -30,10 +30,8 @@ class DefensiveCommander implements PlayerCommander {
       ),
     );
     final missing = math.max(0, targetReserve - c.reserveSoldiersFor(0));
-    final soldiers = math.min(
-      missing,
-      math.max(0, c.gold - buffer) ~/ GameConfig.soldierRecruitCost,
-    );
+    // 防守补兵同样允许透支，不能让验收玩家因旧现金门槛少补现有兵力。
+    final soldiers = missing;
     if (soldiers > 0 && c.buySoldiers(owned.first.id, soldiers)) {
       _record(second, '补充守城兵员', {'count': soldiers});
     }

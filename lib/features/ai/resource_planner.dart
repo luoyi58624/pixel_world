@@ -124,16 +124,8 @@ class ResourcePlanner {
     );
     if (cities.isNotEmpty && desired > ledger.reserves) {
       final next = ledger.copy();
-      final budget = math.max(
-        0,
-        next.gold -
-            math.max(next.cash().reserve, rules.tuning.resourceCashBuffer),
-      );
-      final count = math.min(
-        desired - next.reserves,
-        budget ~/ rules.integer('soldierCost'),
-      );
-      if (count > 0 && next.buySoldiers(count) && affordable(next)) {
+      final count = desired - next.reserves;
+      if (count > 0 && next.buySoldiers(count)) {
         accept(
           next,
           [
@@ -143,7 +135,7 @@ class ResourcePlanner {
               amount: count,
             ),
           ],
-          '按全国现有守将和待出征将领补兵，保留粮草、月俸和流动资金',
+          '按现有守将和待出征将领补兵，余额不足时透支军费，不增加招将规模',
           cities.first,
         );
       }

@@ -13,7 +13,9 @@ class CoalitionPolicy {
     Map<int, int>? levels,
   }) : cityCount = view.cities.where((c) => c.country == targetCountry).length,
        monthlyIncome = view.owned.fold<int>(
-         view.owned.isEmpty ? 0 : rules.integer('countryIncome'),
+         view.owned.isEmpty
+             ? 0
+             : view.nation.baseIncome ?? rules.integer('countryIncome'),
          (n, c) =>
              n +
              c.baseIncome +

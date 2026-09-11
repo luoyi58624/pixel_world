@@ -20,7 +20,7 @@ extension _MarchTraffic on CampaignState {
       marches.values.any(
         (other) =>
             other != except &&
-            !other.waitingForDeparture &&
+            other.visibleOnMap &&
             other.hero.health.alive &&
             (other.position.dx - point.dx).abs() < _trafficSize &&
             (other.position.dy - point.dy).abs() < _trafficSize,
@@ -29,7 +29,6 @@ extension _MarchTraffic on CampaignState {
   bool _advanceMarchTraffic(HeroMarch march, double dt) {
     if (march.waitingForDeparture) {
       if (_strategyTime + 1e-8 < march._departureAt ||
-          goldFor(march.hero.countryId) <= 0 ||
           _trafficOccupied(march.position, except: march)) {
         return false;
       }
@@ -55,12 +54,11 @@ extension _MarchTraffic on CampaignState {
     if (march.phase != MarchPhase.marching && !march._trafficBlocked) {
       return false;
     }
-    if (goldFor(march.hero.countryId) <= 0) return false;
     final obstacles = marches.values
         .where(
           (other) =>
               other != march &&
-              !other.waitingForDeparture &&
+              other.visibleOnMap &&
               other.hero.health.alive &&
               (other.hero.countryId == march.hero.countryId ||
                   activeBattleForHero(other.hero.id) != null) &&
@@ -68,6 +66,46 @@ extension _MarchTraffic on CampaignState {
         )
         .map((m) => m.position)
         .toList();
+    // 城堡可以从任意墙面接触；同一入口被排队部队占住时改选邻近空位。
+    if (march.target != null &&
+        obstacles.any(
+          (p) =>
+              (p.dx - march.destination.dx).abs() < _trafficSize &&
+              (p.dy - march.destination.dy).abs() < _trafficSize,
+        )) {
+      final city = march.target!, origin = cityBounds(march.target!).topLeft;
+      final contact = _cityContact(city);
+      final candidates =
+          <GamePoint>[
+            for (final point in contact.outline) origin + point,
+            for (final offset in [
+              const GamePoint(24, 0),
+              const GamePoint(-24, 0),
+              const GamePoint(0, 24),
+              const GamePoint(0, -24),
+            ])
+              origin + contact.nearest(march.destination - origin + offset),
+          ]..sort(
+            (a, b) => (a - march.position).distanceSquared.compareTo(
+              (b - march.position).distanceSquared,
+            ),
+          );
+      final free = candidates
+          .where(
+            (p) =>
+                _containsPoint(p) &&
+                obstacles.every(
+                  (other) =>
+                      (other.dx - p.dx).abs() >= _trafficSize ||
+                      (other.dy - p.dy).abs() >= _trafficSize,
+                ),
+          )
+          .firstOrNull;
+      if (free != null) {
+        march.destination = free;
+        march._trafficRoute.clear();
+      }
+    }
     bool clear(GamePoint from, GamePoint to) =>
         obstacles.every((p) => !_trafficIntersects(from, to, p));
     if (march._trafficRoute.isNotEmpty &&
@@ -166,7 +204,9 @@ extension _MarchTraffic on CampaignState {
       visited.add(best);
       for (var i = 0; i < nodes.length; i++) {
         if (visited.contains(i) ||
-            obstacles.any((p) => _trafficIntersects(nodes[best], nodes[i], p))) {
+            obstacles.any(
+              (p) => _trafficIntersects(nodes[best], nodes[i], p),
+            )) {
           continue;
         }
         final candidate = distance[best] + (nodes[i] - nodes[best]).distance;
@@ -184,6 +224,15 @@ extension _MarchTraffic on CampaignState {
 bool _trafficIntersects(GamePoint from, GamePoint to, GamePoint center) {
   var enter = 0.0, leave = 1.0;
   const radius = _trafficSize - 1e-6;
+  final offset = from - center, movement = to - from;
+  // 交战收尾或外观变更可能留下已有重叠，只允许向外脱离，不能向内穿人。
+  if (offset.dx.abs() < radius &&
+      offset.dy.abs() < radius &&
+      offset.dx * movement.dx + offset.dy * movement.dy > 0 &&
+      math.max((to.dx - center.dx).abs(), (to.dy - center.dy).abs()) >
+          math.max(offset.dx.abs(), offset.dy.abs())) {
+    return false;
+  }
   for (final axis in [
     (from.dx, to.dx - from.dx, center.dx),
     (from.dy, to.dy - from.dy, center.dy),

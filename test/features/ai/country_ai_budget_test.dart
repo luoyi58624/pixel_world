@@ -27,7 +27,7 @@ class _Poor implements math.Random {
   @override
   int nextInt(int max) {
     calls++;
-    return 1 % max;
+    return max == 4 ? 2 : max - 1;
   }
 
   @override
@@ -205,7 +205,7 @@ void main() {
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
     expect(moving.planningSeconds, closeTo(1700 / (22 * .75), .01));
-    expect(moving.minimumMonthlyIncome, 10);
+    expect(moving.minimumMonthlyIncome, 0);
     expect(
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
@@ -312,7 +312,7 @@ void main() {
         isFalse,
       );
     }
-    expect(c.lastSettlementFor(1)!.harvest.name, 'poor');
+    expect(c.lastSettlementFor(1)!.harvest?.name, 'poor');
     expect(c.goldFor(0), 110); // 单城欠收产出十金币，玩家国库不受敌国经营影响。
   });
 
@@ -338,7 +338,7 @@ void main() {
     }
   });
 
-  test('资金不足的旧营地优先分批回城，不用刚恢复的零钱再发起远征', () {
+  test('资金不足不强制停军，AI仍可让近城部队回城整备', () {
     final c = _campaign(gold: 2, income: 0, stock: 0);
     final a = c.dispatchTo(
       _hero(c, 0),
@@ -355,8 +355,8 @@ void main() {
     b.position = a.position + const GamePoint(0, 5);
     c.buySoldiers(1, 2, countryId: 1);
     c.advance(.1);
-    expect(a.supplyHalted, isTrue);
-    expect(b.supplyHalted, isTrue);
+    expect(a.supplyHalted, isFalse);
+    expect(b.supplyHalted, isFalse);
     c.dismissHero(_hero(c, 18), countryId: 1);
     for (var i = 0; i < 600; i++) {
       c.advance(1 / 60);

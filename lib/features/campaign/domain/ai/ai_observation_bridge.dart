@@ -19,7 +19,7 @@ extension _AiObservationBridge on CampaignState {
       'countryIncome': GameConfig.countryMonthlyIncome,
       'garrisonFree': GameConfig.freeGarrisonHeroes,
       'garrisonFactor': GameConfig.garrisonUpkeepFactor,
-      'poorPenalty': GameConfig.poorHarvestPenalty,
+      'poorPenalty': GameConfig.harvestAdjustmentMax,
       'foreignYield': GameConfig.foreignCityYieldFactor,
       'maxLevel': GameConfig.maxCityLevel,
       'firstYearCityLevel': GameConfig.firstYearCityUpgradeLimit,
@@ -250,12 +250,8 @@ extension _AiObservationBridge on CampaignState {
           returnPath: [
             for (final p in returnPath.take(64)) AiPoint(p.dx, p.dy),
           ],
-          canDispatch:
-              own &&
-              _dispatchProblem(hero, countryId, requireGold: false) == null,
-          canMove:
-              own &&
-              _moveProblem(hero.id, countryId, requireGold: false) == null,
+          canDispatch: own && _dispatchProblem(hero, countryId) == null,
+          canMove: own && _moveProblem(hero.id, countryId) == null,
           canDismiss:
               own && dismissalBlockReason(hero, countryId: countryId) == null,
           canUpgrade:
@@ -305,7 +301,11 @@ extension _AiObservationBridge on CampaignState {
               .fold(0, (n, h) => n + h.salary),
           cityViews
               .where((c) => c.country == id)
-              .fold(0, (n, c) => n + c.poorIncome),
+              .fold(
+                configFor(id).monthlyBaseIncome,
+                (n, c) => n + c.poorIncome,
+              ),
+          baseIncome: configFor(id).monthlyBaseIncome,
           stock: id == countryId ? (_weaponStock[id] ?? {}) : {},
           garrisonAccrued: id == countryId ? garrisonUpkeepAccruedFor(id) : 0,
           hatred: id == countryId ? (_countryHatred[id] ?? {}) : {},

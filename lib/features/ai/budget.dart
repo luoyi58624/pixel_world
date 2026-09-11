@@ -367,7 +367,7 @@ class AiLedger {
     final int income =
         (earningCities.isEmpty
             ? 0
-            : rules.integer('countryIncome') - rules.integer('poorPenalty')) +
+            : view.nation.baseIncome ?? rules.integer('countryIncome')) +
         earningCities
             .where((c) => !abandoned.contains(c.id))
             .fold<int>(
@@ -380,7 +380,8 @@ class AiLedger {
                           (c.country == c.nativeCountry
                               ? 1
                               : rules.number('foreignYield')))
-                      .floor(),
+                      .floor() -
+                  rules.integer('poorPenalty'),
             );
     final upkeep = monthlyGarrisonUpkeep;
     int monthlyCost(int n) => n == 0
@@ -411,14 +412,14 @@ class AiLedger {
           : 1 +
                 ((at - view.monthRemaining) / rules.number('monthSeconds'))
                     .floor();
-      // 同时检查本次月结到账之前，不能用下月收入支付此前的粮草。
+      // 同时检查月结前现金低点，经营预算不能把未到账收入当成现有现金。
       if (monthEnds.any((month) => (month - at).abs() < 1e-7)) {
         peak = math.max(peak, pay + monthlyCost(math.max(0, months - 1)));
       }
       peak = math.max(peak, pay + monthlyCost(months));
     }
     return CashRequirement(
-      // 游戏在金币恰好归零时就停营，紧急采购也须为在外部队多留一金币。
+      // 军费允许透支，但常规经营仍预留小额现金，避免后续招将与武器采购被欠款阻断。
       math.max(0, peak) +
           (emergency
               ? (supplies.isEmpty ? 0 : 1)
@@ -496,7 +497,7 @@ class AiLedger {
   /// 征兵只补明确需求。
   bool buySoldiers(int count) {
     final cost = count * rules.integer('soldierCost');
-    if (count < 0 || reserves + count > capacity || gold < cost) return false;
+    if (count < 0 || reserves + count > capacity) return false;
     gold -= cost;
     reserves += count;
     return true;
@@ -526,7 +527,7 @@ class AiLedger {
         )
         .fold(extraSalary + view.maximumSalary, (n, h) => n + h.salary);
     final monthlyIncome =
-        rules.integer('countryIncome') +
+        (view.nation.baseIncome ?? rules.integer('countryIncome')) +
         view.owned
             .where((c) => !abandoned.contains(c.id))
             .fold<int>(

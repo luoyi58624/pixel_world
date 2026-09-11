@@ -202,7 +202,7 @@ void main() {
     expect(c.marches[hero.id], isNull);
   });
 
-  test('返程仍受粮草限制，断粮后保留路段，月收入到账自动继续返城', () {
+  test('返程粮草允许透支，零或负国库不会阻止继续返城', () {
     final c = retreatCampaign(gold: 1);
     final battle = startRetreatSiege(c);
     final hero = battle.attacker;
@@ -211,18 +211,16 @@ void main() {
     final march = c.marches[hero.id]!;
     final target = march.target;
     c.advance(12);
-    expect(c.gold, 0);
-    expect(march.supplyHalted, isTrue);
-    expect(march.phase, MarchPhase.camped);
+    expect(c.gold, lessThanOrEqualTo(0));
+    expect(march.supplyHalted, isFalse);
+    expect(march.phase, MarchPhase.marching);
     final stopped = march.position;
     c.defeatHero('rom-2', winnerCountryId: 1, defendedCityId: 0);
     expect(c.cities[0]!.level, 2);
     expect(march.position, stopped);
     final destination = march.destination;
     c.advance(2);
-    expect(march.position, stopped);
-    advanceRetreatUntil(c, () => c.month == 3);
-    c.advance(.1);
+    expect(march.position, isNot(stopped));
     expect(march.supplyHalted, isFalse);
     expect(march.target, target);
     expect(march.destination, destination);

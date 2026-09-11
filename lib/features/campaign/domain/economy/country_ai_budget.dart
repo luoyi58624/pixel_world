@@ -8,6 +8,7 @@ class CountryAiBudget {
     required this.planningSeconds,
     required this.monthlySalary,
     required this.minimumMonthlyIncome,
+    this.monthlyGarrisonUpkeep = 0,
   });
 
   /// 计算时的国库余额。
@@ -22,10 +23,13 @@ class CountryAiBudget {
   /// 本国全部存活将领的月俸，含拟招募将领。
   final int monthlySalary;
 
+  /// 当前驻军规模产生的月度维持费，参与现金预留。
+  final int monthlyGarrisonUpkeep;
+
   /// 只按目前拥有城市的欠收计算，未占领城市不预支收入。
   final int minimumMonthlyIncome;
 
-  /// 扣除预留后真正可以花在征兵、招募和升级上的金币。
+  /// 扣除预留后可用于付现经营的金币；补兵与行军另允许透支。
   int get spendableGold => math.max(0, gold - reserveGold);
 }
 
@@ -60,6 +64,7 @@ extension _CountryCashPlanning on CampaignState {
       reserveGold: cash.reserve,
       planningSeconds: cash.horizon,
       monthlySalary: cash.salary,
+      monthlyGarrisonUpkeep: ledger.monthlyGarrisonUpkeep,
       minimumMonthlyIncome: cash.poorIncome,
     );
   }

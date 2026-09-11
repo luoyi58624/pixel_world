@@ -153,15 +153,7 @@ extension _CitySieges on CampaignState {
       battle.simulation.stop();
       return;
     }
-    final previousName = cityName(battle.city.id);
     _captureCity(battle.city.id, battle.attacker.countryId);
-    if (march.supplyHalted || goldFor(march.hero.countryId) == 0) {
-      _endBattle(march, '${march.hero.name}攻下$previousName，断粮扎营');
-      march.hero.cityId = battle.city.id;
-      march.hero.hp = march.hero.maxHp;
-      _campForSupply(march);
-    } else {
-      _station(march);
-    }
+    _station(march);
   }
 }

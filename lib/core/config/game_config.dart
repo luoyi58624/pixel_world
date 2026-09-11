@@ -71,8 +71,8 @@ abstract final class GameConfig {
   /// 每点仇恨增加的反击目标权重，满值提供三倍权重。
   static const countryHatredWeightPerPoint = 0.02;
 
-  /// 正常、欠收、丰收等概率，各占三分之一。
-  static const normalHarvestWeight = 1;
+  /// 正常占二分之一，欠收与丰收各占四分之一。
+  static const normalHarvestWeight = 2;
 
   /// 欠收概率权重。
   static const poorHarvestWeight = 1;
@@ -80,13 +80,13 @@ abstract final class GameConfig {
   /// 丰收概率权重。
   static const abundantHarvestWeight = 1;
 
-  /// 正式地图每座城的固定月产出，升级不增收。
-  static const cityBaseIncome = 10;
+  /// 正式地图一级城池的正常月产出。
+  static const cityBaseIncome = 20;
 
-  /// 城防升级的收入增量保持为零，扩张城池才增加产出。
-  static const cityIncomePerLevel = 0;
+  /// 城防每升一级增加的正常月产出。
+  static const cityIncomePerLevel = 5;
 
-  /// 有城国家正常月基础收入，丰收加十、欠收减二十。
+  /// 未单独配置国家时的月保底，正式各国由 JSON 的 monthlyBaseIncome 指定。
   static const countryMonthlyIncome = 20;
 
   /// 外国城池的收入及城防兵员容量倍率，以开局归属判断，逐城向下取整。
@@ -128,11 +128,11 @@ abstract final class GameConfig {
   /// 失败远征后重新筹备的间隔，避免立刻重复派兵送死。
   static const aiRaidRetrySeconds = 15.0;
 
-  /// 丰收时整个国家额外增加一次的收入。
-  static const abundantHarvestBonus = 10;
+  /// 单座城池丰欠收随机增减额的下限，含此值。
+  static const harvestAdjustmentMin = 5;
 
-  /// 欠收时整个国家额外减少一次的收入。
-  static const poorHarvestPenalty = 20;
+  /// 单座城池丰欠收随机增减额的上限，含此值；欠收允许城池负收入。
+  static const harvestAdjustmentMax = 30;
 
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;
@@ -160,7 +160,7 @@ abstract final class GameConfig {
           .clamp(1, maxCityLevel);
 
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
-  static const List<int> cityUpgradeCosts = [30, 50, 80, 120];
+  static const List<int> cityUpgradeCosts = [30, 50, 100, 160];
 
   /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;
@@ -242,12 +242,18 @@ abstract final class GameConfig {
   static const cityDamageChancePerVictory = 1.0;
 }
 
-/// 从玩法 JSON 读取的国家开局经济。
+/// 从玩法 JSON 读取的国家开局资金与每月保底。
 class CountryConfig {
-  /// 配置该国初始资金，留守人数读取各城独立配置。
-  const CountryConfig({this.initialGold = GameConfig.initialGold})
-    : assert(initialGold >= 0);
+  /// 每月保底只按国家结算一次，与城池收成和当前将领人数无关。
+  const CountryConfig({
+    this.initialGold = GameConfig.initialGold,
+    this.monthlyBaseIncome = GameConfig.countryMonthlyIncome,
+  }) : assert(initialGold >= 0),
+       assert(monthlyBaseIncome >= 10 && monthlyBaseIncome <= 30);
 
   /// 国家初始金币，多座城共用同一个国库。
   final int initialGold;
+
+  /// 该国每月固定收入，JSON 可配置为十至三十金币。
+  final int monthlyBaseIncome;
 }

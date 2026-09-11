@@ -147,6 +147,10 @@ extension CampaignSnapshots on CampaignState {
       'marches': troops,
       'battles': fights,
       'gold': _keys(_countryGold),
+      'countryConfigs': {
+        for (final e in countryConfigs.entries)
+          '${e.key}': [e.value.initialGold, e.value.monthlyBaseIncome],
+      },
       'random': [
         for (final r in [
           _economyRandom,
@@ -203,7 +207,7 @@ extension CampaignSnapshots on CampaignState {
           '${e.key}': [
             e.value.year,
             e.value.month,
-            e.value.harvest.index,
+            e.value.harvest?.index,
             e.value.cityCount,
             e.value.baseIncome,
             e.value.adjustment,
@@ -211,6 +215,8 @@ extension CampaignSnapshots on CampaignState {
             e.value.garrisonUpkeep,
             e.value.goldBefore,
             e.value.goldAfter,
+            e.value.fixedIncome,
+            [for (final city in e.value.cityIncomes) city.toJson()],
           ],
       },
       'time': [
@@ -315,7 +321,15 @@ extension CampaignSnapshots on CampaignState {
       random[3],
       random[4],
       !replay && d['aiEnabled'] == true,
-      world.setup.countries,
+      d['countryConfigs'] == null
+          ? world.setup.countries
+          : Map.unmodifiable({
+              for (final e in (d['countryConfigs'] as Map).entries)
+                int.parse(e.key): CountryConfig(
+                  initialGold: e.value[0],
+                  monthlyBaseIncome: e.value[1],
+                ),
+            }),
       weapons,
       StateRandom(d['weaponDropRandom'] as int? ?? world.id + 1),
     );
@@ -473,7 +487,7 @@ extension CampaignSnapshots on CampaignState {
       (v) => MonthlySettlement(
         year: v[0],
         month: v[1],
-        harvest: Harvest.values[v[2]],
+        harvest: v[2] == null ? null : Harvest.values[v[2]],
         cityCount: v[3],
         baseIncome: v[4],
         adjustment: v[5],
@@ -481,6 +495,13 @@ extension CampaignSnapshots on CampaignState {
         garrisonUpkeep: v[7],
         goldBefore: v[8],
         goldAfter: v[9],
+        fixedIncome: v.length > 10 ? v[10] : 0,
+        cityIncomes: v.length > 11
+            ? [
+                for (final city in v[11])
+                  CityIncomeSettlement.fromJson(_map(city)),
+              ]
+            : const [],
       ),
     );
     c.settledMonths = d['time'][0];

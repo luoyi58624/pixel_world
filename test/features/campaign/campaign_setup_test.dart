@@ -44,13 +44,16 @@ void main() {
       final c = CampaignState.fromRom(world, heroes(), aiEnabled: false);
       expect(c.gold, 80);
       expect(c.goldFor(1), 70);
-      expect(c.cities[0]!.baseIncome, 10);
-      expect(c.cities[1]!.baseIncome, 10);
+      expect(c.cities[0]!.baseIncome, 20);
+      expect(c.cities[1]!.baseIncome, 20);
       for (final item in world.cities) {
         final initial = setup.cities[(world.id, item.id)]!;
         expect(c.soldiersAt(item.id), c.soldierCapacityAt(item.id));
         expect(c.cities[item.id]!.level, initial.initialLevel);
-        expect(c.cities[item.id]!.income, initial.baseIncome);
+        expect(
+          c.cities[item.id]!.income,
+          initial.baseIncome + (initial.initialLevel - 1) * 5,
+        );
       }
     }
   });
@@ -78,7 +81,7 @@ void main() {
     addTearDown(controller.dispose);
     final c = controller.campaign;
     expect(c.gold, 123);
-    expect(c.cities[0]!.income, 27);
+    expect(c.cities[0]!.income, 37);
     expect(c.cities[0]!.level, 3);
     expect(c.soldiersAt(0), 24);
     expect(c.cityBounds(c.world.cities.first).width, 48);
@@ -91,12 +94,12 @@ void main() {
     );
     monthly.advance(60);
     expect(monthly.lastSettlementFor(0)!.garrisonUpkeep, 0);
-    expect(monthly.gold, 123 + 20 + 27 - monthly.salaryCost);
+    expect(monthly.gold, 123 + 10 + 37 - monthly.salaryCost);
     expect(monthly.lastSettlementFor(0)!.baseIncome, 47);
     controller.switchWorld(1);
     expect(controller.campaign.cities[0]!.level, 5);
     expect(controller.campaign.soldiersAt(0), 32);
-    expect(controller.campaign.cities[0]!.income, 31);
+    expect(controller.campaign.cities[0]!.income, 51);
     controller.campaign.heroes.firstWhere((hero) => hero.sourceId == 40).hp = 0;
     controller.tick(0.02);
     controller.restartCampaign();

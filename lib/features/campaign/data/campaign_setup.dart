@@ -6,7 +6,7 @@ import '../../../core/config/game_config.dart';
 class CitySetup {
   const CitySetup._({required this.baseIncome, required this.initialLevel});
 
-  /// 城市固定月产出，正式地图统一为十金币，升级不增加。
+  /// 一级城池正常月产出，实际产出另加等级收益。
   final int baseIncome;
 
   /// 开局等级，影响建筑外观、储备容量和守城加成。
@@ -20,7 +20,7 @@ class CampaignSetup {
   /// 未附带玩法配置的简化地图使用规则默认值。
   static const empty = CampaignSetup._({}, {}, {});
 
-  /// 各国的初始国库，多座城共用国家国库。
+  /// 各国初始国库与每月保底，多座城共用同一国库。
   final Map<int, CountryConfig> countries;
 
   /// 使用地图编号与城池编号共同定位，避免三张地图串用等级。
@@ -44,11 +44,14 @@ class CampaignSetup {
     for (var i = 0; i < countryRows.length; i++) {
       final path = 'countries[$i]';
       final row = _object(countryRows[i], path);
-      _keys(row, {'id', 'name', 'initialGold'}, path);
+      _keys(row, {'id', 'name', 'initialGold', 'monthlyBaseIncome'}, path);
       final id = _integer(row, 'id', path, max: 15);
       if (countries.containsKey(id)) throw FormatException('$path：国家编号 $id 重复');
       countries[id] = CountryConfig(
         initialGold: _integer(row, 'initialGold', path),
+        monthlyBaseIncome: row.containsKey('monthlyBaseIncome')
+            ? _integer(row, 'monthlyBaseIncome', path, min: 10, max: 30)
+            : GameConfig.countryMonthlyIncome,
       );
     }
     final worldRows = _list(root['worlds'], 'worlds');
