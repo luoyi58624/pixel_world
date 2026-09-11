@@ -149,7 +149,7 @@ class CombatAssessor {
       enemyWeaponUpper: b.high,
       releaseRisk: releaseRisk,
       reasons: [
-        if (ownDefense > 0 || enemyDefense > 0) '城防仅修正攻击，守方武器贡献为零',
+        if (ownDefense > 0 || enemyDefense > 0) '城防增加攻击与开场士气，守方武器贡献为零',
         if (gear.length > 1) '本次对阵只计首件武器，其余留待下一位守将',
         if (releaseRisk) '存在先手致命或自伤风险',
         '余量为静态风险指标，并非胜率',
@@ -167,10 +167,11 @@ class CombatAssessor {
       field: field,
     );
     final power = attack + soldiers * rules.integer('soldierPower');
+    final morale = rules.morale(h.morale.round(), defenseLevel: field ? 0 : defense);
     // 当前已显示红条仅影响有限偏好，不预扣未来随机士气。
     return (((power + 2) ~/ 4) + 1) *
         1.5 *
-        (1 + (h.morale / 1000).clamp(0.0, .1));
+        (1 + (morale / 1000).clamp(0.0, .1));
   }
 
   ({double low, double high, double selfLow, double selfHigh}) _weapons(

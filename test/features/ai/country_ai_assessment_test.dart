@@ -18,12 +18,15 @@ void main() {
     }
     expect(jsonEncode(c.aiObservationFor(1).toJson()), before);
   });
-  test('守城不计武器，城防不抬高士气；增加真实攻击不会降低静态优势', () {
+  test('守城不计武器，城防士气有上限；增加真实攻击不会降低静态优势', () {
     final c = nationalScenario(ai: false),
         rules = c.aiRulesForTesting(),
         view = c.aiObservationFor(1);
     final hero = view.hero('rom-0')!, enemy = view.hero('rom-2')!;
     final evaluator = CombatAssessor(rules, AiWorkBudget(rules.tuning));
+    expect(rules.morale(50, defenseLevel: 5), 90);
+    expect(rules.morale(95, defenseLevel: 5), 100);
+    expect(rules.morale(50), 50);
     final bare = evaluator.compare(
       hero,
       enemy,

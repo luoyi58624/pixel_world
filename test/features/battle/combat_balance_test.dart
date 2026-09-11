@@ -23,7 +23,13 @@ void main() {
           final k = NesBattleKernel(
             attack: [h[0], h[0] + bonus],
             hp: [h[1], h[1]],
-            initialMorale: [h[2], h[2]],
+            initialMorale: [
+              h[2],
+              (h[2] + GameConfig.cityDefenseMoraleBonusFor(level)).clamp(
+                0,
+                100,
+              ),
+            ],
             slots: [
               [0, 1, 2, 3],
               [0, 1, 2, 3],

@@ -183,8 +183,18 @@ abstract final class GameConfig {
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
-  /// 一至五级城防攻击加成，不提高士气和冲锋速度。
+  /// 一至五级城防攻击加成，不提高冲锋速度。
   static const cityDefenseAttackBonuses = [1, 3, 5, 8, 12];
+
+  /// 一至五级守城开场士气加成，叠加将领属性后上限仍为100。
+  static const cityDefenseMoraleBonuses = [5, 10, 20, 30, 40];
+
+  /// 按本轮有效城防等级读取守城士气，连续攻城随剩余等级递减。
+  static int cityDefenseMoraleBonusFor(int level) =>
+      cityDefenseMoraleBonuses[(level - 1).clamp(
+        0,
+        cityDefenseMoraleBonuses.length - 1,
+      )];
 
   /// 按有效城防等级读取加成，连续守城随剩余等级递减。
   static int cityDefenseAttackBonusFor(int level) =>

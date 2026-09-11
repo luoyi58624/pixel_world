@@ -44,7 +44,11 @@ void main() {
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, sim.defender.morale);
+      expect(sim.defenderMorale.remaining, 50 + [5, 10, 20, 30, 40][level - 1]);
+      expect(
+        rules.morale(50, defenseLevel: level),
+        sim.defenderMorale.remaining,
+      );
       expect(defender.attack, 10);
       expect(defender.general.hp, 20);
       expect(defender.soldiers[1].hp, 20);
@@ -61,7 +65,7 @@ void main() {
       );
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 50);
+      expect(sim.defenderMorale.remaining, 90);
       expect(sim.defender.general.hp, 20);
     }
   });
@@ -102,7 +106,7 @@ void main() {
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
     expect(battle.simulation.defenderAttackBonus, 3);
-    expect(battle.simulation.defenderMoraleBonus, 0);
+    expect(battle.simulation.defenderMoraleBonus, 10);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
     }
@@ -111,8 +115,11 @@ void main() {
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
     expect(battle.simulation.defenderAttackBonus, 1);
-    expect(battle.simulation.defenderMoraleBonus, 0);
-    expect(battle.simulation.defenderMorale.remaining, battle.defender.morale);
+    expect(battle.simulation.defenderMoraleBonus, 5);
+    expect(
+      battle.simulation.defenderMorale.remaining,
+      (battle.defender.morale + 5).clamp(0, 100),
+    );
     expect(battle.simulation.defender.attack, battle.defender.combat);
   });
 
@@ -167,6 +174,6 @@ void main() {
     final sim = c.battles[1]!.simulation;
     expect(sim.defenderCityLevel, 1);
     expect(sim.defenderAttackBonus, 1);
-    expect(sim.defenderMoraleBonus, 0);
+    expect(sim.defenderMoraleBonus, 5);
   });
 }

@@ -26,6 +26,7 @@ void main(List<String> args) {
       'samples': count,
       'seed': seed,
       'cityAttack': GameConfig.cityDefenseAttackBonuses,
+      'cityMorale': GameConfig.cityDefenseMoraleBonuses,
       'cityRecoil': GameConfig.cityDefenseRecoilScale,
       'moralePowerScale': GameConfig.battleMoralePowerScale,
       'chargeFrames': GameConfig.battleChargeIntervalFrames,
@@ -61,7 +62,9 @@ void main(List<String> args) {
         hp: [hp, hp],
         initialMorale: [
           s['attackerMorale'] ?? morale,
-          s['defenderMorale'] ?? morale,
+          ((s['defenderMorale'] ?? morale) +
+                  (level > 0 ? GameConfig.cityDefenseMoraleBonusFor(level) : 0))
+              .clamp(0, 100),
         ],
         slots: [
           List.generate(s['attackerSoldiers'] ?? 4, (i) => i),

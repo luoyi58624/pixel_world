@@ -92,6 +92,16 @@ class AiRules {
   /// 读取整数配置。
   int integer(String key) => values[key]!.toInt();
 
+  /// 与真实开场一致的士气，城防仅作用于守方且总值不超过100。
+  int morale(int base, {int defenseLevel = 0}) =>
+      (base +
+              (defenseLevel > 0
+                  ? (values['cityMoraleBonus${defenseLevel.clamp(1, 5)}']
+                            ?.toInt() ??
+                        0)
+                  : 0))
+          .clamp(0, 100);
+
   /// 使用与实际战斗相同的纯属性规则。
   int attack(
     int combat, {

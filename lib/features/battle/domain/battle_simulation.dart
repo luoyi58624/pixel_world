@@ -274,7 +274,10 @@ class BattleSimulation {
         (_combat(defender) + defenderAttackBonus).clamp(0, 63),
       ],
       moraleAttack: [_combat(attacker), _combat(defender)],
-      initialMorale: [attacker.morale, defender.morale],
+      initialMorale: [
+        attacker.morale,
+        (defender.morale + defenderMoraleBonus).clamp(0, 100),
+      ],
       hp: [attacker.general.hp.round(), defender.general.hp.round()],
       slots: [
         for (final army in [attacker, defender])
@@ -352,8 +355,10 @@ class BattleSimulation {
         )
       : 0;
 
-  /// 城防不提供额外士气，初始红条仅按英雄有效战斗属性计算。
-  int get defenderMoraleBonus => 0;
+  /// 本轮有效城防给予的开场士气，野战不享有加成。
+  int get defenderMoraleBonus => fieldTerrain == null
+      ? GameConfig.cityDefenseMoraleBonusFor(defenderCityLevel)
+      : 0;
 
   /// 双方红条显示快照。
   late BattleMorale attackerMorale, defenderMorale;

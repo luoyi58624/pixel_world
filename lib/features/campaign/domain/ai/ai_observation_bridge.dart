@@ -5,6 +5,8 @@ extension _AiObservationBridge on CampaignState {
     final values = <String, num>{
       'soldierHp': BattleSimulation.soldierHp,
       'soldierPower': BattleSimulation.soldierAttack,
+      for (var level = 1; level <= 5; level++)
+        'cityMoraleBonus$level': GameConfig.cityDefenseMoraleBonusFor(level),
       'soldierLimit': GameConfig.heroSoldierLimit,
       'carryLimit': weaponCatalog.carryLimit,
       'marchSpeed': GameConfig.baseMarchSpeed,
