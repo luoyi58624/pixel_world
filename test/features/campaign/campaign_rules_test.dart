@@ -53,28 +53,15 @@ void main() {
     expect(heroes.length, 47);
     expect(heroes[0]!.name, '泽拉斯');
     expect(
-      [
-        heroes[0]!.maxHp,
-        heroes[0]!.combat,
-        heroes[0]!.politics,
-        heroes[0]!.romSalary,
-      ],
-      [95, 18, 15, 8],
+      [heroes[0]!.maxHp, heroes[0]!.combat, heroes[0]!.politics],
+      [95, 15, 15],
     );
     expect(heroes[2]!.name, '威拉斯');
-    expect(
-      [heroes[2]!.maxHp, heroes[2]!.politics, heroes[2]!.romSalary],
-      [94, 3, 10],
-    );
+    expect([heroes[2]!.maxHp, heroes[2]!.politics], [94, 3]);
     expect(heroes[40]!.name, isNull);
     expect(
-      [
-        heroes[40]!.maxHp,
-        heroes[40]!.combat,
-        heroes[40]!.politics,
-        heroes[40]!.salary,
-      ],
-      [99, 18, 15, 0],
+      [heroes[40]!.maxHp, heroes[40]!.combat, heroes[40]!.politics],
+      [99, 15, 15],
     );
     final c = _campaign();
     expect(c.heroesAt(0).map((hero) => hero.sourceId), [40, 0, 2]);

@@ -15,7 +15,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 ## 调整数值
 
-将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。字段说明见 [开局配置说明](docs/campaign_config.md)。其余全局规则在 [`lib/core/config/game_config.dart`](lib/core/config/game_config.dart)。保存配置后热重启，新的开局才会读取；原版报酬保留在英雄记录的 `romSalary`，可调月俸使用 `salary`。
+将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。字段说明见 [开局配置说明](docs/campaign_config.md)。其余全局规则在 [`lib/core/config/game_config.dart`](lib/core/config/game_config.dart)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
 
 ## 操作
 
@@ -54,7 +54,7 @@ AI 同国出征按游戏时间至少间隔 2 秒放行；门口被占用时在�
 - `assets/images/hero/advanced.png`、`normal.png`、`protagonist.png`：高级、普通、主角三套独立的 96×16 图集，六帧固定为正面 A/B、背面 A/B、左侧面 A/B。
 - `lib/features/heroes/domain/hero_sprite.dart`：八方向判定、角色外观及六帧动画选择。
 - `lib/features/campaign/domain/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
-- `assets/data/rom_heroes.json`：47 位英雄（原版 41 位及扩展 6 位）的属性、月俸与展示顺序；原版记录保留 `romSalary`、姓名编码和来源偏移。
+- `assets/data/rom_heroes.json`：47 位英雄（原版 41 位及扩展 6 位）的游戏属性、月俸与展示顺序，每名英雄仅保留11个运行时配置字段。
 - `lib/features/heroes/data/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
 - `assets/data/rom_countries.json`、`assets/images/flags.png`：原版城名、国家及国旗，来源见 [核对报告](docs/nes_cities_flags.md)。
 - `lib/features/world_map/domain/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。

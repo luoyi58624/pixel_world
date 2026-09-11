@@ -17,7 +17,7 @@ enum HeroType {
   final String label;
 }
 
-/// 英雄 JSON 静态定义，salary 为可调月俸，romSalary 保留原版报酬。
+/// 英雄 JSON 静态定义，只读取游戏使用的属性与可调月俸。
 class RomHeroDefinition {
   /// 读取英雄属性与文件顺序，直接构造时默认按身份编号排序。
   RomHeroDefinition.fromJson(Map<String, dynamic> json, {int? rosterOrder})
@@ -27,12 +27,10 @@ class RomHeroDefinition {
       type = HeroType.values.byName(json['type'] as String),
       maxHp = json['maxHp'] as int,
       combat = json['combat'] as int,
-      romCombat = json['romCombat'] as int?,
       morale = _readMorale(json),
       nativeCountryId = _readNativeCountry(json),
       politics = json['politics'] as int,
       salary = _readSalary(json),
-      romSalary = json['romSalary'] as int? ?? json['salary'] as int,
       eggCapable = json['eggCapable'] as bool,
       soldierLimit = json['soldierLimit'] as int;
 
@@ -63,17 +61,11 @@ class RomHeroDefinition {
   /// 战斗能力。
   final int combat;
 
-  /// 原版战斗能力，用于识别旧档统一加3的属性；自定义扩展将领可为空。
-  final int? romCombat;
-
   /// 内政能力。
   final int politics;
 
   /// 任意国家任职时的月俸金币，本国核心将领与主角同样付薪。
   final int salary;
-
-  /// 原版提取的报酬，仅作分析对照，不参与游戏月结。
-  final int romSalary;
 
   /// 是否具备召唤蛋能力。
   final bool eggCapable;

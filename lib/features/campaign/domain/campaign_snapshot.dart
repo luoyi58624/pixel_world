@@ -265,12 +265,18 @@ extension CampaignSnapshots on CampaignState {
     final definitions = {for (final h in catalog) h.id: h};
     int combat(int saved, int source) {
       final definition = definitions[source];
-      // 只纠正目录已还原且旧档仍保留统一+3的值，回放与自定义属性沿用历史数据。
+      // 历史1491dbe只给这批角色统一+3，兼容旧档无需把重复的ROM数值留在游戏JSON中。
+      final original = switch (source) {
+        40 || 0 || 1 || 2 || 3 || 4 || 5 => 15,
+        6 || 7 => 14,
+        8 || 9 => 13,
+        _ => null,
+      };
       return !replay &&
-              definition?.romCombat != null &&
-              definition!.combat == definition.romCombat &&
-              saved == definition.combat + 3
-          ? definition.combat
+              original != null &&
+              definition?.combat == original &&
+              saved == original + 3
+          ? original
           : saved;
     }
 

@@ -101,37 +101,44 @@ def extract(original):
     }
 
 
+# 游戏目录只保存运行时字段；原始字节与偏移仍供extract生成CSV和字模核对图。
+GAME_HERO_FIELDS = (
+    "id", "name", "type", "maxHp", "combat", "morale", "politics",
+    "salary", "eggCapable", "soldierLimit", "nativeCountryId",
+)
+
+
+def _game_hero(values):
+    """裁剪提取元数据并验证可编辑的数值，不把原版字段重新写回游戏目录。"""
+    entry = {key: values[key] for key in GAME_HERO_FIELDS}
+    for key, upper in (("salary", None), ("combat", 63), ("morale", 100)):
+        value = entry[key]
+        if type(value) is not int or value < 0 or (upper is not None and value > upper):
+            raise ValueError(f'英雄 {entry["id"]} 的 {key} 配置无效，停止覆盖目录')
+    return entry
+
+
 def game_catalog(extracted, existing=None):
-    """保留游戏月俸、战斗属性与顺序，原版数值单独留证。"""
+    """输出精简的游戏目录，保留所有已配置属性、扩展将领和展示顺序。"""
     old_rows = (existing or {}).get("heroes", [])
     old = {hero["id"]: hero for hero in old_rows}
     order = {hero["id"]: index for index, hero in enumerate(old_rows)}
     rows = sorted(extracted["heroes"], key=lambda hero: (
         hero["id"] != 40, order.get(hero["id"], len(order) + hero["id"])))
-    result = dict(extracted)
-    result["heroes"] = []
+    result = {"version": 1, "heroes": []}
     for rank, hero in enumerate(rows):
         previous = old.get(hero["id"], {})
-        salary = (previous["salary"] if "romSalary" in previous else
-                  0 if rank == 0 else 3 if rank <= 5 else 2 if rank <= 10 else 1 if rank <= 15 else 0)
-        if type(salary) is not int or salary < 0:
-            raise ValueError(f'英雄 {hero["id"]} 的月俸配置无效，停止覆盖目录')
         entry = dict(hero)
-        entry["romSalary"] = hero["salary"]
-        entry["salary"] = salary
-        entry["romCombat"] = hero["combat"]
-        combat = previous.get("combat", hero["combat"])
-        if type(combat) is not int or not 0 <= combat <= 63:
-            raise ValueError(f'英雄 {hero["id"]} 的战斗属性配置无效，停止覆盖目录')
-        entry["combat"] = combat
-        entry["nativeCountryId"] = previous.get("nativeCountryId")
-        entry["morale"] = previous.get("morale", 50)
-        if type(entry["morale"]) is not int or not 0 <= entry["morale"] <= 100:
-            raise ValueError(f'英雄 {hero["id"]} 的士气配置无效')
-        result["heroes"].append(entry)
-    result["notes"] = dict({**extracted["notes"], **(existing or {}).get("notes", {})},
-        salary="salary 是可直接调整的月俸金币，romSalary 是原版报酬；专属国免薪，其他国家签约即付首月月俸。",
-        order="主角排在第一位，其余按本文件 heroes 数组顺序展示，守城时从末位出战。")
+        entry.update(salary=0 if rank == 0 else 3 if rank <= 5 else 2 if rank <= 10 else 1 if rank <= 15 else 0,
+                     nativeCountryId=None, morale=50)
+        entry.update({key: previous[key] for key in GAME_HERO_FIELDS if key in previous})
+        result["heroes"].append(_game_hero(entry))
+    extracted_ids = {hero["id"] for hero in rows}
+    for previous in old_rows:
+        if previous["id"] not in extracted_ids:
+            result["heroes"].append(_game_hero({"nativeCountryId": None, "morale": 50, **previous}))
+    result["heroes"].sort(key=lambda hero: (
+        hero["id"] != 40, order.get(hero["id"], len(order) + hero["id"])))
     return result
 
 

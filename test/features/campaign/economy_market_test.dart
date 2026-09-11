@@ -145,7 +145,6 @@ void main() {
       'combat': 15,
       'politics': 15,
       'salary': 0,
-      'romSalary': 99,
       'eggCapable': true,
       'soldierLimit': 4,
     });

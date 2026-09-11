@@ -7,7 +7,7 @@ import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
-// 固定样本区分原版角色的旧+3属性和没有原版数据的自定义角色。
+// 固定样本区分原版角色的旧+3属性和自定义角色，样本不携带重复ROM字段。
 List<RomHeroDefinition> _catalog(int combat) => [
   for (final id in [40, 0, 1, 100])
     RomHeroDefinition.fromJson({
@@ -16,7 +16,6 @@ List<RomHeroDefinition> _catalog(int combat) => [
       'type': id == 40 ? 'protagonist' : 'advanced',
       'maxHp': 95,
       'combat': id == 100 ? 18 : combat,
-      if (id != 100) 'romCombat': 15,
       'morale': 80,
       'politics': 10,
       'salary': 3,
@@ -96,7 +95,6 @@ void main() {
       expect(hero.combat, hero.sourceId == 100 ? 18 : 15);
       expect(hero.battleArmy.attack, hero.combat);
     }
-    expect(_catalog(15).last.romCombat, isNull);
   });
 
   test('旧档统一+3属性在续玩时纠正，血量、金币与原快照不受影响', () {

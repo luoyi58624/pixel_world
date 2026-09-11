@@ -125,7 +125,6 @@ void main() {
       );
     }
     expect(_hero(c, 40).salary, 8);
-    expect(_catalog().firstWhere((hero) => hero.id == 0).romSalary, 8);
     expect(() => _catalog().clear(), throwsUnsupportedError);
   });
 
