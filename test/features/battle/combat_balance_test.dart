@@ -1,55 +1,60 @@
 import 'package:flutter_test/flutter_test.dart';
+
+import 'dart:math' as math;
+
 import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/nes/nes_battle_kernel.dart';
 
-int victories({
-  required int attack,
-  required int defense,
-  required double recoil,
-  required double wall,
-}) {
-  var wins = 0;
-  for (var seed = 1; seed <= 64; seed++) {
-    final k = NesBattleKernel(
-      attack: [attack, 11 + defense],
-      moraleAttack: [attack, 11],
-      hp: [95, 65],
-      slots: [
-        [0, 1, 2],
-        [0, 1, 2, 3],
-      ],
-      seed: seed * 1009,
-      recoilDifferenceScale: recoil,
-      wallDamageScale: wall,
-    );
-    while (k.generalsAlive && k.frames < 12000) {
-      k.step(autoCharge: true);
-    }
-    expect(k.frames, lessThan(12000), reason: '不能因平滑反弹而永久停战');
-    if (k.ram[0x7451] > 0 && k.ram[0x7452] == 0) wins++;
-  }
-  return wins;
-}
-
 void main() {
-  test('少一兵的强将不再被普通二级守将全样本碾压', () {
-    expect(victories(attack: 15, defense: 4, recoil: 1, wall: 1), 0);
-    final unchangedHero = victories(
-      attack: 15,
-      defense: 2,
-      recoil: GameConfig.battleRecoilDifferenceScale,
-      wall: GameConfig.battleWallDamageScale,
-    );
-    expect(unchangedHero, inInclusiveRange(35, 64));
-    expect(
-      victories(
-        attack: 18,
-        defense: 2,
-        recoil: GameConfig.battleRecoilDifferenceScale,
-        wall: GameConfig.battleWallDamageScale,
-      ),
-      greaterThanOrEqualTo(58),
-    );
+  test('四类同属性将领中城防保留优势，五级城仍有进攻获胜样本', () {
+    final random = math.Random(20260912);
+    final seeds = List.generate(128, (_) => random.nextInt(1 << 24));
+    final guardWins = <int>[];
+    for (final level in [1, 5]) {
+      var attacks = 0, defenses = 0;
+      for (final h in [
+        [10, 50, 60],
+        [12, 65, 75],
+        [15, 95, 50],
+        [18, 95, 100],
+      ]) {
+        var typeWins = 0;
+        for (final seed in seeds) {
+          final bonus = GameConfig.cityDefenseAttackBonusFor(level);
+          final k = NesBattleKernel(
+            attack: [h[0], h[0] + bonus],
+            hp: [h[1], h[1]],
+            initialMorale: [h[2], h[2]],
+            slots: [
+              [0, 1, 2, 3],
+              [0, 1, 2, 3],
+            ],
+            seed: seed,
+            recoilDifferenceScale: GameConfig.battleRecoilDifferenceScale,
+            wallDamageScale: GameConfig.battleWallDamageScale,
+            defenderCityAttackBonus: bonus,
+            cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
+            randomChargeEnabled: true,
+            moralePowerScale: GameConfig.battleMoralePowerScale,
+            chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
+          );
+          while (k.generalsAlive && k.frames < 18000) {
+            k.step(autoCharge: true);
+          }
+          expect(k.generalsAlive, isFalse);
+          if (k.ram[0x7451] > 0) {
+            attacks++;
+            typeWins++;
+          }
+          if (k.ram[0x7452] > 0) defenses++;
+        }
+        expect(typeWins, greaterThan(6), reason: '每类将领都必须保留攻城机会');
+      }
+      expect(defenses, greaterThan(attacks));
+      expect(defenses, lessThan(512 * .9));
+      guardWins.add(defenses);
+    }
+    expect(guardWins.last, greaterThan(guardWins.first));
   });
 
   test('撞墙只降低追加伤害，仍推进原反弹动作', () {

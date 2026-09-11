@@ -97,6 +97,6 @@ void main() {
     expect(restored.soldierCount, 2);
     expect(r.attack(20, terrain: 2), 10);
     expect(r.attack(20, terrain: 1), 14);
-    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 26);
+    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 23);
   });
 }

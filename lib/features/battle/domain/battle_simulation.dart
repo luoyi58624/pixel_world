@@ -43,7 +43,13 @@ String battleNumber(num value) =>
 /// 原版红条资源，来自独立的 AE/AF 数值而非将领生命。
 class BattleMorale {
   /// 用本场原版初始值创建显示快照。
-  BattleMorale(this.initial) : remaining = initial;
+  BattleMorale(
+    this.initial, {
+    this.powerScale = GameConfig.battleMoralePowerScale,
+  }) : remaining = initial;
+
+  /// 将累积士气换算为实际碰撞强度的倍率。
+  final int powerScale;
 
   /// 全体将领使用统一的士气上限。
   int get maximum => 100;
@@ -60,8 +66,9 @@ class BattleMorale {
   /// 上次碰撞投入的积累。
   int committed = 0;
 
-  /// 额外碰撞强度，上限 4 点，并非百分比。
-  int get bonus => accumulated == 0 ? 0 : math.min(4, (accumulated >> 2) + 1);
+  /// 本轮随机蓄力提供的额外碰撞强度，并非百分比。
+  int get bonus =>
+      accumulated == 0 ? 0 : math.min(4, (accumulated >> 2) + 1) * powerScale;
 }
 
 /// 将领与随行小兵的共享战役资料。
@@ -250,7 +257,7 @@ typedef BattleClash = ({double attackerDamage, double defenderDamage});
 
 /// 原版普通拼杀与战役共享生命的适配；观战读取后台同一场战斗。
 class BattleSimulation {
-  /// 固定种子驱动原随机源，双方自动采用原版电脑的士气节奏。
+  /// 固定种子驱动双方冲锋中的随机蓄力，存档可重现相同战斗。
   BattleSimulation({
     required this.attacker,
     required this.defender,
@@ -283,10 +290,14 @@ class BattleSimulation {
         63 - _combat(defender),
       ),
       cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
+      randomChargeEnabled: true,
+      moralePowerScale: GameConfig.battleMoralePowerScale,
+      chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
       wallDamageScale: GameConfig.battleWallDamageScale,
     );
-    attackerMorale = BattleMorale(_kernel.ram[0xae]);
-    defenderMorale = BattleMorale(_kernel.ram[0xaf]);
+    final moraleScale = autoCharge ? GameConfig.battleMoralePowerScale : 1;
+    attackerMorale = BattleMorale(_kernel.ram[0xae], powerScale: moraleScale);
+    defenderMorale = BattleMorale(_kernel.ram[0xaf], powerScale: moraleScale);
     _addArmy(defender, BattleSide.defender);
     _addArmy(attacker, BattleSide.attacker);
     _syncHealth();
@@ -325,7 +336,7 @@ class BattleSimulation {
   /// 胜败提示以玩家所在一侧为准，无玩家参战时默认右军。
   final BattleSide resultPerspective;
 
-  /// 是否为右军启用原版电脑士气节奏，关闭仅用于原 ROM 无按键对照。
+  /// 双方是否自动随机蓄力，关闭仅用于隔离士气影响的测试。
   final bool autoCharge;
 
   /// 野战对英雄属性的倍率，小兵不受影响。

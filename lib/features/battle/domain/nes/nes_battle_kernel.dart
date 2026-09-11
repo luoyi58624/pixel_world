@@ -67,6 +67,13 @@ class NesBattleKernel {
     _p = r[11];
     _pc = r[12];
     _sp = r[13];
+    if (randomChargeEnabled) {
+      // 旧存档沿用当前城防配置，不能把旧的高城防攻击重新灌回战斗。
+      for (var side = 0; side < 2; side++) {
+        ram[0x1a + side] = _initialAttack[side];
+        ram[0x81ac + side] = _initialAttack[side];
+      }
+    }
     _refreshSoldierPower();
   }
 
@@ -92,7 +99,15 @@ class NesBattleKernel {
     this.cityDefenseRecoilScale = 1,
     this.wallDamageScale = 1,
     this.originalSoldierRules = false,
-  }) {
+    this.randomChargeEnabled = false,
+    this.moralePowerScale = 3,
+    this.chargeIntervalFrames = 12,
+  }) : _initialAttack = List<int>.unmodifiable(attack) {
+    if (moralePowerScale < 1 ||
+        moralePowerScale > 8 ||
+        chargeIntervalFrames < 1) {
+      throw ArgumentError('士气倍率必须为1到8，蓄力间隔必须为正数');
+    }
     if (!recoilDifferenceScale.isFinite ||
         recoilDifferenceScale < 0 ||
         !wallDamageScale.isFinite ||
@@ -164,6 +179,17 @@ class NesBattleKernel {
 
   /// 仅供原 ROM 逐帧对照测试保留开场每兵两点且不随减员变化的旧规则。
   final bool originalSoldierRules;
+  final List<int> _initialAttack;
+
+  /// 冲锋途中独立随机蓄力，原 ROM 对照可关闭。
+  final bool randomChargeEnabled;
+
+  /// 每次碰撞士气强度的倍率，上限为此值的四倍。
+  final int moralePowerScale;
+
+  /// 冲锋中的蓄力判定间隔，单位为六十分之一秒。
+  final int chargeIntervalFrames;
+  bool _randomChargeStep = false;
 
   // 保留将领与城防基础值，只重算存活兵员；不能影响正在执行的寄存器和进位。
   void _refreshSoldierPower() {
@@ -216,11 +242,13 @@ class NesBattleKernel {
 
   /// 按主循环 DCE5 的顺序更新双方运动、死亡动画及 OAM 位置。
   void step({bool chargeHeld = false, bool autoCharge = false}) {
+    _randomChargeStep = randomChargeEnabled && autoCharge;
     ram[0x42] = chargeHeld ? 128 : 0;
     if (generalsAlive) {
+      if (_randomChargeStep) _advanceRandomCharge();
       // 首帧承接 E1C4 的 CLC；之后 DD08 的 ASL 将存活位移入进位。
       _p = frames == 0 ? 0x30 : 0x31;
-      if (autoCharge) {
+      if (autoCharge && !_randomChargeStep) {
         _advanceAttackerCharge();
         ram[0x42] = 0;
       }
@@ -231,6 +259,31 @@ class NesBattleKernel {
     _call(0xe758, x: 0);
     _call(0xe758, x: 1);
     frames++;
+  }
+
+  void _advanceRandomCharge() {
+    for (var side = 0; side < 2; side++) {
+      if (frames % chargeIntervalFrames != 0) continue;
+      final speed = velocity(side);
+      if (side == 0 ? speed >= 0 : speed <= 0) continue;
+      final reserve = ram[0xae + side];
+      if (reserve == 0) continue;
+      // 高士气提高成功率但不保证成功，双方均只在朝敌方冲锋时抽取。
+      if (_chargeRoll(100) >= 25 + reserve ~/ 2) continue;
+      final gain = _chargeRoll(4) + 1;
+      final accumulated = side == 0 ? 0x0f : 0x19;
+      ram[accumulated] = (ram[accumulated] + gain).clamp(0, 255);
+      ram[0xae + side]--;
+    }
+  }
+
+  int _chargeRoll(int max) {
+    // 原D0F1取模会偏向较小结果；拒绝尾部字节，保证百分比判定不虚高。
+    final limit = 256 - 256 % max;
+    do {
+      _call(0xd102);
+    } while (_a >= limit);
+    return _a % max;
   }
 
   // 复用原左军 E55C–E586 的随机节奏与扣除指令，临时映射到右军独立状态。
@@ -392,6 +445,18 @@ class NesBattleKernel {
     _push(0xff);
     for (var budget = 0; budget < 40000; budget++) {
       if (_pc == 0x6000 || _pc == stopBefore) return;
+      if (_randomChargeStep && _pc == 0xe55c) {
+        // 跳过旧电脑蓄力节奏，保留后续移动、碰撞与阵亡流程。
+        _pc = 0xe587;
+        continue;
+      }
+      if (_randomChargeStep && _pc == 0xe3fe) {
+        _a = _nz(
+          _a == 0 ? 0 : (((_a >> 2) + 1).clamp(0, 4) * moralePowerScale),
+        );
+        _pc = (_pop() | _pop() << 8) + 1;
+        continue;
+      }
       if (_pc == 0xcf49 || _pc == 0xe8f3) {
         // 战役归属由 Campaign 管理；OAM 绘制由 Flutter 读取同一份槽位状态。
         _pc = (_pop() | _pop() << 8) + 1;
@@ -514,7 +579,11 @@ class NesBattleKernel {
         case 0xa4:
           _y = _nz(ram[_byte()]);
         case 0xa5:
-          _a = _nz(ram[_byte()]);
+          final p = _byte();
+          // 城防不提高冲锋加速度，避免守军更快回冲而持续压制。
+          final movementRead =
+              randomChargeEnabled && p == 0x1d && ram[_pc] == 0x4a;
+          _a = _nz(ram[p] - (movementRead ? defenderCityAttackBonus : 0));
         case 0xa6:
           _x = _nz(ram[_byte()]);
         case 0xa8:

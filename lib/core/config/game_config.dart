@@ -183,8 +183,8 @@ abstract final class GameConfig {
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
   static const recycleDefeatedHeroes = true;
 
-  /// 每级城防增加两点攻击力，不增加士气。
-  static const cityDefenseAttackBonuses = [2, 4, 6, 8, 10];
+  /// 每级城防增加一点攻击力，优势随等级增加但不提高士气和冲锋速度。
+  static const cityDefenseAttackBonuses = [1, 2, 3, 4, 5];
 
   /// 按有效城防等级读取加成，连续守城随剩余等级递减。
   static int cityDefenseAttackBonusFor(int level) =>
@@ -198,6 +198,12 @@ abstract final class GameConfig {
 
   /// 城防攻击参与击退差值的比例，伤害仍使用完整城防攻击。
   static const cityDefenseRecoilScale = 0.25;
+
+  /// 随机蓄力的碰撞强度倍率，最高提供24点士气强度。
+  static const battleMoralePowerScale = 6;
+
+  /// 冲锋中每0.2秒尝试一次蓄力，高士气提高成功率但不保证成功。
+  static const battleChargeIntervalFrames = 12;
 
   /// 原版撞墙使用双倍攻击强度，折半后按普通攻击强度追加一次伤害。
   static const battleWallDamageScale = 0.5;

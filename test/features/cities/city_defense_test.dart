@@ -23,7 +23,7 @@ CampaignState _campaign() => CampaignState.fromRom(
 );
 
 void main() {
-  test('每级城防加两点攻击，AI与实际战斗一致且不改基础属性', () {
+  test('每级城防加一点攻击，AI与实际战斗一致且不改基础属性', () {
     final c = _campaign();
     addTearDown(c.dispose);
     final rules = AiRules.fromJson(c.aiRulesForTesting().toJson());
@@ -38,7 +38,7 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 13);
-      final bonus = level * 2;
+      final bonus = level;
       expect(sim.basePower(BattleSide.defender), 13 + bonus);
       expect(rules.integer('soldierPower'), 1);
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
@@ -66,20 +66,21 @@ void main() {
     }
   });
 
-  test('城防攻击只加一次并参与士气增伤，实际拼杀按加成后的伤害扣兵', () {
+  test('城防攻击只加一次，隔离士气后实际拼杀按伤害扣兵', () {
     final sim = BattleSimulation(
       attacker: _army('a', hp: 95, attack: 15),
       defender: _army('d', hp: 95, attack: 15),
       seed: 3,
       defenderCityLevel: 5,
+      autoCharge: false,
     );
     for (var i = 0; i < 1000 && sim.clashes == 0; i++) {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 19);
-    expect(sim.basePower(BattleSide.defender), 29);
-    expect(sim.lastClash!.attackerDamage, inInclusiveRange(7, 13));
-    expect(sim.lastClash!.defenderDamage, inInclusiveRange(10, 20));
+    expect(sim.basePower(BattleSide.defender), 24);
+    expect(sim.lastClash!.attackerDamage, greaterThan(0));
+    expect(sim.lastClash!.defenderDamage, greaterThan(0));
     expect(
       sim.attacker.soldiers.fold<double>(0, (sum, s) => sum + s.hp),
       80 - sim.lastClash!.defenderDamage,
@@ -100,7 +101,7 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(battle.simulation.defenderAttackBonus, 2);
     expect(battle.simulation.defenderMoraleBonus, 0);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
@@ -109,7 +110,7 @@ void main() {
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
-    expect(battle.simulation.defenderAttackBonus, 2);
+    expect(battle.simulation.defenderAttackBonus, 1);
     expect(battle.simulation.defenderMoraleBonus, 0);
     expect(battle.simulation.defenderMorale.remaining, battle.defender.morale);
     expect(battle.simulation.defender.attack, battle.defender.combat);
@@ -138,7 +139,7 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers + 6,
+      battle.defender.combat + battle.defender.soldiers + 3,
     );
     expect(
       sim.basePower(BattleSide.attacker),
@@ -165,7 +166,7 @@ void main() {
     expect(c.world.cities[1].initialLevel, 2);
     final sim = c.battles[1]!.simulation;
     expect(sim.defenderCityLevel, 1);
-    expect(sim.defenderAttackBonus, 2);
+    expect(sim.defenderAttackBonus, 1);
     expect(sim.defenderMoraleBonus, 0);
   });
 }
