@@ -122,11 +122,11 @@ abstract final class GameConfig {
   /// 失败远征后重新筹备的间隔，避免立刻重复派兵送死。
   static const aiRaidRetrySeconds = 15.0;
 
-  /// 单座城池丰欠收随机增减额的下限，含此值。
+  /// 国家每月丰欠收随机增减额的下限，含此值。
   static const harvestAdjustmentMin = 5;
 
-  /// 单座城池丰欠收随机增减额的上限，含此值；欠收允许城池负收入。
-  static const harvestAdjustmentMax = 30;
+  /// 国家每月丰欠收随机增减额的上限，含此值，不乘以城池数量。
+  static const harvestAdjustmentMax = 10;
 
   /// 月末是否继续扣除存活英雄的报酬。
   static const chargeHeroSalary = true;

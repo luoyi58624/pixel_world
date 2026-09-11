@@ -141,7 +141,7 @@ extension _AiObservationBridge on CampaignState {
               AiPoint(rect.left + p.dx, rect.top + p.dy),
           ]),
           income: city.income,
-          poorIncome: city.incomeFor(Harvest.poor),
+          poorIncome: city.income,
           baseIncome: city.baseIncome,
           capacityContribution: city.reserveCapacity,
           rearStagingCapacity: city.rearStagingCapacity,
@@ -303,8 +303,9 @@ extension _AiObservationBridge on CampaignState {
           cityViews
               .where((c) => c.country == id)
               .fold(
-                configFor(id).monthlyBaseIncome,
-                (n, c) => n + c.poorIncome,
+                configFor(id).monthlyBaseIncome -
+                    GameConfig.harvestAdjustmentMax,
+                (n, c) => n + c.income,
               ),
           baseIncome: configFor(id).monthlyBaseIncome,
           stock: id == countryId ? (_weaponStock[id] ?? {}) : {},

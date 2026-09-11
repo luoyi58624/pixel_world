@@ -42,33 +42,32 @@ void main() {
   }
 
   for (final (roll, adjustment) in [(0, 0), (2, -7), (3, 8)]) {
-    test('国家保底只发一次，每城独立调整$adjustment，升级增加产出', () {
+    test('国家保底及收成$adjustment各计一次，升级和城池数量不放大收成', () {
       final c = game(roll)..settledMonths = 24;
       final governor = c.garrisonAt(0).first;
-      while (c.upgradeCity(0, hero: governor)) {}
+      for (var level = 1; level < 5; level++) {
+        c.settledMonths++;
+        expect(c.upgradeCity(0, hero: governor), isTrue);
+      }
       expect(c.cities[0]!.level, 5);
       for (final city in c.cities.values) {
-        expect(city.income, 20 + (city.level - 1) * 5);
+        expect(city.income, 20);
       }
       c.cities[1]!.ownerCountryId = 0;
       final normalIncome = c.grossIncome;
-      final before = c.gold,
-          count = c.cities.values.where((v) => v.isPlayer).length;
+      final before = c.gold;
       c.advance(60);
       final bill = c.lastSettlementFor(0)!;
-      expect(
-        bill.baseIncome + bill.adjustment,
-        normalIncome + count * adjustment,
-      );
+      expect(bill.baseIncome + bill.adjustment, normalIncome + adjustment);
       expect(bill.garrisonUpkeep, 0);
-      expect(c.gold, before + normalIncome + count * adjustment - bill.salary);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, normalIncome - count * 30);
+      expect(c.gold, before + normalIncome + adjustment - bill.salary);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, normalIncome - 10);
       expect(c.aiBudgetFor(0).monthlySalary, c.salaryCost);
     });
   }
 
   for (final country in [0, 1]) {
-    test('国家$country可在一级城连续招十将，不设驻军上限但逐人支付月俸', () {
+    test('国家$country可在一级城逐月招十将，每月签约一次并预付当月月俸', () {
       final c = game(0);
       final city = c.world.cities.firstWhere(
         (d) => c.cities[d.id]!.ownerCountryId == country,
@@ -77,8 +76,9 @@ void main() {
       final existingPay = c.heroes
           .where((h) => h.countryId == country)
           .fold(0, (n, h) => n + h.salary);
-      var newPay = 0;
+      var newPay = 0, lastPay = 0;
       for (var n = 0; n < 10; n++) {
+        c.settledMonths++;
         final before = c.goldFor(country);
         final offer = c.drawHero(city.id, countryId: country)!;
         final signed = country == 0
@@ -86,15 +86,16 @@ void main() {
             : c.heroes.firstWhere((h) => h.sourceId == offer.hero.id);
         expect(signed.salary, offer.hero.salary);
         newPay += signed.salary;
+        lastPay = signed.salary;
         expect(c.goldFor(country), before - 5 - signed.salary);
       }
       expect(c.garrisonAt(city.id).length, initial + 10);
-      expect(c.remainingHeroDraws(city.id), isNull);
+      expect(c.remainingHeroDraws(city.id), 0);
       c.advance(60);
       expect(
         c.lastSettlementFor(country)!.salary,
-        existingPay,
-        reason: '新招将领当月已预付',
+        existingPay + newPay - lastPay,
+        reason: '仅最后一位将领在本月签约并已预付，其他将领须照常支付月俸',
       );
       c.advance(60);
       expect(c.lastSettlementFor(country)!.salary, existingPay + newPay);

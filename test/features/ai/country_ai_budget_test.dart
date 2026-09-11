@@ -224,12 +224,12 @@ void main() {
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
     expect(moving.planningSeconds, 90);
-    expect(moving.minimumMonthlyIncome, -10);
+    expect(moving.minimumMonthlyIncome, 10);
     expect(
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, 21); // 十金币保底不足抵扣极端欠收，另留月俸和应急金。
+    expect(moving.reserveGold, 5); // 全国欠收最多扣十金币，剩余月收入可覆盖六金币月俸。
     b.camp();
     expect(c.aiBudgetFor(1).reserveGold, moving.reserveGold);
     expect(c.aiBudgetFor(0).reserveGold, 5);
@@ -327,7 +327,7 @@ void main() {
       );
     }
     expect(c.lastSettlementFor(1)!.harvest?.name, 'poor');
-    expect(c.goldFor(0), 100); // 十金币保底抵扣单城欠收，玩家国库不受敌国经营影响。
+    expect(c.goldFor(0), 120); // 全国欠收最多扣十金币，玩家国库不受敌国经营影响。
   });
 
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {

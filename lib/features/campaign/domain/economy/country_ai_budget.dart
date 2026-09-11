@@ -26,7 +26,7 @@ class CountryAiBudget {
   /// 当前驻军规模产生的月度维持费，参与现金预留。
   final int monthlyGarrisonUpkeep;
 
-  /// 只按目前拥有城市的欠收计算，未占领城市不预支收入。
+  /// 当前城池总收入扣一次国家欠收，未占领城市不预支收入。
   final int minimumMonthlyIncome;
 
   /// 扣除预留后可用于经营的金币；补兵可花完余额，行军免费。

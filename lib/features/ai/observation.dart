@@ -267,7 +267,7 @@ class AiCity {
   final AiPoint center;
   final AiOutline outline;
 
-  /// 月收入、欠收收入、城防容量贡献和招募容量。
+  /// 城池月收入及容量；poorIncome 兼容旧协议，现等于 income，国家统一扣欠收。
   final int income, poorIncome, capacityContribution, rearStagingCapacity;
 
   /// 未折算的一级基础产出，避免外国城市升级时的取整误差。

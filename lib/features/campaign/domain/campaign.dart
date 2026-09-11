@@ -111,15 +111,6 @@ class CitySituation {
               _yieldFactor)
           .floor();
 
-  /// 只读预算极值：欠收最多减三十、丰收最多加三十，不抽取或预知实际收成。
-  int incomeFor(Harvest harvest) =>
-      income +
-      switch (harvest) {
-        Harvest.normal => 0,
-        Harvest.poor => -GameConfig.harvestAdjustmentMax,
-        Harvest.abundant => GameConfig.harvestAdjustmentMax,
-      };
-
   /// 本城贡献给全国的兵员容量，英雄提供的容量由国家另行统计。
   int get reserveCapacity =>
       (level * GameConfig.cityReserveCapacityPerLevel * _yieldFactor).floor();
@@ -1505,31 +1496,28 @@ class CampaignState {
               .toList()
             ..sort((a, b) => a.key.compareTo(b.key));
       final fixed = owned.isEmpty ? 0 : configFor(id).monthlyBaseIncome;
+      // 无城国家不抽收成；有城国家只抽一次，城池数量不放大随机金额。
+      final harvest = owned.isEmpty
+          ? Harvest.normal
+          : Harvest.draw(_economyRandom);
+      final adjustment = harvest.drawAdjustment(_economyRandom);
       final cityIncomes = <CityIncomeSettlement>[];
       for (final entry in owned) {
-        final harvest = Harvest.draw(_economyRandom);
         cityIncomes.add(
           CityIncomeSettlement(
             cityId: entry.key,
             level: entry.value.level,
-            harvest: harvest,
+            harvest: Harvest.normal,
             baseIncome: entry.value.income,
-            adjustment: harvest.drawAdjustment(_economyRandom),
+            adjustment: 0,
           ),
         );
       }
-      final harvestKinds = cityIncomes.map((city) => city.harvest).toSet();
-      final harvest = harvestKinds.isEmpty
-          ? Harvest.normal
-          : harvestKinds.length == 1
-          ? harvestKinds.single
-          : null;
       final base = cityIncomes.fold(
         fixed,
         (sum, city) => sum + city.baseIncome,
       );
-      // 欠收负产出照常抵扣国家保底；只在最终国库结算时限制余额最低为零。
-      final income = cityIncomes.fold(fixed, (sum, city) => sum + city.income);
+      final income = base + adjustment;
       final salary = GameConfig.chargeHeroSalary
           ? heroes
                 .where(
@@ -1575,13 +1563,15 @@ class CampaignState {
         source: GameEventSource.system,
         data: {
           'baseIncome': base,
-          'economyVersion': 2,
+          'economyVersion': 3,
+          'harvestScope': 'country',
+          'adjustment': adjustment,
           'fixedIncome': fixed,
           'cities': [for (final city in cityIncomes) city.toJson()],
           'income': income,
           'salary': salary,
           'garrisonUpkeep': upkeep,
-          'harvest': harvest?.name ?? 'mixed',
+          'harvest': harvest.name,
           'cityCount': owned.length,
           'goldBefore': before,
           'goldAfter': after,

@@ -266,22 +266,19 @@ class AiLedger {
     final int income =
         (earningCities.isEmpty
             ? 0
-            : view.nation.baseIncome ?? rules.integer('countryIncome')) +
-        earningCities
-            .where((c) => !abandoned.contains(c.id))
-            .fold<int>(
-              0,
-              (n, c) =>
-                  n +
-                  ((c.baseIncome +
-                              (levels[c.id]! - 1) *
-                                  rules.integer('incomeStep')) *
-                          (c.country == c.nativeCountry
-                              ? 1
-                              : rules.number('foreignYield')))
-                      .floor() -
-                  rules.integer('poorPenalty'),
-            );
+            : (view.nation.baseIncome ?? rules.integer('countryIncome')) -
+                  rules.integer('poorPenalty')) +
+        earningCities.fold<int>(
+          0,
+          (n, c) =>
+              n +
+              ((c.baseIncome +
+                          (levels[c.id]! - 1) * rules.integer('incomeStep')) *
+                      (c.country == c.nativeCountry
+                          ? 1
+                          : rules.number('foreignYield')))
+                  .floor(),
+        );
     final upkeep = monthlyGarrisonUpkeep;
     int monthlyCost(int n) => n == 0
         ? 0

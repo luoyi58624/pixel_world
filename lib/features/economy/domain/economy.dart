@@ -2,15 +2,15 @@ import 'dart:math' as math;
 
 import '../../../core/config/game_config.dart';
 
-/// 每座城池每月独立抽取的收成，正常五成，丰欠收各二成五。
+/// 每个有城国家每月独立抽取一次收成，正常五成，丰欠收各二成五。
 enum Harvest {
-  /// 基础城池收入。
+  /// 国家正常收入。
   normal('正常营收'),
 
-  /// 本城随机减产，允许扣减超过本城正常产出。
+  /// 国家本月收入随机减少五至十金币。
   poor('欠收'),
 
-  /// 本城随机增产。
+  /// 国家本月收入随机增加五至十金币。
   abundant('丰收');
 
   const Harvest(this.label);
@@ -18,7 +18,7 @@ enum Harvest {
   /// 对玩家显示的收成名称。
   final String label;
 
-  /// 抽取本城本月的实际增减额，正常月份不再消耗幅度随机数。
+  /// 抽取本国本月的实际增减额，正常月份不消耗幅度随机数。
   int drawAdjustment(math.Random random) {
     if (this == Harvest.normal) return 0;
     final amount =
@@ -58,7 +58,7 @@ class CityIncomeSettlement {
   /// 结算时的城池身份、等级、正常产出与本次随机增减。
   final int cityId, level, baseIncome, adjustment;
 
-  /// 本城独立抽到的收成。
+  /// 旧档的逐城收成；新账单固定正常，随机增减记在国家月结中。
   final Harvest harvest;
 
   /// 本城实际收入，欠收时允许为负。
@@ -109,7 +109,7 @@ class MonthlySettlement {
   /// 已结算的月份。
   final int month;
 
-  /// 各城收成相同时显示该类型，混合收成为空；兼容旧版全国收成记录。
+  /// 本国当月统一收成；旧版各城收成不同时为空，保留历史显示。
   final Harvest? harvest;
 
   /// 不把混合收成误标为全国正常或全国丰收。
@@ -119,7 +119,7 @@ class MonthlySettlement {
   /// 本月国家固定保底，不随城池数量重复发放。
   final int fixedIncome;
 
-  /// 逐城的实际结算明细。
+  /// 城池基础收入明细；旧账单仍保留当时逐城计算的收成。
   final List<CityIncomeSettlement> cityIncomes;
 
   /// 本月结算时实际拥有的城池数。

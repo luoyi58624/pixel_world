@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
-import 'package:pixel_world/features/economy/domain/economy.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
@@ -165,7 +164,7 @@ void main() {
     expect(c.reserveSoldiersFor(0), 24);
   });
 
-  test('单城丰欠收预算取最大增减幅度，允许负产出', () {
+  test('单城只提供基础收入，不再单独计算丰欠收', () {
     final city = CitySituation(
       ownerCountryId: 0,
       nativeCountryId: 1,
@@ -173,8 +172,6 @@ void main() {
       baseIncome: 21,
       initialLevel: 1,
     );
-    expect(city.incomeFor(Harvest.normal), 21);
-    expect(city.incomeFor(Harvest.abundant), 51);
-    expect(city.incomeFor(Harvest.poor), -9);
+    expect(city.income, 21);
   });
 }

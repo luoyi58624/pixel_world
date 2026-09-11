@@ -7,6 +7,9 @@ import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
 import 'package:pixel_world/core/persistence/state_random.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/features/ai/budget.dart';
+import 'package:pixel_world/features/ai/routes.dart';
+import 'package:pixel_world/features/ai/work_budget.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/economy/domain/economy.dart';
@@ -95,7 +98,7 @@ CampaignState _game({
 }
 
 void main() {
-  test('正常50%、丰欠收各25%，随机增减包含5和30，正常不抽幅度', () {
+  test('正常50%、丰欠收各25%，丰欠收幅度均包含5至10，正常不抽幅度', () {
     final counts = {for (final h in Harvest.values) h: 0};
     for (var i = 0; i < 100; i++) {
       counts.update(Harvest.draw(_Sequence([i % 4])), (n) => n + 1);
@@ -108,9 +111,12 @@ void main() {
     final normal = _Sequence([]);
     expect(Harvest.normal.drawAdjustment(normal), 0);
     expect(normal.bounds, isEmpty);
-    for (var value = 0; value < 26; value++) {
-      expect(Harvest.abundant.drawAdjustment(_Sequence([value])), 5 + value);
-      expect(Harvest.poor.drawAdjustment(_Sequence([value])), -5 - value);
+    for (var value = 0; value < 6; value++) {
+      final abundant = _Sequence([value]), poor = _Sequence([value]);
+      expect(Harvest.abundant.drawAdjustment(abundant), 5 + value);
+      expect(Harvest.poor.drawAdjustment(poor), -5 - value);
+      expect(abundant.bounds, [6]);
+      expect(poor.bounds, [6]);
     }
   });
 
@@ -137,24 +143,26 @@ void main() {
     }
   });
 
-  test('同国三城独立收成，国家保底只发一次，逐城账目与日志可对账', () {
-    final random = _Sequence([0, 3, 0, 2, 25, 0]);
+  test('同国三城统一丰收一次，另一国家独立欠收，明细与日志可对账', () {
+    final random = _Sequence([3, 5, 2, 0]);
     final c = _game(cities: 3, random: random);
     c.advance(60);
     final bill = c.lastSettlementFor(0)!;
     expect(bill.fixedIncome, 10);
     expect(bill.baseIncome, 70);
-    expect(bill.adjustment, -25);
-    expect(bill.harvest, isNull);
-    expect(bill.harvestLabel, '各城收成不同');
+    expect(bill.adjustment, 10);
+    expect(bill.harvest, Harvest.abundant);
+    expect(bill.harvestLabel, '丰收');
     expect(bill.cityIncomes.map((b) => b.harvest), [
       Harvest.normal,
-      Harvest.abundant,
-      Harvest.poor,
+      Harvest.normal,
+      Harvest.normal,
     ]);
-    expect(bill.cityIncomes.map((b) => b.income), [20, 25, -10]);
-    expect(c.gold, 100 + 45 - 18);
-    expect(random.bounds, [4, 4, 26, 4, 26, 4]);
+    expect(bill.cityIncomes.map((b) => b.income), [20, 20, 20]);
+    expect(c.gold, 100 + 80 - c.salaryCost);
+    expect(c.lastSettlementFor(1)!.harvest, Harvest.poor);
+    expect(c.lastSettlementFor(1)!.adjustment, -5);
+    expect(random.bounds, [4, 6, 4, 6]);
     final event = c.events
         .forCountry(0)
         .query()
@@ -163,32 +171,64 @@ void main() {
       for (final city in bill.cityIncomes) city.toJson(),
     ]);
     expect(event.data['fixedIncome'], 10);
-    expect(event.data['income'], 45);
+    expect(event.data['income'], 80);
+    expect(event.data['adjustment'], 10);
+    expect(event.data['harvestScope'], 'country');
+    expect(event.data['economyVersion'], 3);
     expect(c.aiObservationFor(0).nation.baseIncome, 10);
-    expect(c.aiBudgetFor(0).minimumMonthlyIncome, -20);
+    expect(c.aiBudgetFor(0).minimumMonthlyIncome, 60);
+    expect(c.aiObservationFor(0).nation.poorIncome, 60);
   });
 
-  test('升级每级增加5，极端欠收不截断城池负收入，预算不抽取随机数', () {
+  test('城池数量不放大丰欠收，AI 不对已放弃或无城国家重复扣欠收', () {
+    for (final count in [1, 3, 8]) {
+      for (final (roll, adjustment) in [(0, 0), (2, -10), (3, 10)]) {
+        final random = _Sequence(roll == 0 ? [0, 0] : [roll, 5, 0]);
+        final c = _game(cities: count, random: random);
+        final rules = c.aiRulesForTesting(), view = c.aiObservationFor(0);
+        final ledger = AiLedger(
+          view,
+          rules,
+          AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
+        );
+        expect(ledger.cash().poorIncome, 20 * count);
+        expect(view.nation.poorIncome, 20 * count);
+        ledger.abandoned.add(0);
+        expect(ledger.cash().poorIncome, 20 * (count - 1));
+        ledger.abandoned.addAll(view.owned.map((city) => city.id));
+        expect(ledger.cash().poorIncome, 0);
+        expect(random.bounds, isEmpty);
+        c.advance(60);
+        expect(c.lastSettlementFor(0)!.adjustment, adjustment);
+        expect(c.lastSettlementFor(0)!.baseIncome, 10 + 20 * count);
+        expect(random.bounds, roll == 0 ? [4, 4] : [4, 6, 4]);
+      }
+    }
+  });
+
+  test('升级不增加产出，国家欠收最多扣10，预算不抽取随机数', () {
     final random = _Sequence([]);
     final c = _game(gold: 1000, random: random)..settledMonths = 24;
     final governor = c.garrisonAt(0).first;
     for (var level = 1; level <= 5; level++) {
+      c.settledMonths++;
       if (level > 1) expect(c.upgradeCity(0, hero: governor), isTrue);
       final city = c.cities[0]!;
-      expect(city.income, 20 + (level - 1) * 5);
-      expect(city.incomeFor(Harvest.poor), city.income - 30);
+      expect(city.income, 20);
       expect(c.grossIncome, 10 + city.income);
-      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 10 + city.income - 30);
+      expect(c.aiBudgetFor(0).minimumMonthlyIncome, 20);
     }
     expect(random.bounds, isEmpty);
   });
 
   test('欠收抵扣保底及工资可令国库为负，不因为欠款触发游戏失败', () {
-    final c = _game(gold: 1, random: _Sequence([2, 25, 0]));
+    final c = _game(gold: 1, random: _Sequence([2, 5, 0]));
     c.advance(60);
-    expect(c.lastSettlementFor(0)!.cityIncomes.single.income, -10);
-    expect(c.lastSettlementFor(0)!.netIncome, -18);
-    expect(c.gold, -17);
+    expect(c.lastSettlementFor(0)!.cityIncomes.single.income, 20);
+    expect(c.lastSettlementFor(0)!.adjustment, -10);
+    expect(c.lastSettlementFor(0)!.netIncome, 20 - c.salaryCost);
+    expect(c.gold, 21 - c.salaryCost);
+    expect(c.gold, isNegative);
     expect(c.defeated, isFalse);
   });
 
@@ -255,9 +295,10 @@ void main() {
   });
 
   test('月结负债后所有购买停止，但已有军队可继续行军', () {
-    final c = _game(gold: 0, random: _Sequence([2, 25, 0]));
+    final c = _game(gold: 0, random: _Sequence([2, 5, 0]));
     c.advance(60);
-    expect(c.gold, -18);
+    expect(c.gold, 20 - c.salaryCost);
+    expect(c.gold, isNegative);
     final soldiers = c.reserveSoldiersFor(0), people = c.heroes.length;
     final hero = c.garrisonAt(0).first;
     expect(c.maxSoldierPurchase(0), 0);
@@ -265,14 +306,14 @@ void main() {
     expect(c.buyWeapon(0), isFalse);
     expect(c.drawHero(0), isNull);
     expect(c.upgradeCity(0, hero: hero), isFalse);
-    expect(c.gold, -18);
+    expect(c.gold, 20 - c.salaryCost);
     expect(c.reserveSoldiersFor(0), soldiers);
     expect(c.heroes.length, people);
     final march = c.dispatchTo(hero, const GamePoint(1900, 200))!;
     final start = march.position;
     c.advance(10);
     expect(march.position, isNot(start));
-    expect(c.gold, -18);
+    expect(c.gold, 20 - c.salaryCost);
   });
 
   test('抽将后余额不足不能签约，候选与国库保持原状', () {
@@ -336,7 +377,10 @@ void main() {
     );
     addTearDown(copy.dispose);
     addTearDown(replay.dispose);
-    for (final entry in {40: 8, 0: 6, 2: 4, 1: 8}.entries) {
+    for (final entry in {
+      for (final h in _heroes.where((h) => [40, 0, 2, 1].contains(h.id)))
+        h.id: h.salary,
+    }.entries) {
       expect(
         copy.heroes.firstWhere((h) => h.sourceId == entry.key).salary,
         entry.value,
@@ -346,7 +390,7 @@ void main() {
         5,
       );
     }
-    expect(copy.salaryCost, 18);
+    expect(copy.salaryCost, c.salaryCost);
     expect(copy.gold, 77);
     expect(copy.saveState()['payrollVersion'], 2);
   });
@@ -370,14 +414,18 @@ void main() {
     );
   });
 
-  test('混合收成快照保留空的全国收成标签与所有逐城历史', () {
+  test('旧版混合收成历史原样恢复，下次月结使用国家统一收成', () {
     final c = _game(cities: 3, random: StateRandom(42));
-    for (var month = 0; month < 12; month++) {
-      c.advance(60);
-      if (c.lastSettlementFor(0)!.harvest == null) break;
-    }
-    expect(c.lastSettlementFor(0)!.harvest, isNull);
+    c.advance(60);
     final saved = jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
+    final history = saved['settlements']['0'] as List;
+    history[2] = null;
+    history[5] = -25;
+    history[9] = history[8] + history[4] - 25 - history[6] - history[7];
+    saved['gold']['0'] = history[9];
+    final cities = history[11] as List;
+    cities[1].addAll({'harvest': 'abundant', 'adjustment': 5, 'income': 25});
+    cities[2].addAll({'harvest': 'poor', 'adjustment': -30, 'income': -10});
     final restored = CampaignSnapshots.restore(
       saved,
       c.world,
@@ -387,6 +435,19 @@ void main() {
     addTearDown(restored.dispose);
     expect(restored.lastSettlementFor(0)!.harvest, isNull);
     expect(jsonDecode(jsonEncode(restored.saveState())), saved);
+    restored.advance(60);
+    expect(restored.lastSettlementFor(0)!.harvest, isNotNull);
+    expect(
+      restored.lastSettlementFor(0)!.adjustment,
+      inInclusiveRange(-10, 10),
+    );
+    expect(
+      restored
+          .lastSettlementFor(0)!
+          .cityIncomes
+          .every((city) => city.adjustment == 0),
+      isTrue,
+    );
   });
 
   test('无城国家不再领取月保底或生成虚构城池收成', () {
@@ -402,6 +463,6 @@ void main() {
     expect(bill.adjustment, 0);
     expect(bill.cityIncomes, isEmpty);
     expect(c.goldFor(1), 100);
-    expect(random.bounds, [4, 4]);
+    expect(random.bounds, [4]);
   });
 }
