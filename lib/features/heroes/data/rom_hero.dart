@@ -43,7 +43,7 @@ class RomHeroDefinition {
   /// 独立配置的开场士气，范围 0 到 100。
   final int morale;
 
-  /// 所有国家统一按 JSON 月俸支付，本国核心将领不再免薪。
+  /// 主角免月俸，其余将领在所有国家统一按 JSON 月俸支付。
   int salaryFor(int countryId) => salary;
 
   /// 文件数组中的位置，只用于展示和守将选择，不替代英雄身份编号。
@@ -64,7 +64,7 @@ class RomHeroDefinition {
   /// 内政能力。
   final int politics;
 
-  /// 任意国家任职时的月俸金币，本国核心将领与主角同样付薪。
+  /// 任职月俸金币，主角固定为零，其余将领使用 JSON 配置。
   final int salary;
 
   /// 是否具备召唤蛋能力。
@@ -79,7 +79,7 @@ int _readSalary(Map<String, dynamic> json) {
   if (salary is! int || salary < 0) {
     throw FormatException('英雄 ${json['id']} 的 salary 必须为非负整数');
   }
-  return salary;
+  return json['type'] == HeroType.protagonist.name ? 0 : salary;
 }
 
 int? _readNativeCountry(Map<String, dynamic> json) {

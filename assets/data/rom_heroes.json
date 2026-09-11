@@ -9,7 +9,7 @@
       "combat": 15,
       "morale": 100,
       "politics": 15,
-      "salary": 8,
+      "salary": 0,
       "eggCapable": true,
       "soldierLimit": 4,
       "nativeCountryId": 0
@@ -22,7 +22,7 @@
       "combat": 15,
       "morale": 100,
       "politics": 15,
-      "salary": 6,
+      "salary": 8,
       "eggCapable": true,
       "soldierLimit": 4,
       "nativeCountryId": 0
@@ -48,7 +48,7 @@
       "combat": 15,
       "morale": 100,
       "politics": 3,
-      "salary": 4,
+      "salary": 7,
       "eggCapable": true,
       "soldierLimit": 4,
       "nativeCountryId": 0
@@ -61,7 +61,7 @@
       "combat": 15,
       "morale": 100,
       "politics": 10,
-      "salary": 6,
+      "salary": 7,
       "eggCapable": true,
       "soldierLimit": 4,
       "nativeCountryId": 1
@@ -74,7 +74,7 @@
       "combat": 15,
       "morale": 90,
       "politics": 13,
-      "salary": 5,
+      "salary": 7,
       "eggCapable": false,
       "soldierLimit": 4,
       "nativeCountryId": 1
@@ -87,7 +87,7 @@
       "combat": 15,
       "morale": 90,
       "politics": 15,
-      "salary": 4,
+      "salary": 6,
       "eggCapable": false,
       "soldierLimit": 4,
       "nativeCountryId": 1
@@ -100,7 +100,7 @@
       "combat": 14,
       "morale": 80,
       "politics": 5,
-      "salary": 5,
+      "salary": 6,
       "eggCapable": false,
       "soldierLimit": 4,
       "nativeCountryId": 2
@@ -113,7 +113,7 @@
       "combat": 14,
       "morale": 80,
       "politics": 7,
-      "salary": 4,
+      "salary": 5,
       "eggCapable": false,
       "soldierLimit": 4,
       "nativeCountryId": 2
@@ -126,7 +126,7 @@
       "combat": 13,
       "morale": 80,
       "politics": 1,
-      "salary": 4,
+      "salary": 5,
       "eggCapable": false,
       "soldierLimit": 4,
       "nativeCountryId": 2

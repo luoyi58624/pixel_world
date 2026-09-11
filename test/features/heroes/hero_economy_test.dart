@@ -72,20 +72,24 @@ CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
 void main() {
-  test('正式月俸范围1至8，四名指定将领按新价格且各国均不免薪', () {
+  test('主角免月俸，其他将领按JSON月俸且不因国籍减免', () {
     final catalog = _catalog();
     for (final hero in catalog) {
-      expect(hero.salary, inInclusiveRange(1, 8), reason: hero.name ?? '主角');
+      expect(
+        hero.salary,
+        hero.type == HeroType.protagonist ? equals(0) : inInclusiveRange(1, 8),
+        reason: hero.name ?? '主角',
+      );
       for (var country = 0; country < 16; country++) {
         expect(hero.salaryFor(country), hero.salary);
       }
     }
-    for (final entry in {40: 8, 0: 6, 2: 4, 1: 8}.entries) {
+    for (final entry in {40: 0, 0: 8, 2: 7, 1: 8}.entries) {
       expect(catalog.firstWhere((h) => h.id == entry.key).salary, entry.value);
     }
     final c = _campaign();
     addTearDown(c.dispose);
-    expect(_hero(c, 40).salary, 8);
+    expect(_hero(c, 40).salary, 0);
     expect(c.aiObservationFor(0).nation.salary, c.salaryCost);
     final before = c.gold, salary = c.salaryCost;
     c.advance(60);
@@ -124,7 +128,7 @@ void main() {
         expected,
       );
     }
-    expect(_hero(c, 40).salary, 8);
+    expect(_hero(c, 40).salary, 0);
     expect(() => _catalog().clear(), throwsUnsupportedError);
   });
 

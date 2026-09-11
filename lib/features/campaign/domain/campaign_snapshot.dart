@@ -283,7 +283,9 @@ extension CampaignSnapshots on CampaignState {
           : saved;
     }
 
-    int salary(int saved, int source, int country) {
+    int salary(int saved, int source, int typeIndex) {
+      // 主角续玩一律免薪；回放仍显示当时的工资，不退还历史支出。
+      if (!replay && typeIndex == HeroType.protagonist.index) return 0;
       final definition = definitions[source];
       // 续玩旧档采用新月俸并取消本国免薪；回放保留历史数值，不追扣已结算工资。
       return !replay &&
@@ -309,7 +311,7 @@ extension CampaignSnapshots on CampaignState {
             combat: combat(h['combat'], h['source']),
             morale: h['morale'],
             politics: h['politics'],
-            salary: salary(h['salary'], h['source'], h['country']),
+            salary: salary(h['salary'], h['source'], h['type']),
             squad: [for (final id in h['squad']) health[id]],
           )
           .._salaryPaidMonth = h['paid']

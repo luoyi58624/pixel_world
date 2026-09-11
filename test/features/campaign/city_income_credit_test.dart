@@ -49,6 +49,7 @@ CampaignState _game({
   int cities = 1,
   int gold = 100,
   int base = 10,
+  int? regularSalary,
   Random? random,
   bool ai = false,
 }) {
@@ -80,9 +81,19 @@ CampaignState _game({
     },
     [0, 1, 2, 3],
   );
+  var catalog = _heroes;
+  if (regularSalary != null) {
+    final data = jsonDecode(
+      File('assets/data/rom_heroes.json').readAsStringSync(),
+    );
+    for (final row in data['heroes']) {
+      if (row['type'] != 'protagonist') row['salary'] = regularSalary;
+    }
+    catalog = decodeRomHeroes(jsonEncode(data));
+  }
   final c = CampaignState.fromRom(
     world,
-    _heroes,
+    catalog,
     weaponCatalog: _weapons,
     aiEnabled: ai,
     aiControlsPlayer: ai,
@@ -222,7 +233,7 @@ void main() {
   });
 
   test('欠收抵扣保底及工资可令国库为负，不因为欠款触发游戏失败', () {
-    final c = _game(gold: 1, random: _Sequence([2, 5, 0]));
+    final c = _game(gold: 1, regularSalary: 12, random: _Sequence([2, 5, 0]));
     c.advance(60);
     expect(c.lastSettlementFor(0)!.cityIncomes.single.income, 20);
     expect(c.lastSettlementFor(0)!.adjustment, -10);
@@ -295,7 +306,7 @@ void main() {
   });
 
   test('月结负债后所有购买停止，但已有军队可继续行军', () {
-    final c = _game(gold: 0, random: _Sequence([2, 5, 0]));
+    final c = _game(gold: 0, regularSalary: 12, random: _Sequence([2, 5, 0]));
     c.advance(60);
     expect(c.gold, 20 - c.salaryCost);
     expect(c.gold, isNegative);
