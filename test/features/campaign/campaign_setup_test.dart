@@ -42,18 +42,20 @@ void main() {
     );
     for (final world in worlds) {
       final c = CampaignState.fromRom(world, heroes(), aiEnabled: false);
+      addTearDown(c.dispose);
       expect(c.gold, 80);
       expect(c.goldFor(1), 70);
       expect(c.cities[0]!.baseIncome, 20);
       expect(c.cities[1]!.baseIncome, 20);
+      expect(c.cities[0]!.level, 3);
+      expect(c.aiObservationFor(0).city(0)!.level, 3);
+      expect(c.reserveSoldiersFor(0), 24);
+      expect(c.reserveCapacityFor(0), 24);
       for (final item in world.cities) {
         final initial = setup.cities[(world.id, item.id)]!;
         expect(c.soldiersAt(item.id), c.soldierCapacityAt(item.id));
         expect(c.cities[item.id]!.level, initial.initialLevel);
-        expect(
-          c.cities[item.id]!.income,
-          initial.baseIncome + (initial.initialLevel - 1) * 5,
-        );
+        expect(c.cities[item.id]!.income, initial.baseIncome);
       }
     }
   });
