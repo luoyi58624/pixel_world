@@ -194,6 +194,7 @@ class SimulationRunner {
       siegeRandom: math.Random(scenario.seed + 30),
       retreatRandom: math.Random(scenario.seed + 40),
       weaponRandom: math.Random(scenario.seed + 50),
+      weaponDropRandom: math.Random(scenario.seed + 60),
       eventLog: eventLog,
     );
     final countries =

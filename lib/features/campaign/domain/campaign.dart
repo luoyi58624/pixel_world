@@ -590,6 +590,7 @@ class CampaignState {
     this.aiEnabled,
     this.countryConfigs,
     this.weaponCatalog,
+    this._weaponDropRandom,
   ) : _protagonist = heroes
           .where((hero) => hero.isPlayer && hero.type == HeroType.protagonist)
           .firstOrNull;
@@ -603,6 +604,7 @@ class CampaignState {
   final math.Random _aiRandom;
   final math.Random _siegeRandom;
   final math.Random _retreatRandom;
+  final math.Random _weaponDropRandom;
   // 成功脱战的双方在拉开接触距离前不重复开打，其他敌军仍可拦截。
   final Set<(String, String)> _retreatSeparations = {};
   int _siegeArrivalSerial = 0;
@@ -713,6 +715,7 @@ class CampaignState {
     math.Random? siegeRandom,
     math.Random? retreatRandom,
     math.Random? weaponRandom,
+    math.Random? weaponDropRandom,
     AiWorker Function()? aiWorkerFactory,
     bool aiControlsPlayer = false,
     bool endOnPlayerDefeat = true,
@@ -776,6 +779,7 @@ class CampaignState {
       aiEnabled,
       Map.unmodifiable(resolvedCountries),
       weaponCatalog,
+      weaponDropRandom ?? StateRandom(),
     );
     for (final entry in weaponCatalog.initialCountryStock.entries) {
       campaign._weaponStock[entry.key] = Map.of(entry.value);
@@ -1523,6 +1527,7 @@ class CampaignState {
         goldAfter: after,
       );
       _settlements[id] = report;
+      _rollMonthlyWeaponDrops(id, owned.length);
       _emitEvent(
         GameEventKind.monthSettled,
         '${world.countryName(id)}国 $dateLabel ${harvest.label}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',

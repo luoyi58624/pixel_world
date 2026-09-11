@@ -36,6 +36,7 @@ enum GameEventKind {
   heroDied('将领战败', GameEventCategory.battle),
   heroDisbanded('失城部队清除', GameEventCategory.battle),
   weaponPurchased('购买武器', GameEventCategory.action),
+  weaponDropped('随机掉落武器', GameEventCategory.economy),
   weaponUsed('使用武器', GameEventCategory.battle),
   supplyPaid('粮草支出', GameEventCategory.economy),
   supplyHalted('粮草耗尽', GameEventCategory.economy),
@@ -130,6 +131,7 @@ class GameEvent {
   /// 国家面板仅保留最终决策和月度收支，过滤调度过程噪音。
   bool get isVisibleInCountryLog =>
       isFinalDecision ||
+      kind == GameEventKind.weaponDropped ||
       kind == GameEventKind.monthSettled ||
       kind == GameEventKind.treasuryCaptured;
 

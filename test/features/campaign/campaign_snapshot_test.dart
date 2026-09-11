@@ -25,15 +25,21 @@ void main() {
       jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
 
   test('新ID库存与随军装备存取后仍对应同名武器', () {
+    final data = jsonDecode(
+      File('assets/data/rom_weapons.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    data['initialCountryStock'] = {
+      '0': {'12': 1, '13': 1, '14': 1},
+    };
     final original = CampaignState.fromRom(
       worlds.first,
       heroes,
       aiEnabled: false,
-      weaponCatalog: weapons,
+      weaponCatalog: WeaponCatalog.decode(jsonEncode(data)),
       startingGold: 1000,
     )..settledMonths = 48;
     addTearDown(original.dispose);
-    for (var id = 0; id < 15; id++) {
+    for (var id = 0; id < 12; id++) {
       expect(original.buyWeapon(id), isTrue);
     }
     final hero = original.garrisonAt(0).first;

@@ -11,7 +11,10 @@ void main() {
   final rows = (config['weapons'] as List).cast<Map>();
 
   test('武器配置只保留运行字段，按ID连续排列', () {
-    expect(config.keys, unorderedEquals(['carryLimit', 'weapons']));
+    expect(
+      config.keys,
+      unorderedEquals(['carryLimit', 'monthlyDropPercents', 'weapons']),
+    );
     expect(config['carryLimit'], 1);
     expect(rows.map((w) => w['id']), List.generate(15, (i) => i));
     for (final w in rows) {

@@ -16,7 +16,7 @@ extension CampaignWeapons on CampaignState {
   int weaponStorageUsed(int countryId) =>
       _weaponStock[countryId]?.values.fold<int>(0, (a, b) => a + b) ?? 0;
 
-  /// 商店武器统一开放，不以领土数量限制购买。
+  /// 商店武器按年份开放，掉落武器永远不能购买。
   bool weaponUnlocked(int countryId, WeaponDefinition weapon) =>
       weapon.shopEnabled && year >= weapon.unlockYear;
 
@@ -28,6 +28,7 @@ extension CampaignWeapons on CampaignState {
     }
     final weapon = weaponCatalog.weapons[weaponId];
     if (weapon == null) return '武器不存在';
+    if (weapon.dropCityCount > 0) return '随机掉落：${weapon.dropHint}';
     if (!weaponUnlocked(countryId, weapon)) {
       return weapon.shopEnabled ? '第 ${weapon.unlockYear} 年解锁' : '武器未上架';
     }
@@ -66,6 +67,33 @@ extension CampaignWeapons on CampaignState {
       },
     );
     return true;
+  }
+
+  // 使用独立且可存档的随机流，掉落判定不会改变收成、招募或战斗结果。
+  void _rollMonthlyWeaponDrops(int countryId, int cityCount) {
+    for (final weapon in weaponCatalog.weapons.values) {
+      if (weapon.dropCityCount == 0 ||
+          weapon.monthlyDropPercent == 0 ||
+          cityCount < weapon.dropCityCount) {
+        continue;
+      }
+      if (_weaponDropRandom.nextInt(100) >= weapon.monthlyDropPercent) continue;
+      final stock = _weaponStock.putIfAbsent(countryId, () => {});
+      stock.update(weapon.id, (value) => value + 1, ifAbsent: () => 1);
+      _emitEvent(
+        GameEventKind.weaponDropped,
+        '${world.countryName(countryId)}国随机获得${weapon.name} ×1',
+        countryId: countryId,
+        source: GameEventSource.system,
+        data: {
+          'weaponId': weapon.id,
+          'quantity': 1,
+          'cityCount': cityCount,
+          'chance': weapon.monthlyDropPercent,
+          'stock': stock[weapon.id],
+        },
+      );
+    }
   }
 
   // 键是英雄槽位、值是武器编号；同类允许多选，但不能透支实际库存。

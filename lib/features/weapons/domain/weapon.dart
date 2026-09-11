@@ -3,21 +3,29 @@ import 'dart:convert';
 /// 从原版切札表提取的一次性武器，金币与效果可在 JSON 中调整。
 class WeaponDefinition {
   /// 读取并校验单件武器，伤害保持原版单字节范围。
-  WeaponDefinition.fromJson(Map<String, dynamic> data)
-    : id = _number(data, 'id', 0, 255),
-      name = data['name'] as String,
-      price = _number(data, 'price', 0, 9999),
-      damage = _number(data, 'damage', 1, 255),
-      selfDamage = _number(data, 'selfDamage', 0, 255),
-      effectId = _number({'effectId': data['id'], ...data}, 'effectId', 0, 14),
-      animationFrames = _number(
-        {'animationFrames': 60, ...data},
-        'animationFrames',
-        1,
-        3000,
-      ),
-      unlockYear = _number({'unlockYear': 1, ...data}, 'unlockYear', 1, 9999),
-      shopEnabled = data['shopEnabled'] as bool {
+  WeaponDefinition.fromJson(
+    Map<String, dynamic> data, {
+    List<int> monthlyDropPercents = WeaponCatalog.defaultMonthlyDropPercents,
+  }) : _dropPercents = _readDropPercents(monthlyDropPercents),
+       id = _number(data, 'id', 0, 255),
+       name = data['name'] as String,
+       price = _number(data, 'price', 0, 9999),
+       damage = _number(
+         data,
+         'damage',
+         data['shopEnabled'] == false ? 0 : 1,
+         255,
+       ),
+       selfDamage = _number(data, 'selfDamage', 0, 255),
+       effectId = _number({'effectId': data['id'], ...data}, 'effectId', 0, 14),
+       animationFrames = _number(
+         {'animationFrames': 60, ...data},
+         'animationFrames',
+         1,
+         3000,
+       ),
+       unlockYear = _number({'unlockYear': 1, ...data}, 'unlockYear', 1, 9999),
+       shopEnabled = data['shopEnabled'] as bool {
     if (name.trim().isEmpty) throw const FormatException('武器名称不能为空');
   }
 
@@ -45,8 +53,27 @@ class WeaponDefinition {
   /// 第几年允许在商店购买。
   final int unlockYear;
 
-  /// 是否允许商店销售，正式目录的三种原事件武器在第五年开放。
+  /// 是否允许商店销售，事件武器只能从月度随机掉落获得。
   final bool shopEnabled;
+  final List<int> _dropPercents;
+
+  /// 事件武器按原效果编号匹配占城门槛，普通武器不参与掉落。
+  int get dropCityCount => shopEnabled
+      ? 0
+      : switch (effectId) {
+          6 => 5,
+          7 => 6,
+          8 => 7,
+          _ => 0,
+        };
+
+  /// 每个符合条件的国家每月独立判定一次，每次获得一件。
+  int get monthlyDropPercent =>
+      dropCityCount == 0 ? 0 : _dropPercents[effectId - 6];
+
+  /// 详细条件放在提示中，卡片统一只显示“随机掉落”。
+  String get dropHint =>
+      '占领至少 $dropCityCount 座城池，每月 $monthlyDropPercent% 概率获得一件';
 
   /// 紧凑的武器作用说明。
   String get effectLabel => selfDamage == 0
@@ -64,18 +91,31 @@ class WeaponCatalog {
     this.weapons,
     this.carryLimit,
     this.initialCountryStock,
+    this.monthlyDropPercents,
   );
 
   /// 简化测试地图可不启用武器系统。
-  static const empty = WeaponCatalog._({}, 1, {});
+  static const empty = WeaponCatalog._({}, 1, {}, defaultMonthlyDropPercents);
+
+  /// 台风、强击手、死枪的默认每月概率，单位为百分比。
+  static const defaultMonthlyDropPercents = [25, 5, 5];
+
+  /// JSON 可调整的三个概率，顺序固定，零表示关闭该类掉落。
+  final List<int> monthlyDropPercents;
 
   /// 读取配置，拒绝重复编号、非法库存及超出原版的携带上限。
   factory WeaponCatalog.decode(String source) {
     final data = jsonDecode(source) as Map<String, dynamic>;
     final limit = _number(data, 'carryLimit', 1, 3);
+    final percents = _readDropPercents(
+      data['monthlyDropPercents'] ?? defaultMonthlyDropPercents,
+    );
     final weapons = <int, WeaponDefinition>{};
     for (final row in data['weapons'] as List) {
-      final weapon = WeaponDefinition.fromJson(row as Map<String, dynamic>);
+      final weapon = WeaponDefinition.fromJson(
+        row as Map<String, dynamic>,
+        monthlyDropPercents: percents,
+      );
       if (weapons.containsKey(weapon.id)) {
         throw FormatException('武器编号 ${weapon.id} 重复');
       }
@@ -104,17 +144,18 @@ class WeaponCatalog {
       Map.unmodifiable(weapons),
       limit,
       Map.unmodifiable(stock),
+      percents,
     );
   }
 
   /// 按当前游戏编号查找武器，动画仍使用独立的 effectId。
   final Map<int, WeaponDefinition> weapons;
 
-  /// 按年份分行、行内按价格排列，价格调整不会把未解锁武器挤到第一行。
+  /// 武器库按年份分行展示全部武器，掉落武器也保留库存与携带入口。
   List<WeaponDefinition> get shopWeapons =>
       weapons.values.toList()..sort((a, b) {
         final year = a.unlockYear.compareTo(b.unlockYear);
-        return year != 0 ? year : a.price.compareTo(b.price);
+        return year != 0 ? year : a.id.compareTo(b.id);
       });
 
   /// 一位将领的携带上限，正式目录为一件；原版分析目录仍可保留原值。
@@ -122,6 +163,17 @@ class WeaponCatalog {
 
   /// 每张地图初始化时复制的国家库存，可配置原版事件武器。
   final Map<int, Map<int, int>> initialCountryStock;
+}
+
+List<int> _readDropPercents(Object value) {
+  if (value is! List ||
+      value.length != 3 ||
+      value.any((v) => v is! int || v < 0 || v > 100)) {
+    throw const FormatException(
+      'monthlyDropPercents 必须为三个 0～100 的整数，依次对应台风、强击手、死枪',
+    );
+  }
+  return List<int>.unmodifiable(value.cast<int>());
 }
 
 int _number(Map<String, dynamic> data, String key, int min, int max) {

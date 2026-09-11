@@ -124,6 +124,9 @@ extension CampaignSnapshots on CampaignState {
       'version': 1,
       'payrollVersion': 1,
       'world': world.id,
+      'weaponDropRandom': _weaponDropRandom is StateRandom
+          ? _weaponDropRandom.state
+          : throw StateError('测试随机源不能用于正式存档'),
       'aiEnabled': aiEnabled,
       'cities': {
         for (final e in cities.entries)
@@ -314,6 +317,7 @@ extension CampaignSnapshots on CampaignState {
       !replay && d['aiEnabled'] == true,
       world.setup.countries,
       weapons,
+      StateRandom(d['weaponDropRandom'] as int? ?? world.id + 1),
     );
     CityDefinition? city(dynamic id) =>
         id == null ? null : world.cities.firstWhere((v) => v.id == id);

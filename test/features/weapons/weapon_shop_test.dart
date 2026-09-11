@@ -76,22 +76,12 @@ void main() {
       c.openCity(c.world.cities.first);
       await tester.pump();
       for (final id in [12, 13, 14]) {
-        expect(
-          tester
-              .widget<IconButton>(find.byKey(ValueKey('buy-weapon-$id')))
-              .onPressed,
-          isNotNull,
-        );
+        expect(find.byKey(ValueKey('buy-weapon-$id')), findsNothing);
+        expect(find.byKey(ValueKey('drop-weapon-$id')), findsOneWidget);
       }
-      expect(find.textContaining('同归于尽'), findsOneWidget);
-      final buyDeath = find.byKey(const ValueKey('buy-weapon-14'));
-      await tester.ensureVisible(buyDeath);
-      await tester.pump();
-      final beforeDeath = c.campaign.gold;
-      await tester.tap(buyDeath);
-      await tester.pump();
-      expect(c.campaign.gold, beforeDeath - 16);
-      expect(c.campaign.weaponStockFor(0, 14), 1);
+      expect(find.text('随机掉落'), findsNWidgets(3));
+      expect(find.textContaining('同归于尽'), findsNothing);
+      expect(find.text('第5年解锁'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

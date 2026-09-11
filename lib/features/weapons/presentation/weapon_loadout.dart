@@ -149,9 +149,11 @@ class WeaponLibrary extends StatelessWidget {
               children: [
                 Text('${w.name} ×$quantity', style: CityPanelStyle.value),
                 const SizedBox(height: CityPanelStyle.textGap),
-                Text(w.effectLabel, style: CityPanelStyle.label),
+                Text('伤害 ${w.damage}', style: CityPanelStyle.label),
                 Text(
-                  campaign.year < w.unlockYear
+                  w.dropCityCount > 0
+                      ? '随机掉落'
+                      : campaign.year < w.unlockYear
                       ? '第${w.unlockYear}年解锁'
                       : '${w.price}金币',
                   style: CityPanelStyle.label,
@@ -163,25 +165,38 @@ class WeaponLibrary extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                key: ValueKey('buy-weapon-$id'),
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(32, 32),
-                  maximumSize: const Size(32, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              if (w.dropCityCount > 0)
+                Tooltip(
+                  message: w.dropHint,
+                  child: SizedBox(
+                    key: ValueKey('drop-weapon-$id'),
+                    width: 32,
+                    height: 32,
+                    child: const Icon(Icons.card_giftcard_outlined, size: 18),
+                  ),
+                )
+              else
+                IconButton(
+                  key: ValueKey('buy-weapon-$id'),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  tooltip: buyProblem == null
+                      ? '购买${w.name}'
+                      : '购买：$buyProblem',
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  onPressed: buyProblem == null
+                      ? () => onAction(() => c.buyCountryWeapon(id))
+                      : null,
+                  icon: const Icon(Icons.shopping_cart_outlined),
                 ),
-                tooltip: buyProblem == null ? '购买${w.name}' : '购买：$buyProblem',
-                constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
-                ),
-                padding: EdgeInsets.zero,
-                iconSize: 18,
-                onPressed: buyProblem == null
-                    ? () => onAction(() => c.buyCountryWeapon(id))
-                    : null,
-                icon: const Icon(Icons.shopping_cart_outlined),
-              ),
               IconButton(
                 key: ValueKey('carry-weapon-$id'),
                 style: IconButton.styleFrom(
