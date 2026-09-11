@@ -132,7 +132,7 @@ CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
 void main() {
-  test('正式三张地图连续运行三分钟，有真实出征且不会因经营花空国库而停营', () {
+  test('正式三张地图连续运行三分钟，有真实出征且采购不透支、部队不停营', () {
     final worlds = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
       setup: CampaignSetup.decode(
@@ -161,16 +161,35 @@ void main() {
         year: 1,
       );
       var deployments = 0;
+      final checkedEvents = <int, int>{};
       for (var second = 0; second < 180 && !c.defeated; second++) {
         advanceAi(c, 1);
         final units = c.marches.values.where((march) => !march.hero.isPlayer);
         deployments += units.length;
         for (final unit in units) {
           expect(
-            c.goldFor(unit.hero.countryId),
-            greaterThan(0),
-            reason: '地图${world.id} 第$second秒，${unit.hero.name}的国家断粮',
+            unit.supplyHalted,
+            isFalse,
+            reason: '地图${world.id} 第$second秒，${unit.hero.name}发生停营',
           );
+          final country = unit.hero.countryId;
+          // 已有征兵规则允许恰好花完余额；按真实采购检查透支，不把零金币当成断粮。
+          for (final event
+              in c.events
+                  .forCountry(country)
+                  .query(afterSequence: checkedEvents[country] ?? 0)) {
+            checkedEvents[country] = event.sequence;
+            if (event.kind.name != 'commandApplied') continue;
+            final before = (event.data['before'] as Map)['gold'] as num;
+            final after = (event.data['after'] as Map)['gold'] as num;
+            if (after < before) {
+              expect(
+                after,
+                greaterThanOrEqualTo(0),
+                reason: event.toJsonLine(),
+              );
+            }
+          }
         }
       }
       expect(deployments, greaterThan(0));

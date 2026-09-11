@@ -230,6 +230,7 @@ class CountryBrain {
     for (final hero in availableField) {
       if (ledger.reservedHeroes.contains(hero.id)) continue;
       final task = ledger.tasks[hero.id];
+      final needsRearm = _needsAssaultRearm(hero, task);
       final expired = task != null && task.deadlineTick < _view.tick;
       final changedOwner =
           task?.role == 'expedition' &&
@@ -247,7 +248,7 @@ class CountryBrain {
           (task == null ||
               expired ||
               stopped && ['intercept', 'standby'].contains(task.role));
-      final reconsider = changedOwner || stopped || idle;
+      final reconsider = changedOwner || stopped || idle || needsRearm;
       if ((changedOwner || stopped && task.role == 'expedition' || idle) &&
           hero.hp >= hero.maxHp * .65) {
         final attack = _redirectFieldAttack(ledger, hero, task);
@@ -284,7 +285,7 @@ class CountryBrain {
           hero.hp >= hero.maxHp * .5) {
         continue;
       }
-      if (hero.movementPending && task != null && !expired) {
+      if (hero.movementPending && task != null && !expired && !needsRearm) {
         continue;
       }
       final assault = assaultTarget(hero, _view, ledger);
@@ -352,7 +353,9 @@ class CountryBrain {
           route,
           role: 'regroup',
           rearSafe: _reports[city.id]?.threatened != true,
-          reason: hero.hp < hero.maxHp * .65
+          reason: needsRearm
+              ? '攻城武器已消耗，当前随军兵力不足以安全继续，回城补装后重新组织进攻'
+              : hero.hp < hero.maxHp * .65
               ? '将领受伤，回城恢复生命后再战'
               : changedOwner
               ? '目标易主后原城与附近敌城均不适合继续进攻，回城整备'
@@ -377,10 +380,15 @@ class CountryBrain {
           break;
         }
       }
-      if (idle && !ledger.reservedHeroes.contains(hero.id)) {
-        const reason = '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
+      if ((idle || needsRearm) && !ledger.reservedHeroes.contains(hero.id)) {
+        final reason = needsRearm
+            ? '攻城武器已消耗且暂无安全补装地点，停止推进并等待重新调度'
+            : '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
         notes.add('${hero.id}：$reason');
         if (task?.role != 'standby' || expired) {
+          final mustCamp =
+              needsRearm &&
+              (hero.state != AiArmyState.camped || hero.movementPending);
           final standby = ArmyTask(
             hero: hero.id,
             role: 'standby',
@@ -389,14 +397,16 @@ class CountryBrain {
             committedUntil: _view.tick,
             deadlineTick:
                 _view.tick + (rules.tuning.stagnationSeconds * 60).round(),
-            expectedOrderRevision: hero.orderRevision,
+            expectedOrderRevision: hero.orderRevision + (mustCamp ? 1 : 0),
             reason: reason,
           );
           ledger.tasks[hero.id] = standby;
           groups.add(
             AiCommandGroup(
               reason: reason,
-              actions: [],
+              actions: [
+                if (mustCamp) AiAction(AiActionKind.camp, hero: hero.id),
+              ],
               tasks: [standby],
               dependencies: operations.dependencies(
                 [hero],
@@ -847,6 +857,33 @@ class CountryBrain {
       }
     }
     return null;
+  }
+
+  // 野战耗尽装备后复核眼前防线，原行军承诺不能把残部锁在失去条件的攻势里。
+  bool _needsAssaultRearm(AiHero hero, ArmyTask? task) {
+    if (task?.role != 'expedition' || hero.weapons.isNotEmpty) return false;
+    final city = _view.city(task?.city);
+    if (city == null || city.country == _view.country) return false;
+    final guard = _view
+        .garrison(city.id)
+        .reversed
+        .take(city.safeSlots)
+        .firstOrNull;
+    if (guard == null) return false;
+    final reserves = _view.countries
+        .firstWhere((n) => n.id == city.country)
+        .reserves;
+    final risk = assessor.compare(
+      hero,
+      guard,
+      enemyDefense: city.safeSlots,
+      enemySoldiers: math.min(
+        rules.integer('soldierLimit'),
+        guard.soldierCount + reserves,
+      ),
+      enemyOpening: false,
+    );
+    return !work.limited && risk.advantage != CombatAdvantage.favorable;
   }
 
   // 只比较眼前守军和真实随身兵力；目标易主不应自动取消已经走完的远征路程。

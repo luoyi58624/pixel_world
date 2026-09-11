@@ -132,7 +132,7 @@ class OperationPlanner {
     return candidates;
   }
 
-  /// 后期按现有强攻将领与资金准备二至四人轮攻，不因凑不齐满队而永远停战。
+  /// 按现有强攻将领与资金准备轮攻，开局也可组队，不因凑不齐满队而永远停战。
   int raidTeamSize(
     int minimum,
     AiCity target,
@@ -140,7 +140,6 @@ class OperationPlanner {
     AiHero? lead,
   }) {
     if (minimum == 0 ||
-        _view.year < 3 ||
         target.safeSlots < 3 ||
         _view.garrison(target.id).length < 2) {
       return minimum;

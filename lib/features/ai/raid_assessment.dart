@@ -92,10 +92,7 @@ import 'coalition_policy.dart';
     return (lower: lower, upper: upper, teamSize: 0, breakthrough: false);
   }
 
-  // 首轮能形成有效交换就先打一轮；战损回收后补员，不把凑齐全城兵力作为开战前提。
-  final openingRaid = limitedObjective();
-  if (openingRaid.teamSize > 0) return openingRaid;
-
+  // 先核算全城攻势；单轮交换仅作为无法形成完整攻势时的备选。
   if (guards.isNotEmpty &&
       gear.isEmpty &&
       lower < rules.tuning.splitAdvantageMargin) {

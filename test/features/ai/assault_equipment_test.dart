@@ -12,39 +12,43 @@ import '../../support/national_ai_fixture.dart';
 import '../../support/weapon_strategy_fixture.dart';
 
 void main() {
-  test('后期资金与强将齐备时组织四人轮攻，缺资金时不强制满队', () {
-    final c = weaponStrategyCampaign(
-      gold: 1000,
-      sourceLevel: 5,
-      sourceHeroes: [0, 2, 3, 4, 5, 18],
-      targetLevel: 5,
-      targetHeroes: [24, 26],
-    );
-    addTearDown(c.dispose);
-    c.settledMonths = 36;
-    final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
-    final routes = AiRoutes(
-      c.aiMapForTesting(),
-      rules,
-      AiWorkBudget(rules.tuning),
-    );
-    final ledger = AiLedger(view, rules, routes);
-    final planner = OperationPlanner(
-      AiRequest(
-        session: 'team',
-        id: 1,
-        rulesVersion: rules.version,
-        mapVersion: routes.map.version,
-        observation: view,
-        deadlineTick: 6000,
-      ),
-      rules,
-      routes,
-    );
-    expect(planner.raidTeamSize(1, view.city(2)!, ledger), 4);
-    ledger.gold = 1;
-    expect(planner.raidTeamSize(1, view.city(2)!, ledger), 1);
-  });
+  for (final year in [1, 4]) {
+    test('$year年资金与强将齐备时组织四人轮攻，缺资金时不强制满队', () {
+      final c = weaponStrategyCampaign(
+        gold: 1000,
+        sourceLevel: 5,
+        sourceHeroes: [0, 2, 3, 4, 5, 18],
+        targetLevel: 5,
+        targetHeroes: [24, 26],
+      );
+      addTearDown(c.dispose);
+      c.settledMonths = (year - 1) * 12;
+      final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
+      final routes = AiRoutes(
+        c.aiMapForTesting(),
+        rules,
+        AiWorkBudget(rules.tuning),
+      );
+      final ledger = AiLedger(view, rules, routes);
+      final planner = OperationPlanner(
+        AiRequest(
+          session: 'team',
+          id: 1,
+          rulesVersion: rules.version,
+          mapVersion: routes.map.version,
+          observation: view,
+          deadlineTick: 6000,
+        ),
+        rules,
+        routes,
+      );
+      expect(planner.raidTeamSize(1, view.city(2)!, ledger), 4);
+      expect(planner.desiredAssaultHeroes(ledger), year < 3 ? 1 : 4);
+      ledger.gold = 1;
+      expect(planner.raidTeamSize(1, view.city(2)!, ledger), 1);
+      expect(planner.desiredAssaultHeroes(ledger), 1);
+    });
+  }
 
   test('同等高内政保留低攻击建设将领，释放强攻击主力', () {
     final c = nationalScenario(
@@ -64,6 +68,29 @@ void main() {
     );
     expect(ledger.canSpareForOffense(view.hero('rom-0')!), isTrue);
     expect(ledger.canSpareForOffense(view.hero('rom-18')!), isFalse);
+  });
+
+  test('首年真实经营后同组将领带齐武器出征，保留本城守军', () {
+    final c = weaponStrategyCampaign(
+      ai: true,
+      gold: 1000,
+      sourceLevel: 5,
+      sourceHeroes: [0, 2, 3, 4, 5, 18],
+      targetLevel: 3,
+      targetHeroes: [24, 26],
+      fortifiedCapital: true,
+    );
+    addTearDown(c.dispose);
+    c.settledMonths = 0;
+    advanceAi(c, 3);
+    final armies = c.marches.values
+        .where((m) => m.hero.countryId == 1 && m.target?.id == 2)
+        .toList();
+    expect(armies.length, greaterThan(1));
+    expect(armies.every((m) => m.hero.weaponIds.length == 1), isTrue);
+    expect(armies.every((m) => m.hero.soldiers == 4), isTrue);
+    expect(c.garrisonAt(1), isNotEmpty);
+    expect(c.goldFor(1), greaterThanOrEqualTo(0));
   });
 
   test('有钱但缺强攻将领时继续补员，不因普通守军人数够了而停止', () {
