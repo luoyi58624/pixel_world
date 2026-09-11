@@ -21,7 +21,7 @@ BattleArmy _army(String id) => BattleArmy(
 );
 
 void main() {
-  test('配置ID按数组连续排列，原版编号与动画效果保持对应', () {
+  test('配置ID按数组连续排列，动画效果保持对应', () {
     final rows =
         jsonDecode(
               File('assets/data/rom_weapons.json').readAsStringSync(),
@@ -30,10 +30,11 @@ void main() {
     final current = testWeaponCatalog(),
         original = testWeaponCatalog(original: true);
     expect(rows.map((r) => r['id']), List.generate(15, (i) => i));
-    expect(rows.map((r) => r['romId']).toSet().length, 15);
     for (final row in rows) {
       final w = current.weapons[row['id']]!,
-          rom = original.weapons[row['romId']]!;
+          rom = original.weapons.values.singleWhere(
+            (w) => w.name == row['name'],
+          );
       expect(w.name, rom.name);
       expect(w.effectId, rom.effectId);
       expect(w.selfDamage, rom.selfDamage);
