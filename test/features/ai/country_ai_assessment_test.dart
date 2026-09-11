@@ -111,6 +111,6 @@ void main() {
     for (final terrain in [0, 1, 2, 3]) {
       expect(r.attack(20, terrain: terrain), 20);
     }
-    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 26);
+    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 25);
   });
 }

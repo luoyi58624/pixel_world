@@ -184,7 +184,7 @@ abstract final class GameConfig {
   static const recycleDefeatedHeroes = true;
 
   /// 一至五级城防攻击加成，不提高冲锋速度。
-  static const cityDefenseAttackBonuses = [2, 4, 6, 10, 15];
+  static const cityDefenseAttackBonuses = [1, 3, 5, 8, 10];
 
   /// 守城开场士气每级增加5点，超过100的部分参与第一轮碰撞。
   static const cityDefenseMoraleBonuses = [5, 10, 15, 20, 25];
