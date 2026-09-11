@@ -138,7 +138,6 @@ extension _MarchTraffic on CampaignState {
     }
     // 只有周围存在安全路线才解除碰撞扎营，不能仅因有钱而重复撞回去。
     march._trafficBlocked = false;
-    march._supplyHalted = false;
     march.phase = MarchPhase.marching;
     final waypoint = march._trafficRoute.first;
     final from = march.position;

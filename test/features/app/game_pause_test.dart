@@ -70,7 +70,7 @@ String _resources(CampaignState c) => jsonEncode({
 });
 
 void main() {
-  test('暂停冻结各国行军、粮草和月结，恢复只推进新传入的游戏时间', () {
+  test('暂停冻结各国行军和月结，恢复行军仍不额外扣款', () {
     final c = weaponStrategyCampaign();
     c.settledMonths = 0;
     addTearDown(c.dispose);
@@ -86,7 +86,7 @@ void main() {
     c.setPaused(false);
     c.advance(.5);
     expect(march.position, isNot(point));
-    expect(c.goldFor(1), gold - 1);
+    expect(c.goldFor(1), gold);
     expect(c.settledMonths, 0);
     c.advance(49.9);
     c.setPaused(true);

@@ -9,19 +9,6 @@ import 'combat_assessment.dart';
 import 'rear_safety.dart';
 import '../economy/domain/military_upkeep.dart';
 
-/// 一名部队的连续粮草承诺，返城时才停止计费。
-class SupplyCommitment {
-  /// 保存当前零头、消耗率和持续时间。
-  const SupplyCommitment(this.due, this.rate, this.until);
-
-  /// 零头、每秒金币及停止计费时刻。
-  final double due, rate, until;
-
-  /// 到给定时刻已经需要实际支付的金币。
-  int cost(double seconds) =>
-      (due + rate * math.min(seconds, until) + 1e-9).floor();
-}
-
 /// 国家现金低点，不预支尚未发生的收入。
 class CashRequirement {
   /// 保存维持现金与检查范围。
@@ -87,7 +74,6 @@ class AiLedger {
   }
 
   final Set<int> recruited = {}, abandoned = {};
-  final List<SupplyCommitment> newSupplies = [];
   final Map<int, bool> _rearSafety = {};
 
   /// 复制候选账本，用于比较有限复合方案。
@@ -108,7 +94,6 @@ class AiLedger {
     next.reservedHeroes.addAll(reservedHeroes);
     next.recruited.addAll(recruited);
     next.abandoned.addAll(abandoned);
-    next.newSupplies.addAll(newSupplies);
     next._rearSafety.addAll(_rearSafety);
     return next;
   }
@@ -250,101 +235,12 @@ class AiLedger {
     return hero.id != keeper.id;
   }
 
-  /// 核算已有部队、候选任务和月结前后现金低点。
+  /// 核算月俸与月结前后现金低点；行军、扎营及路线长短均不增加费用。
   CashRequirement cash({bool emergency = false, double? horizon}) {
-    var duration =
-        horizon ?? rules.number('monthSeconds') + rules.number('supplySafety');
-    final supplies = <SupplyCommitment>[...newSupplies];
-    for (final hero in view.heroes.where(
-      (h) =>
-          h.country == view.country &&
-          !h.stationed &&
-          !h.marked &&
-          !removed.contains(h.id),
-    )) {
-      final task = tasks[hero.id];
-      var until = duration;
-      final rate =
-          (hero.state == AiArmyState.camped && task == null
-              ? rules.number('campRate')
-              : 1) /
-          rules.number('supplySeconds');
-      if (hero.state == AiArmyState.retreating && hero.returnPath.isNotEmpty) {
-        var from = hero.position;
-        until = hero.opponent != null ? rules.number('battleBudget') : 0;
-        for (final p in hero.returnPath) {
-          until += routes.seconds(from, p);
-          from = p;
-        }
-      } else if (task != null && task.arrivalSlot) {
-        var from = hero.position;
-        until = rules.tuning.reactionMargin;
-        for (final p in task.points.skip(task.leg)) {
-          until += routes.seconds(from, p);
-          from = p;
-        }
-      } else if (hero.targetCity != null &&
-          view.city(hero.targetCity)?.country == hero.country &&
-          hero.destination != null) {
-        until =
-            routes.seconds(hero.position, hero.destination!) +
-            rules.tuning.reactionMargin;
-      } else if (task != null && !task.arrivalSlot) {
-        final created =
-            task.committedUntil / 60 - rules.tuning.commitmentSeconds;
-        until = math.max(
-          0,
-          created + task.gold * rules.number('supplySeconds') - view.tick / 60,
-        );
-        if (hero.destination != null) {
-          until = math.max(
-            until,
-            routes.seconds(hero.position, hero.destination!),
-          );
-        }
-      } else if (hero.destination != null && hero.state != AiArmyState.camped) {
-        final travel = routes.seconds(hero.position, hero.destination!);
-        final target = view.city(hero.targetCity);
-        until = math.max(duration, travel);
-        if (target != null && target.country != hero.country) {
-          final ownAhead = view.heroes
-              .where(
-                (h) =>
-                    h.id != hero.id &&
-                    h.country == hero.country &&
-                    h.targetCity == target.id &&
-                    h.position.distance(target.center) <
-                        hero.position.distance(target.center),
-              )
-              .length;
-          final guards = math.max(
-            1,
-            math.min(target.safeSlots, view.garrison(target.id).length),
-          );
-          until =
-              travel +
-              guards * (1 + ownAhead) * rules.number('battleBudget') +
-              rules.number('supplySafety');
-        }
-      }
-      if (!until.isFinite) until = rules.tuning.maxExpeditionSeconds;
-      duration = math.max(duration, until);
-      final indefinite =
-          (task == null || task.role == 'standby') &&
-          hero.targetCity == null &&
-          hero.state != AiArmyState.retreating;
-      supplies.add(
-        SupplyCommitment(
-          hero.supplyDue,
-          rate,
-          indefinite ? double.infinity : until,
-        ),
-      );
-    }
-    for (final s in newSupplies) {
-      duration = math.max(duration, s.until);
-    }
-    duration = math.min(rules.tuning.maxExpeditionSeconds, duration);
+    final duration = math.min(
+      rules.tuning.maxExpeditionSeconds,
+      horizon ?? rules.number('monthSeconds') + rules.number('budgetSafety'),
+    );
     final salary = view.heroes
         .where(
           (h) =>
@@ -406,7 +302,6 @@ class AiLedger {
     }
     var peak = 0;
     for (final at in checkpoints) {
-      final pay = supplies.fold(0, (n, s) => n + s.cost(at));
       final months = at + 1e-9 < view.monthRemaining
           ? 0
           : 1 +
@@ -414,16 +309,13 @@ class AiLedger {
                     .floor();
       // 同时检查月结前现金低点，经营预算不能把未到账收入当成现有现金。
       if (monthEnds.any((month) => (month - at).abs() < 1e-7)) {
-        peak = math.max(peak, pay + monthlyCost(math.max(0, months - 1)));
+        peak = math.max(peak, monthlyCost(math.max(0, months - 1)));
       }
-      peak = math.max(peak, pay + monthlyCost(months));
+      peak = math.max(peak, monthlyCost(months));
     }
     return CashRequirement(
-      // 军费允许透支，但常规经营仍预留小额现金，避免后续招将与武器采购被欠款阻断。
-      math.max(0, peak) +
-          (emergency
-              ? (supplies.isEmpty ? 0 : 1)
-              : rules.integer('emergencyGold')),
+      // 常规经营仍预留小额现金，免费调动不受此采购预算限制。
+      math.max(0, peak) + (emergency ? 0 : rules.integer('emergencyGold')),
       duration,
       salary,
       income,
@@ -441,7 +333,7 @@ class AiLedger {
         cost = rules.upgradeCost(level, governor.politics);
     if (level >= rules.cityUpgradeLimit(view.year) ||
         cost == null ||
-        gold < cost) {
+        gold <= cost) {
       return false;
     }
     final factor = city.country == city.nativeCountry
@@ -589,11 +481,10 @@ class AiLedger {
   }
 
   /// 派兵必须扣除真实自动领取的兵员，再登记全国唯一任务。
-  bool depart(AiHero hero, List<int> weapons, ArmyTask task, double seconds) {
+  bool depart(AiHero hero, List<int> weapons, ArmyTask task) {
     if (!hero.canDispatch ||
         reservedHeroes.contains(hero.id) ||
-        removed.contains(hero.id) ||
-        gold <= 0) {
+        removed.contains(hero.id)) {
       return false;
     }
     // 入城预约与刚抽取但尚未落地的将领都不能替代真实留守。
@@ -620,22 +511,12 @@ class AiLedger {
     departed.add(hero.id);
     reservedHeroes.add(hero.id);
     tasks[hero.id] = task;
-    newSupplies.add(
-      SupplyCommitment(
-        hero.supplyDue,
-        1 / rules.number('supplySeconds'),
-        seconds,
-      ),
-    );
     return true;
   }
 
-  /// 自由行军改令仍需要真实现金，并且不能重复分给两座城。
+  /// 自由行军改令不收费，但不能把同一将领重复分给两座城。
   bool redirect(AiHero hero, ArmyTask task) {
-    if (!hero.canMove ||
-        reservedHeroes.contains(hero.id) ||
-        gold <= 0 ||
-        hero.marked) {
+    if (!hero.canMove || reservedHeroes.contains(hero.id) || hero.marked) {
       return false;
     }
     reservedHeroes.add(hero.id);

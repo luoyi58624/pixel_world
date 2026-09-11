@@ -36,7 +36,6 @@ import '../../ai/runtime/build_stamp.dart';
 part 'economy/country_ai_budget.dart';
 part 'battles/field_battles.dart';
 part 'battles/siege_battles.dart';
-part 'economy/field_supplies.dart';
 part 'march_traffic.dart';
 part 'economy/garrison_upkeep.dart';
 part 'economy/country_troops.dart';
@@ -247,9 +246,6 @@ class CampaignHero {
   /// 将领出征携带的武器，回城归库，守城禁用，上限读取武器目录。
   List<int> get weaponIds => List.unmodifiable(_weaponIds);
 
-  // 未满一金币的粮草累计保留在英雄身上，进城或改令不能抹去已用粮草。
-  double _supplyDue = 0;
-
   /// 当前存活的随行士兵数量。
   int get soldiers => squad.where((soldier) => soldier.alive).length;
 
@@ -357,9 +353,8 @@ class HeroMarch {
   /// 当前阶段。
   MarchPhase phase = MarchPhase.marching;
 
-  /// 旧存档保留的断粮标记；新规则允许军费透支，恢复模拟时清除。
-  bool get supplyHalted => _supplyHalted;
-  bool _supplyHalted = false;
+  /// 兼容旧界面的只读标记；粮草机制已取消，部队不会因断粮停止。
+  bool get supplyHalted => false;
 
   // 抵达城下后持有顺序号；暂时转入野战不丢失原来的等候顺序。
   ({int cityId, int order})? _siegeArrival;
@@ -374,7 +369,6 @@ class HeroMarch {
     _trafficBlocked = false;
     _trafficRoute.clear();
     _rememberPosition();
-    _supplyHalted = false;
     if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
     target = city;
@@ -679,7 +673,7 @@ class CampaignState {
   CountryConfig configFor(int countryId) =>
       countryConfigs[countryId] ?? const CountryConfig();
 
-  /// 当前国家的保守经营预算，预留既有部队粮草、月俸和应急资金。
+  /// 当前国家的保守经营预算，仅预留月俸和应急资金。
   CountryAiBudget aiBudgetFor(int countryId) => _planAiBudget(countryId);
 
   /// 读取本国视角的冻结观察，敌方隐藏命令不在其中。
@@ -2179,7 +2173,6 @@ class CampaignState {
       _strategyTime += dt;
       changed = (_ai?.commitAndTasks() ?? false) || changed;
       _accrueGarrisonUpkeep(dt);
-      changed = _advanceSupplies(dt) || changed;
       changed = _advanceRetreatReturns() || changed;
       final previousPositions = {
         for (final march in marches.values) march.hero.id: march.position,

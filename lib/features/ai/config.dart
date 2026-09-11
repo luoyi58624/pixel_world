@@ -67,7 +67,7 @@ class AiTuning {
   /// 危险国家的目标权重，不替代防守、可支付性和实际胜算检查。
   final double coalitionTargetBaseBonus, coalitionTargetStepBonus;
 
-  /// 围攻危险国家时的外聘月俸上限，仍保留长期经营与粮草预算。
+  /// 围攻危险国家时的外聘月俸上限，仍保留长期经营预算。
   final double coalitionPayrollCeiling;
 
   /// 围攻只使用可在此行军时间内抵达的近程兵力。

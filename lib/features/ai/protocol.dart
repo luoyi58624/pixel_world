@@ -99,8 +99,11 @@ class ArmyTask {
   final List<AiPoint> points;
   final int leg;
 
-  /// 截止时间、普通改令承诺期与预留路费。
-  final int deadlineTick, committedUntil, gold;
+  /// 截止时间与普通改令承诺期。
+  final int deadlineTick, committedUntil;
+
+  /// 兼容旧存档的报价字段；行军免费，新任务固定为零且不参与预算。
+  final int gold;
 
   /// 是否预留入城名额及接管时的己方命令版本。
   final bool arrivalSlot;

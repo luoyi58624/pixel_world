@@ -33,13 +33,10 @@ void main() {
     expect(ledger.capacity, c.reserveCapacityFor(1));
     expect(ledger.reserves, c.reserveSoldiersFor(1));
   });
-  test('R11 月结之前不能预花收入，返城停止消耗仍计入已有粮草零头', () {
-    const field = SupplyCommitment(.9, .1, 8);
-    expect(field.cost(.5), 0);
-    expect(field.cost(1), 1);
-    expect(field.cost(20), 1);
+  test('R11 行军与驻城的月俸预算一致，不再预留粮草', () {
     final c = nationalScenario(ai: false, level: 1, guards: [0], reserves: 4);
     final hero = c.garrisonAt(1).first;
+    final before = c.aiBudgetFor(1).reserveGold;
     c.dispatchTo(hero, const GamePoint(1000, 800), countryId: 1);
     final rules = c.aiRulesForTesting(), view = c.aiObservationFor(1);
     final ledger = AiLedger(
@@ -47,7 +44,7 @@ void main() {
       rules,
       AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
     );
-    expect(ledger.cash().reserve, greaterThanOrEqualTo(11));
+    expect(ledger.cash().reserve, before);
     expect(ledger.gold, c.goldFor(1));
   });
   test('T04/R09 在外英雄只能使用随身武器，不能读取其他国家库存', () {

@@ -156,7 +156,7 @@ void main() {
     expect(
       AiLedger(view, rules, routes, tasks: [standby]).cash().reserve,
       AiLedger(view, rules, routes).cash().reserve,
-      reason: '待命不能假装停止粮草消耗',
+      reason: '待命与其他行军状态采用相同的月俸预算',
     );
     c.battles[1]!.outcome = '测试威胁解除';
     c.battles[1]!.simulation.stop();
@@ -458,7 +458,7 @@ void main() {
     );
   });
 
-  test('正常行军、主动扎营与断粮不会触发卡死恢复', () {
+  test('正常行军、主动扎营与低资金不会触发卡死恢复', () {
     final worker = ManualAiWorker();
     final c = nationalScenario(workerFactory: () => worker, gold: 1000);
     addTearDown(c.dispose);
@@ -479,7 +479,8 @@ void main() {
       countryId: 1,
     )!;
     advanceAi(poor, 35);
-    expect(starving.supplyHalted, isTrue);
+    expect(starving.supplyHalted, isFalse);
+    expect(poor.goldFor(1), 1);
     expect(_recoveries(poor, starving.hero.id), isEmpty);
   });
 

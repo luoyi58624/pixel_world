@@ -10,9 +10,7 @@ extension _AiObservationBridge on CampaignState {
       'marchSpeed': GameConfig.baseMarchSpeed,
       'encounterDistance': GameConfig.fieldEncounterDistance,
       'monthSeconds': GameConfig.secondsPerMonth,
-      'supplySeconds': GameConfig.fieldSupplySecondsPerGold,
-      'campRate': GameConfig.campSupplyRate,
-      'supplySafety': GameConfig.countryAiSupplySafetySeconds,
+      'budgetSafety': GameConfig.countryAiBudgetSafetySeconds,
       'emergencyGold': GameConfig.countryAiEmergencyGold,
       'battleBudget': GameConfig.countryAiBattleBudgetSeconds,
       'incomeStep': GameConfig.cityIncomePerLevel,
@@ -241,7 +239,6 @@ extension _AiObservationBridge on CampaignState {
                     )
                     .remaining
                     .toDouble(),
-          supplyDue: own ? hero._supplyDue : 0,
           destination: own && march != null
               ? AiPoint(march.destination.dx, march.destination.dy)
               : null,

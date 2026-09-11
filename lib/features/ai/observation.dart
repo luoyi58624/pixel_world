@@ -32,7 +32,6 @@ class AiHero {
     List<double> soldiers = const [],
     List<int> weapons = const [],
     this.morale = 0,
-    this.supplyDue = 0,
     this.destination,
     this.targetCity,
     this.returnSeconds = 0,
@@ -75,7 +74,6 @@ class AiHero {
     soldiers: [for (final n in d['troops'] as List) (n as num).toDouble()],
     weapons: List<int>.from(d['w']),
     morale: (d['m'] as num).toDouble(),
-    supplyDue: (d['due'] as num).toDouble(),
     destination: d['to'] == null ? null : AiPoint.fromJson(d['to']),
     targetCity: d['target'],
     returnSeconds: (d['return'] as num).toDouble(),
@@ -117,8 +115,8 @@ class AiHero {
   final List<double> soldiers;
   final List<int> weapons;
 
-  /// 已显示的士气与己方粮草零头。
-  final double morale, supplyDue;
+  /// 已显示的士气。
+  final double morale;
 
   /// 只允许己方携带的命令终点和目标城；敌方必须为空。
   final AiPoint? destination;
@@ -182,7 +180,6 @@ class AiHero {
     'troops': soldiers,
     'w': weapons,
     'm': morale,
-    'due': supplyDue,
     'to': destination?.toJson(),
     'target': targetCity,
     'return': returnSeconds,

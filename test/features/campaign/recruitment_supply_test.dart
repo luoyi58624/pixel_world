@@ -101,7 +101,7 @@ void main() {
     }
   });
 
-  test('电脑粮草可透支，不因零或负国库自动停军', () {
+  test('电脑行军免费，不因零或负国库自动停军', () {
     final c = _campaign(gold: 1, ai: true);
     final march = _leave(c, 18, country: 1, y: 160);
     c.advance(10);
@@ -166,7 +166,7 @@ void main() {
     expect(c.drawHero(2), isNotNull);
   });
 
-  test('行军和扎营均10秒一金币，驻城不扣粮草', () {
+  test('行军、扎营和驻城都不再扣粮草', () {
     final home = _campaign();
     home.advance(40);
     expect(home.gold, 100);
@@ -175,32 +175,32 @@ void main() {
     c.advance(9.9);
     expect(c.gold, 100);
     c.advance(0.1);
-    expect(c.gold, 99);
+    expect(c.gold, 100);
     c.camp('rom-0');
     c.advance(9.9);
-    expect(c.gold, 99);
+    expect(c.gold, 100);
     c.advance(0.1);
-    expect(c.gold, 98);
+    expect(c.gold, 100);
   });
 
-  test('切换状态、改道与回城不抹去已累计的粮草费用', () {
+  test('切换状态、改道、回城和再次出征都不累计费用', () {
     final c = _campaign();
     final march = _leave(c, 0);
     c.advance(5);
     c.camp(march.hero.id);
     c.advance(5);
-    expect(c.gold, 99);
+    expect(c.gold, 100);
     c.moveTo(march.hero.id, const GamePoint(2000, 40));
     c.advance(5);
     _return(c, march, 0);
     c.advance(5);
-    expect(c.gold, 99);
+    expect(c.gold, 100);
     _leave(c, 0);
     c.advance(5);
-    expect(c.gold, 98);
+    expect(c.gold, 100);
   });
 
-  test('多位英雄分别扣本国金币，固定步长不受输入帧长影响', () {
+  test('多国多军行军均不扣款，固定步长不受输入帧长影响', () {
     final a = _campaign(), b = _campaign();
     for (final c in [a, b]) {
       _leave(c, 0);
@@ -211,8 +211,8 @@ void main() {
     for (var i = 0; i < 200; i++) {
       b.advance(0.1);
     }
-    expect(a.gold, 96);
-    expect(a.goldFor(1), 98);
+    expect(a.gold, 100);
+    expect(a.goldFor(1), 100);
     expect(a.gold, b.gold);
     expect(a.goldFor(1), b.goldFor(1));
     for (final id in a.marches.keys) {
@@ -220,9 +220,10 @@ void main() {
     }
   });
 
-  test('多军共同透支仍可出征改道，主动扎营也继续扣粮草', () {
+  test('补兵透支后多军仍可出征改道，扎营也不额外扣款', () {
     final c = _campaign(gold: 1);
     final a = _leave(c, 0), b = _leave(c, 2, y: 80);
+    expect(c.buySoldiers(0, 2), isTrue);
     c.advance(10);
     expect(c.gold, -1);
     expect(a.phase, MarchPhase.marching);
@@ -236,11 +237,11 @@ void main() {
     );
     c.advance(20);
     expect(a.position, isNot(position));
-    expect(c.gold, -7);
+    expect(c.gold, -1);
     expect(c.camp(a.hero.id), isTrue);
     final camp = a.position;
     c.advance(10);
-    expect(c.gold, -10);
+    expect(c.gold, -1);
     expect(a.position, camp);
     expect(a.phase, MarchPhase.camped);
     expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isTrue);

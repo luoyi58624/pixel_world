@@ -38,7 +38,7 @@ class SimulationCommander implements PlayerCommander {
     if (owned.isEmpty) return;
     final mine = c.heroes.where((h) => h.isPlayer && h.health.alive).toList();
     final outside = c.marches.values.where((m) => m.hero.isPlayer).toList();
-    final reserve = 12 + outside.length * 12;
+    final reserve = math.max(12, c.salaryCost);
     final desired = math.min(c.reserveCapacityFor(0), (mine.length + 1) * 4);
     final count = math.min(
       desired - c.reserveSoldiersFor(0),
@@ -229,11 +229,7 @@ class SimulationCommander implements PlayerCommander {
       }
       if (best == null || bestSeconds > 150) continue;
       final guards = c.garrisonAt(best.id), level = c.cities[best.id]!.level;
-      final keepGold =
-          reserve +
-          ((bestSeconds + 35 * math.min(level, guards.length)) /
-                  GameConfig.fieldSupplySecondsPerGold)
-              .ceil();
+      final keepGold = reserve;
       if (c.gold < keepGold + 6) continue;
       final needWeapons =
           guards.isNotEmpty &&

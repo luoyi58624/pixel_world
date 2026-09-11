@@ -30,7 +30,7 @@ class OperationPlanner {
   AiObservation get _view => request.observation;
   bool get _canPurchase => request.stage != AiDecisionStage.attack;
 
-  /// 小国优先近程围攻；多城国家可以直接远征，是否可支付交给完整粮草报价。
+  /// 小国优先近程围攻；多城国家可以直接远征，路线只限制到达时间。
   bool hasCoalitionFront(AiCity target) =>
       !CoalitionPolicy(target.country, _view, rules).dangerous ||
       _view.owned.length >= 3 ||
@@ -267,7 +267,7 @@ class OperationPlanner {
                       ),
               ) +
           route.seconds +
-          rules.number('supplySafety');
+          rules.number('budgetSafety');
     }
     if (duration > rules.tuning.maxExpeditionSeconds) return null;
     final task = ArmyTask(
@@ -287,7 +287,6 @@ class OperationPlanner {
       committedUntil:
           _view.tick + (rules.tuning.commitmentSeconds * 60).round(),
       points: route.points,
-      gold: (duration / rules.number('supplySeconds')).ceil(),
       arrivalSlot: arrival,
       rearStaging: arrival && rearSafe,
       reason: reason,
@@ -333,7 +332,7 @@ class OperationPlanner {
           actions.add(AiAction(AiActionKind.buyWeapon, amount: id));
         }
       }
-      if (!ledger.depart(hero, gear, task, duration)) return null;
+      if (!ledger.depart(hero, gear, task)) return null;
       if (ledger.reserves < protectSoldiers) return null;
       actions.add(
         AiAction(
@@ -360,7 +359,8 @@ class OperationPlanner {
       );
     }
     final floor = ledger.cash(emergency: emergency).reserve;
-    if (ledger.gold < floor || (!arrival && ledger.gold == 0)) return null;
+    final cashPurchase = actions.any((a) => a.kind == AiActionKind.buyWeapon);
+    if (cashPurchase && ledger.gold < floor) return null;
     return PlannedOperation(
       ledger,
       AiCommandGroup(
@@ -371,7 +371,7 @@ class OperationPlanner {
           [_view.city(hero.city)!, ?target],
         ),
         tasks: [task],
-        minimumGold: floor,
+        minimumGold: cashPurchase ? floor : ledger.gold,
         emergency: emergency,
       ),
     );

@@ -227,17 +227,9 @@ class CountryBrain {
               !ledger.reservedHeroes.contains(h.id),
         )
         .toList();
-    if (ledger.gold > 0 && ledger.gold < ledger.cash().reserve) {
-      final recovery = _regroupTogether(ledger, availableField);
-      if (recovery != null) {
-        ledger = recovery.ledger;
-        groups.add(recovery.group);
-      }
-    }
     for (final hero in availableField) {
       if (ledger.reservedHeroes.contains(hero.id)) continue;
       final task = ledger.tasks[hero.id];
-      final lowFunds = ledger.gold < ledger.cash().reserve;
       final expired = task != null && task.deadlineTick < _view.tick;
       final changedOwner =
           task?.role == 'expedition' &&
@@ -257,7 +249,6 @@ class CountryBrain {
               stopped && ['intercept', 'standby'].contains(task.role));
       final reconsider = changedOwner || stopped || idle;
       if ((changedOwner || stopped && task.role == 'expedition' || idle) &&
-          (idle || !lowFunds) &&
           hero.hp >= hero.maxHp * .65) {
         final attack = _redirectFieldAttack(ledger, hero, task);
         if (attack != null) {
@@ -271,8 +262,7 @@ class CountryBrain {
       if (task?.arrivalSlot == true &&
           hero.targetCity == task?.city &&
           !expired &&
-          !reconsider &&
-          !lowFunds) {
+          !reconsider) {
         continue;
       }
       final completedIntercept =
@@ -281,7 +271,6 @@ class CountryBrain {
               _reports[task?.city]?.threatened != true);
       if (!reconsider &&
           completedIntercept &&
-          !lowFunds &&
           task!.committedUntil > _view.tick &&
           hero.hp >= hero.maxHp * .65) {
         continue;
@@ -289,20 +278,18 @@ class CountryBrain {
       if (task != null &&
           !reconsider &&
           !expired &&
-          !lowFunds &&
           !completedIntercept &&
           task.committedUntil > _view.tick &&
           !assaultIsCommitted(hero, _view, ledger, rules) &&
           hero.hp >= hero.maxHp * .5) {
         continue;
       }
-      if (hero.movementPending && task != null && !expired && ledger.gold > 0) {
+      if (hero.movementPending && task != null && !expired) {
         continue;
       }
       final assault = assaultTarget(hero, _view, ledger);
       if (!reconsider &&
           assaultIsCommitted(hero, _view, ledger, rules) &&
-          ledger.gold > 0 &&
           (hero.hp >= hero.maxHp * .25 ||
               _view.garrison(assault!.id).isEmpty)) {
         notes.add('${hero.id}已临近主攻目标，保持进攻，不因普通预警或整备预算折返');
@@ -312,13 +299,11 @@ class CountryBrain {
       if (task?.role == 'expedition' &&
           !reconsider &&
           !expired &&
-          !lowFunds &&
           hero.hp >= hero.maxHp * .65 &&
           task!.leg + 1 < task.points.length) {
         continue;
       }
-      if (!lowFunds &&
-          !reconsider &&
+      if (!reconsider &&
           !completedIntercept &&
           !expired &&
           hero.hp >= hero.maxHp * .65 &&
@@ -367,9 +352,7 @@ class CountryBrain {
           route,
           role: 'regroup',
           rearSafe: _reports[city.id]?.threatened != true,
-          reason: lowFunds
-              ? '现有国库不足以继续供养远程任务，回城缩减粮草支出'
-              : hero.hp < hero.maxHp * .65
+          reason: hero.hp < hero.maxHp * .65
               ? '将领受伤，回城恢复生命后再战'
               : changedOwner
               ? '目标易主后原城与附近敌城均不适合继续进攻，回城整备'
@@ -395,9 +378,7 @@ class CountryBrain {
         }
       }
       if (idle && !ledger.reservedHeroes.contains(hero.id)) {
-        final reason = lowFunds
-            ? '当前金币不足以承担可执行的新行程，暂时待命并继续复查补给和入城名额'
-            : '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
+        const reason = '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
         notes.add('${hero.id}：$reason');
         if (task?.role != 'standby' || expired) {
           final standby = ArmyTask(
@@ -815,74 +796,6 @@ class CountryBrain {
     );
   }
 
-  // 多支营地同时缺钱时一起核算回城，否则每支都被其余营地的长期粮草承诺卡死。
-  PlannedOperation? _regroupTogether(AiLedger base, List<AiHero> field) {
-    final idle = field
-        .where(
-          (h) =>
-              (h.state == AiArmyState.camped ||
-                  base.tasks[h.id] == null &&
-                      !assaultIsCommitted(h, _view, base, rules)) &&
-              !h.movementPending &&
-              h.opponent == null,
-        )
-        .take(8)
-        .toList();
-    if (idle.length < 2) return null;
-    // 仅为无采购的返程合并报价；提交前恢复真实金币，并用整组任务重新验证现金低点。
-    var quote = base.copy()..gold = 1000000;
-    final groups = <AiCommandGroup>[];
-    for (final hero in idle) {
-      final destinations =
-          _view.owned.where((c) => _reports[c.id]?.threatened != true).toList()
-            ..sort(
-              (a, b) => a.center
-                  .distance(hero.position)
-                  .compareTo(b.center.distance(hero.position)),
-            );
-      for (final city in destinations.take(3)) {
-        if (!work.candidate()) return null;
-        final route = routes.to(
-          hero,
-          city.center,
-          _view,
-          target: city,
-          safe: true,
-        );
-        final option = operations.send(
-          quote,
-          hero,
-          route,
-          role: 'regroup',
-          target: city,
-          arrival: true,
-          rearSafe: true,
-          emergency: true,
-          reason: '同时安排缺钱营地回城，缩短全国粮草承诺',
-        );
-        if (option == null) continue;
-        quote = option.ledger;
-        groups.add(option.group);
-        break;
-      }
-    }
-    if (groups.length < 2) return null;
-    quote.gold = base.gold;
-    final floor = quote.cash(emergency: true).reserve;
-    if (quote.gold < floor) return null;
-    return PlannedOperation(
-      quote,
-      AiCommandGroup(
-        reason: '合并核算各支返程费用，以现有现金组织回城，不再互相预留长期扎营费',
-        actions: groups.expand((g) => g.actions).toList(),
-        tasks: groups.expand((g) => g.tasks).toList(),
-        dependencies: {for (final group in groups) ...group.dependencies},
-        minimumGold: floor,
-        emergency: true,
-      ),
-    );
-  }
-
   // 前线空城需要接防，安全后方允许保持空城；不改令任何在途军队。
   PlannedOperation? _reinforceEmptyCities(AiLedger ledger) {
     for (final city in _view.owned) {
@@ -1001,7 +914,7 @@ class CountryBrain {
         reason: task == null || task.role != 'expedition'
             ? '野外任务结束后利用现有随身兵力，转攻可以形成有效交换的敌城'
             : city.id == previousTarget
-            ? '重新核对当前守军与路费后，继续进攻原目标'
+            ? '重新核对当前守军与路线后，继续进攻原目标'
             : '原目标不再适合进攻，转向附近可形成有效交换的敌城',
       );
       if (operation != null) return operation;

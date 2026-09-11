@@ -91,7 +91,6 @@ extension CampaignSnapshots on CampaignState {
           'blocked': m._trafficBlocked,
           'arrivalWaitLogged': m._arrivalWaitLogged,
           'traffic': m._trafficRoute.map(_point).toList(),
-          'halted': m._supplyHalted,
           'arrival': m._siegeArrival == null
               ? null
               : [m._siegeArrival!.cityId, m._siegeArrival!.order],
@@ -116,7 +115,6 @@ extension CampaignSnapshots on CampaignState {
           'paid': h._salaryPaidMonth,
           'squad': h.squad.map(healthId).toList(),
           'weapons': List.of(h._weaponIds),
-          'supply': h._supplyDue,
         },
     ];
     final ai = _ai;
@@ -293,7 +291,6 @@ extension CampaignSnapshots on CampaignState {
             squad: [for (final id in h['squad']) health[id]],
           )
           .._salaryPaidMonth = h['paid']
-          .._supplyDue = _double(h['supply'])
           .._weaponIds.addAll((h['weapons'] as List).cast<int>()),
     ];
     final random = [for (final value in d['random']) StateRandom(value)];
@@ -351,8 +348,11 @@ extension CampaignSnapshots on CampaignState {
             .._departurePending = m['pending']
             .._departureAt = _double(m['at'])
             .._trafficBlocked = m['blocked']
-            .._arrivalWaitLogged = m['arrivalWaitLogged'] as bool? ?? false
-            .._supplyHalted = m['halted'];
+            .._arrivalWaitLogged = m['arrivalWaitLogged'] as bool? ?? false;
+      // 旧存档的断粮营地重新进入避让检查；旧粮草零头不再补扣。
+      if (m['halted'] == true && !march.returningFromRetreat) {
+        march._trafficBlocked = true;
+      }
       march._walkAnimation.restoreTime(_double(m['animation']));
       march._outboundRoute.addAll((m['outbound'] as List).map(_readPoint));
       march._returnRoute.addAll((m['return'] as List).map(_readPoint));

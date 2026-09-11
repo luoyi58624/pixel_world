@@ -189,7 +189,7 @@ void main() {
     expect(c.remainingHeroDraws(1), isNull);
   });
 
-  test('全国在外部队按数量和状态预留粮草，同时覆盖欠收与月俸', () {
+  test('全国在外部队只预留欠收与月俸，不再按距离或扎营增加费用', () {
     final c = _campaign(gold: 100, level: 1, salary: 2, ai: false);
     final a = c.dispatchTo(
       _hero(c, 0),
@@ -204,20 +204,15 @@ void main() {
     a.position = const GamePoint(200, 30);
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
-    expect(moving.planningSeconds, closeTo(1700 / (22 * .75), .01));
+    expect(moving.planningSeconds, 90);
     expect(moving.minimumMonthlyIncome, 0);
     expect(
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, greaterThan(5)); // 欠收无净产出，已有远征仍需留足工资和粮草。
+    expect(moving.reserveGold, 11); // 欠收无净产出，只预留六金币月俸和五金币应急金。
     b.camp();
-    expect(
-      c.aiBudgetFor(1).reserveGold,
-      GameConfig.campSupplyRate == 1
-          ? moving.reserveGold
-          : lessThan(moving.reserveGold),
-    );
+    expect(c.aiBudgetFor(1).reserveGold, moving.reserveGold);
     expect(c.aiBudgetFor(0).reserveGold, 5);
     c.advance(59.9);
     expect(
@@ -237,12 +232,12 @@ void main() {
     );
     c.dispatchTo(_hero(c, 0), const GamePoint(1900, 30), countryId: 1);
     for (var n = 0; n < 50; n++) {
-      expect(c.aiBudgetFor(1).reserveGold, 11);
+      expect(c.aiBudgetFor(1).reserveGold, 5);
     }
     expect(random.calls, 0);
   });
 
-  test('长途山路需要更多粮草，行军时间估算使用实际地形速度', () {
+  test('长途山路只增加时间、不增加费用，行军仍使用实际地形速度', () {
     final plain = _campaign(gold: 100, level: 1, income: 0, ai: false);
     final mountain = _campaign(
       gold: 100,
@@ -256,11 +251,11 @@ void main() {
     }
     expect(
       mountain.aiBudgetFor(1).planningSeconds,
-      greaterThan(plain.aiBudgetFor(1).planningSeconds),
+      plain.aiBudgetFor(1).planningSeconds,
     );
     expect(
       mountain.aiBudgetFor(1).reserveGold,
-      greaterThan(plain.aiBudgetFor(1).reserveGold),
+      plain.aiBudgetFor(1).reserveGold,
     );
     final world = WorldDefinition.fromJson(
       {
@@ -338,7 +333,7 @@ void main() {
     }
   });
 
-  test('资金不足不强制停军，AI仍可让近城部队回城整备', () {
+  test('资金不足也不为节省已取消的粮草而召回正常行军部队', () {
     final c = _campaign(gold: 2, income: 0, stock: 0);
     final a = c.dispatchTo(
       _hero(c, 0),
@@ -361,13 +356,12 @@ void main() {
     for (var i = 0; i < 600; i++) {
       c.advance(1 / 60);
     }
-    expect(
-      c.marches,
-      isEmpty,
-      reason:
-          '${c.aiDiagnostics.events}\n${c.aiBudgetFor(1).reserveGold} / ${c.goldFor(1)}\n${c.aiTasks.values.map((t) => t.toJson()).toList()}\n${c.aiObservationFor(1).heroes.where((h) => h.country == 1).map((h) => h.toJson()).toList()}',
-    );
-    expect(c.garrisonAt(1), isNotEmpty);
+    expect(c.marches[a.hero.id], same(a));
+    expect(c.marches[b.hero.id], same(b));
+    expect(a.destination, const GamePoint(400, 100));
+    expect(b.destination, const GamePoint(1900, 30));
+    expect(a.phase, MarchPhase.marching);
+    expect(b.phase, MarchPhase.marching);
     expect(c.goldFor(1), greaterThan(0));
   });
 

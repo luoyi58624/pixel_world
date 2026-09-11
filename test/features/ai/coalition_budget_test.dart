@@ -172,18 +172,30 @@ void main() {
     expect(c.goldFor(2), 0);
   });
 
-  test('和平城建为围攻军费让路，不把已预留的预算花在非紧急升级上', () {
+  test('先买进攻武器，余钱充足且不侵占围攻预算时才升级', () {
     for (final cities in [2, 3]) {
-      final c = coalitionCampaign(enemyCities: cities, homeLevel: 2, gold: 58);
-      addTearDown(c.dispose);
-      final plan = coalitionPlan(c, targetCountry: 2, targetCity: 2);
-      expect(
-        plan.groups
-            .expand((g) => g.actions)
-            .any((a) => a.kind == AiActionKind.upgrade),
-        cities == 2,
-        reason: plan.toJson().toString(),
-      );
+      for (final gold in [58, 73]) {
+        final c = coalitionCampaign(
+          enemyCities: cities,
+          homeLevel: 2,
+          gold: gold,
+        );
+        addTearDown(c.dispose);
+        final plan = coalitionPlan(c, targetCountry: 2, targetCity: 2);
+        expect(
+          plan.groups
+              .expand((g) => g.actions)
+              .any((a) => a.kind == AiActionKind.upgrade),
+          cities == 2 && gold == 73,
+          reason: plan.toJson().toString(),
+        );
+        expect(
+          plan.groups
+              .expand((g) => g.actions)
+              .any((a) => a.kind == AiActionKind.buyWeapon),
+          isTrue,
+        );
+      }
     }
   });
 

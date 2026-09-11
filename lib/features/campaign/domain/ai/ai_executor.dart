@@ -480,6 +480,7 @@ extension _AiCommands on CampaignState {
             0,
             GameConfig.cityUpgradeCosts[level - 1] - hero.politics,
           );
+          if (gold <= 0) return false;
           levels[action.city!] = level + 1;
           capacity +=
               (GameConfig.cityReserveCapacityPerLevel *
@@ -557,8 +558,9 @@ extension _AiCommands on CampaignState {
             AiActionKind.upgrade,
             AiActionKind.recruit,
             AiActionKind.buyWeapon,
-          ].contains(action.kind))
+          ].contains(action.kind)) {
         return false;
+      }
     }
     // 纯军务允许透支；包含招将、武器或升级的经营计划仍保留其现金底线。
     final militaryOnly = group.actions.every(

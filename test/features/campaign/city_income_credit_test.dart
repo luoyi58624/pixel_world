@@ -192,7 +192,7 @@ void main() {
     expect(c.defeated, isFalse);
   });
 
-  test('补兵和行军扎营持续透支，但招将武器及升级不允许透支', () {
+  test('补兵允许透支、行军扎营免费，但招将武器及升级不允许透支', () {
     final c = _game(gold: 1, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
     expect(c.buySoldiers(0, 4), isTrue);
@@ -205,25 +205,57 @@ void main() {
     final march = c.dispatchTo(hero, const GamePoint(1900, 200))!;
     final start = march.position;
     c.advance(10);
-    expect(c.gold, -4);
+    expect(c.gold, -3);
     expect(march.position, isNot(start));
     expect(march.phase, MarchPhase.marching);
     expect(march.supplyHalted, isFalse);
     expect(c.camp(hero.id), isTrue);
     final camp = march.position;
     c.advance(10);
-    expect(c.gold, -5);
+    expect(c.gold, -3);
     expect(march.position, camp);
     expect(c.moveTo(hero.id, const GamePoint(1800, 200)), isTrue);
     c.advance(1);
     expect(march.position, isNot(camp));
   });
 
+  test('旧存档粮草欠账不补扣、断粮标记不阻止恢复行军', () {
+    final c = _game(gold: 0);
+    final march = c.dispatchTo(
+      c.garrisonAt(0).first,
+      const GamePoint(1900, 200),
+    )!;
+    final saved = jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
+    for (final hero in saved['people'] as List) {
+      hero['supply'] = 99.9;
+    }
+    final old = (saved['marches'] as List).single;
+    old['halted'] = true;
+    old['phase'] = MarchPhase.camped.index;
+    final copy = CampaignSnapshots.restore(saved, c.world, _heroes, _weapons);
+    addTearDown(copy.dispose);
+    final restored = copy.marches[march.hero.id]!;
+    final origin = restored.position;
+    copy.advance(20);
+    expect(copy.gold, 0);
+    expect(restored.supplyHalted, isFalse);
+    expect(restored.position, isNot(origin));
+    expect(
+      copy.events
+          .forCountry(0)
+          .query()
+          .where((e) => e.kind == GameEventKind.supplyPaid),
+      isEmpty,
+    );
+  });
+
   test('AI资源计划可在负国库补已有守军，不额外招将或买武器', () {
     final c = _game(gold: 0, ai: true, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
     expect(c.buySoldiers(0, 1), isTrue);
-    for (var n = 0; n < 6; n++) c.advance(1);
+    for (var n = 0; n < 6; n++) {
+      c.advance(1);
+    }
     expect(c.reserveSoldiersFor(0), greaterThan(1));
     expect(c.gold, lessThan(-1));
     final events = c.events.forCountry(0).query();

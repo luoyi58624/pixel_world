@@ -45,7 +45,8 @@ class MineCommander implements PlayerCommander {
         .where((d) => c.cities[d.id]!.isPlayer)
         .toList();
     if (owned.isEmpty) return;
-    for (final march in c.marches.values.where((m) => m.hero.isPlayer).toList()) {
+    for (final march
+        in c.marches.values.where((m) => m.hero.isPlayer).toList()) {
       if (c.moveBlockReason(march.hero.id) != null) continue;
       final remaining = _waypoints[march.hero.id];
       if (march.phase == MarchPhase.camped &&
@@ -87,9 +88,8 @@ class MineCommander implements PlayerCommander {
         .toList();
     if (owned.isEmpty) return;
 
-    // 月俸 + 粮草的保守预留：不预支未来占城收益。
-    final abroad = c.marches.values.where((m) => m.hero.isPlayer).length;
-    final reserve = 12 + abroad * 10;
+    // 月俸的保守预留：不预支未来占城收益。
+    final reserve = math.max(12, c.salaryCost);
 
     final capacity = c.reserveCapacityFor(0);
     final reserveNow = c.reserveSoldiersFor(0);
@@ -160,17 +160,20 @@ class MineCommander implements PlayerCommander {
     final total = c.heroes.where((h) => h.isPlayer && h.health.alive).length;
     final cap = owned.length * 3 + 2;
     if (total > cap) {
-      final extra = c.heroes
-          .where(
-            (h) =>
-                h.isPlayer &&
-                h.health.alive &&
-                h.type != HeroType.protagonist &&
-                c.dismissalBlockReason(h) == null &&
-                c.marches.values.every((m) => m.hero != h),
-          )
-          .toList()
-        ..sort((a, b) => (a.combat * 4 + a.hp).compareTo(b.combat * 4 + b.hp));
+      final extra =
+          c.heroes
+              .where(
+                (h) =>
+                    h.isPlayer &&
+                    h.health.alive &&
+                    h.type != HeroType.protagonist &&
+                    c.dismissalBlockReason(h) == null &&
+                    c.marches.values.every((m) => m.hero != h),
+              )
+              .toList()
+            ..sort(
+              (a, b) => (a.combat * 4 + a.hp).compareTo(b.combat * 4 + b.hp),
+            );
       for (final hero in extra.take(total - cap)) {
         final gold = c.dismissHero(hero);
         if (gold != null) {
@@ -180,7 +183,7 @@ class MineCommander implements PlayerCommander {
     }
   }
 
-  /// 一次只派一位将领打一座城，且必须先满足静态余量和路费。
+  /// 一次只派一位将领打一座城，且必须先满足静态余量和经营预算。
   void _dispatchOne(CampaignState c, int second) {
     final owned = c.world.cities
         .where((d) => c.cities[d.id]!.isPlayer)
@@ -273,12 +276,8 @@ class MineCommander implements PlayerCommander {
       }
       if (best == null) continue;
 
-      // 路费 + 交战余量 + 回程，一次性预留。
-      final guards = c.garrisonAt(best.id);
-      final keep =
-          20 + ((bestSeconds * 2 + 45 * (1 + math.min(3, guards.length))) /
-                  GameConfig.fieldSupplySecondsPerGold)
-              .ceil();
+      // 行军免费，只保留既有的经营周转金。
+      const keep = 20;
       if (c.gold < keep + 8) continue;
 
       final first = bestRoute.first;

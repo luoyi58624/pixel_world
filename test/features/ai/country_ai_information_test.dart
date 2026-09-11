@@ -21,7 +21,7 @@ void main() {
     final enemy = a.aiObservationFor(1).hero(ma.hero.id)!;
     expect(enemy.destination, isNull);
     expect(enemy.targetCity, isNull);
-    expect(enemy.supplyDue, 0);
+    expect(enemy.toJson(), isNot(contains('due')));
     expect(enemy.returnPath, isEmpty);
   });
   test('纯规划模块没有战斗执行器、Flutter、随机采样或旧逐轮试打依赖', () {

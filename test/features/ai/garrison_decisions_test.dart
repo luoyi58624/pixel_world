@@ -25,7 +25,9 @@ void main() {
       recruitment: true,
       gold: 1000,
       level: 3,
-      overrides: {18: {'combat': 25, 'maxHp': 90}},
+      overrides: {
+        18: {'combat': 25, 'maxHp': 90},
+      },
     );
     addTearDown(c.dispose);
     c.settledMonths = 0; // 此例只验既有编制，后期追加强攻补员由独立测试覆盖。
@@ -68,7 +70,6 @@ void main() {
           deadlineTick: 99999,
           committedUntil: 0,
         ),
-        30,
       ),
       isFalse,
     );
@@ -97,7 +98,6 @@ void main() {
           deadlineTick: 99999,
           committedUntil: 0,
         ),
-        30,
       ),
       isTrue,
     );
@@ -111,7 +111,6 @@ void main() {
           deadlineTick: 99999,
           committedUntil: 0,
         ),
-        30,
       ),
       isFalse,
     );

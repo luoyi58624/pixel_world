@@ -32,22 +32,16 @@ abstract final class GameConfig {
   /// 待签约结果包含抽取当月在内保留两个月，第三个月开始时回到共享池。
   static const heroOfferValidMonths = 2;
 
-  /// 每位在外将领支付一金币粮草所需的行军或交战秒数。
-  static const fieldSupplySecondsPerGold = 10.0;
-
-  /// 扎营与行军按相同速率消耗粮草。
-  static const campSupplyRate = 1.0;
-
   /// 同国 AI 将领实际离城的最短间隔，单位为游戏秒。
   static const aiDepartureInterval = 2.0;
 
-  /// 电脑在已预留粮草和月俸之外保留的应急金币。
+  /// 电脑在已预留月俸之外保留的应急金币。
   static const countryAiEmergencyGold = 5;
 
   /// 预算至少覆盖一个月再加这段时间，避免刚结算就再次花空国库。
-  static const countryAiSupplySafetySeconds = 30.0;
+  static const countryAiBudgetSafetySeconds = 30.0;
 
-  /// 每位守将预留的交战时间，与行军时间一起计入出征粮草预算。
+  /// 每位守将预估的交战时间，用于任务时限，不产生费用。
   static const countryAiBattleBudgetSeconds = 30.0;
 
   /// 进攻目标的距离衰减尺度，单位秒；越小越偏向短途进攻。

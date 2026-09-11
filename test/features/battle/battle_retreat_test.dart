@@ -143,7 +143,7 @@ void main() {
     expect(c.cities[0]!.level, 3);
   });
 
-  test('国家预算覆盖完整原路返程，不能只预留当前位置直线回城的粮草', () {
+  test('完整原路返程仍保留，但远途不再增加粮草预算', () {
     final c = retreatCampaign();
     final hero = retreatHeroById(c, 0);
     const a = GamePoint(1000, 500), b = GamePoint(200, 500);
@@ -162,7 +162,11 @@ void main() {
         estimateMarchSeconds(c.world, b, a) +
         estimateMarchSeconds(c.world, a, origin);
     expect(expected, greaterThan(90));
-    expect(c.aiBudgetFor(0).planningSeconds, closeTo(expected, .01));
+    expect(c.aiBudgetFor(0).planningSeconds, 90);
+    expect(
+      c.aiObservationFor(0).hero(hero.id)!.returnPath.length,
+      greaterThan(1),
+    );
   });
 
   test('野战任一方可撤退，同一对手未分离前不会立即再次交战', () {
@@ -202,7 +206,7 @@ void main() {
     expect(c.marches[hero.id], isNull);
   });
 
-  test('返程粮草允许透支，零或负国库不会阻止继续返城', () {
+  test('返程免费，少量金币不会阻止继续返城', () {
     final c = retreatCampaign(gold: 1);
     final battle = startRetreatSiege(c);
     final hero = battle.attacker;
@@ -211,7 +215,7 @@ void main() {
     final march = c.marches[hero.id]!;
     final target = march.target;
     c.advance(12);
-    expect(c.gold, lessThanOrEqualTo(0));
+    expect(c.gold, 1);
     expect(march.supplyHalted, isFalse);
     expect(march.phase, MarchPhase.marching);
     final stopped = march.position;
