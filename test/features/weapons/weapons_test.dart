@@ -21,28 +21,40 @@ BattleArmy _army(String id) => BattleArmy(
 );
 
 void main() {
-  test('原十二种武器保持价格伤害，第五年恢复三种高价攻城武器', () {
+  test('商店顺序价格从2逐件加1，伤害从20逐件加5，死枪保留互刺', () {
     final catalog = testWeaponCatalog();
-    final evidence = jsonDecode(
-      File('docs/nes_weapons_evidence.json').readAsStringSync(),
-    );
     expect(catalog.weapons.length, 15);
     expect(catalog.carryLimit, 1);
-    expect(catalog.shopWeapons.map((w) => w.price), [
-      ...List.generate(12, (i) => (i + 1) * 5),
-      80,
-      120,
-      160,
+    expect(
+      catalog.shopWeapons.map((w) => w.price),
+      List.generate(15, (i) => i + 2),
+    );
+    expect(catalog.shopWeapons.map((w) => w.id), [
+      0,
+      9,
+      1,
+      10,
+      2,
+      11,
+      3,
+      12,
+      4,
+      13,
+      5,
+      14,
+      6,
+      7,
+      8,
+    ]);
+    expect(catalog.shopWeapons.map((w) => w.damage), [
+      ...List.generate(14, (i) => 20 + i * 5),
+      255,
     ]);
     expect(catalog.weapons.values.where((w) => w.shopEnabled).length, 15);
-    for (final row in evidence['examples']) {
-      if ([6, 7, 8].contains(row['id'])) continue;
-      expect(catalog.weapons[row['id']]!.damage, (row['damage'] as int) + 5);
-    }
     expect(catalog.weapons[0]!.name, '箭');
-    expect(catalog.weapons[0]!.price, 5);
+    expect(catalog.weapons[0]!.price, 2);
     expect(catalog.shopWeapons.skip(12).map((w) => w.id), [6, 7, 8]);
-    expect(catalog.shopWeapons.skip(12).map((w) => w.damage), [120, 160, 255]);
+    expect(catalog.shopWeapons.skip(12).map((w) => w.damage), [80, 85, 255]);
     expect(catalog.shopWeapons.skip(12).map((w) => w.selfDamage), [0, 0, 255]);
     expect(catalog.weapons[8]!.effectLabel, contains('同归于尽'));
     expect(
@@ -53,7 +65,28 @@ void main() {
     );
   });
 
-  test('恢复的武器第五年才能买，真实支付高价且仍只能携带一件', () {
+  test('两金币的箭恰好清掉一名满血小兵，不伤将领', () {
+    final arrow = testWeaponCatalog().weapons[0]!;
+    final sim = BattleSimulation(
+      attacker: _army('a'),
+      defender: _army('b'),
+      seed: 17,
+      defenderCityLevel: 5,
+    );
+    expect(arrow.price, 2);
+    expect(GameConfig.soldierRecruitCost, 1);
+    sim.advance(GameConfig.battleFormationFrames / 60 + 1 / 60);
+    expect(sim.useWeapon(BattleSide.attacker, arrow), isTrue);
+    while (sim.weaponStrike != null) {
+      sim.advance(1 / 60);
+    }
+    expect(sim.clashes, 0);
+    expect(sim.defender.soldiers.where((s) => s.alive).length, 3);
+    expect(sim.defender.soldiers.fold<double>(0, (n, s) => n + s.hp), 60);
+    expect(sim.defender.general.hp, 95);
+  });
+
+  test('第五年武器仍按原年份开放，真实支付新价格且仍只能携带一件', () {
     final c = weaponStrategyCampaign(gold: 1000);
     addTearDown(c.dispose);
     for (final id in [6, 7, 8]) {
@@ -183,7 +216,7 @@ void main() {
     for (var i = 0; i < 12; i++) {
       expect(c.buyWeapon(0, countryId: 1), isTrue);
     }
-    expect(c.goldFor(1), 25);
+    expect(c.goldFor(1), 72); // 一件矛4金币，十二件箭各2金币。
     expect(c.weaponInventoryFor(1), {1: 1, 0: 12});
     expect(c.weaponStorageUsed(1), 13);
     expect(a.weaponIds, isEmpty);
@@ -191,7 +224,7 @@ void main() {
     expect(c.buyWeapon(0, countryId: 9), isFalse);
     c.cities[2]!.ownerCountryId = 1;
     expect(c.buyWeapon(1, countryId: 1), isTrue);
-    expect(c.goldFor(1), 10);
+    expect(c.goldFor(1), 68);
     expect(() => c.weaponInventoryFor(1)[0] = 99, throwsUnsupportedError);
     final stocked = weaponStrategyCampaign(
       catalog: testWeaponCatalog(
@@ -269,7 +302,7 @@ void main() {
     }
     expect(
       battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
-      before - 25,
+      before - 20,
     );
     expect(hero.weaponIds, isEmpty);
     final sim = BattleSimulation(

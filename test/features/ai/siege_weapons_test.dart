@@ -21,6 +21,9 @@ void main() {
     addTearDown(c.dispose);
     c.settledMonths = 48;
     final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
+    expect(rules.weapons[7]!.price, 15);
+    expect(rules.weapons[7]!.damage, 85);
+    expect(rules.weapons[8]!.price, 16);
     final work = AiWorkBudget(rules.tuning),
         routes = AiRoutes(
           c.aiMapForTesting(),
@@ -50,10 +53,10 @@ void main() {
     );
     expect(
       planner.raidTeamSize(1, view.city(2)!, ledger),
-      3,
-      reason: '按强击手120而非死枪160核算，不能高估主力武器费',
+      4,
+      reason: '单件强击手降至15金币，同样国库可负担原有四将编队上限',
     );
-    expect(planner.desiredAssaultHeroes(ledger), 3);
+    expect(planner.desiredAssaultHeroes(ledger), 4);
   });
 
   test('资源决策真实购买第五年强击手，不给攻城高级将领买同归于尽武器', () {

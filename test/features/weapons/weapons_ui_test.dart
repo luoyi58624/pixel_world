@@ -70,7 +70,7 @@ void main() {
       expect(find.byKey(const ValueKey('warehouse-weapon-14')), findsOneWidget);
       final before = c.campaign.gold;
       await _tap(tester, 'buy-weapon-0');
-      expect(c.campaign.gold, before - 5);
+      expect(c.campaign.gold, before - 2);
       expect(c.campaign.weaponStockFor(0, 0), 1);
       expect(c.selectedWeaponCount, 0);
       expect(hero.weaponIds, isEmpty);
