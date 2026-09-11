@@ -66,6 +66,32 @@ void main() {
       expect(find.text('士气'), findsOneWidget);
       expect(find.byKey(const ValueKey('weapon-library')), findsOneWidget);
       expect(find.byKey(const ValueKey('weapon-shop-toggle')), findsNothing);
+      c.campaigns[0] = CampaignState.fromRom(
+        c.world,
+        painter.assets.heroCatalog,
+        weaponCatalog: painter.assets.weaponCatalog,
+        aiEnabled: false,
+        startingGold: 1000,
+      )..settledMonths = 48;
+      c.openCity(c.world.cities.first);
+      await tester.pump();
+      for (final id in [6, 7, 8]) {
+        expect(
+          tester
+              .widget<IconButton>(find.byKey(ValueKey('buy-weapon-$id')))
+              .onPressed,
+          isNotNull,
+        );
+      }
+      expect(find.textContaining('同归于尽'), findsOneWidget);
+      final buyDeath = find.byKey(const ValueKey('buy-weapon-8'));
+      await tester.ensureVisible(buyDeath);
+      await tester.pump();
+      final beforeDeath = c.campaign.gold;
+      await tester.tap(buyDeath);
+      await tester.pump();
+      expect(c.campaign.gold, beforeDeath - 160);
+      expect(c.campaign.weaponStockFor(0, 8), 1);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

@@ -99,16 +99,28 @@ class OperationPlanner {
     CombatAssessor assessor,
   ) {
     if (!hero.stationed) return hero.weapons.isEmpty ? [] : [hero.weapons];
+    final candidates = _siegeWeapons(ledger, hero: hero);
+    if (candidates.isEmpty) return [];
+    // 不因暂时买不起便降成裸装或低级装备，后台先筹款采购，再执行已核算的出征。
+    return [
+      [candidates.first.id],
+    ];
+  }
+
+  // 配装与报价共用候选，不能把不适合主力携带的同归于尽武器当成必备开销。
+  List<AiWeapon> _siegeWeapons(AiLedger ledger, {AiHero? hero}) {
     final candidates =
         rules.weapons.values
             .where(
               (w) =>
                   ((ledger.stock[w.id] ?? 0) > 0 ||
                       w.shopEnabled && _view.year >= w.unlockYear) &&
-                  w.selfDamage <
-                      hero.hp +
-                          rules.integer('soldierLimit') *
-                              rules.integer('soldierHp'),
+                  (hero == null
+                      ? w.selfDamage == 0
+                      : w.selfDamage <
+                            hero.hp +
+                                rules.integer('soldierLimit') *
+                                    rules.integer('soldierHp')),
             )
             .toList()
           ..sort((a, b) {
@@ -117,11 +129,7 @@ class OperationPlanner {
             );
             return power != 0 ? power : a.price.compareTo(b.price);
           });
-    if (candidates.isEmpty) return [];
-    // 不因暂时买不起便降成裸装或低级装备，后台先筹款采购，再执行已核算的出征。
-    return [
-      [candidates.first.id],
-    ];
+    return candidates;
   }
 
   /// 后期按现有强攻将领与资金准备二至四人轮攻，不因凑不齐满队而永远停战。
@@ -137,9 +145,7 @@ class OperationPlanner {
         _view.garrison(target.id).length < 2) {
       return minimum;
     }
-    final price = rules.weapons.values
-        .where((w) => w.shopEnabled && _view.year >= w.unlockYear)
-        .fold<int>(0, (n, w) => math.max(n, w.price));
+    final price = _siegeWeapons(ledger, hero: lead).firstOrNull?.price ?? 0;
     final strongest = _view.heroes
         .where((h) => h.country == _view.country && !h.marked)
         .fold<int>(0, (n, h) => math.max(n, h.combat));
@@ -178,9 +184,7 @@ class OperationPlanner {
   /// 资金充足时补充二至四名可出战主力，不把普通留守人数误当作攻城队伍已经备齐。
   int desiredAssaultHeroes(AiLedger ledger) {
     if (_view.year < 3) return 1;
-    final price = rules.weapons.values
-        .where((w) => w.shopEnabled && _view.year >= w.unlockYear)
-        .fold<int>(0, (n, w) => math.max(n, w.price));
+    final price = _siegeWeapons(ledger).firstOrNull?.price ?? 0;
     final funded =
         math.max(
           0,

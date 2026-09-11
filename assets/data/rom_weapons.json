@@ -174,6 +174,94 @@
       "unlockYear": 4
     },
     {
+      "id": 6,
+      "name": "台风",
+      "price": 80,
+      "damage": 120,
+      "selfDamage": 0,
+      "romPrice": 30,
+      "romDamage": 80,
+      "shopEnabled": true,
+      "effectId": 6,
+      "encodedName": [
+        57,
+        72,
+        73,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98572,
+        "price": 98495,
+        "packedEffect": 98510,
+        "damage": 92540
+      },
+      "animationFrames": 142,
+      "unlockYear": 5,
+      "romMinimumCities": 7
+    },
+    {
+      "id": 7,
+      "name": "强击手",
+      "price": 120,
+      "damage": 160,
+      "selfDamage": 0,
+      "romPrice": 30,
+      "romDamage": 160,
+      "shopEnabled": true,
+      "effectId": 7,
+      "encodedName": [
+        57,
+        74,
+        75,
+        76,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98578,
+        "price": 98496,
+        "packedEffect": 98511,
+        "damage": 92541
+      },
+      "animationFrames": 219,
+      "unlockYear": 5,
+      "romMinimumCities": 7
+    },
+    {
+      "id": 8,
+      "name": "死枪",
+      "price": 160,
+      "damage": 255,
+      "selfDamage": 255,
+      "romPrice": 30,
+      "romDamage": 255,
+      "shopEnabled": true,
+      "effectId": 8,
+      "encodedName": [
+        57,
+        77,
+        67,
+        254,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98585,
+        "price": 98497,
+        "packedEffect": 98512,
+        "damage": 92542
+      },
+      "animationFrames": 118,
+      "unlockYear": 5,
+      "romMinimumCities": 7
+    },
+    {
       "id": 9,
       "name": "斧",
       "price": 10,
@@ -354,6 +442,6 @@
     "damage": "DE8D–DE92 取高五位，bank5 A92A 读取 A966+效果ID，调用 E40C 直接伤害。",
     "selfDamage": "bank5 A934–A93F：效果8追加对己方255点伤害。",
     "consume": "DE82–DE8A：先读取705D+英雄ID×3+槽号，再以FF清空。",
-    "gameplay": "每名将领最多携带一件，用完后战斗中不补装；十二种武器伤害在原值上增加5，售价按商店顺序从5起每种增加5。商店每行三种，每年解锁一行，共四行。原始价格和伤害保留在romPrice、romDamage中。"
+    "gameplay": "每名将领最多携带一件，用完后战斗中不补装；原有十二种武器保持现价与伤害。第五年恢复台风（80金币、120伤害）、强击手（120金币、160伤害）、死枪（160金币、双方255伤害，通常同归于尽）。商店每行三种，每年解锁一行，共五行。原始价格和伤害保留在romPrice、romDamage中。"
   }
 }

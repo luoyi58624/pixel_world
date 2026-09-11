@@ -21,29 +21,102 @@ BattleArmy _army(String id) => BattleArmy(
 );
 
 void main() {
-  test('十二种商店武器全部开放，台风、强击手和死枪不进入游戏目录', () {
+  test('原十二种武器保持价格伤害，第五年恢复三种高价攻城武器', () {
     final catalog = testWeaponCatalog();
     final evidence = jsonDecode(
       File('docs/nes_weapons_evidence.json').readAsStringSync(),
     );
-    expect(catalog.weapons.length, 12);
+    expect(catalog.weapons.length, 15);
     expect(catalog.carryLimit, 1);
-    expect(catalog.shopWeapons.map((w) => w.price),
-        List.generate(12, (i) => (i + 1) * 5));
-    expect(catalog.weapons.values.where((w) => w.shopEnabled).length, 12);
+    expect(catalog.shopWeapons.map((w) => w.price), [
+      ...List.generate(12, (i) => (i + 1) * 5),
+      80,
+      120,
+      160,
+    ]);
+    expect(catalog.weapons.values.where((w) => w.shopEnabled).length, 15);
     for (final row in evidence['examples']) {
       if ([6, 7, 8].contains(row['id'])) continue;
       expect(catalog.weapons[row['id']]!.damage, (row['damage'] as int) + 5);
     }
     expect(catalog.weapons[0]!.name, '箭');
     expect(catalog.weapons[0]!.price, 5);
-    expect(catalog.weapons.keys, isNot(contains(anyOf(6, 7, 8))));
+    expect(catalog.shopWeapons.skip(12).map((w) => w.id), [6, 7, 8]);
+    expect(catalog.shopWeapons.skip(12).map((w) => w.damage), [120, 160, 255]);
+    expect(catalog.shopWeapons.skip(12).map((w) => w.selfDamage), [0, 0, 255]);
+    expect(catalog.weapons[8]!.effectLabel, contains('同归于尽'));
     expect(
       catalog.weapons.values.every(
-        (w) => w.unlockYear >= 1 && w.unlockYear <= 4,
+        (w) => w.unlockYear >= 1 && w.unlockYear <= 5,
       ),
       isTrue,
     );
+  });
+
+  test('恢复的武器第五年才能买，真实支付高价且仍只能携带一件', () {
+    final c = weaponStrategyCampaign(gold: 1000);
+    addTearDown(c.dispose);
+    for (final id in [6, 7, 8]) {
+      expect(c.buyWeapon(id, countryId: 1), isFalse);
+    }
+    c.settledMonths = 48;
+    for (final id in [6, 7, 8]) {
+      final before = c.goldFor(1), price = c.weaponCatalog.weapons[id]!.price;
+      expect(c.buyWeapon(id, countryId: 1), isTrue);
+      expect(c.goldFor(1), before - price);
+      expect(c.weaponStockFor(1, id), 1);
+    }
+    final hero = weaponHero(c, 0);
+    expect(
+      c.dispatch(
+        hero,
+        c.world.cities[2],
+        countryId: 1,
+        weaponSlots: {0: 6, 1: 7},
+      ),
+      isNull,
+    );
+    expect(c.weaponStockFor(1, 6), 1);
+    final march = c.dispatch(
+      hero,
+      c.world.cities[2],
+      countryId: 1,
+      weaponSlots: {0: 7},
+    );
+    expect(march, isNotNull);
+    expect(hero.weaponIds, [7]);
+    expect(c.weaponStockFor(1, 7), 0);
+  });
+
+  test('正式死枪同归于尽，不占领也不降低本轮城防', () {
+    final c = weaponStrategyCampaign(
+      gold: 1000,
+      targetLevel: 5,
+      targetHeroes: [3],
+    );
+    addTearDown(c.dispose);
+    c.settledMonths = 48;
+    expect(c.buyWeapon(8, countryId: 1), isTrue);
+    final hero = weaponHero(c, 0);
+    final march = c.dispatch(
+      hero,
+      c.world.cities[2],
+      countryId: 1,
+      weaponSlots: {0: 8},
+    )!;
+    march.position = march.destination;
+    c.advance(1 / 60);
+    final battle = c.battles[2]!;
+    for (var n = 0; n < 3000 && battle.isActive; n++) {
+      c.advance(1 / 60);
+    }
+    expect(battle.isActive, isFalse);
+    expect(battle.simulation.result, BattleResult.draw);
+    expect(battle.attacker.health.alive, isFalse);
+    expect(battle.defender.health.alive, isFalse);
+    expect(c.cities[2]!.ownerCountryId, 2);
+    expect(c.cities[2]!.level, 5);
+    expect(c.weaponStockFor(1, 8), 0);
   });
 
   for (final side in BattleSide.values) {
@@ -157,10 +230,7 @@ void main() {
     expect(c.dispatch(a, target, weaponSlots: {0: 0}), isNull);
     expect(c.weaponStockFor(1, 0), 3);
     expect(c.reserveSoldiersFor(1), troops);
-    expect(
-      c.dispatch(a, target, countryId: 1, weaponSlots: {0: 0}),
-      isNotNull,
-    );
+    expect(c.dispatch(a, target, countryId: 1, weaponSlots: {0: 0}), isNotNull);
     expect(a.weaponIds, [0]);
     expect(
       c.dispatch(b, target, countryId: 1, weaponSlots: {0: 0, 1: 0}),

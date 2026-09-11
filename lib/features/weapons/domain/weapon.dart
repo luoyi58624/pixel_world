@@ -45,12 +45,14 @@ class WeaponDefinition {
   /// 第几年允许在商店购买。
   final int unlockYear;
 
-  /// 原版三种事件武器不在普通商店销售，可通过初始库存配置取得。
+  /// 是否允许商店销售，正式目录的三种原事件武器在第五年开放。
   final bool shopEnabled;
 
   /// 紧凑的武器作用说明。
   String get effectLabel => selfDamage == 0
       ? '伤害 $damage'
+      : damage == 255 && selfDamage == 255
+      ? '双方 255 伤害\n通常同归于尽'
       : selfDamage == damage
       ? '双方 $damage 伤害'
       : '伤害 $damage，反噬 $selfDamage';
