@@ -278,6 +278,11 @@ class BattleSimulation {
       ],
       seed: seed,
       recoilDifferenceScale: GameConfig.battleRecoilDifferenceScale,
+      defenderCityAttackBonus: math.min(
+        defenderAttackBonus,
+        63 - _combat(defender),
+      ),
+      cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
       wallDamageScale: GameConfig.battleWallDamageScale,
     );
     attackerMorale = BattleMorale(_kernel.ram[0xae]);

@@ -154,7 +154,7 @@ abstract final class GameConfig {
           .clamp(1, maxCityLevel);
 
   /// 依次为一升二、二升三、三升四、四升五的基础费用，实付再扣将领内政。
-  static const List<int> cityUpgradeCosts = [30, 50, 100, 160];
+  static const List<int> cityUpgradeCosts = [30, 60, 80, 100];
 
   /// 每一级城防贡献给全国兵员上限的容量，一级四人、二级八人。
   static const cityReserveCapacityPerLevel = 4;
@@ -195,6 +195,9 @@ abstract final class GameConfig {
 
   /// 缩小碰撞强度差对击退速度的影响，避免少一个兵立即变成持续撞墙。
   static const battleRecoilDifferenceScale = 0.25;
+
+  /// 城防攻击参与击退差值的比例，伤害仍使用完整城防攻击。
+  static const cityDefenseRecoilScale = 0.25;
 
   /// 原版撞墙使用双倍攻击强度，折半后按普通攻击强度追加一次伤害。
   static const battleWallDamageScale = 0.5;

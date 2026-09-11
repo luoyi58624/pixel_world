@@ -88,6 +88,8 @@ class NesBattleKernel {
     List<int>? moraleAttack,
     List<int>? initialMorale,
     this.recoilDifferenceScale = 1,
+    this.defenderCityAttackBonus = 0,
+    this.cityDefenseRecoilScale = 1,
     this.wallDamageScale = 1,
     this.originalSoldierRules = false,
   }) {
@@ -96,6 +98,13 @@ class NesBattleKernel {
         !wallDamageScale.isFinite ||
         wallDamageScale < 0) {
       throw ArgumentError('击退与撞墙倍率必须是非负有限数');
+    }
+    if (defenderCityAttackBonus < 0 ||
+        defenderCityAttackBonus > 63 ||
+        !cityDefenseRecoilScale.isFinite ||
+        cityDefenseRecoilScale < 0 ||
+        cityDefenseRecoilScale > 1) {
+      throw ArgumentError('城防攻击必须为0到63，击退比例必须为0到1');
     }
     for (final entry in nesBattleBlocks.entries) {
       final hex = entry.value;
@@ -169,6 +178,12 @@ class NesBattleKernel {
 
   /// 强度差进入反弹查表前的倍率；1 保持原始 ROM，较小值平滑少量属性差。
   final double recoilDifferenceScale;
+
+  /// 守方实际获得的城防攻击，已扣除将领攻击上限造成的截断。
+  final int defenderCityAttackBonus;
+
+  /// 城防攻击对击退的贡献比例，不改变伤害、士气和兵员加成。
+  final double cityDefenseRecoilScale;
 
   /// 撞墙输入强度的倍率；1 保持原版双倍强度，0.5 等于一次普通接触强度。
   final double wallDamageScale;
@@ -392,8 +407,11 @@ class NesBattleKernel {
         wallHits[1]++;
       }
       // 只调整新游戏的数值入口，保留反弹、减速、回冲与阵亡的原始指令。
-      if (_pc == 0xe649 && recoilDifferenceScale != 1) {
-        _a = (_x + (_a - _x) * recoilDifferenceScale).round().clamp(0, 255);
+      if (_pc == 0xe3db || _pc == 0xe3e6) {
+        // 两次反弹调用方向相反；只削减城防在强度差中的份额，保留伤害寄存器。
+        final discount = defenderCityAttackBonus * (1 - cityDefenseRecoilScale);
+        final difference = _a - _x + (_pc == 0xe3db ? discount : -discount);
+        _a = (_x + difference * recoilDifferenceScale).round().clamp(0, 255);
       }
       if ((_pc == 0xe54e || _pc == 0xe5e7) && wallDamageScale != 1) {
         _a = _nz((_a * wallDamageScale).round().clamp(0, 255));
