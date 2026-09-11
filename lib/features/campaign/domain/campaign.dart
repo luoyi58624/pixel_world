@@ -1166,14 +1166,17 @@ class CampaignState {
       ? heroesAt(cityId).fold(0, (sum, hero) => sum + hero.salary)
       : 0;
 
-  /// 补兵允许透支国库，数量仍受全国容量和城池归属限制。
+  /// 补兵必须付现，数量同时受国库余额、全国容量和城池归属限制。
   int maxSoldierPurchase(int cityId, {int countryId = 0}) {
     if (isPaused) return 0;
     final city = cities[cityId];
     if (defeated || city == null || city.ownerCountryId != countryId) return 0;
-    return math.max(
-      0,
-      reserveCapacityFor(countryId) - reserveSoldiersFor(countryId),
+    return math.min(
+      math.max(0, goldFor(countryId) ~/ GameConfig.soldierRecruitCost),
+      math.max(
+        0,
+        reserveCapacityFor(countryId) - reserveSoldiersFor(countryId),
+      ),
     );
   }
 
@@ -1320,10 +1323,13 @@ class CampaignState {
         GameConfig.heroDrawCost +
         (countryId == 0
             ? 0
-            : _heroPool.values
-                  .map((h) => h.salaryFor(countryId))
-                  .reduce(math.max));
-    if (goldFor(countryId) < budget) {
+            : math.max(
+                1,
+                _heroPool.values
+                    .map((h) => h.salaryFor(countryId))
+                    .reduce(math.max),
+              ));
+    if (goldFor(countryId) <= 0 || goldFor(countryId) < budget) {
       return countryId == 0 ? '金币不足' : '抽取及签约资金不足，需要 $budget 金币';
     }
     return null;
@@ -1385,6 +1391,7 @@ class CampaignState {
       offer.countryId == countryId &&
       identical(_recruitmentOffers[countryId], offer) &&
       cities[offer.cityId]?.ownerCountryId == countryId &&
+      goldFor(countryId) > 0 &&
       goldFor(countryId) >= offer.initialSalary &&
       !heroes.any((hero) => hero.sourceId == offer.hero.id);
 
@@ -1686,7 +1693,9 @@ class CampaignState {
     final window = upgradeWindowBlockReason(cityId);
     if (window != null) return window;
     final cost = upgradeCostFor(cityId, hero, countryId: countryId)!;
-    return goldFor(countryId) < cost ? '金币不足，需要 $cost 金币' : null;
+    return goldFor(countryId) <= 0 || goldFor(countryId) < cost
+        ? '金币不足，需要 $cost 金币'
+        : null;
   }
 
   /// 由指定驻城将领主持升级，费用减去其内政，最低为零；将领不被消耗。

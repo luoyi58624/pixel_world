@@ -32,7 +32,7 @@ extension CampaignWeapons on CampaignState {
     if (!weaponUnlocked(countryId, weapon)) {
       return weapon.shopEnabled ? '第 ${weapon.unlockYear} 年解锁' : '武器未上架';
     }
-    if (goldFor(countryId) < weapon.price) {
+    if (goldFor(countryId) <= 0 || goldFor(countryId) < weapon.price) {
       return '金币不足';
     }
     return null;

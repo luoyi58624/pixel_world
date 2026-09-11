@@ -153,7 +153,7 @@ void main() {
       Harvest.poor,
     ]);
     expect(bill.cityIncomes.map((b) => b.income), [20, 25, -10]);
-    expect(c.gold, 100 + 45 - 15);
+    expect(c.gold, 100 + 45 - 18);
     expect(random.bounds, [4, 4, 26, 4, 26, 4]);
     final event = c.events
         .forCountry(0)
@@ -187,17 +187,22 @@ void main() {
     final c = _game(gold: 1, random: _Sequence([2, 25, 0]));
     c.advance(60);
     expect(c.lastSettlementFor(0)!.cityIncomes.single.income, -10);
-    expect(c.lastSettlementFor(0)!.netIncome, -15);
-    expect(c.gold, -14);
+    expect(c.lastSettlementFor(0)!.netIncome, -18);
+    expect(c.gold, -17);
     expect(c.defeated, isFalse);
   });
 
-  test('补兵允许透支、行军扎营免费，但招将武器及升级不允许透支', () {
+  test('补兵最多花完余额，零余额不能购买，行军扎营仍免费', () {
     final c = _game(gold: 1, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
-    expect(c.buySoldiers(0, 4), isTrue);
-    expect(c.gold, -3);
-    expect(c.maxSoldierPurchase(0), c.reserveCapacityFor(0) - 4);
+    expect(c.maxSoldierPurchase(0), 1);
+    expect(c.buySoldiers(0, 4), isFalse);
+    expect(c.gold, 1);
+    expect(c.reserveSoldiersFor(0), 0);
+    expect(c.buySoldiers(0, 1), isTrue);
+    expect(c.gold, 0);
+    expect(c.maxSoldierPurchase(0), 0);
+    expect(c.buySoldiers(0, 1), isFalse);
     expect(c.buyWeapon(0), isFalse);
     expect(c.drawHero(0), isNull);
     final hero = c.garrisonAt(0).first;
@@ -205,14 +210,14 @@ void main() {
     final march = c.dispatchTo(hero, const GamePoint(1900, 200))!;
     final start = march.position;
     c.advance(10);
-    expect(c.gold, -3);
+    expect(c.gold, 0);
     expect(march.position, isNot(start));
     expect(march.phase, MarchPhase.marching);
     expect(march.supplyHalted, isFalse);
     expect(c.camp(hero.id), isTrue);
     final camp = march.position;
     c.advance(10);
-    expect(c.gold, -3);
+    expect(c.gold, 0);
     expect(march.position, camp);
     expect(c.moveTo(hero.id, const GamePoint(1800, 200)), isTrue);
     c.advance(1);
@@ -249,15 +254,46 @@ void main() {
     );
   });
 
-  test('AI资源计划可在负国库补已有守军，不额外招将或买武器', () {
+  test('月结负债后所有购买停止，但已有军队可继续行军', () {
+    final c = _game(gold: 0, random: _Sequence([2, 25, 0]));
+    c.advance(60);
+    expect(c.gold, -18);
+    final soldiers = c.reserveSoldiersFor(0), people = c.heroes.length;
+    final hero = c.garrisonAt(0).first;
+    expect(c.maxSoldierPurchase(0), 0);
+    expect(c.buySoldiers(0, 1), isFalse);
+    expect(c.buyWeapon(0), isFalse);
+    expect(c.drawHero(0), isNull);
+    expect(c.upgradeCity(0, hero: hero), isFalse);
+    expect(c.gold, -18);
+    expect(c.reserveSoldiersFor(0), soldiers);
+    expect(c.heroes.length, people);
+    final march = c.dispatchTo(hero, const GamePoint(1900, 200))!;
+    final start = march.position;
+    c.advance(10);
+    expect(march.position, isNot(start));
+    expect(c.gold, -18);
+  });
+
+  test('抽将后余额不足不能签约，候选与国库保持原状', () {
+    final c = _game(gold: 5, random: _Sequence([]));
+    final offer = c.drawHero(0)!;
+    expect(c.gold, 0);
+    expect(c.canSignHero(offer), isFalse);
+    expect(c.signHero(offer), isNull);
+    expect(c.recruitmentOffer, same(offer));
+    expect(c.gold, 0);
+  });
+
+  test('AI零余额不补兵、不招将也不买武器', () {
     final c = _game(gold: 0, ai: true, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
-    expect(c.buySoldiers(0, 1), isTrue);
+    expect(c.buySoldiers(0, 1), isFalse);
     for (var n = 0; n < 6; n++) {
       c.advance(1);
     }
-    expect(c.reserveSoldiersFor(0), greaterThan(1));
-    expect(c.gold, lessThan(-1));
+    expect(c.reserveSoldiersFor(0), 0);
+    expect(c.gold, 0);
     final events = c.events.forCountry(0).query();
     expect(
       events.where(
@@ -269,15 +305,50 @@ void main() {
     );
   });
 
-  test('只防守的验收玩家也可透支补兵，不因此出击或多招将', () {
-    final c = _game(gold: 0, random: _Sequence([]));
+  test('只防守的验收玩家只补买得起的士兵，不透支或改变军队规模', () {
+    final c = _game(gold: 2, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
     final count = c.heroes.length;
     DefensiveCommander().decide(c, 0);
-    expect(c.reserveSoldiersFor(0), 12);
-    expect(c.gold, -12);
+    expect(c.reserveSoldiersFor(0), 2);
+    expect(c.gold, 0);
+    DefensiveCommander().decide(c, 5);
+    expect(c.reserveSoldiersFor(0), 2);
+    expect(c.gold, 0);
     expect(c.heroes.length, count);
     expect(c.marches, isEmpty);
+  });
+
+  test('最近版本旧档更新指定月俸，不追扣历史工资，回放保留旧值', () {
+    final c = _game(gold: 77);
+    final saved = jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
+    saved['payrollVersion'] = 1;
+    for (final hero in saved['people'] as List) {
+      hero['salary'] = 5;
+    }
+    final copy = CampaignSnapshots.restore(saved, c.world, _heroes, _weapons);
+    final replay = CampaignSnapshots.restore(
+      saved,
+      c.world,
+      _heroes,
+      _weapons,
+      replay: true,
+    );
+    addTearDown(copy.dispose);
+    addTearDown(replay.dispose);
+    for (final entry in {40: 8, 0: 6, 2: 4, 1: 8}.entries) {
+      expect(
+        copy.heroes.firstWhere((h) => h.sourceId == entry.key).salary,
+        entry.value,
+      );
+      expect(
+        replay.heroes.firstWhere((h) => h.sourceId == entry.key).salary,
+        5,
+      );
+    }
+    expect(copy.salaryCost, 18);
+    expect(copy.gold, 77);
+    expect(copy.saveState()['payrollVersion'], 2);
   });
 
   test('不同国家保底与逐城账单在存档恢复后保持，跨月不重抽旧收成', () {

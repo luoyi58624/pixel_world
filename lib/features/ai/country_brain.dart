@@ -732,9 +732,11 @@ class CountryBrain {
             ledger.reserves;
         if (need > 0) {
           final supply = ledger.copy(),
-              count = math.min(rules.integer('soldierBatch'), need);
-          if (supply.buySoldiers(count) &&
-              supply.gold >= supply.cash().reserve) {
+              count = math.min(
+                supply.affordableSoldiers,
+                math.min(rules.integer('soldierBatch'), need),
+              );
+          if (count > 0 && supply.buySoldiers(count)) {
             ledger = supply;
             groups.add(
               AiCommandGroup(

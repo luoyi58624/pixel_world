@@ -72,21 +72,20 @@ CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
 
 void main() {
-  test('正式月俸为普通1至3、高级4至5，主角5且各国均不免薪', () {
+  test('正式月俸范围1至8，四名指定将领按新价格且各国均不免薪', () {
     final catalog = _catalog();
     for (final hero in catalog) {
-      expect(hero.salary, switch (hero.type) {
-        HeroType.normal => inInclusiveRange(1, 3),
-        HeroType.advanced => inInclusiveRange(4, 5),
-        HeroType.protagonist => equals(5),
-      }, reason: hero.name ?? '主角');
+      expect(hero.salary, inInclusiveRange(1, 8), reason: hero.name ?? '主角');
       for (var country = 0; country < 16; country++) {
         expect(hero.salaryFor(country), hero.salary);
       }
     }
+    for (final entry in {40: 8, 0: 6, 2: 4, 1: 8}.entries) {
+      expect(catalog.firstWhere((h) => h.id == entry.key).salary, entry.value);
+    }
     final c = _campaign();
     addTearDown(c.dispose);
-    expect(_hero(c, 40).salary, 5);
+    expect(_hero(c, 40).salary, 8);
     expect(c.aiObservationFor(0).nation.salary, c.salaryCost);
     final before = c.gold, salary = c.salaryCost;
     c.advance(60);
@@ -125,7 +124,7 @@ void main() {
         expected,
       );
     }
-    expect(_hero(c, 40).salary, 5);
+    expect(_hero(c, 40).salary, 8);
     expect(_catalog().firstWhere((hero) => hero.id == 0).romSalary, 8);
     expect(() => _catalog().clear(), throwsUnsupportedError);
   });

@@ -464,6 +464,13 @@ extension _AiCommands on CampaignState {
       if (action.city != null && !cities.containsKey(action.city)) return false;
       final hero = heroes.where((h) => h.id == action.hero).firstOrNull;
       final city = cities[action.city];
+      final purchase = [
+        AiActionKind.upgrade,
+        AiActionKind.recruit,
+        AiActionKind.soldiers,
+        AiActionKind.buyWeapon,
+      ].contains(action.kind);
+      if (purchase && gold <= 0) return false;
       switch (action.kind) {
         case AiActionKind.upgrade:
           if (hero == null ||
@@ -553,16 +560,11 @@ extension _AiCommands on CampaignState {
             return false;
           }
       }
-      if (gold < 0 &&
-          [
-            AiActionKind.upgrade,
-            AiActionKind.recruit,
-            AiActionKind.buyWeapon,
-          ].contains(action.kind)) {
+      if (purchase && gold < 0) {
         return false;
       }
     }
-    // 纯军务允许透支；包含招将、武器或升级的经营计划仍保留其现金底线。
+    // 补兵可以花完现有余额；免费调动不受现金限制，其他采购仍保留经营底线。
     final militaryOnly = group.actions.every(
       (a) => ![
         AiActionKind.upgrade,

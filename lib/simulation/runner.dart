@@ -274,7 +274,7 @@ class SimulationRunner {
             }
           }
           for (final country in countries) {
-            // 负国库属于允许的军费透支，只有兵员越界才是资源错误。
+            // 月结仍可形成负余额；购买不能透支，兵员数量也必须保持合法。
             if (c.reserveSoldiersFor(country) < 0 ||
                 c.reserveSoldiersFor(country) > c.reserveCapacityFor(country)) {
               invalidResources++;

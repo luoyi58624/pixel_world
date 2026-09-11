@@ -386,10 +386,16 @@ class AiLedger {
     return true;
   }
 
-  /// 征兵只补明确需求。
+  /// 当前余额能支付的兵数，容量和实际缺口由采购时另行检查。
+  int get affordableSoldiers =>
+      math.max(0, gold ~/ rules.integer('soldierCost'));
+
+  /// 征兵只补明确需求，不能透支国库。
   bool buySoldiers(int count) {
     final cost = count * rules.integer('soldierCost');
-    if (count < 0 || reserves + count > capacity) return false;
+    if (count <= 0 || gold <= 0 || cost > gold || reserves + count > capacity) {
+      return false;
+    }
     gold -= cost;
     reserves += count;
     return true;
@@ -401,6 +407,7 @@ class AiLedger {
     if (w == null ||
         !w.shopEnabled ||
         view.year < w.unlockYear ||
+        gold <= 0 ||
         gold < w.price) {
       return false;
     }
@@ -469,6 +476,7 @@ class AiLedger {
     if (!city.recruitAllowed ||
         recruited.contains(city.id) ||
         view.poolCount <= recruited.length ||
+        gold <= rules.integer('drawCost') ||
         gold < cost ||
         !(withinIncome || cashBacked)) {
       return false;

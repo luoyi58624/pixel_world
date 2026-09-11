@@ -94,7 +94,7 @@ void main() {
     );
   });
 
-  test('补兵可用最后余额并透支，不让招将武器升级抢钱', () {
+  test('补兵可用最后余额但不能透支，不让招将武器升级抢钱', () {
     final c = nationalScenario(
       ai: false,
       gold: 1,
@@ -106,7 +106,7 @@ void main() {
     final actions = coalitionPlan(c).groups.expand((g) => g.actions).toList();
     expect(actions, isNotEmpty);
     expect(actions.every((a) => a.kind == AiActionKind.soldiers), isTrue);
-    expect(actions.first.amount, 12);
+    expect(actions.first.amount, 1);
   });
 
   test('升级恰好花光国库时不通过，有余额才允许升级', () {

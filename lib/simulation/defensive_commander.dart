@@ -30,8 +30,8 @@ class DefensiveCommander implements PlayerCommander {
       ),
     );
     final missing = math.max(0, targetReserve - c.reserveSoldiersFor(0));
-    // 防守补兵同样允许透支，不能让验收玩家因旧现金门槛少补现有兵力。
-    final soldiers = missing;
+    // 与玩家和国家 AI 一致，补兵优先但只能购买现有余额付得起的数量。
+    final soldiers = math.min(missing, c.maxSoldierPurchase(owned.first.id));
     if (soldiers > 0 && c.buySoldiers(owned.first.id, soldiers)) {
       _record(second, '补充守城兵员', {'count': soldiers});
     }

@@ -120,7 +120,7 @@ extension CampaignSnapshots on CampaignState {
     final ai = _ai;
     return {
       'version': 1,
-      'payrollVersion': 1,
+      'payrollVersion': 2,
       'world': world.id,
       'weaponDropRandom': _weaponDropRandom is StateRandom
           ? _weaponDropRandom.state
@@ -266,7 +266,9 @@ extension CampaignSnapshots on CampaignState {
     int salary(int saved, int source, int country) {
       final definition = definitions[source];
       // 续玩旧档采用新月俸并取消本国免薪；回放保留历史数值，不追扣已结算工资。
-      return !replay && d['payrollVersion'] == null && definition != null
+      return !replay &&
+              (d['payrollVersion'] as int? ?? 0) < 2 &&
+              definition != null
           ? definition.salary
           : saved;
     }

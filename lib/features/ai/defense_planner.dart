@@ -159,7 +159,7 @@ class DefensePlanner {
     );
     if (needed > 0) {
       final supplied = base.copy();
-      final count = needed; // 补充现有守军允许透支，仍受全国容量约束。
+      final count = math.min(needed, supplied.affordableSoldiers);
       if (count > 0 && supplied.buySoldiers(count)) {
         yield _simple(report, base, supplied, [
           AiAction(AiActionKind.soldiers, city: city.id, amount: count),
@@ -574,12 +574,14 @@ class DefensePlanner {
             supplied.slots(city),
             supplied.garrison(city.id).length - 1,
           );
-          final missing =
-              math.min(
-                supplied.capacity,
-                (guarded + 1) * rules.integer('soldierLimit'),
-              ) -
-              supplied.reserves;
+          final missing = math.min(
+            supplied.affordableSoldiers,
+            math.min(
+                  supplied.capacity,
+                  (guarded + 1) * rules.integer('soldierLimit'),
+                ) -
+                supplied.reserves,
+          );
           if (missing > 0 &&
               supplied.buySoldiers(missing) &&
               supplied.gold >= supplied.cash(emergency: true).reserve) {

@@ -127,7 +127,7 @@ class ResourcePlanner {
     );
     if (cities.isNotEmpty && desired > ledger.reserves) {
       final next = ledger.copy();
-      final count = desired - next.reserves;
+      final count = math.min(desired - next.reserves, next.affordableSoldiers);
       if (count > 0 && next.buySoldiers(count)) {
         accept(
           next,
@@ -138,7 +138,7 @@ class ResourcePlanner {
               amount: count,
             ),
           ],
-          '按现有守将和待出征将领补兵，余额不足时透支军费，不增加招将规模',
+          '优先用现有余额补充守将和待出征将领的兵员，买得起多少补多少，不透支',
           cities.first,
         );
       }

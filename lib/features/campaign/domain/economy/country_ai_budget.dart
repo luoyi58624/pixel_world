@@ -29,7 +29,7 @@ class CountryAiBudget {
   /// 只按目前拥有城市的欠收计算，未占领城市不预支收入。
   final int minimumMonthlyIncome;
 
-  /// 扣除预留后可用于付现经营的金币；补兵与行军另允许透支。
+  /// 扣除预留后可用于经营的金币；补兵可花完余额，行军免费。
   int get spendableGold => math.max(0, gold - reserveGold);
 }
 

@@ -220,12 +220,12 @@ void main() {
     }
   });
 
-  test('补兵透支后多军仍可出征改道，扎营也不额外扣款', () {
+  test('补兵花完余额后多军仍可出征改道，扎营也不额外扣款', () {
     final c = _campaign(gold: 1);
     final a = _leave(c, 0), b = _leave(c, 2, y: 80);
-    expect(c.buySoldiers(0, 2), isTrue);
+    expect(c.buySoldiers(0, 1), isTrue);
     c.advance(10);
-    expect(c.gold, -1);
+    expect(c.gold, 0);
     expect(a.phase, MarchPhase.marching);
     expect(b.phase, MarchPhase.marching);
     expect(a.supplyHalted, isFalse);
@@ -237,11 +237,11 @@ void main() {
     );
     c.advance(20);
     expect(a.position, isNot(position));
-    expect(c.gold, -1);
+    expect(c.gold, 0);
     expect(c.camp(a.hero.id), isTrue);
     final camp = a.position;
     c.advance(10);
-    expect(c.gold, -1);
+    expect(c.gold, 0);
     expect(a.position, camp);
     expect(a.phase, MarchPhase.camped);
     expect(c.moveTo(a.hero.id, const GamePoint(2000, 40)), isTrue);
@@ -249,18 +249,18 @@ void main() {
   });
 
   for (final level in [1, 3]) {
-    test('城战透支仍结算占领或接替守将，等级$level', () {
+    test('零余额仍结算占领或接替守将，等级$level', () {
       final c = _campaign(gold: 1, level: level);
       final hero = c.heroes.firstWhere((hero) => hero.sourceId == 0);
       final march = c.dispatch(hero, c.world.cities[1])!;
       march.position = march.destination;
       c.advance(1 / 60);
       final battle = c.battles[1]!;
-      c.buySoldiers(0, 2);
+      expect(c.buySoldiers(0, 1), isTrue);
       c.advance(1 / 60);
       expect(march.phase, MarchPhase.fighting);
       expect(march.supplyHalted, isFalse);
-      expect(c.gold, lessThan(0));
+      expect(c.gold, 0);
       battle.defender.hp = 0;
       c.advance(0.1);
       expect(battle.isActive, isTrue);
@@ -277,12 +277,12 @@ void main() {
     });
   }
 
-  test('野战中透支不改变战斗，获胜后继续原行程', () {
+  test('野战中零余额不改变战斗，获胜后继续原行程', () {
     final c = _campaign(gold: 1);
     final a = _leave(c, 0), b = _leave(c, 18, country: 1);
     c.advance(1 / 60);
     final battle = c.fieldBattles.values.single;
-    c.buySoldiers(0, 2);
+    expect(c.buySoldiers(0, 1), isTrue);
     c.advance(1 / 60);
     expect(a.phase, MarchPhase.dueling);
     b.hero.hp = 0;
