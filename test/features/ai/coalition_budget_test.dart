@@ -174,7 +174,7 @@ void main() {
 
   test('先买进攻武器，余钱充足且不侵占围攻预算时才升级', () {
     for (final cities in [2, 3]) {
-      for (final gold in [58, 73]) {
+      for (final gold in [58, 83]) {
         final c = coalitionCampaign(
           enemyCities: cities,
           homeLevel: 2,
@@ -186,7 +186,7 @@ void main() {
           plan.groups
               .expand((g) => g.actions)
               .any((a) => a.kind == AiActionKind.upgrade),
-          cities == 2 && gold == 73,
+          cities == 2 && gold == 83,
           reason: plan.toJson().toString(),
         );
         expect(

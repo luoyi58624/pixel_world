@@ -17,6 +17,8 @@ void main() {
       level: 1,
       reserves: 0,
       recruitment: true,
+      // 本例验证采购顺序，弱守军确保存在可执行的进攻武器需求。
+      attackerCombat: 5,
     );
     addTearDown(c.dispose);
     final plan = coalitionPlan(c);
