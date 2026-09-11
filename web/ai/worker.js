@@ -2976,7 +2976,7 @@ if(typeof s=="function")A.cC(A.cF("Attempting to rewrap a JS function.",null))
 r=function(a,b){return function(c){return a(b,c,arguments.length)}}(A.mE,s)
 r[$.k2()]=s
 p.onmessage=r
-q.$1(B.j.aq(t.G.a(A.T(["kind","hello","protocol",1,"build","6612753","backend",o],t.N,t.X)),null))},
+q.$1(B.j.aq(t.G.a(A.T(["kind","hello","protocol",1,"build","20c9dc83","backend",o],t.N,t.X)),null))},
 jr:function jr(){},
 js:function js(a){this.a=a},
 l5(a){return v.mangledGlobalNames[a]},
@@ -8556,7 +8556,7 @@ return A.T(["version",s.a,"width",s.b,"height",s.c,"terrain",s.d],t.N,t.X)}}
 A.ew.prototype={
 ds(a){var s,r,q,p,o,n,m,l,k,j,i=this
 try{s=t.d1.a(B.j.d8(a,null))
-switch(J.b1(s,"kind")){case"init":if(!J.af(J.b1(s,"protocol"),1)||!J.af(J.b1(s,"build"),"6612753"))throw A.j(B.a4);++i.f
+switch(J.b1(s,"kind")){case"init":if(!J.af(J.b1(s,"protocol"),1)||!J.af(J.b1(s,"build"),"20c9dc83"))throw A.j(B.a4);++i.f
 i.e=null
 p=i.r
 if(p.a>0){p.b=p.c=p.d=p.e=p.f=null

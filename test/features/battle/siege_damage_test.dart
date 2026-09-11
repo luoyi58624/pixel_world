@@ -85,14 +85,14 @@ void _win(CampaignState c, CityBattle battle) {
 }
 
 void main() {
-  test('三级城临时加成为5、3、1，真实攻击同步递减，第三胜占领', () {
+  test('三级城临时加成为6、4、2，真实攻击同步递减，第三胜占领', () {
     final rolls = _Rolls([0]);
     final c = _campaign(rolls);
     final battle = _start(c);
     final remaining = c.garrisonAt(1).map((hero) => hero.id).toSet();
     for (var wave = 1; wave <= 3; wave++) {
       expect(battle.wave, wave);
-      final bonus = [5, 3, 1][wave - 1];
+      final bonus = [6, 4, 2][wave - 1];
       expect(battle.simulation.defenderAttackBonus, bonus);
       expect(
         battle.simulation.basePower(BattleSide.defender),
@@ -188,7 +188,7 @@ void main() {
     c.settledMonths = 24;
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     expect(c.cities[1]!.level, 4);
-    expect(battle.simulation.defenderAttackBonus, 3);
+    expect(battle.simulation.defenderAttackBonus, 4);
     expect(battle.initialCityLevel, 3);
     expect(c.retreatHero(battle.attacker.id), isTrue);
     _until(c, () => !battle.isActive);
