@@ -76,7 +76,7 @@ void main() {
       friendHeroes: [18],
       gold: 2000,
       stock: {
-        '1': {'14': 4},
+        '1': {'11': 4},
       },
     );
     addTearDown(c.dispose);
@@ -105,7 +105,7 @@ void main() {
         role: 'expedition',
         reason: '直接远征',
         target: target,
-        gear: [14],
+        gear: [11],
       ),
       isNotNull,
     );

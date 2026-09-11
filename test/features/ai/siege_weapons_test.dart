@@ -21,9 +21,9 @@ void main() {
     addTearDown(c.dispose);
     c.settledMonths = 48;
     final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
-    expect(rules.weapons[7]!.price, 15);
-    expect(rules.weapons[7]!.damage, 85);
-    expect(rules.weapons[8]!.price, 16);
+    expect(rules.weapons[13]!.price, 15);
+    expect(rules.weapons[13]!.damage, 85);
+    expect(rules.weapons[14]!.price, 16);
     final work = AiWorkBudget(rules.tuning),
         routes = AiRoutes(
           c.aiMapForTesting(),
@@ -48,7 +48,7 @@ void main() {
         CombatAssessor(rules, work),
       ),
       [
-        [7],
+        [13],
       ],
     );
     expect(
@@ -88,10 +88,10 @@ void main() {
         .expand((g) => g.actions)
         .where((a) => a.kind == AiActionKind.buyWeapon);
     expect(
-      purchases.any((a) => a.amount == 7),
+      purchases.any((a) => a.amount == 13),
       isTrue,
       reason: brain.result!.toJson().toString(),
     );
-    expect(purchases.any((a) => a.amount == 8), isFalse);
+    expect(purchases.any((a) => a.amount == 14), isFalse);
   });
 }

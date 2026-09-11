@@ -24,6 +24,39 @@ void main() {
   Map<String, dynamic> jsonState(CampaignState c) =>
       jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
 
+  test('新ID库存与随军装备存取后仍对应同名武器', () {
+    final original = CampaignState.fromRom(
+      worlds.first,
+      heroes,
+      aiEnabled: false,
+      weaponCatalog: weapons,
+      startingGold: 1000,
+    )..settledMonths = 48;
+    addTearDown(original.dispose);
+    for (var id = 0; id < 15; id++) {
+      expect(original.buyWeapon(id), isTrue);
+    }
+    final hero = original.garrisonAt(0).first;
+    expect(
+      original.dispatch(hero, worlds.first.cities[1], weaponSlots: {0: 1}),
+      isNotNull,
+    );
+    final saved = jsonState(original);
+    final restored = CampaignSnapshots.restore(
+      saved,
+      worlds.first,
+      heroes,
+      weapons,
+    );
+    addTearDown(restored.dispose);
+    expect(jsonState(restored), saved);
+    expect(restored.weaponCatalog.weapons[1]!.name, '斧');
+    expect(restored.heroes.firstWhere((h) => h.id == hero.id).weaponIds, [1]);
+    expect(restored.weaponStockFor(0, 1), 0);
+    expect(restored.weaponStockFor(0, 14), 1);
+    expect(restored.weaponCatalog.weapons[14]!.name, '死枪');
+  });
+
   test('旧档续玩采用新月俸且取消旧驻军账单，回放不改历史数值', () {
     final original = CampaignState.fromRom(
       worlds.first,

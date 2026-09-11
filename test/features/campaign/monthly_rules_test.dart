@@ -145,8 +145,8 @@ void main() {
         .where((w) => c.weaponUnlocked(0, w))
         .map((w) => w.id)
         .toList();
-    expect(available(), [0, 9, 1]);
-    expect(c.buyWeapon(14), isFalse);
+    expect(available(), [0, 1, 2]);
+    expect(c.buyWeapon(11), isFalse);
     c.advance(11 * 60);
     expect(c.year, 1);
     expect(available().length, 3);

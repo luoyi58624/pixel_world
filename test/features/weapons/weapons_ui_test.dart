@@ -67,38 +67,38 @@ void main() {
       final hero = c.selectedHero!;
       expect(find.byKey(const ValueKey('weapon-shop-open')), findsNothing);
       expect(find.byKey(const ValueKey('weapon-library')), findsOneWidget);
-      expect(find.byKey(const ValueKey('warehouse-weapon-14')), findsOneWidget);
+      expect(find.byKey(const ValueKey('warehouse-weapon-11')), findsOneWidget);
       final before = c.campaign.gold;
       await _tap(tester, 'buy-weapon-0');
       expect(c.campaign.gold, before - 2);
       expect(c.campaign.weaponStockFor(0, 0), 1);
       expect(c.selectedWeaponCount, 0);
       expect(hero.weaponIds, isEmpty);
-      await _tap(tester, 'buy-weapon-9');
+      await _tap(tester, 'buy-weapon-1');
       await _tap(tester, 'carry-weapon-0');
       expect(c.selectedWeaponCount, 1);
       expect(c.campaign.weaponStockFor(0, 0), 1);
       expect(
         tester
-            .widget<IconButton>(find.byKey(const ValueKey('carry-weapon-9')))
+            .widget<IconButton>(find.byKey(const ValueKey('carry-weapon-1')))
             .onPressed,
         isNotNull,
       );
-      await _tap(tester, 'carry-weapon-9');
+      await _tap(tester, 'carry-weapon-1');
       expect(c.selectedWeaponCount, 1);
       expect(c.selectedWeaponCountFor(0), 0);
-      expect(c.selectedWeaponCountFor(9), 1);
-      expect(c.campaign.weaponInventoryFor(0), {0: 1, 9: 1});
+      expect(c.selectedWeaponCountFor(1), 1);
+      expect(c.campaign.weaponInventoryFor(0), {0: 1, 1: 1});
       await _tap(tester, 'carry-weapon-0');
       expect(c.selectedWeaponCountFor(0), 1);
-      expect(c.selectedWeaponCountFor(9), 0);
+      expect(c.selectedWeaponCountFor(1), 0);
       await _tap(tester, 'carry-weapon-0');
       expect(c.selectedWeaponCount, 0);
-      await _tap(tester, 'carry-weapon-9');
-      expect(c.selectedWeaponCountFor(9), 1);
+      await _tap(tester, 'carry-weapon-1');
+      expect(c.selectedWeaponCountFor(1), 1);
       c.prepareDispatch();
       c.cancelCityAction();
-      expect(c.campaign.weaponInventoryFor(0), {0: 1, 9: 1});
+      expect(c.campaign.weaponInventoryFor(0), {0: 1, 1: 1});
       expect(c.selectedWeaponCount, 0);
       c.selectWeapon(0);
       c.prepareDispatch();
@@ -121,7 +121,7 @@ void main() {
     await tester.pump();
     expect(
       tester
-          .widget<IconButton>(find.byKey(const ValueKey('buy-weapon-14')))
+          .widget<IconButton>(find.byKey(const ValueKey('buy-weapon-11')))
           .onPressed,
       isNull,
     );

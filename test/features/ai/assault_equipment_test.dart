@@ -110,7 +110,7 @@ void main() {
       reserves: 12,
       attackerCombat: 32,
       stock: {
-        '2': {'14': 1},
+        '2': {'11': 1},
       },
       overrides: {
         33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
@@ -122,7 +122,7 @@ void main() {
       c.garrisonAt(2).first,
       c.world.cities[1],
       countryId: 2,
-      weaponSlots: {0: 14},
+      weaponSlots: {0: 11},
     )!;
     enemy.position =
         c.cityBounds(c.world.cities[1]).center + const GamePoint(140, 0);

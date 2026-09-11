@@ -5,6 +5,7 @@
   "weapons": [
     {
       "id": 0,
+      "romId": 0,
       "name": "箭",
       "price": 2,
       "damage": 20,
@@ -31,6 +32,36 @@
     },
     {
       "id": 1,
+      "romId": 9,
+      "name": "斧",
+      "price": 3,
+      "damage": 25,
+      "selfDamage": 0,
+      "romPrice": 5,
+      "romDamage": 25,
+      "shopEnabled": true,
+      "effectId": 9,
+      "encodedName": [
+        57,
+        78,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98594,
+        "price": 98498,
+        "packedEffect": 98513,
+        "damage": 92543
+      },
+      "animationFrames": 177,
+      "romMinimumCities": 1,
+      "unlockYear": 1
+    },
+    {
+      "id": 2,
+      "romId": 1,
       "name": "矛",
       "price": 4,
       "damage": 30,
@@ -56,7 +87,37 @@
       "unlockYear": 1
     },
     {
-      "id": 2,
+      "id": 3,
+      "romId": 10,
+      "name": "剑",
+      "price": 5,
+      "damage": 35,
+      "selfDamage": 0,
+      "romPrice": 10,
+      "romDamage": 35,
+      "shopEnabled": true,
+      "effectId": 10,
+      "encodedName": [
+        57,
+        79,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98600,
+        "price": 98499,
+        "packedEffect": 98514,
+        "damage": 92544
+      },
+      "animationFrames": 253,
+      "romMinimumCities": 2,
+      "unlockYear": 2
+    },
+    {
+      "id": 4,
+      "romId": 2,
       "name": "刀",
       "price": 6,
       "damage": 40,
@@ -85,7 +146,38 @@
       "unlockYear": 2
     },
     {
-      "id": 3,
+      "id": 5,
+      "romId": 11,
+      "name": "钩",
+      "price": 7,
+      "damage": 45,
+      "selfDamage": 0,
+      "romPrice": 14,
+      "romDamage": 45,
+      "shopEnabled": true,
+      "effectId": 11,
+      "encodedName": [
+        57,
+        80,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98606,
+        "price": 98500,
+        "packedEffect": 98515,
+        "damage": 92545
+      },
+      "animationFrames": 211,
+      "romMinimumCities": 3,
+      "unlockYear": 2
+    },
+    {
+      "id": 6,
+      "romId": 3,
       "name": "枪",
       "price": 8,
       "damage": 50,
@@ -115,7 +207,38 @@
       "unlockYear": 3
     },
     {
-      "id": 4,
+      "id": 7,
+      "romId": 12,
+      "name": "戟",
+      "price": 9,
+      "damage": 55,
+      "selfDamage": 0,
+      "romPrice": 18,
+      "romDamage": 55,
+      "shopEnabled": true,
+      "effectId": 12,
+      "encodedName": [
+        57,
+        81,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98613,
+        "price": 98501,
+        "packedEffect": 98516,
+        "damage": 92546
+      },
+      "animationFrames": 227,
+      "romMinimumCities": 4,
+      "unlockYear": 3
+    },
+    {
+      "id": 8,
+      "romId": 4,
       "name": "圣枪",
       "price": 10,
       "damage": 60,
@@ -145,238 +268,8 @@
       "unlockYear": 3
     },
     {
-      "id": 5,
-      "name": "陆龙卷",
-      "price": 12,
-      "damage": 70,
-      "selfDamage": 0,
-      "romPrice": 25,
-      "romDamage": 70,
-      "shopEnabled": true,
-      "effectId": 5,
-      "encodedName": [
-        57,
-        69,
-        70,
-        71,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98565,
-        "price": 98494,
-        "packedEffect": 98509,
-        "damage": 92539
-      },
-      "animationFrames": 79,
-      "romMinimumCities": 6,
-      "unlockYear": 4
-    },
-    {
-      "id": 6,
-      "name": "台风",
-      "price": 14,
-      "damage": 80,
-      "selfDamage": 0,
-      "romPrice": 30,
-      "romDamage": 80,
-      "shopEnabled": true,
-      "effectId": 6,
-      "encodedName": [
-        57,
-        72,
-        73,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98572,
-        "price": 98495,
-        "packedEffect": 98510,
-        "damage": 92540
-      },
-      "animationFrames": 142,
-      "unlockYear": 5,
-      "romMinimumCities": 7
-    },
-    {
-      "id": 7,
-      "name": "强击手",
-      "price": 15,
-      "damage": 85,
-      "selfDamage": 0,
-      "romPrice": 30,
-      "romDamage": 160,
-      "shopEnabled": true,
-      "effectId": 7,
-      "encodedName": [
-        57,
-        74,
-        75,
-        76,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98578,
-        "price": 98496,
-        "packedEffect": 98511,
-        "damage": 92541
-      },
-      "animationFrames": 219,
-      "unlockYear": 5,
-      "romMinimumCities": 7
-    },
-    {
-      "id": 8,
-      "name": "死枪",
-      "price": 16,
-      "damage": 255,
-      "selfDamage": 255,
-      "romPrice": 30,
-      "romDamage": 255,
-      "shopEnabled": true,
-      "effectId": 8,
-      "encodedName": [
-        57,
-        77,
-        67,
-        254,
-        254,
-        254,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98585,
-        "price": 98497,
-        "packedEffect": 98512,
-        "damage": 92542
-      },
-      "animationFrames": 118,
-      "unlockYear": 5,
-      "romMinimumCities": 7
-    },
-    {
       "id": 9,
-      "name": "斧",
-      "price": 3,
-      "damage": 25,
-      "selfDamage": 0,
-      "romPrice": 5,
-      "romDamage": 25,
-      "shopEnabled": true,
-      "effectId": 9,
-      "encodedName": [
-        57,
-        78,
-        254,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98594,
-        "price": 98498,
-        "packedEffect": 98513,
-        "damage": 92543
-      },
-      "animationFrames": 177,
-      "romMinimumCities": 1,
-      "unlockYear": 1
-    },
-    {
-      "id": 10,
-      "name": "剑",
-      "price": 5,
-      "damage": 35,
-      "selfDamage": 0,
-      "romPrice": 10,
-      "romDamage": 35,
-      "shopEnabled": true,
-      "effectId": 10,
-      "encodedName": [
-        57,
-        79,
-        254,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98600,
-        "price": 98499,
-        "packedEffect": 98514,
-        "damage": 92544
-      },
-      "animationFrames": 253,
-      "romMinimumCities": 2,
-      "unlockYear": 2
-    },
-    {
-      "id": 11,
-      "name": "钩",
-      "price": 7,
-      "damage": 45,
-      "selfDamage": 0,
-      "romPrice": 14,
-      "romDamage": 45,
-      "shopEnabled": true,
-      "effectId": 11,
-      "encodedName": [
-        57,
-        80,
-        254,
-        254,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98606,
-        "price": 98500,
-        "packedEffect": 98515,
-        "damage": 92545
-      },
-      "animationFrames": 211,
-      "romMinimumCities": 3,
-      "unlockYear": 2
-    },
-    {
-      "id": 12,
-      "name": "戟",
-      "price": 9,
-      "damage": 55,
-      "selfDamage": 0,
-      "romPrice": 18,
-      "romDamage": 55,
-      "shopEnabled": true,
-      "effectId": 12,
-      "encodedName": [
-        57,
-        81,
-        254,
-        254,
-        254,
-        254,
-        0
-      ],
-      "sourceFileOffsets": {
-        "name": 98613,
-        "price": 98501,
-        "packedEffect": 98516,
-        "damage": 92546
-      },
-      "animationFrames": 227,
-      "romMinimumCities": 4,
-      "unlockYear": 3
-    },
-    {
-      "id": 13,
+      "romId": 13,
       "name": "杖",
       "price": 11,
       "damage": 65,
@@ -405,7 +298,38 @@
       "unlockYear": 4
     },
     {
-      "id": 14,
+      "id": 10,
+      "romId": 5,
+      "name": "陆龙卷",
+      "price": 12,
+      "damage": 70,
+      "selfDamage": 0,
+      "romPrice": 25,
+      "romDamage": 70,
+      "shopEnabled": true,
+      "effectId": 5,
+      "encodedName": [
+        57,
+        69,
+        70,
+        71,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98565,
+        "price": 98494,
+        "packedEffect": 98509,
+        "damage": 92539
+      },
+      "animationFrames": 79,
+      "romMinimumCities": 6,
+      "unlockYear": 4
+    },
+    {
+      "id": 11,
+      "romId": 14,
       "name": "炮",
       "price": 13,
       "damage": 75,
@@ -432,6 +356,97 @@
       "animationFrames": 195,
       "romMinimumCities": 6,
       "unlockYear": 4
+    },
+    {
+      "id": 12,
+      "romId": 6,
+      "name": "台风",
+      "price": 14,
+      "damage": 80,
+      "selfDamage": 0,
+      "romPrice": 30,
+      "romDamage": 80,
+      "shopEnabled": true,
+      "effectId": 6,
+      "encodedName": [
+        57,
+        72,
+        73,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98572,
+        "price": 98495,
+        "packedEffect": 98510,
+        "damage": 92540
+      },
+      "animationFrames": 142,
+      "unlockYear": 5,
+      "romMinimumCities": 7
+    },
+    {
+      "id": 13,
+      "romId": 7,
+      "name": "强击手",
+      "price": 15,
+      "damage": 85,
+      "selfDamage": 0,
+      "romPrice": 30,
+      "romDamage": 160,
+      "shopEnabled": true,
+      "effectId": 7,
+      "encodedName": [
+        57,
+        74,
+        75,
+        76,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98578,
+        "price": 98496,
+        "packedEffect": 98511,
+        "damage": 92541
+      },
+      "animationFrames": 219,
+      "unlockYear": 5,
+      "romMinimumCities": 7
+    },
+    {
+      "id": 14,
+      "romId": 8,
+      "name": "死枪",
+      "price": 16,
+      "damage": 255,
+      "selfDamage": 255,
+      "romPrice": 30,
+      "romDamage": 255,
+      "shopEnabled": true,
+      "effectId": 8,
+      "encodedName": [
+        57,
+        77,
+        67,
+        254,
+        254,
+        254,
+        254,
+        254,
+        0
+      ],
+      "sourceFileOffsets": {
+        "name": 98585,
+        "price": 98497,
+        "packedEffect": 98512,
+        "damage": 92542
+      },
+      "animationFrames": 118,
+      "unlockYear": 5,
+      "romMinimumCities": 7
     }
   ],
   "initialCountryStock": {},

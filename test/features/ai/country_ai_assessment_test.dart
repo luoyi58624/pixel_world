@@ -37,7 +37,7 @@ void main() {
       ownDefense: 1,
       ownSoldiers: 4,
       enemySoldiers: 4,
-      loadout: [8, 7, 6],
+      loadout: [14, 13, 12],
     );
     expect(equipped.lower, bare.lower);
     expect(equipped.ownWeaponUpper, 0);

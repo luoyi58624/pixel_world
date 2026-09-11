@@ -21,7 +21,7 @@ class WeaponDefinition {
     if (name.trim().isEmpty) throw const FormatException('武器名称不能为空');
   }
 
-  /// 原武器编号，与英雄身份编号分开。
+  /// 当前游戏武器编号，正式目录按商店顺序从零连续编号。
   final int id;
 
   /// 武器名称。
@@ -107,7 +107,7 @@ class WeaponCatalog {
     );
   }
 
-  /// 按原编号查找武器。
+  /// 按当前游戏编号查找武器，动画仍使用独立的 effectId。
   final Map<int, WeaponDefinition> weapons;
 
   /// 按年份分行、行内按价格排列，价格调整不会把未解锁武器挤到第一行。

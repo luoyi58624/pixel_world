@@ -21,6 +21,29 @@ BattleArmy _army(String id) => BattleArmy(
 );
 
 void main() {
+  test('配置ID按数组连续排列，原版编号与动画效果保持对应', () {
+    final rows =
+        jsonDecode(
+              File('assets/data/rom_weapons.json').readAsStringSync(),
+            )['weapons']
+            as List;
+    final current = testWeaponCatalog(),
+        original = testWeaponCatalog(original: true);
+    expect(rows.map((r) => r['id']), List.generate(15, (i) => i));
+    expect(rows.map((r) => r['romId']).toSet().length, 15);
+    for (final row in rows) {
+      final w = current.weapons[row['id']]!,
+          rom = original.weapons[row['romId']]!;
+      expect(w.name, rom.name);
+      expect(w.effectId, rom.effectId);
+      expect(w.selfDamage, rom.selfDamage);
+    }
+    expect(current.weapons[1]!.name, '斧');
+    expect(current.weapons[1]!.effectId, 9);
+    expect(current.weapons[14]!.name, '死枪');
+    expect(current.weapons[14]!.effectId, 8);
+  });
+
   test('商店顺序价格从2逐件加1，伤害从20逐件加5，死枪保留互刺', () {
     final catalog = testWeaponCatalog();
     expect(catalog.weapons.length, 15);
@@ -29,23 +52,7 @@ void main() {
       catalog.shopWeapons.map((w) => w.price),
       List.generate(15, (i) => i + 2),
     );
-    expect(catalog.shopWeapons.map((w) => w.id), [
-      0,
-      9,
-      1,
-      10,
-      2,
-      11,
-      3,
-      12,
-      4,
-      13,
-      5,
-      14,
-      6,
-      7,
-      8,
-    ]);
+    expect(catalog.shopWeapons.map((w) => w.id), List.generate(15, (i) => i));
     expect(catalog.shopWeapons.map((w) => w.damage), [
       ...List.generate(14, (i) => 20 + i * 5),
       255,
@@ -53,10 +60,10 @@ void main() {
     expect(catalog.weapons.values.where((w) => w.shopEnabled).length, 15);
     expect(catalog.weapons[0]!.name, '箭');
     expect(catalog.weapons[0]!.price, 2);
-    expect(catalog.shopWeapons.skip(12).map((w) => w.id), [6, 7, 8]);
+    expect(catalog.shopWeapons.skip(12).map((w) => w.id), [12, 13, 14]);
     expect(catalog.shopWeapons.skip(12).map((w) => w.damage), [80, 85, 255]);
     expect(catalog.shopWeapons.skip(12).map((w) => w.selfDamage), [0, 0, 255]);
-    expect(catalog.weapons[8]!.effectLabel, contains('同归于尽'));
+    expect(catalog.weapons[14]!.effectLabel, contains('同归于尽'));
     expect(
       catalog.weapons.values.every(
         (w) => w.unlockYear >= 1 && w.unlockYear <= 5,
@@ -89,11 +96,11 @@ void main() {
   test('第五年武器仍按原年份开放，真实支付新价格且仍只能携带一件', () {
     final c = weaponStrategyCampaign(gold: 1000);
     addTearDown(c.dispose);
-    for (final id in [6, 7, 8]) {
+    for (final id in [12, 13, 14]) {
       expect(c.buyWeapon(id, countryId: 1), isFalse);
     }
     c.settledMonths = 48;
-    for (final id in [6, 7, 8]) {
+    for (final id in [12, 13, 14]) {
       final before = c.goldFor(1), price = c.weaponCatalog.weapons[id]!.price;
       expect(c.buyWeapon(id, countryId: 1), isTrue);
       expect(c.goldFor(1), before - price);
@@ -105,20 +112,20 @@ void main() {
         hero,
         c.world.cities[2],
         countryId: 1,
-        weaponSlots: {0: 6, 1: 7},
+        weaponSlots: {0: 12, 1: 13},
       ),
       isNull,
     );
-    expect(c.weaponStockFor(1, 6), 1);
+    expect(c.weaponStockFor(1, 12), 1);
     final march = c.dispatch(
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 7},
+      weaponSlots: {0: 13},
     );
     expect(march, isNotNull);
-    expect(hero.weaponIds, [7]);
-    expect(c.weaponStockFor(1, 7), 0);
+    expect(hero.weaponIds, [13]);
+    expect(c.weaponStockFor(1, 13), 0);
   });
 
   test('正式死枪同归于尽，不占领也不降低本轮城防', () {
@@ -129,13 +136,13 @@ void main() {
     );
     addTearDown(c.dispose);
     c.settledMonths = 48;
-    expect(c.buyWeapon(8, countryId: 1), isTrue);
+    expect(c.buyWeapon(14, countryId: 1), isTrue);
     final hero = weaponHero(c, 0);
     final march = c.dispatch(
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 8},
+      weaponSlots: {0: 14},
     )!;
     march.position = march.destination;
     c.advance(1 / 60);
@@ -149,7 +156,7 @@ void main() {
     expect(battle.defender.health.alive, isFalse);
     expect(c.cities[2]!.ownerCountryId, 2);
     expect(c.cities[2]!.level, 5);
-    expect(c.weaponStockFor(1, 8), 0);
+    expect(c.weaponStockFor(1, 14), 0);
   });
 
   for (final side in BattleSide.values) {
@@ -211,19 +218,19 @@ void main() {
   test('全国仓库无限叠加，购买不自动装备；解锁、余额及国家互相独立', () {
     final c = weaponStrategyCampaign(gold: 100);
     final a = weaponHero(c, 0);
-    expect(c.buyWeapon(1, countryId: 1), isTrue);
-    expect(c.buyWeapon(6, countryId: 1), isFalse);
+    expect(c.buyWeapon(2, countryId: 1), isTrue);
+    expect(c.buyWeapon(12, countryId: 1), isFalse);
     for (var i = 0; i < 12; i++) {
       expect(c.buyWeapon(0, countryId: 1), isTrue);
     }
     expect(c.goldFor(1), 72); // 一件矛4金币，十二件箭各2金币。
-    expect(c.weaponInventoryFor(1), {1: 1, 0: 12});
+    expect(c.weaponInventoryFor(1), {2: 1, 0: 12});
     expect(c.weaponStorageUsed(1), 13);
     expect(a.weaponIds, isEmpty);
     expect(c.weaponStorageUsed(0), 0);
     expect(c.buyWeapon(0, countryId: 9), isFalse);
     c.cities[2]!.ownerCountryId = 1;
-    expect(c.buyWeapon(1, countryId: 1), isTrue);
+    expect(c.buyWeapon(2, countryId: 1), isTrue);
     expect(c.goldFor(1), 68);
     expect(() => c.weaponInventoryFor(1)[0] = 99, throwsUnsupportedError);
     final stocked = weaponStrategyCampaign(
@@ -254,7 +261,7 @@ void main() {
       ),
       isNull,
     );
-    expect(c.dispatch(a, target, countryId: 1, weaponSlots: {0: 9}), isNull);
+    expect(c.dispatch(a, target, countryId: 1, weaponSlots: {0: 1}), isNull);
     expect(
       c.dispatch(a, c.world.cities[1], countryId: 1, weaponSlots: {0: 0}),
       isNull,
@@ -326,7 +333,7 @@ void main() {
   test('回城卸下全部剩余武器并合并库存，下次只带新选择，战败装备不入库', () {
     final catalog = testWeaponCatalog(
       stock: {
-        '1': {'1': 1, '0': 2},
+        '1': {'2': 1, '0': 2},
       },
     );
     final c = weaponStrategyCampaign(catalog: catalog),
@@ -336,11 +343,11 @@ void main() {
       hero,
       const GamePoint(380, 340),
       countryId: 1,
-      weaponSlots: {0: 1},
+      weaponSlots: {0: 2},
     )!;
-    expect(other.weaponStockFor(1, 1), 1);
+    expect(other.weaponStockFor(1, 2), 1);
     for (var i = 0; i < 8; i++) {
-      c.buyWeapon(9, countryId: 1);
+      c.buyWeapon(1, countryId: 1);
     }
     final source = c.world.cities[1];
     march.moveTo(c.cityBounds(source).center, city: source);
@@ -349,31 +356,31 @@ void main() {
     }
     expect(c.marches[hero.id], isNull);
     expect(hero.weaponIds, isEmpty);
-    expect(c.weaponInventoryFor(1), {1: 1, 0: 2, 9: 8});
+    expect(c.weaponInventoryFor(1), {2: 1, 0: 2, 1: 8});
     march = c.dispatchTo(
       hero,
       const GamePoint(380, 340),
       countryId: 1,
-      weaponSlots: {0: 9},
+      weaponSlots: {0: 1},
     )!;
-    expect(hero.weaponIds, [9]);
-    expect(c.weaponInventoryFor(1), {1: 1, 0: 2, 9: 7});
+    expect(hero.weaponIds, [1]);
+    expect(c.weaponInventoryFor(1), {2: 1, 0: 2, 1: 7});
     march.moveTo(c.cityBounds(source).center, city: source);
     for (var i = 0; i < 1200 && c.marches.containsKey(hero.id); i++) {
       c.advance(1 / 60);
     }
     expect(hero.weaponIds, isEmpty);
-    expect(c.weaponInventoryFor(1), {1: 1, 0: 2, 9: 8});
+    expect(c.weaponInventoryFor(1), {2: 1, 0: 2, 1: 8});
     c.dispatchTo(
       hero,
       const GamePoint(380, 340),
       countryId: 1,
-      weaponSlots: {0: 9},
+      weaponSlots: {0: 1},
     );
-    expect(hero.weaponIds, [9]);
+    expect(hero.weaponIds, [1]);
     c.defeatHero(hero.id, winnerCountryId: 2);
     expect(hero.weaponIds, isEmpty);
-    expect(c.weaponInventoryFor(1), {1: 1, 0: 2, 9: 7});
+    expect(c.weaponInventoryFor(1), {2: 1, 0: 2, 1: 7});
   });
 
   test('回城武器进入国家库，守将不能从仓库取武器迎战', () {

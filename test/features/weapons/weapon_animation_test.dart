@@ -18,7 +18,10 @@ void main() {
     final width = png.getUint32(16), height = png.getUint32(20);
     expect(data.clips.length, 15);
     final lengths = <int>{};
-    for (final weapon in testWeaponCatalog(original: true).weapons.values) {
+    for (final weapon in [
+      ...testWeaponCatalog(original: true).weapons.values,
+      ...testWeaponCatalog().weapons.values,
+    ]) {
       final frames = data.clips[weapon.effectId]!;
       expect(frames.length, weapon.animationFrames);
       lengths.add(frames.length);

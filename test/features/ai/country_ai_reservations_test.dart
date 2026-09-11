@@ -55,7 +55,7 @@ void main() {
       ai: false,
       stock: {
         '1': {'0': 3},
-        '2': {'14': 3},
+        '2': {'11': 3},
       },
     );
     final hero = c.garrisonAt(1).first;

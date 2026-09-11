@@ -52,7 +52,7 @@ void main() {
       expect(c.campaign.weaponStockFor(0, 0), stock + 1);
       expect(
         tester
-            .widget<IconButton>(find.byKey(const ValueKey('buy-weapon-14')))
+            .widget<IconButton>(find.byKey(const ValueKey('buy-weapon-11')))
             .onPressed,
         isNull,
       );
@@ -75,7 +75,7 @@ void main() {
       )..settledMonths = 48;
       c.openCity(c.world.cities.first);
       await tester.pump();
-      for (final id in [6, 7, 8]) {
+      for (final id in [12, 13, 14]) {
         expect(
           tester
               .widget<IconButton>(find.byKey(ValueKey('buy-weapon-$id')))
@@ -84,14 +84,14 @@ void main() {
         );
       }
       expect(find.textContaining('同归于尽'), findsOneWidget);
-      final buyDeath = find.byKey(const ValueKey('buy-weapon-8'));
+      final buyDeath = find.byKey(const ValueKey('buy-weapon-14'));
       await tester.ensureVisible(buyDeath);
       await tester.pump();
       final beforeDeath = c.campaign.gold;
       await tester.tap(buyDeath);
       await tester.pump();
       expect(c.campaign.gold, beforeDeath - 16);
-      expect(c.campaign.weaponStockFor(0, 8), 1);
+      expect(c.campaign.weaponStockFor(0, 14), 1);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });

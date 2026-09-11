@@ -194,13 +194,13 @@ void main() {
     );
     final hero = weaponHero(c, 0);
     for (var i = 0; i < 3; i++) {
-      c.buyWeapon(9, countryId: 1);
+      c.buyWeapon(1, countryId: 1);
     }
     final march = c.dispatch(
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 9},
+      weaponSlots: {0: 1},
     )!;
     march.position = march.destination;
     c.advance(.02);
@@ -214,7 +214,7 @@ void main() {
     }
     expect(
       battle.defender.squad.fold<double>(0, (n, s) => n + s.hp),
-      80 - c.weaponCatalog.weapons[9]!.damage,
+      80 - c.weaponCatalog.weapons[1]!.damage,
     );
   });
 
