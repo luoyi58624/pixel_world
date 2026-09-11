@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,7 +18,14 @@ String _resources(CampaignState c) => jsonEncode({
   'month': c.settledMonths,
   'countries': [
     for (final id in c.cities.values.map((c) => c.ownerCountryId).toSet())
-      [id, c.goldFor(id), c.reserveSoldiersFor(id), c.weaponInventoryFor(id)],
+      [
+        id,
+        c.goldFor(id),
+        c.reserveSoldiersFor(id),
+        [
+          for (final e in c.weaponInventoryFor(id).entries) [e.key, e.value],
+        ],
+      ],
   ],
   'cities': [
     for (final e in c.cities.entries)
@@ -64,6 +72,7 @@ String _resources(CampaignState c) => jsonEncode({
 void main() {
   test('暂停冻结各国行军、粮草和月结，恢复只推进新传入的游戏时间', () {
     final c = weaponStrategyCampaign();
+    c.settledMonths = 0;
     addTearDown(c.dispose);
     final hero = weaponHero(c, 0);
     final march = c.dispatchTo(hero, const GamePoint(500, 650), countryId: 1)!;
@@ -102,7 +111,7 @@ void main() {
       hero,
       c.world.cities[2],
       countryId: 1,
-      weaponSlots: {0: 0, 1: 0, 2: 0},
+      weaponSlots: {0: 0},
     )!;
     march.position = march.destination;
     c.advance(1 / 60);

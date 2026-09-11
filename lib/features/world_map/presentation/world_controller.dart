@@ -310,7 +310,18 @@ class WorldController extends ChangeNotifier {
 
   /// 更新动画与键盘镜头移动。
   void tick(double elapsed) {
-    if (isPaused) return;
+    if (isPaused) {
+      // 暂停只冻结模拟；用户刚拖动产生的镜头惯性仍可完成。
+      if (activeCamera.coasting) {
+        activeCamera.advanceInertia(elapsed);
+      }
+      if (activeCamera.coasting) {
+        refreshView();
+      } else {
+        refreshUi();
+      }
+      return;
+    }
     if (campaign.defeated) {
       var changed = false;
       _clock.advance(
@@ -469,15 +480,16 @@ class WorldController extends ChangeNotifier {
 
   /// 选点指令优先，其余点击按交战标记、角色、城池依次命中。
   void tap(GamePoint local) {
-    if (isPaused || campaign.defeated) return;
+    if (campaign.defeated) return;
     final point = camera.toWorld(local);
     final cell = TileCoord((point.dx / 16).floor(), (point.dy / 16).floor());
     final city = campaign.cityAt(point);
-    if (choosingTarget) {
+    if (choosingTarget && !isPaused) {
       if (!world.contains(cell)) return;
       confirmPosition(city == null ? cell.center : point);
       return;
     }
+    if (isPaused && choosingTarget) cancelCityAction();
     final battle = _battleAt(local);
     if (battle != null) {
       watchBattle(battle);
@@ -495,7 +507,7 @@ class WorldController extends ChangeNotifier {
       selectedCity = null;
       selectedUnitId = null;
       watchedBattle = null;
-      if (_heroCatalog.isEmpty && !campaign.hasDispatched) {
+      if (!isPaused && _heroCatalog.isEmpty && !campaign.hasDispatched) {
         walkTo(cell);
       } else {
         refreshUi();
@@ -540,6 +552,7 @@ class WorldController extends ChangeNotifier {
   /// 直接展开城池详情，我方城池同时提供英雄选择。
   void openCity(CityDefinition city) {
     if (campaign.defeated) return;
+    if (isPaused && choosingTarget) cancelCityAction();
     if (!world.cities.contains(city) || choosingTarget) return;
     _clearWeaponSelection();
     selectedUnitId = null;
@@ -840,6 +853,7 @@ class WorldController extends ChangeNotifier {
   /// 打开角色操作面板，不停止正在执行的行军或交战。
   void openUnit(String id) {
     if (campaign.defeated) return;
+    if (isPaused && choosingTarget) cancelCityAction();
     if (choosingTarget || !campaign.marches.containsKey(id)) {
       return;
     }
@@ -912,6 +926,7 @@ class WorldController extends ChangeNotifier {
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(WorldBattle battle) {
     if (campaign.defeated) return;
+    if (isPaused && choosingTarget) cancelCityAction();
     _clearWeaponSelection();
     leaveMap();
     camera.cancelMotion();
@@ -943,6 +958,9 @@ class WorldController extends ChangeNotifier {
     uiRevision.value++;
     notifyListeners();
   }
+
+  /// 只重绘镜头变化，不重建面板或推进游戏时钟。
+  void refreshView() => notifyListeners();
 
   @override
   void dispose() {

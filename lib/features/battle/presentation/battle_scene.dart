@@ -212,13 +212,17 @@ class _BattleSceneState extends State<BattleScene> {
                                     _scale * details.scale,
                                     (details.localFocalPoint).toGame,
                                   );
+                                  c.refreshView();
                                 },
-                                onScaleEnd: (details) => camera.endDrag(
-                                  (details.velocity.pixelsPerSecond).toGame,
-                                  allowInertia:
-                                      !_gestureScaled &&
-                                      details.pointerCount == 0,
-                                ),
+                                onScaleEnd: (details) {
+                                  camera.endDrag(
+                                    (details.velocity.pixelsPerSecond).toGame,
+                                    allowInertia:
+                                        !_gestureScaled &&
+                                        details.pointerCount == 0,
+                                  );
+                                  c.refreshUi();
+                                },
                                 child: CustomPaint(
                                   key: const ValueKey('battle-canvas'),
                                   painter: BattlePainter(

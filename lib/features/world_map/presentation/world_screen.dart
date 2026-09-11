@@ -178,7 +178,9 @@ class _WorldScreenState extends State<WorldScreen>
       ticker.stop();
       return;
     }
-    if (!widget.replay && _controller?.isPaused == true) {
+    if (!widget.replay &&
+        _controller?.isPaused == true &&
+        !_controller!.activeCamera.coasting) {
       ticker.stop();
     } else if (!ticker.isActive) {
       _previousTick = Duration.zero;
@@ -230,7 +232,6 @@ class _WorldScreenState extends State<WorldScreen>
 
   void _action(VoidCallback action) {
     if (widget.replay || _leaving) return;
-    if (_controller?.isPaused == true) return;
     _controller?.activeCamera.cancelMotion();
     action();
     _controller?.refreshUi();
@@ -248,7 +249,20 @@ class _WorldScreenState extends State<WorldScreen>
       if (event is KeyDownEvent) _togglePause();
       return KeyEventResult.handled;
     }
-    if (c.isPaused) return KeyEventResult.handled;
+    if (c.isPaused) {
+      if (event is KeyDownEvent) {
+        if (key == LogicalKeyboardKey.escape) _action(c.cancelCityAction);
+        if (key == LogicalKeyboardKey.space) _action(c.home);
+        if (key == LogicalKeyboardKey.keyF) _action(c.activeCamera.overview);
+        if (key == LogicalKeyboardKey.keyM) {
+          setState(() => _showMinimap = !_showMinimap);
+        }
+        if (key == LogicalKeyboardKey.keyG) {
+          _action(() => c.showGrid = !c.showGrid);
+        }
+      }
+      return KeyEventResult.handled;
+    }
     if (event is KeyUpEvent) {
       _pressed.remove(key);
     } else {
@@ -431,9 +445,9 @@ class _WorldScreenState extends State<WorldScreen>
               fit: StackFit.expand,
               children: [
                 ExcludeFocus(
-                  excluding: c.campaign.defeated || c.isPaused,
+                  excluding: c.campaign.defeated,
                   child: AbsorbPointer(
-                    absorbing: c.campaign.defeated || c.isPaused,
+                    absorbing: c.campaign.defeated,
                     child: child,
                   ),
                 ),
@@ -548,15 +562,18 @@ class _WorldScreenState extends State<WorldScreen>
                                             _gestureScale * details.scale,
                                             (details.localFocalPoint).toGame,
                                           );
+                                          c.refreshView();
                                         },
-                                        onScaleEnd: (details) =>
-                                            c.camera.endDrag(
-                                              (details.velocity.pixelsPerSecond)
-                                                  .toGame,
-                                              allowInertia:
-                                                  !_gestureScaled &&
-                                                  details.pointerCount == 0,
-                                            ),
+                                        onScaleEnd: (details) {
+                                          c.camera.endDrag(
+                                            (details.velocity.pixelsPerSecond)
+                                                .toGame,
+                                            allowInertia:
+                                                !_gestureScaled &&
+                                                details.pointerCount == 0,
+                                          );
+                                          c.refreshUi();
+                                        },
                                         child: Semantics(
                                           label: '世界地图，拖拽移动，松手短暂惯性，点击角色下达指令，点击城堡查看信息',
                                           child: CustomPaint(

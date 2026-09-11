@@ -6,7 +6,7 @@ import 'package:pixel_world/features/world_map/presentation/world_painter.dart';
 
 void main() {
   for (final size in [const Size(375, 812), const Size(1280, 720)]) {
-    testWidgets('暂停按钮和 P 键冻结时钟、屏蔽操作，恢复不补算停顿 $size', (tester) async {
+    testWidgets('暂停按钮和 P 键冻结模拟，恢复不补算停顿 $size', (tester) async {
       rootBundle.clear();
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
