@@ -263,6 +263,17 @@ extension CampaignSnapshots on CampaignState {
       throw const FormatException('存档版本或地图不匹配');
     }
     final definitions = {for (final h in catalog) h.id: h};
+    int combat(int saved, int source) {
+      final definition = definitions[source];
+      // 只纠正目录已还原且旧档仍保留统一+3的值，回放与自定义属性沿用历史数据。
+      return !replay &&
+              definition?.romCombat != null &&
+              definition!.combat == definition.romCombat &&
+              saved == definition.combat + 3
+          ? definition.combat
+          : saved;
+    }
+
     int salary(int saved, int source, int country) {
       final definition = definitions[source];
       // 续玩旧档采用新月俸并取消本国免薪；回放保留历史数值，不追扣已结算工资。
@@ -286,7 +297,7 @@ extension CampaignSnapshots on CampaignState {
             cityId: h['city'],
             countryId: h['country'],
             health: health[h['health']],
-            combat: h['combat'],
+            combat: combat(h['combat'], h['source']),
             morale: h['morale'],
             politics: h['politics'],
             salary: salary(h['salary'], h['source'], h['country']),
@@ -370,11 +381,19 @@ extension CampaignSnapshots on CampaignState {
     }
     for (final b in d['battles']) {
       final a = people[b['attacker']], defender = people[b['defender']];
-      final simulation = BattleSnapshots.restore(
-        _map(b['simulation']),
-        health,
-        weapons,
-      );
+      final battleData = _map(b['simulation']);
+      if (!replay && b['settled'] != true) {
+        // 续玩中的战斗与还原后的将领同步，复制子对象以免改写原快照和历史回放。
+        battleData['attacker'] = {
+          ..._map(battleData['attacker']),
+          'attack': a.combat,
+        };
+        battleData['defender'] = {
+          ..._map(battleData['defender']),
+          'attack': defender.combat,
+        };
+      }
+      final simulation = BattleSnapshots.restore(battleData, health, weapons);
       final WorldBattle battle;
       if (b.containsKey('city')) {
         final v =

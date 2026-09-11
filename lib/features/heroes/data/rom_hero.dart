@@ -27,6 +27,7 @@ class RomHeroDefinition {
       type = HeroType.values.byName(json['type'] as String),
       maxHp = json['maxHp'] as int,
       combat = json['combat'] as int,
+      romCombat = json['romCombat'] as int?,
       morale = _readMorale(json),
       nativeCountryId = _readNativeCountry(json),
       politics = json['politics'] as int,
@@ -61,6 +62,9 @@ class RomHeroDefinition {
 
   /// 战斗能力。
   final int combat;
+
+  /// 原版战斗能力，用于识别旧档统一加3的属性；自定义扩展将领可为空。
+  final int? romCombat;
 
   /// 内政能力。
   final int politics;
