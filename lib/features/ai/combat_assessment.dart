@@ -240,4 +240,4 @@ double heroDefenseValue(AiHero h, AiRules rules, int level, int soldiers) =>
     (h.hp + soldiers * rules.integer('soldierHp')) *
     (rules.attack(h.combat, defenseLevel: level, field: false) +
         soldiers * rules.integer('soldierPower')) *
-    (1 + h.morale / 1000);
+    (1 + rules.morale(h.morale.round()) / 1000);

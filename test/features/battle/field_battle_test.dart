@@ -133,7 +133,7 @@ void main() {
     expect(c.fieldBattles.length, 1);
   });
 
-  test('三种地形只降低双方将领攻击，小兵攻击、最大生命和士气规则不变', () {
+  test('三种野战环境都保留完整将领攻击，AI评估与真实战斗一致', () {
     for (final entry in {
       0: FieldTerrain.grass,
       1: FieldTerrain.river,
@@ -143,29 +143,24 @@ void main() {
       final (a, b) = _approach(c);
       final battle = _meet(c);
       final sim = battle.simulation;
+      final rules = c.aiRulesForTesting();
       expect(battle.terrain, entry.value);
       expect(
         sim.basePower(BattleSide.attacker),
-        closeTo(
-          a.hero.soldiers * 2 +
-              (a.hero.combat * entry.value.heroAttackFactor).floor(),
-          1e-9,
-        ),
+        a.hero.soldiers + a.hero.combat,
       );
       expect(
         sim.basePower(BattleSide.defender),
-        closeTo(
-          b.hero.soldiers * 2 +
-              (b.hero.combat * entry.value.heroAttackFactor).floor(),
-          1e-9,
-        ),
+        b.hero.soldiers + b.hero.combat,
       );
+      expect(rules.attack(a.hero.combat, terrain: entry.key), a.hero.combat);
+      expect(rules.attack(b.hero.combat, terrain: entry.key), b.hero.combat);
       expect(sim.defenderAttackBonus, 0);
       expect(sim.defenderMoraleBonus, 0);
       expect(
         sim.units
             .where((unit) => !unit.isGeneral)
-            .every((unit) => unit.attack == 2),
+            .every((unit) => unit.attack == 1),
         isTrue,
       );
       expect(sim.attackerMorale.maximum, 100);
@@ -173,7 +168,7 @@ void main() {
     }
   });
 
-  test('野战同属性双方伤害范围相同，五级城参数不提供守城特权', () {
+  test('野战关闭士气后同属性双方伤害相同，五级城参数不提供守城特权', () {
     for (final terrain in FieldTerrain.values) {
       BattleArmy army(String id) => BattleArmy(
         id: id,
@@ -188,16 +183,17 @@ void main() {
         seed: 1,
         fieldTerrain: terrain,
         defenderCityLevel: 5,
+        useMorale: false,
       );
       for (var i = 0; i < 1000 && sim.clashes == 0; i++) {
         sim.advance(1 / 60);
       }
-      final power = 8 + (15 * terrain.heroAttackFactor).floor();
-      final q = (power + 2) ~/ 4;
-      expect(sim.basePower(BattleSide.attacker), power);
-      expect(sim.basePower(BattleSide.defender), power);
-      expect(sim.lastClash!.attackerDamage, inInclusiveRange(q + 1, q * 2 + 1));
-      expect(sim.lastClash!.defenderDamage, inInclusiveRange(q + 1, q * 2 + 1));
+      expect(sim.basePower(BattleSide.attacker), 19);
+      expect(sim.basePower(BattleSide.defender), 19);
+      expect(sim.lastClash!.attackerDamage, greaterThan(0));
+      expect(sim.lastClash!.defenderDamage, sim.lastClash!.attackerDamage);
+      expect(sim.defenderAttackBonus, 0);
+      expect(sim.defenderMoraleBonus, 0);
       expect(sim.defenderMorale.maximum, 100);
     }
   });

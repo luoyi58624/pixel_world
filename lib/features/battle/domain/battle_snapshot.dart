@@ -20,6 +20,7 @@ extension BattleSnapshots on BattleSimulation {
       'terrain': fieldTerrain?.index,
       'perspective': resultPerspective.index,
       'auto': autoCharge,
+      'useMorale': useMorale,
       'kernel': _kernel.saveState(frozen: finished),
       'time': [elapsed, _accumulator, _ticks, _endingTicks, _endingCompleteAt],
       'stage': stage.index,
@@ -123,6 +124,7 @@ extension BattleSnapshots on BattleSimulation {
           : FieldTerrain.values[d['terrain']],
       resultPerspective: BattleSide.values[d['perspective']],
       autoCharge: d['auto'],
+      useMorale: d['useMorale'] as bool? ?? true,
     );
     for (var i = 0; i < health.length; i++) {
       health[i].hp = hp[i];

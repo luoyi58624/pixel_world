@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/battle/domain/nes/nes_battle_kernel.dart';
 
@@ -16,34 +15,37 @@ NesBattleKernel _kernel(int seed, {int morale = 50, int city = 0}) =>
       ],
       seed: seed,
       defenderCityAttackBonus: city,
-      cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
-      recoilDifferenceScale: GameConfig.battleRecoilDifferenceScale,
-      wallDamageScale: GameConfig.battleWallDamageScale,
+      cityDefenseRecoilScale: 0.25,
+      recoilDifferenceScale: 0.25,
+      wallDamageScale: 0.5,
       randomChargeEnabled: true,
-      moralePowerScale: GameConfig.battleMoralePowerScale,
-      chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
+      moraleEnabled: true,
+      moralePowerScale: 6,
+      moraleDrainPerSecond: 12,
+      moraleDrainRandomRange: 4,
     );
 
 void main() {
-  test('冲锋途中双方随机蓄力，高士气更容易成功且单次强度有上限', () {
+  test('冲锋途中双方随机蓄力，充足士气支持更多积累且单次强度有上限', () {
     var low = 0, high = 0;
     final outcomes = <String>{};
     for (var seed = 1; seed <= 64; seed++) {
-      for (final morale in [25, 100]) {
+      for (final morale in [1, 100]) {
         final k = _kernel(seed * 1009, morale: morale);
         while (k.clashes == 0 && k.frames < 1000) {
           k.step(autoCharge: true);
         }
         expect(k.clashes, 1);
         final total = k.committed[0] + k.committed[1];
-        if (morale == 25) {
+        if (morale == 1) {
           low += total;
         } else {
           high += total;
         }
         outcomes.add('${k.committed}');
         for (final side in [0, 1]) {
-          final bar = BattleMorale(morale)..accumulated = k.committed[side];
+          final bar = BattleMorale(morale, powerScale: 6)
+            ..accumulated = k.committed[side];
           expect(bar.bonus, inInclusiveRange(0, 24));
           expect(k.ram[0x15 + side] - (15 + 4), bar.bonus);
         }

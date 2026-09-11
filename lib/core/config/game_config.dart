@@ -184,10 +184,10 @@ abstract final class GameConfig {
   static const recycleDefeatedHeroes = true;
 
   /// 一至五级城防攻击加成，不提高冲锋速度。
-  static const cityDefenseAttackBonuses = [1, 3, 12, 14, 16];
+  static const cityDefenseAttackBonuses = [2, 4, 6, 10, 15];
 
-  /// 一至五级守城开场士气加成，叠加将领属性后上限仍为100。
-  static const cityDefenseMoraleBonuses = [5, 25, 50, 50, 50];
+  /// 守城开场士气每级增加5点，超过100的部分参与第一轮碰撞。
+  static const cityDefenseMoraleBonuses = [5, 10, 15, 20, 25];
 
   /// 按本轮有效城防等级读取守城士气，连续攻城随剩余等级递减。
   static int cityDefenseMoraleBonusFor(int level) =>
@@ -204,16 +204,22 @@ abstract final class GameConfig {
       )];
 
   /// 缩小碰撞强度差对击退速度的影响，避免少一个兵立即变成持续撞墙。
-  static const battleRecoilDifferenceScale = 0.5;
+  static const battleRecoilDifferenceScale = 0.25;
 
-  /// 城防攻击参与击退差值的比例，伤害仍使用完整城防攻击。
-  static const cityDefenseRecoilScale = 0.5;
+  /// 城防攻击不参与击退差值，伤害仍使用完整城防攻击。
+  static const cityDefenseRecoilScale = 0.0;
 
   /// 随机蓄力的碰撞强度倍率，最高提供24点士气强度。
   static const battleMoralePowerScale = 6;
 
-  /// 冲锋中每0.2秒尝试一次蓄力，高士气提高成功率但不保证成功。
-  static const battleChargeIntervalFrames = 12;
+  /// 是否启用士气消耗、蓄力与冲击加成；关闭可验证纯属性拼杀。
+  static const battleUseMorale = true;
+
+  /// 每秒基础士气消耗，按60个战斗逻辑帧累计扣除。
+  static const battleMoraleDrainPerSecond = 12.0;
+
+  /// 每秒消耗的随机幅度；4对应每秒8到16点，0时双方同速。
+  static const battleMoraleDrainRandomRange = 4.0;
 
   /// 原版撞墙使用双倍攻击强度，折半后按普通攻击强度追加一次伤害。
   static const battleWallDamageScale = 0.5;
@@ -221,14 +227,14 @@ abstract final class GameConfig {
   /// 敌对部队中心相距一个人物宽度时触发野战，单位为地图原生像素。
   static const fieldEncounterDistance = 16.0;
 
-  /// 山地野战中双方将领攻击保留的比例。
-  static const mountainHeroAttackFactor = 0.5;
+  /// 山地野战使用完整将领攻击，不施加地形削弱。
+  static const mountainHeroAttackFactor = 1.0;
 
-  /// 河流野战中双方将领攻击保留的比例。
-  static const riverHeroAttackFactor = 0.7;
+  /// 河流野战使用完整将领攻击，不施加地形削弱。
+  static const riverHeroAttackFactor = 1.0;
 
-  /// 草地野战中双方将领攻击保留的比例。
-  static const grassHeroAttackFactor = 0.9;
+  /// 草地野战使用完整将领攻击，不施加地形削弱。
+  static const grassHeroAttackFactor = 1.0;
 
   /// 地图保留最近结束的野战记录数，进行中的战斗不受此限制。
   static const fieldBattleHistoryLimit = 16;

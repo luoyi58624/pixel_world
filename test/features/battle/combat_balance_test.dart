@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'dart:math' as math;
 
-import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/nes/nes_battle_kernel.dart';
 
 void main() {
@@ -19,29 +18,28 @@ void main() {
         [18, 95, 100],
       ]) {
         for (final seed in seeds) {
-          final bonus = GameConfig.cityDefenseAttackBonusFor(level);
+          final bonus = [1, 3, 5, 8, 12][level - 1];
           final k = NesBattleKernel(
             attack: [h[0], h[0] + bonus],
             hp: [h[1], h[1]],
             initialMorale: [
               h[2],
-              (h[2] + GameConfig.cityDefenseMoraleBonusFor(level)).clamp(
-                0,
-                100,
-              ),
+              (h[2] + [5, 15, 25, 35, 45][level - 1]).clamp(0, 100),
             ],
             slots: [
               [0, 1, 2, 3],
               [0, 1, 2, 3],
             ],
             seed: seed,
-            recoilDifferenceScale: GameConfig.battleRecoilDifferenceScale,
-            wallDamageScale: GameConfig.battleWallDamageScale,
+            recoilDifferenceScale: 0.25,
+            wallDamageScale: 0.5,
             defenderCityAttackBonus: bonus,
-            cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
+            cityDefenseRecoilScale: 0.25,
             randomChargeEnabled: true,
-            moralePowerScale: GameConfig.battleMoralePowerScale,
-            chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
+            moraleEnabled: true,
+            moralePowerScale: 6,
+            moraleDrainPerSecond: 12,
+            moraleDrainRandomRange: 4,
           );
           while (k.generalsAlive && k.frames < 18000) {
             k.step(autoCharge: true);

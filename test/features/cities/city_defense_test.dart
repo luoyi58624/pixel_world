@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
@@ -38,16 +39,16 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 13);
-      final bonus = [1, 3, 12, 14, 16][level - 1];
+      final bonus = [2, 4, 6, 10, 15][level - 1];
       expect(sim.basePower(BattleSide.defender), 13 + bonus);
       expect(rules.integer('soldierPower'), 1);
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 50 + [5, 25, 50, 50, 50][level - 1]);
+      expect(sim.defenderMorale.remaining, 50 + [5, 10, 15, 20, 25][level - 1]);
       expect(
         rules.morale(50, defenseLevel: level),
-        sim.defenderMorale.remaining,
+        GameConfig.battleUseMorale ? sim.defenderMorale.remaining : 0,
       );
       expect(defender.attack, 10);
       expect(defender.general.hp, 20);
@@ -65,7 +66,7 @@ void main() {
       );
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 100);
+      expect(sim.defenderMorale.remaining, 75);
       expect(sim.defender.general.hp, 20);
     }
   });
@@ -77,12 +78,13 @@ void main() {
       seed: 3,
       defenderCityLevel: 5,
       autoCharge: false,
+      useMorale: false,
     );
     for (var i = 0; i < 1000 && sim.clashes == 0; i++) {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 19);
-    expect(sim.basePower(BattleSide.defender), 35);
+    expect(sim.basePower(BattleSide.defender), 34);
     expect(sim.lastClash!.attackerDamage, greaterThan(0));
     expect(sim.lastClash!.defenderDamage, greaterThan(0));
     expect(
@@ -105,8 +107,8 @@ void main() {
     c.advance(0.02);
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
-    expect(battle.simulation.defenderAttackBonus, 3);
-    expect(battle.simulation.defenderMoraleBonus, 25);
+    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(battle.simulation.defenderMoraleBonus, 10);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
     }
@@ -114,7 +116,7 @@ void main() {
     c.advance(1.25);
     expect(battle.wave, 2);
     expect(battle.simulation.defenderCityLevel, 1);
-    expect(battle.simulation.defenderAttackBonus, 1);
+    expect(battle.simulation.defenderAttackBonus, 2);
     expect(battle.simulation.defenderMoraleBonus, 5);
     expect(
       battle.simulation.defenderMorale.remaining,
@@ -146,7 +148,7 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers + 12,
+      battle.defender.combat + battle.defender.soldiers + 6,
     );
     expect(
       sim.basePower(BattleSide.attacker),
@@ -173,7 +175,7 @@ void main() {
     expect(c.world.cities[1].initialLevel, 2);
     final sim = c.battles[1]!.simulation;
     expect(sim.defenderCityLevel, 1);
-    expect(sim.defenderAttackBonus, 1);
+    expect(sim.defenderAttackBonus, 2);
     expect(sim.defenderMoraleBonus, 5);
   });
 }

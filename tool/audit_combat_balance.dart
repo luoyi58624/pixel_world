@@ -34,7 +34,9 @@ void main(List<String> args) {
       'cityRecoil': GameConfig.cityDefenseRecoilScale,
       'recoil': GameConfig.battleRecoilDifferenceScale,
       'moralePowerScale': GameConfig.battleMoralePowerScale,
-      'chargeFrames': GameConfig.battleChargeIntervalFrames,
+      'moraleDrainPerSecond': GameConfig.battleMoraleDrainPerSecond,
+      'moraleDrainRandomRange': GameConfig.battleMoraleDrainRandomRange,
+      'useMorale': GameConfig.battleUseMorale,
       'cannonDamage': cannon.damage,
       'cannonPrice': cannon.price,
     }),
@@ -78,9 +80,8 @@ void main(List<String> args) {
         hp: [hp, hp],
         initialMorale: [
           s['attackerMorale'] ?? morale,
-          ((s['defenderMorale'] ?? morale) +
-                  (level > 0 ? GameConfig.cityDefenseMoraleBonusFor(level) : 0))
-              .clamp(0, 100),
+          (s['defenderMorale'] ?? morale) +
+              (level > 0 ? GameConfig.cityDefenseMoraleBonusFor(level) : 0),
         ],
         slots: [
           List.generate(s['attackerSoldiers'] ?? 4, (i) => i),
@@ -92,8 +93,10 @@ void main(List<String> args) {
         defenderCityAttackBonus: bonus,
         cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
         randomChargeEnabled: true,
+        moraleEnabled: GameConfig.battleUseMorale,
+        moraleDrainPerSecond: GameConfig.battleMoraleDrainPerSecond,
+        moraleDrainRandomRange: GameConfig.battleMoraleDrainRandomRange,
         moralePowerScale: GameConfig.battleMoralePowerScale,
-        chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
       );
       if (s.containsKey('weapon')) k.applyWeaponDamage(1, s['weapon']!);
       while (k.generalsAlive && k.frames < 18000) {

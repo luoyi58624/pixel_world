@@ -42,11 +42,11 @@ String battleNumber(num value) =>
 
 /// 原版红条资源，来自独立的 AE/AF 数值而非将领生命。
 class BattleMorale {
-  /// 用本场原版初始值创建显示快照。
+  /// 用本场总士气创建显示快照，红条最多展示100点。
   BattleMorale(
     this.initial, {
     this.powerScale = GameConfig.battleMoralePowerScale,
-  }) : remaining = initial;
+  }) : remaining = initial.clamp(0, 100);
 
   /// 将累积士气换算为实际碰撞强度的倍率。
   final int powerScale;
@@ -54,7 +54,7 @@ class BattleMorale {
   /// 全体将领使用统一的士气上限。
   int get maximum => 100;
 
-  /// 此英雄配置的开场士气。
+  /// 本场开场总士气，包含加入第一轮积累的超额部分。
   final int initial;
 
   /// 剩余红条。
@@ -266,6 +266,7 @@ class BattleSimulation {
     this.cityAppearanceLevel,
     this.fieldTerrain,
     this.autoCharge = true,
+    this.useMorale = GameConfig.battleUseMorale,
     this.resultPerspective = BattleSide.attacker,
   }) {
     _kernel = NesBattleKernel(
@@ -274,10 +275,7 @@ class BattleSimulation {
         (_combat(defender) + defenderAttackBonus).clamp(0, 63),
       ],
       moraleAttack: [_combat(attacker), _combat(defender)],
-      initialMorale: [
-        attacker.morale,
-        (defender.morale + defenderMoraleBonus).clamp(0, 100),
-      ],
+      initialMorale: [attacker.morale, defender.morale + defenderMoraleBonus],
       hp: [attacker.general.hp.round(), defender.general.hp.round()],
       slots: [
         for (final army in [attacker, defender])
@@ -294,13 +292,18 @@ class BattleSimulation {
       ),
       cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
       randomChargeEnabled: true,
+      moraleEnabled: useMorale,
+      moraleDrainPerSecond: GameConfig.battleMoraleDrainPerSecond,
+      moraleDrainRandomRange: GameConfig.battleMoraleDrainRandomRange,
       moralePowerScale: GameConfig.battleMoralePowerScale,
-      chargeIntervalFrames: GameConfig.battleChargeIntervalFrames,
       wallDamageScale: GameConfig.battleWallDamageScale,
     );
     final moraleScale = autoCharge ? GameConfig.battleMoralePowerScale : 1;
-    attackerMorale = BattleMorale(_kernel.ram[0xae], powerScale: moraleScale);
-    defenderMorale = BattleMorale(_kernel.ram[0xaf], powerScale: moraleScale);
+    attackerMorale = BattleMorale(attacker.morale, powerScale: moraleScale);
+    defenderMorale = BattleMorale(
+      defender.morale + defenderMoraleBonus,
+      powerScale: moraleScale,
+    );
     _addArmy(defender, BattleSide.defender);
     _addArmy(attacker, BattleSide.attacker);
     _syncHealth();
@@ -341,6 +344,9 @@ class BattleSimulation {
 
   /// 双方是否自动随机蓄力，关闭仅用于隔离士气影响的测试。
   final bool autoCharge;
+
+  /// 是否使用士气，关闭时只保留将领、士兵和城防的基础拼杀属性。
+  final bool useMorale;
 
   /// 野战对英雄属性的倍率，小兵不受影响。
   double get heroAttackFactor => fieldTerrain?.heroAttackFactor ?? 1;
@@ -822,7 +828,7 @@ class BattleSimulation {
       }
       final bar = morale(side);
       bar.remaining = _kernel.ram[0xae + index];
-      bar.accumulated = _kernel.ram[index == 0 ? 0x0f : 0x19];
+      bar.accumulated = _kernel.accumulatedMorale(index);
       bar.committed = _kernel.committed[index];
     }
     for (final unit in units) {

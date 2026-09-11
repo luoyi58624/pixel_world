@@ -42,6 +42,14 @@ class NesBattleKernel {
         _pc,
         _sp,
       ],
+      'moraleDrainPerSecond': _moraleDrainPerSecond,
+      'moraleDrainRandomRange': _moraleDrainRandomRange,
+      'moraleEnabled': moraleEnabled,
+      'moraleDrainFrames': _moraleDrainFrames,
+      'moraleDrainRates': [..._moraleDrainRates],
+      'moraleDrainCarry': [..._moraleDrainCarry],
+      'moraleChargeOverflow': [..._moraleChargeOverflow],
+      'damageEighths': [..._damageEighths],
     };
     if (frozen) _frozenSnapshot = value;
     return value;
@@ -67,6 +75,25 @@ class NesBattleKernel {
     _p = r[11];
     _pc = r[12];
     _sp = r[13];
+    _moraleDrainPerSecond =
+        (data['moraleDrainPerSecond'] as num?)?.toDouble() ??
+        _moraleDrainPerSecond;
+    _moraleDrainRandomRange =
+        (data['moraleDrainRandomRange'] as num?)?.toDouble() ??
+        _moraleDrainRandomRange;
+    moraleEnabled = data['moraleEnabled'] as bool? ?? true;
+    // 旧存档保留现有士气，用新算法开始一个完整计时周期。
+    _moraleDrainFrames = data['moraleDrainFrames'] as int? ?? 0;
+    final rates = (data['moraleDrainRates'] as List?)?.cast<num>();
+    final carry = (data['moraleDrainCarry'] as List?)?.cast<num>();
+    final chargeOverflow = (data['moraleChargeOverflow'] as List?)?.cast<int>();
+    final damageEighths = (data['damageEighths'] as List?)?.cast<int>();
+    for (var side = 0; side < 2; side++) {
+      _moraleDrainRates[side] = rates?[side].toDouble() ?? 0;
+      _moraleDrainCarry[side] = carry?[side].toDouble() ?? 0;
+      _moraleChargeOverflow[side] = chargeOverflow?[side] ?? 0;
+      _damageEighths[side] = damageEighths?[side] ?? 0;
+    }
     if (randomChargeEnabled) {
       // 旧存档沿用当前城防配置，不能把旧的高城防攻击重新灌回战斗。
       for (var side = 0; side < 2; side++) {
@@ -86,7 +113,7 @@ class NesBattleKernel {
   /// 双方开场阵形锚点，顺序为右军、左军。
   static const initialFormationX = [200, 16];
 
-  /// 输入顺序为右军、左军，属性必须处于原版单字节范围内。
+  /// 输入顺序为右军、左军；初始士气不封顶，其余属性使用原版字节范围。
   NesBattleKernel({
     required List<int> attack,
     required List<int> hp,
@@ -101,12 +128,21 @@ class NesBattleKernel {
     this.originalSoldierRules = false,
     this.randomChargeEnabled = false,
     this.moralePowerScale = 3,
-    this.chargeIntervalFrames = 12,
-  }) : _initialAttack = List<int>.unmodifiable(attack) {
-    if (moralePowerScale < 1 ||
-        moralePowerScale > 8 ||
-        chargeIntervalFrames < 1) {
-      throw ArgumentError('士气倍率必须为1到8，蓄力间隔必须为正数');
+    double moraleDrainPerSecond = 12,
+    double moraleDrainRandomRange = 4,
+    this.moraleEnabled = true,
+  }) : _initialAttack = List<int>.unmodifiable(attack),
+       _moraleDrainPerSecond = moraleDrainPerSecond,
+       _moraleDrainRandomRange = moraleDrainRandomRange {
+    if (!moraleDrainPerSecond.isFinite ||
+        moraleDrainPerSecond < 0 ||
+        !moraleDrainRandomRange.isFinite ||
+        moraleDrainRandomRange < 0 ||
+        moraleDrainRandomRange > moraleDrainPerSecond) {
+      throw ArgumentError('士气每秒消耗与随机幅度必须为非负有限数，幅度不能超过基础消耗');
+    }
+    if (moralePowerScale < 1 || moralePowerScale > 8) {
+      throw ArgumentError('士气倍率必须为1到8');
     }
     if (!recoilDifferenceScale.isFinite ||
         recoilDifferenceScale < 0 ||
@@ -164,12 +200,14 @@ class NesBattleKernel {
       }
       _call(0xe1c6, x: side);
       if (initialMorale != null) {
-        if (initialMorale.length != 2 ||
-            initialMorale[side] < 0 ||
-            initialMorale[side] > 100) {
-          throw ArgumentError('独立士气必须位于 0 到 100');
+        if (initialMorale.length != 2 || initialMorale[side] < 0) {
+          throw ArgumentError('独立士气必须为非负整数，且包含双方数值');
         }
-        ram[0xae + side] = initialMorale[side];
+        ram[0xae + side] = initialMorale[side].clamp(0, 100);
+        // 超额在初始化时就进入第一轮积累，100点红条从开战起正常消耗。
+        if (moraleEnabled && initialMorale[side] > 100) {
+          _addMoraleCharge(side, initialMorale[side] - 100);
+        }
       }
       ram[0x1a + side] = strength;
       _call(0xe758, x: side);
@@ -187,9 +225,36 @@ class NesBattleKernel {
   /// 每次碰撞士气强度的倍率，上限为此值的四倍。
   final int moralePowerScale;
 
-  /// 冲锋中的蓄力判定间隔，单位为六十分之一秒。
-  final int chargeIntervalFrames;
   bool _randomChargeStep = false;
+  double _moraleDrainPerSecond;
+  double _moraleDrainRandomRange;
+
+  /// 是否启用士气，关闭时保持剩余士气并清空本轮蓄力。
+  bool moraleEnabled;
+  int _moraleDrainFrames = 0;
+  final _moraleDrainRates = [0.0, 0.0];
+  final _moraleDrainCarry = [0.0, 0.0];
+  final _moraleChargeOverflow = [0, 0];
+  // 按受击方记录八分之一点伤害，跨碰撞与存档保留，避免攻击差被逐次取整吞掉。
+  final _damageEighths = [0, 0];
+  int _moraleConversionSide = 0;
+
+  /// 当前每秒基础士气消耗，随战斗快照恢复。
+  double get moraleDrainPerSecond => _moraleDrainPerSecond;
+
+  /// 当前每秒消耗的随机幅度，随战斗快照恢复。
+  double get moraleDrainRandomRange => _moraleDrainRandomRange;
+
+  /// 当前完整士气积累，保留超过原ROM单字节容量的部分。
+  int accumulatedMorale(int side) =>
+      ram[side == 0 ? 0x0f : 0x19] + _moraleChargeOverflow[side];
+
+  void _addMoraleCharge(int side, int amount) {
+    final accumulated = accumulatedMorale(side) + amount;
+    final address = side == 0 ? 0x0f : 0x19;
+    ram[address] = accumulated.clamp(0, 255);
+    _moraleChargeOverflow[side] = accumulated - ram[address];
+  }
 
   // 保留将领与城防基础值，只重算存活兵员；不能影响正在执行的寄存器和进位。
   void _refreshSoldierPower() {
@@ -242,13 +307,19 @@ class NesBattleKernel {
 
   /// 按主循环 DCE5 的顺序更新双方运动、死亡动画及 OAM 位置。
   void step({bool chargeHeld = false, bool autoCharge = false}) {
-    _randomChargeStep = randomChargeEnabled && autoCharge;
-    ram[0x42] = chargeHeld ? 128 : 0;
+    _randomChargeStep = moraleEnabled && randomChargeEnabled && autoCharge;
+    // 新规则统一按时钟付费，不能再叠加原ROM按键逐帧扣除。
+    ram[0x42] = moraleEnabled && chargeHeld && !_randomChargeStep ? 128 : 0;
+    if (!moraleEnabled) {
+      ram[0x0f] = 0;
+      ram[0x19] = 0;
+      _moraleChargeOverflow.fillRange(0, 2, 0);
+    }
     if (generalsAlive) {
       if (_randomChargeStep) _advanceRandomCharge();
       // 首帧承接 E1C4 的 CLC；之后 DD08 的 ASL 将存活位移入进位。
       _p = frames == 0 ? 0x30 : 0x31;
-      if (autoCharge && !_randomChargeStep) {
+      if (moraleEnabled && autoCharge && !_randomChargeStep) {
         _advanceAttackerCharge();
         ram[0x42] = 0;
       }
@@ -262,28 +333,36 @@ class NesBattleKernel {
   }
 
   void _advanceRandomCharge() {
-    for (var side = 0; side < 2; side++) {
-      if (frames % chargeIntervalFrames != 0) continue;
-      final speed = velocity(side);
-      if (side == 0 ? speed >= 0 : speed <= 0) continue;
-      final reserve = ram[0xae + side];
-      if (reserve == 0) continue;
-      // 高士气提高成功率但不保证成功，双方均只在朝敌方冲锋时抽取。
-      if (_chargeRoll(100) >= 25 + reserve ~/ 2) continue;
-      final gain = _chargeRoll(4) + 1;
-      final accumulated = side == 0 ? 0x0f : 0x19;
-      ram[accumulated] = (ram[accumulated] + gain).clamp(0, 255);
-      ram[0xae + side]--;
+    if (_moraleDrainFrames == 0) {
+      for (var side = 0; side < 2; side++) {
+        var rate = _moraleDrainPerSecond;
+        if (_moraleDrainRandomRange > 0) {
+          _call(0xd102);
+          rate += (_a / 255 * 2 - 1) * _moraleDrainRandomRange;
+        }
+        _moraleDrainRates[side] = rate;
+      }
     }
+    for (var side = 0; side < 2; side++) {
+      _tickMorale(side);
+    }
+    _moraleDrainFrames = (_moraleDrainFrames + 1) % 60;
   }
 
-  int _chargeRoll(int max) {
-    // 原D0F1取模会偏向较小结果；拒绝尾部字节，保证百分比判定不虚高。
-    final limit = 256 - 256 % max;
-    do {
-      _call(0xd102);
-    } while (_a >= limit);
-    return _a % max;
+  void _tickMorale(int side) {
+    final reserve = ram[0xae + side];
+    if (reserve == 0) return;
+    _moraleDrainCarry[side] += _moraleDrainRates[side] / 60;
+    // 留住不足一点的部分，微小浮点误差不能让整秒少扣一点。
+    final due = (_moraleDrainCarry[side] + 1e-9).floor();
+    _moraleDrainCarry[side] -= due;
+    final spent = due.clamp(0, reserve);
+    ram[0xae + side] = reserve - spent;
+    // 沿用原来的冲锋蓄力规则：向敌方移动时，每支付一点积累一点。
+    // 两边速度字都以朝向敌人为正，屏幕坐标的左右方向由ROM分别处理。
+    if (velocity(side) > 0) {
+      _addMoraleCharge(side, spent);
+    }
   }
 
   // 复用原左军 E55C–E586 的随机节奏与扣除指令，临时映射到右军独立状态。
@@ -445,14 +524,28 @@ class NesBattleKernel {
     _push(0xff);
     for (var budget = 0; budget < 40000; budget++) {
       if (_pc == 0x6000 || _pc == stopBefore) return;
-      if (_randomChargeStep && _pc == 0xe55c) {
+      if (randomChargeEnabled && _pc == 0xe411) {
+        // 原中值曲线去掉中间取整为1+3P/8，保留小数；武器直接进入E40C，不经此换算。
+        final target = _x;
+        final power = ram[0x15 + (target ^ 1)];
+        final eighths = 8 + power * 3 + _damageEighths[target];
+        _damageEighths[target] = eighths % 8;
+        _a = _nz(eighths ~/ 8);
+        // 继续沿用原扣兵、溢出扣将领与阵亡逻辑，同时保留双方同轮结算。
+        _pc = 0xe40c;
+        continue;
+      }
+      if ((_randomChargeStep || !moraleEnabled) && _pc == 0xe55c) {
         // 跳过旧电脑蓄力节奏，保留后续移动、碰撞与阵亡流程。
         _pc = 0xe587;
         continue;
       }
       if (_randomChargeStep && _pc == 0xe3fe) {
+        final charge = committed[_moraleConversionSide++];
         _a = _nz(
-          _a == 0 ? 0 : (((_a >> 2) + 1).clamp(0, 4) * moralePowerScale),
+          charge == 0
+              ? 0
+              : (((charge >> 2) + 1).clamp(0, 4) * moralePowerScale),
         );
         _pc = (_pop() | _pop() << 8) + 1;
         continue;
@@ -464,8 +557,11 @@ class NesBattleKernel {
       }
       if (_pc == 0xe3b8) {
         clashes++;
-        committed[0] = ram[0x0f];
-        committed[1] = ram[0x19];
+        committed[0] = accumulatedMorale(0);
+        committed[1] = accumulatedMorale(1);
+        _moraleConversionSide = 0;
+        // 本次两军都使用已冻结的完整积累，额外部分不能流入第二轮。
+        _moraleChargeOverflow.fillRange(0, 2, 0);
       } else if (_pc == 0xe54b) {
         wallHits[0]++;
       } else if (_pc == 0xe5e4) {

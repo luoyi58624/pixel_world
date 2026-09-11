@@ -5,6 +5,7 @@ import 'package:pixel_world/features/ai/combat_assessment.dart';
 import 'package:pixel_world/features/ai/geometry.dart';
 import 'package:pixel_world/features/ai/observation.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
+import 'package:pixel_world/features/ai/rules_data.dart';
 
 import '../../support/national_ai_fixture.dart';
 
@@ -18,15 +19,24 @@ void main() {
     }
     expect(jsonEncode(c.aiObservationFor(1).toJson()), before);
   });
-  test('守城不计武器，城防士气有上限；增加真实攻击不会降低静态优势', () {
+  test('守城不计武器，超额士气保留；增加真实攻击不会降低静态优势', () {
     final c = nationalScenario(ai: false),
         rules = c.aiRulesForTesting(),
         view = c.aiObservationFor(1);
     final hero = view.hero('rom-0')!, enemy = view.hero('rom-2')!;
     final evaluator = CombatAssessor(rules, AiWorkBudget(rules.tuning));
-    expect(rules.morale(50, defenseLevel: 5), 100);
-    expect(rules.morale(95, defenseLevel: 5), 100);
-    expect(rules.morale(50), 50);
+    final disabled = AiRules.fromJson({
+      ...rules.toJson(),
+      'values': {...rules.values, 'useMorale': 0},
+    });
+    expect(disabled.morale(50, defenseLevel: 5), 0);
+    final enabled = AiRules.fromJson({
+      ...rules.toJson(),
+      'values': {...rules.values, 'useMorale': 1, 'cityMoraleBonus5': 25},
+    });
+    expect(enabled.morale(50, defenseLevel: 5), 75);
+    expect(enabled.morale(95, defenseLevel: 5), 120);
+    expect(enabled.morale(50), 50);
     final bare = evaluator.compare(
       hero,
       enemy,
@@ -79,7 +89,7 @@ void main() {
     expect(suicidal.releaseRisk, isTrue);
     expect(suicidal.advantage, CombatAdvantage.unknown);
   });
-  test('序列化保持当前小兵血量，地形只修正将领部分', () {
+  test('序列化保持当前小兵血量，各种野战环境均不削弱将领攻击', () {
     final c = nationalScenario(ai: false), r = c.aiRulesForTesting();
     final h = AiHero(
       id: 'x',
@@ -98,8 +108,9 @@ void main() {
     final restored = AiHero.fromJson(jsonDecode(jsonEncode(h.toJson())));
     expect(restored.health, 45);
     expect(restored.soldierCount, 2);
-    expect(r.attack(20, terrain: 2), 10);
-    expect(r.attack(20, terrain: 1), 14);
-    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 32);
+    for (final terrain in [0, 1, 2, 3]) {
+      expect(r.attack(20, terrain: terrain), 20);
+    }
+    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 26);
   });
 }
