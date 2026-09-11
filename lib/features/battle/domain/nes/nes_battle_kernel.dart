@@ -476,7 +476,8 @@ class NesBattleKernel {
         // 两次反弹调用方向相反；只削减城防在强度差中的份额，保留伤害寄存器。
         final discount = defenderCityAttackBonus * (1 - cityDefenseRecoilScale);
         final difference = _a - _x + (_pc == 0xe3db ? discount : -discount);
-        _a = (_x + difference * recoilDifferenceScale).round().clamp(0, 255);
+        // 先对带符号的差值取整，避免+0.5计为1而-0.5因基准为正数被抹成0。
+        _a = (_x + (difference * recoilDifferenceScale).round()).clamp(0, 255);
       }
       if ((_pc == 0xe54e || _pc == 0xe5e7) && wallDamageScale != 1) {
         _a = _nz((_a * wallDamageScale).round().clamp(0, 255));

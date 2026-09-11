@@ -38,13 +38,13 @@ void main() {
         defenderCityLevel: level,
       );
       expect(sim.basePower(BattleSide.attacker), 13);
-      final bonus = [1, 3, 5, 8, 12][level - 1];
+      final bonus = [1, 3, 12, 14, 16][level - 1];
       expect(sim.basePower(BattleSide.defender), 13 + bonus);
       expect(rules.integer('soldierPower'), 1);
       expect(rules.attack(10, defenseLevel: level, field: false), 10 + bonus);
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 50 + [5, 10, 20, 30, 40][level - 1]);
+      expect(sim.defenderMorale.remaining, 50 + [5, 25, 50, 50, 50][level - 1]);
       expect(
         rules.morale(50, defenseLevel: level),
         sim.defenderMorale.remaining,
@@ -65,7 +65,7 @@ void main() {
       );
       expect(sim.attackerMorale.maximum, 100);
       expect(sim.defenderMorale.maximum, 100);
-      expect(sim.defenderMorale.remaining, 90);
+      expect(sim.defenderMorale.remaining, 100);
       expect(sim.defender.general.hp, 20);
     }
   });
@@ -82,7 +82,7 @@ void main() {
       sim.advance(1 / 60);
     }
     expect(sim.basePower(BattleSide.attacker), 19);
-    expect(sim.basePower(BattleSide.defender), 31);
+    expect(sim.basePower(BattleSide.defender), 35);
     expect(sim.lastClash!.attackerDamage, greaterThan(0));
     expect(sim.lastClash!.defenderDamage, greaterThan(0));
     expect(
@@ -106,7 +106,7 @@ void main() {
     final battle = c.battles[1]!;
     expect(battle.simulation.defenderCityLevel, 2);
     expect(battle.simulation.defenderAttackBonus, 3);
-    expect(battle.simulation.defenderMoraleBonus, 10);
+    expect(battle.simulation.defenderMoraleBonus, 25);
     for (var i = 0; i < 1000 && battle.nextWaveIn == 0; i++) {
       c.advance(0.02);
     }
@@ -146,7 +146,7 @@ void main() {
     expect(sim.defenderCityLevel, 3);
     expect(
       sim.basePower(BattleSide.defender),
-      battle.defender.combat + battle.defender.soldiers + 5,
+      battle.defender.combat + battle.defender.soldiers + 12,
     );
     expect(
       sim.basePower(BattleSide.attacker),

@@ -184,10 +184,10 @@ abstract final class GameConfig {
   static const recycleDefeatedHeroes = true;
 
   /// 一至五级城防攻击加成，不提高冲锋速度。
-  static const cityDefenseAttackBonuses = [1, 3, 5, 8, 12];
+  static const cityDefenseAttackBonuses = [1, 3, 12, 14, 16];
 
   /// 一至五级守城开场士气加成，叠加将领属性后上限仍为100。
-  static const cityDefenseMoraleBonuses = [5, 10, 20, 30, 40];
+  static const cityDefenseMoraleBonuses = [5, 25, 50, 50, 50];
 
   /// 按本轮有效城防等级读取守城士气，连续攻城随剩余等级递减。
   static int cityDefenseMoraleBonusFor(int level) =>
@@ -204,10 +204,10 @@ abstract final class GameConfig {
       )];
 
   /// 缩小碰撞强度差对击退速度的影响，避免少一个兵立即变成持续撞墙。
-  static const battleRecoilDifferenceScale = 0.25;
+  static const battleRecoilDifferenceScale = 0.5;
 
   /// 城防攻击参与击退差值的比例，伤害仍使用完整城防攻击。
-  static const cityDefenseRecoilScale = 0.25;
+  static const cityDefenseRecoilScale = 0.5;
 
   /// 随机蓄力的碰撞强度倍率，最高提供24点士气强度。
   static const battleMoralePowerScale = 6;

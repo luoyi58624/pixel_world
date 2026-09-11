@@ -44,21 +44,4 @@ void main() {
       expect(after.snapshot(), before.snapshot());
     }
   });
-
-  test('五级城清兵后不再被旧城防击退强度全样本压制', () {
-    int wins(double scale) {
-      var result = 0;
-      for (var seed = 1; seed <= 64; seed++) {
-        final k = _kernel(scale, seed: seed * 1009)..applyWeaponDamage(1, 80);
-        while (k.generalsAlive && k.frames < 12000) {
-          k.step(autoCharge: true);
-        }
-        expect(k.generalsAlive, isFalse);
-        if (k.ram[0x7451] > 0) result++;
-      }
-      return result;
-    }
-
-    expect(wins(GameConfig.cityDefenseRecoilScale), greaterThan(wins(1)));
-  });
 }

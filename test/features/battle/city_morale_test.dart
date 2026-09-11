@@ -27,7 +27,7 @@ void main() {
   test('守城开场士气按等级增加，进攻方与将领原属性不变', () {
     for (var level = 1; level <= 5; level++) {
       final sim = _battle(level);
-      expect(sim.defenderMorale.remaining, [55, 60, 70, 80, 90][level - 1]);
+      expect(sim.defenderMorale.remaining, [55, 75, 100, 100, 100][level - 1]);
       expect(sim.attackerMorale.remaining, 50);
       expect(sim.defender.morale, 50);
     }
@@ -43,10 +43,10 @@ void main() {
 
   test('保存恢复不重复发放守城士气，后续随机蓄力与伤亡一致', () {
     final sim = _battle(5);
-    for (var i = 0; i < 1000 && sim.defenderMorale.remaining == 90; i++) {
+    for (var i = 0; i < 1000 && sim.defenderMorale.remaining == 100; i++) {
       sim.advance(1 / 60);
     }
-    expect(sim.defenderMorale.remaining, lessThan(90));
+    expect(sim.defenderMorale.remaining, lessThan(100));
     final health = [
       sim.attacker.general,
       ...sim.attacker.soldiers,

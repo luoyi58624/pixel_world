@@ -24,7 +24,7 @@ void main() {
         view = c.aiObservationFor(1);
     final hero = view.hero('rom-0')!, enemy = view.hero('rom-2')!;
     final evaluator = CombatAssessor(rules, AiWorkBudget(rules.tuning));
-    expect(rules.morale(50, defenseLevel: 5), 90);
+    expect(rules.morale(50, defenseLevel: 5), 100);
     expect(rules.morale(95, defenseLevel: 5), 100);
     expect(rules.morale(50), 50);
     final bare = evaluator.compare(
@@ -100,6 +100,6 @@ void main() {
     expect(restored.soldierCount, 2);
     expect(r.attack(20, terrain: 2), 10);
     expect(r.attack(20, terrain: 1), 14);
-    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 25);
+    expect(r.attack(20, terrain: 2, defenseLevel: 3, field: false), 32);
   });
 }

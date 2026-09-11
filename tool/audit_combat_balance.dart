@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:pixel_world/core/config/game_config.dart';
+import 'package:pixel_world/features/battle/domain/combat_rules.dart';
+import 'package:pixel_world/features/battle/domain/field_terrain.dart';
 import 'package:pixel_world/features/battle/domain/nes/nes_battle_kernel.dart';
 import 'package:pixel_world/features/weapons/domain/weapon.dart';
 
@@ -15,6 +17,7 @@ void main(List<String> args) {
 
   final count = option('--samples', 256);
   final seed = option('--seed', 20260911);
+  final targets = args.contains('--targets');
   final cannon = WeaponCatalog.decode(
     File('assets/data/rom_weapons.json').readAsStringSync(),
   ).weapons[11]!;
@@ -24,10 +27,12 @@ void main(List<String> args) {
   stdout.writeln(
     jsonEncode({
       'samples': count,
+      'targets': targets,
       'seed': seed,
       'cityAttack': GameConfig.cityDefenseAttackBonuses,
       'cityMorale': GameConfig.cityDefenseMoraleBonuses,
       'cityRecoil': GameConfig.cityDefenseRecoilScale,
+      'recoil': GameConfig.battleRecoilDifferenceScale,
       'moralePowerScale': GameConfig.battleMoralePowerScale,
       'chargeFrames': GameConfig.battleChargeIntervalFrames,
       'cannonDamage': cannon.damage,
@@ -35,22 +40,33 @@ void main(List<String> args) {
     }),
   );
   final scenarios = <Map<String, int>>[
-    for (final h in [
-      [10, 50, 60],
-      [12, 65, 75],
-      [15, 95, 50],
-      [18, 95, 100],
-    ])
-      for (var level = 0; level <= 5; level++)
-        {'attack': h[0], 'hp': h[1], 'morale': h[2], 'level': level},
-    for (final level in [1, 3, 5]) {'level': level, 'weapon': cannon.damage},
-    {'attackerMorale': 100, 'defenderMorale': 50},
-    {'attackerMorale': 50, 'defenderMorale': 100},
-    {'attackerSoldiers': 4, 'defenderSoldiers': 3},
-    {'attackerSoldiers': 3, 'defenderSoldiers': 4},
+    if (targets) ...[
+      for (final terrain in FieldTerrain.values) {'field': terrain.index},
+      for (var level = 1; level <= 5; level++) {'level': level},
+    ] else ...[
+      for (final h in [
+        [10, 50, 60],
+        [12, 65, 75],
+        [15, 95, 50],
+        [18, 95, 100],
+      ])
+        for (var level = 0; level <= 5; level++)
+          {'attack': h[0], 'hp': h[1], 'morale': h[2], 'level': level},
+      for (final level in [1, 3, 5]) {'level': level, 'weapon': cannon.damage},
+      {'attackerMorale': 100, 'defenderMorale': 50},
+      {'attackerMorale': 50, 'defenderMorale': 100},
+      {'attackerSoldiers': 4, 'defenderSoldiers': 3},
+      {'attackerSoldiers': 3, 'defenderSoldiers': 4},
+    ],
   ];
   for (final s in scenarios) {
-    final attack = s['attack'] ?? 15;
+    final terrain = s.containsKey('field')
+        ? FieldTerrain.values[s['field']!]
+        : null;
+    final attack = CombatRules.heroAttack(
+      s['attack'] ?? 15,
+      terrain?.heroAttackFactor ?? 1,
+    );
     final hp = s['hp'] ?? 95;
     final morale = s['morale'] ?? 50;
     final level = s['level'] ?? 0;
