@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:json5/json5.dart';
 import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
@@ -11,7 +12,7 @@ import 'package:pixel_world/features/world_map/presentation/world_controller.dar
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 Map<String, dynamic> configJson() =>
-    jsonDecode(File('assets/data/campaign_config.json').readAsStringSync())
+    json5Decode(File('assets/data/campaign_config.json').readAsStringSync())
         as Map<String, dynamic>;
 String mapJson() => File('assets/maps/worlds.json').readAsStringSync();
 List<RomHeroDefinition> heroes() =>
@@ -32,6 +33,20 @@ class _Normal implements math.Random {
 }
 
 void main() {
+  test('JSON5战役配置支持注释、单引号和尾逗号', () {
+    final setup = CampaignSetup.decode('''
+      // 手写配置允许保留说明。
+      {
+        version: 1,
+        description: '测试配置',
+        countries: [],
+        worlds: [],
+      }
+    ''');
+    expect(setup.countries, isEmpty);
+    expect(setup.cities, isEmpty);
+  });
+
   test('正式JSON覆盖每张地图每座城与所有国家，产出与城防按配置、全国储备满编', () {
     final setup = CampaignSetup.decode(jsonEncode(configJson()));
     final worlds = decodeWorlds(mapJson(), setup: setup);

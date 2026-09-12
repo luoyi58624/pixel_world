@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:json5/json5.dart';
 import 'package:pixel_world/features/ai/runtime/worker.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
@@ -69,7 +70,7 @@ Future<void> main(List<String> args) async {
     ..createSync(recursive: true);
   File('${out.path}/inputs.json').writeAsStringSync(
     jsonEncode({
-      'config': jsonDecode(setupSource),
+      'config': json5Decode(setupSource),
       'worlds': jsonDecode(worldSource),
       'heroes': jsonDecode(heroSource),
       'weapons': jsonDecode(weaponSource),

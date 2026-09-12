@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import '../../../core/config/game_config.dart';
+
+import 'package:json5/json5.dart';
 
 /// 单座城池的开局经济与兵员配置，名称仅在 JSON 中用作阅读提示。
 class CitySetup {
@@ -29,7 +29,7 @@ class CampaignSetup {
 
   /// 读取并校验完整 JSON，报错包含具体配置位置。
   factory CampaignSetup.decode(String source) {
-    final root = _object(jsonDecode(source), 'campaign_config');
+    final root = _object(json5Decode(source), 'campaign_config');
     _keys(root, {
       'version',
       'description',
