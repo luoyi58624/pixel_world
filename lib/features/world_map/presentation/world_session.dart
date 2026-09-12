@@ -11,7 +11,7 @@ extension _WorldSession on _WorldScreenState {
         'assets/maps/worlds.json',
         'assets/data/game_config.json5',
         'assets/data/rom_heroes.json',
-        'assets/data/campaign_config.json',
+        'assets/data/campaign_config.json5',
         'assets/data/rom_weapons.json',
       ])
         rootBundle.loadString(path, cache: false),

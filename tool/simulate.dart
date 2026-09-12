@@ -59,7 +59,7 @@ Future<void> main(List<String> args) async {
     'defense-only' => CommanderStrategy.defenseOnly,
     _ => CommanderStrategy.baseline,
   };
-  final config = option('config', 'assets/data/campaign_config.json');
+  final config = option('config', 'assets/data/campaign_config.json5');
   final heroPath = option('heroes', 'assets/data/rom_heroes.json');
   // 同一批实验固定输入，避免手动编辑配置让后几局悄悄改变条件。
   final setupSource = File(config).readAsStringSync();

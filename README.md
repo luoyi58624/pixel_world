@@ -15,7 +15,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 ## 调整数值
 
-将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。全局时间、经济、战斗、行军和 AI 规则配置在 [`assets/data/game_config.json5`](assets/data/game_config.json5)，使用 JSON5 语法，可以写中文注释。字段说明见 [开局配置说明](docs/campaign_config.md)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
+将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json5`](assets/data/campaign_config.json5)。全局时间、经济、战斗、行军和 AI 规则配置在 [`assets/data/game_config.json5`](assets/data/game_config.json5)，使用 JSON5 语法，可以写中文注释。字段说明见 [开局配置说明](docs/campaign_config.md)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
 
 ## 操作
 
@@ -107,7 +107,7 @@ AI 同国出征按游戏时间至少间隔 2 秒放行；门口被占用时在�
 
 国家调度按资源 → 防守 → 进攻串行交接，资源每 30 秒整理、防守每 8 秒扫描。同国不会并行生成相互覆盖的计划；守军和城防足够时保持远征，本地资源仍能抵抗时先本地补强，最后才召回能及时赶到的将领。采购与进攻共用目标排序和配装门槛，已有援军跨周期保留名额。细节见 [国家调度周期](docs/ai_dispatch_cycles.md)。
 
-初始金币与城防在 `campaign_config.json` 配置；不再设置固定留守人数，策略参数使用 `GameConfig.nationalAi`。粮草、补兵可透支，负国库不阻止行军和战斗；招募英雄、购买武器及升级仍须足额现金。AI经营继续核算月俸和月结现金低点，不预支未来占城收益。最新规则见 [战役配置](docs/campaign_config.md)，模拟的适用范围和局限见 [本轮验收记录](docs/ai_balance_2026_09_11.md)。
+初始金币与城防在 `campaign_config.json5` 配置；不再设置固定留守人数，策略参数使用 `GameConfig.nationalAi`。粮草、补兵可透支，负国库不阻止行军和战斗；招募英雄、购买武器及升级仍须足额现金。AI经营继续核算月俸和月结现金低点，不预支未来占城收益。最新规则见 [战役配置](docs/campaign_config.md)，模拟的适用范围和局限见 [本轮验收记录](docs/ai_balance_2026_09_11.md)。
 
 点击城池后，国家面板新增「国家情况 / 事件日志」标签。同国多城共享日志，面板、计数和复制只包含该国最终 AI 决策：一次计划合并为一条，保留实际行动、原因和资源变化，重复等待不刷屏。模拟默认按国家导出最终决策 JSONL，排查内部流程时可显式启用完整追踪。接口与运行方式见 [国家事件系统](docs/game_events.md)。
 

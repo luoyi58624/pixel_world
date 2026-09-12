@@ -292,7 +292,7 @@ void main() {
     final world = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
       setup: CampaignSetup.decode(
-        File('assets/data/campaign_config.json').readAsStringSync(),
+        File('assets/data/campaign_config.json5').readAsStringSync(),
       ),
     ).first;
     final c = CampaignState.fromRom(

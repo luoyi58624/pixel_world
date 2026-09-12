@@ -33,7 +33,7 @@ List<RomHeroDefinition> _catalog() =>
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
 
 final _configuredCountries = CampaignSetup.decode(
-  File('assets/data/campaign_config.json').readAsStringSync(),
+  File('assets/data/campaign_config.json5').readAsStringSync(),
 ).countries;
 
 Map<int, CountryConfig> _quietCountries() => {
@@ -57,7 +57,7 @@ CampaignState _campaign({
     countryConfigs:
         countries ??
         CampaignSetup.decode(
-          File('assets/data/campaign_config.json').readAsStringSync(),
+          File('assets/data/campaign_config.json5').readAsStringSync(),
         ).countries,
     economyRandom: _Pick(),
     recruitmentRandom: recruit ?? _Pick(),

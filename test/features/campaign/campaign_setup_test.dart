@@ -12,7 +12,7 @@ import 'package:pixel_world/features/world_map/presentation/world_controller.dar
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 Map<String, dynamic> configJson() =>
-    json5Decode(File('assets/data/campaign_config.json').readAsStringSync())
+    json5Decode(File('assets/data/campaign_config.json5').readAsStringSync())
         as Map<String, dynamic>;
 String mapJson() => File('assets/maps/worlds.json').readAsStringSync();
 List<RomHeroDefinition> heroes() =>
@@ -47,10 +47,11 @@ void main() {
     expect(setup.cities, isEmpty);
   });
 
-  test('正式JSON覆盖每张地图每座城与所有国家，产出与城防按配置、全国储备满编', () {
+  test('正式JSON覆盖每张地图每座城与所有可用国家，产出与城防按配置、全国储备满编', () {
     final setup = CampaignSetup.decode(jsonEncode(configJson()));
     final worlds = decodeWorlds(mapJson(), setup: setup);
-    expect(setup.countries.length, 16);
+    expect(setup.countries.length, 12);
+    expect(setup.countries.keys, orderedEquals(List.generate(12, (i) => i)));
     expect(
       setup.cities.length,
       worlds.fold<int>(0, (n, world) => n + world.cities.length),
@@ -174,6 +175,7 @@ void main() {
       (data) => city(data)['baseIncome'] = 2.5,
       (data) => city(data)['baseincome'] = 10,
       (data) => data['countries'][0]['initialGold'] = -1,
+      (data) => data['countries'][0]['id'] = 12,
       (data) => data['countries'][0]['garrisonHeroes'] = -1,
       (data) => data['countries'].add(data['countries'][0]),
       (data) => data['worlds'].add(data['worlds'][0]),

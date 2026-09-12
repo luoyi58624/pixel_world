@@ -26,7 +26,7 @@ CampaignState fresh({double harvest = 0, double siege = 0}) =>
       decodeWorlds(
         File('assets/maps/worlds.json').readAsStringSync(),
         setup: CampaignSetup.decode(
-          File('assets/data/campaign_config.json').readAsStringSync(),
+          File('assets/data/campaign_config.json5').readAsStringSync(),
         ),
       ).first,
       decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),

@@ -133,7 +133,7 @@ void main() {
 
   test('正式JSON逐国配置10至30保底，阿尔玛为10，一级城市产出20', () {
     final raw = jsonDecode(
-      File('assets/data/campaign_config.json').readAsStringSync(),
+      File('assets/data/campaign_config.json5').readAsStringSync(),
     );
     final setup = CampaignSetup.decode(jsonEncode(raw));
     expect(setup.countries[0]!.monthlyBaseIncome, 10);

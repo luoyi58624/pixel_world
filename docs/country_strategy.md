@@ -40,7 +40,7 @@ AI 不创建战斗实例，不试打、不随机采样、不逐轮推算伤亡�
 
 ## 配置与模块
 
-策略入口为 `GameConfig.nationalAi`，类型 `AiTuning`。默认每请求最多 96 个候选、160 次静态评估、6000 次地形步、24 条命令；单队最多四将、目标粗筛最多六城。保留国家候选最多四份且不超过 `maxPlans`。真实规则仍由 `GameConfig` 和资源 JSON 适配；初始金币和逐城留守数继续读 `campaign_config.json`。旧的 `countryAiInitialDelay`、`countryAiInterval` 等遗留字段不再驱动新规划器。
+策略入口为 `GameConfig.nationalAi`，类型 `AiTuning`。默认每请求最多 96 个候选、160 次静态评估、6000 次地形步、24 条命令；单队最多四将、目标粗筛最多六城。保留国家候选最多四份且不超过 `maxPlans`。真实规则仍由 `GameConfig` 和资源 JSON 适配；初始金币和逐城留守数继续读 `campaign_config.json5`。旧的 `countryAiInitialDelay`、`countryAiInterval` 等遗留字段不再驱动新规划器。
 
 | 文件 | 职责 |
 |---|---|

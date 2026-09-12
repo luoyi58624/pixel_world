@@ -177,7 +177,7 @@ void main() {
 
   test('三张地图全部敌国固定收入为10，实际月结和 AI 预算一致', () {
     final setup = CampaignSetup.decode(
-      File('assets/data/campaign_config.json').readAsStringSync(),
+      File('assets/data/campaign_config.json5').readAsStringSync(),
     );
     expect(
       setup.countries.values.every(

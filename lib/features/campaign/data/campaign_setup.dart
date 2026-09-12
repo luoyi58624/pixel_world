@@ -45,7 +45,7 @@ class CampaignSetup {
       final path = 'countries[$i]';
       final row = _object(countryRows[i], path);
       _keys(row, {'id', 'name', 'initialGold', 'monthlyBaseIncome'}, path);
-      final id = _integer(row, 'id', path, max: 15);
+      final id = _integer(row, 'id', path, max: 11);
       if (countries.containsKey(id)) throw FormatException('$path：国家编号 $id 重复');
       countries[id] = CountryConfig(
         initialGold: _integer(row, 'initialGold', path),

@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `assets/data/campaign_config.json` | 各国 `initialGold`、`monthlyBaseIncome`，各地图城池的 `initialLevel` 和 `baseIncome` |
+| `assets/data/campaign_config.json5` | 可参与战役的国家（0–11）`initialGold`、`monthlyBaseIncome`，各地图城池的 `initialLevel` 和 `baseIncome` |
 | `assets/data/rom_heroes.json` | 英雄顺序、身份、战斗、内政、生命上限、`morale`、`salary`、`nativeCountryId` |
 | `assets/data/rom_weapons.json` | 武器价格、伤害、解锁年份、动画和初始库存 |
 | `assets/data/game_config.json5` | 月份时长、收入、兵力、升级费用、年度城防上限、战斗倍率、行军和 AI 规则 |

@@ -155,7 +155,7 @@ class WorldAssets {
       await rootBundle.loadString('assets/maps/worlds.json'),
       setup: CampaignSetup.decode(
         await rootBundle.loadString(
-          'assets/data/campaign_config.json',
+          'assets/data/campaign_config.json5',
           cache: false,
         ),
       ),

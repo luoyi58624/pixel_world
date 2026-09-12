@@ -61,4 +61,4 @@ dart run tool/simulate.dart --speed 16 --seconds 600 --seeds 503,787 --label hol
 dart run tool/simulate.dart --backend native --speed 16 --seconds 120 --worlds 2 --seeds 503 --label native_check
 ```
 
-代码与功能目录说明见 [游戏架构](game_architecture.md)。具体初始金币可继续在 `assets/data/campaign_config.json` 中调整。
+代码与功能目录说明见 [游戏架构](game_architecture.md)。具体初始金币可继续在 `assets/data/campaign_config.json5` 中调整。

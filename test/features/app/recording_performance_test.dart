@@ -30,7 +30,7 @@ void main() {
     final worlds = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
       setup: CampaignSetup.decode(
-        File('assets/data/campaign_config.json').readAsStringSync(),
+        File('assets/data/campaign_config.json5').readAsStringSync(),
       ),
     );
     final weapons = WeaponCatalog.decode(

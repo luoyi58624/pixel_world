@@ -16,7 +16,7 @@ CampaignState campaign([int map = 0]) => ongoingCampaign(
     decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
       setup: CampaignSetup.decode(
-        File('assets/data/campaign_config.json').readAsStringSync(),
+        File('assets/data/campaign_config.json5').readAsStringSync(),
       ),
     )[map],
     decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
