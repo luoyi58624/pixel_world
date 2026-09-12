@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/core/config/game_config.dart';
 
 void main() {
-  final source = File('assets/data/game_config.json').readAsStringSync();
+  final source = File('assets/data/game_config.json5').readAsStringSync();
 
   test('从 JSON5 配置加载全局规则', () {
     GameConfig.loadJson(source);

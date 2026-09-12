@@ -2,7 +2,7 @@ import 'package:json5/json5.dart';
 
 import '../../features/ai/config.dart';
 
-/// 游戏数值集中配置；正式运行前由 `assets/data/game_config.json` 初始化。
+/// 游戏数值集中配置；正式运行前由 `assets/data/game_config.json5` 初始化。
 abstract final class GameConfig {
   static final Map<String, Object?> _defaults = {
     'initialYear': 1,
@@ -93,7 +93,7 @@ abstract final class GameConfig {
   static void loadJson(String source) {
     final decoded = json5Decode(source);
     if (decoded is! Map) {
-      throw const FormatException('game_config.json 顶层必须是对象');
+      throw const FormatException('game_config.json5 顶层必须是对象');
     }
     loadMap(Map<String, dynamic>.from(decoded));
   }
@@ -407,7 +407,7 @@ abstract final class GameConfig {
         attack.length != 5 ||
         morale is! List ||
         morale.length != 5) {
-      throw const FormatException('game_config.json 的城池数组长度不正确');
+      throw const FormatException('game_config.json5 的城池数组长度不正确');
     }
     if ((values['maxCityLevel'] as int) != attack.length ||
         (values['maxCityLevel'] as int) != morale.length) {
@@ -417,7 +417,7 @@ abstract final class GameConfig {
         (values['initialMonth'] as int) > 12 ||
         (values['secondsPerMonth'] as num) <= 0 ||
         (values['maxCityLevel'] as int) < 1) {
-      throw const FormatException('game_config.json 包含非法的时间或城池等级');
+      throw const FormatException('game_config.json5 包含非法的时间或城池等级');
     }
   }
 

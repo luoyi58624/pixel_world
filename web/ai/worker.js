@@ -2569,7 +2569,7 @@ m=A.a2(a.i(0,"targetCountry"))
 l=A.cu(a.i(0,"attrition"))
 return new A.a5(k,j,o,g,m,l===!0,f,e,s,i,h,r,q,p===!0,n)},
 lh(a){var s,r,q,p,o,n,m,l,k,j,i
-if(!J.az(a.i(0,"protocol"),1))throw A.j(B.a8)
+if(!J.az(a.i(0,"protocol"),1))throw A.j(B.a9)
 s=A.J(a.i(0,"session"))
 r=A.f(a.i(0,"id"))
 q=A.J(a.i(0,"rules"))
@@ -2960,7 +2960,7 @@ if(typeof s=="function")A.b0(A.cC("Attempting to rewrap a JS function.",null))
 r=function(a,b){return function(c){return a(b,c,arguments.length)}}(A.mu,s)
 r[$.jR()]=s
 p.onmessage=r
-q.$1(B.i.au(t.G.a(A.Q(["kind","hello","protocol",1,"build","893a18bd","backend",o],t.N,t.X)),null))},
+q.$1(B.i.au(t.G.a(A.Q(["kind","hello","protocol",1,"build","39a6eab2","backend",o],t.N,t.X)),null))},
 je:function je(){},
 jf:function jf(a){this.a=a},
 kT(a){return v.mangledGlobalNames[a]},
@@ -2986,8 +2986,8 @@ d.v(0,n,k)}else d.v(0,n,A.jq(l))}j=d.i(0,"cityUpgradeCosts")
 i=d.i(0,"cityDefenseAttackBonuses")
 h=d.i(0,"cityDefenseMoraleBonuses")
 s=t.j
-if(!s.b(j)||j.length!==4||!s.b(i)||i.length!==5||!s.b(h)||h.length!==5)A.b0(B.ac)
-if(A.f(d.i(0,f))!==i.length||A.f(d.i(0,f))!==h.length)A.b0(B.a7)
+if(!s.b(j)||j.length!==4||!s.b(i)||i.length!==5||!s.b(h)||h.length!==5)A.b0(B.a7)
+if(A.f(d.i(0,f))!==i.length||A.f(d.i(0,f))!==h.length)A.b0(B.a8)
 if(A.f(d.i(0,e))<1||A.f(d.i(0,e))>12||A.x(d.i(0,"secondsPerMonth"))<=0||A.f(d.i(0,f))<1)A.b0(B.aa)
 s=A.cJ(d,q,p)
 $.ly=s
@@ -8319,7 +8319,7 @@ return A.Q(["version",s.a,"width",s.b,"height",s.c,"terrain",s.d],t.N,t.X)}}
 A.eu.prototype={
 dt(a){var s,r,q,p,o,n,m,l,k,j,i,h=this
 try{s=t.d1.a(B.i.da(a,null))
-switch(J.aR(s,"kind")){case"init":if(!J.az(J.aR(s,"protocol"),1)||!J.az(J.aR(s,"build"),"893a18bd"))throw A.j(B.a9);++h.f
+switch(J.aR(s,"kind")){case"init":if(!J.az(J.aR(s,"protocol"),1)||!J.az(J.aR(s,"build"),"39a6eab2"))throw A.j(B.ab);++h.f
 h.e=null
 o=h.r
 if(o.a>0){o.b=o.c=o.d=o.e=o.f=null
@@ -8350,7 +8350,7 @@ throw A.j(o)}q=A.lh(A.ae(t.f.a(J.aR(s,"request")),t.N,t.z))
 h.e=q.d
 h.aT(q,h.f)
 break
-default:throw A.j(B.ab)}}catch(i){p=A.aQ(i)
+default:throw A.j(B.ac)}}catch(i){p=A.aQ(i)
 h.a.$1(B.i.au(t.G.a(A.Q(["kind","error","message",J.b1(p)],t.N,t.X)),null))}},
 aT(a,b){return this.cU(a,b)},
 cU(a3,a4){var s=0,r=A.mS(t.p),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2
@@ -8820,12 +8820,12 @@ B.K=new A.b5(3,"unknown")
 B.ay=s(["\u9759\u6001\u8bc4\u4f30\u914d\u989d\u8017\u5c3d"],t.s)
 B.a5=new A.bK(B.K,-1,1,!1)
 B.a6=new A.ag("AI \u521d\u59cb\u5316\u7f3a\u5c11 gameConfig")
-B.a7=new A.ag("\u6700\u9ad8\u57ce\u6c60\u7b49\u7ea7\u5fc5\u987b\u4e0e\u57ce\u9632\u52a0\u6210\u6570\u7ec4\u957f\u5ea6\u4e00\u81f4")
-B.a8=new A.ag("AI \u534f\u8bae\u7248\u672c\u4e0d\u5339\u914d")
-B.a9=new A.ag("AI \u6784\u5efa\u7248\u672c\u4e0d\u5339\u914d\uff0c\u8bf7\u91cd\u65b0\u751f\u6210 Worker")
-B.aa=new A.ag("game_config.json \u5305\u542b\u975e\u6cd5\u7684\u65f6\u95f4\u6216\u57ce\u6c60\u7b49\u7ea7")
-B.ab=new A.ag("\u672a\u77e5 AI \u5de5\u4f5c\u547d\u4ee4")
-B.ac=new A.ag("game_config.json \u7684\u57ce\u6c60\u6570\u7ec4\u957f\u5ea6\u4e0d\u6b63\u786e")
+B.a7=new A.ag("game_config.json5 \u7684\u57ce\u6c60\u6570\u7ec4\u957f\u5ea6\u4e0d\u6b63\u786e")
+B.a8=new A.ag("\u6700\u9ad8\u57ce\u6c60\u7b49\u7ea7\u5fc5\u987b\u4e0e\u57ce\u9632\u52a0\u6210\u6570\u7ec4\u957f\u5ea6\u4e00\u81f4")
+B.a9=new A.ag("AI \u534f\u8bae\u7248\u672c\u4e0d\u5339\u914d")
+B.aa=new A.ag("game_config.json5 \u5305\u542b\u975e\u6cd5\u7684\u65f6\u95f4\u6216\u57ce\u6c60\u7b49\u7ea7")
+B.ab=new A.ag("AI \u6784\u5efa\u7248\u672c\u4e0d\u5339\u914d\uff0c\u8bf7\u91cd\u65b0\u751f\u6210 Worker")
+B.ac=new A.ag("\u672a\u77e5 AI \u5de5\u4f5c\u547d\u4ee4")
 B.ad=new A.ag("AI \u5730\u56fe\u5c3a\u5bf8\u65e0\u6548")
 B.ae=new A.ag("\u56fd\u5bb6\u89c4\u5212\u9759\u6001\u7248\u672c\u4e0d\u5339\u914d")
 B.af=new A.ag("\u56fd\u5bb6\u89c2\u5bdf\u8d85\u51fa\u534f\u8bae\u5bb9\u91cf")
