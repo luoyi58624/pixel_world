@@ -35,7 +35,7 @@ class _GameStartScreenState extends State<GameStartScreen> {
   late final GameArchive? _archive = widget.persistenceEnabled
       ? widget.archive ?? GameArchive()
       : null;
-  List<ArchiveEntry> _saves = [], _replays = [];
+  List<ArchiveEntry> _saves = [], _manualSaves = [], _replays = [];
   ArchiveEntry? _entry;
   bool _replay = false, _loadingHistory = true;
   Object? _historyError;
@@ -49,7 +49,7 @@ class _GameStartScreenState extends State<GameStartScreen> {
       builder: (context) => AlertDialog(
         title: Text(replay ? '删除回放？' : '删除存档？'),
         content: Text(
-          replay ? '这条回放将被删除，不影响自动存档。' : '删除后无法从这条进度继续游戏。已手动保存的回放会保留。',
+          replay ? '这条回放将被删除，不影响存档。' : '删除后无法从这条进度继续游戏，其他手动存档和回放会保留。',
         ),
         actions: [
           TextButton(
@@ -93,10 +93,13 @@ class _GameStartScreenState extends State<GameStartScreen> {
     });
     try {
       final saves = await _archive?.list() ?? <ArchiveEntry>[];
+      final manualSaves =
+          await _archive?.list(manual: true) ?? <ArchiveEntry>[];
       final replays = await _archive?.list(replays: true) ?? <ArchiveEntry>[];
       if (mounted) {
         setState(() {
           _saves = saves;
+          _manualSaves = manualSaves;
           _replays = replays;
           _loadingHistory = false;
         });
@@ -246,9 +249,19 @@ class _GameStartScreenState extends State<GameStartScreen> {
                           child: const Text('重试读取'),
                         ),
                       ],
-                      _historySection('自动存档', _saves, false),
+                      _historySection('最近游玩', _saves, false),
                       const SizedBox(height: 16),
-                      _historySection('已保存的回放', _replays, true),
+                      if (_manualSaves.isNotEmpty) ...[
+                        _historySection(
+                          '已保存的存档',
+                          _manualSaves,
+                          false,
+                          manual: true,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (_replays.isNotEmpty)
+                        _historySection('已保存的回放', _replays, true),
                     ],
                   ],
                 ),
@@ -331,8 +344,9 @@ class _GameStartScreenState extends State<GameStartScreen> {
   Widget _historySection(
     String title,
     List<ArchiveEntry> entries,
-    bool replay,
-  ) => Column(
+    bool replay, {
+    bool manual = false,
+  }) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text(
@@ -344,6 +358,11 @@ class _GameStartScreenState extends State<GameStartScreen> {
         ),
       ),
       const SizedBox(height: 8),
+      if (!replay && !manual)
+        const Text(
+          '新游戏会覆盖最近游玩，手动保存的存档和回放会保留。',
+          style: TextStyle(color: Color(0xffa8b8a8)),
+        ),
       if (entries.isEmpty)
         Text(
           replay ? '在游戏内点击“保存回放”后，这里就会出现记录。' : '游戏进度会自动保存，退出后可在这里继续。',

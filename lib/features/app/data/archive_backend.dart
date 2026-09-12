@@ -30,9 +30,21 @@ class PackedArchiveBackend implements ArchiveBackend {
     final run = a['run'] as String?;
     switch (command) {
       case 'list':
-        final values = await _store(
-          a['replays'] == true ? 'replays' : 'runs',
-        ).find(db, finder: Finder(sortOrders: [SortOrder('updated', false)]));
+        final manual = a['manual'] == true, replays = a['replays'] == true;
+        final values =
+            await _store(
+              replays
+                  ? 'replays'
+                  : manual
+                  ? 'saves'
+                  : 'runs',
+            ).find(
+              db,
+              finder: Finder(
+                sortOrders: [SortOrder('updated', false)],
+                limit: manual || replays ? null : 1,
+              ),
+            );
         return [
           for (final v in values) {'id': v.key, 'data': v.value},
         ];
@@ -66,6 +78,7 @@ class PackedArchiveBackend implements ArchiveBackend {
             ? null
             : await pack(Map<String, dynamic>.from(a['checkpoint']));
         await db.transaction((txn) async {
+          final isNewRun = !await _store('runs').record(run!).exists(txn);
           for (final e in eventRecords.entries) {
             await _store('events').record(e.key).put(txn, e.value);
           }
@@ -79,11 +92,19 @@ class PackedArchiveBackend implements ArchiveBackend {
             await _store('heads').record(e.key).put(txn, {'count': e.value});
           }
           if (checkpoint != null) {
-            await _store('checkpoints').record(run!).put(txn, checkpoint);
+            await _store('checkpoints').record(run).put(txn, checkpoint);
           }
           await _store('runs')
-              .record(run!)
+              .record(run)
               .put(txn, Map<String, dynamic>.from(a['meta']));
+          if (isNewRun) {
+            // 新局与旧进度替换必须一起提交，写入失败时仍可继续旧局。
+            final previous = await _store('runs').findKeys(txn);
+            for (final id in previous.where((id) => id != run)) {
+              await _store('runs').record(id).delete(txn);
+              await _releaseUnusedRun(txn, id);
+            }
+          }
         });
         return null;
       case 'events':
@@ -122,36 +143,34 @@ class PackedArchiveBackend implements ArchiveBackend {
             .record(a['id'])
             .put(db, Map<String, dynamic>.from(a['meta']));
         return null;
+      case 'save':
+        final checkpoint = await pack(
+          Map<String, dynamic>.from(a['checkpoint']),
+        );
+        await db.transaction((txn) async {
+          await _store('checkpoints').record(a['id']).put(txn, checkpoint);
+          await _store('saves').record(a['id']).put(txn, {
+            ...Map<String, dynamic>.from(a['meta']),
+            'manual': true,
+          });
+        });
+        return null;
       case 'delete':
         await db.transaction((txn) async {
-          final target = a['replay'] == true ? 'replays' : 'runs';
+          final target = a['replay'] == true
+              ? 'replays'
+              : a['manual'] == true
+              ? 'saves'
+              : 'runs';
           final entry = await _store(target).record(a['id']).get(txn);
           if (entry == null) return;
           final id = entry['run'] as String;
           await _store(target).record(a['id']).delete(txn);
-          final retained = await _store('replays')
-              .count(txn, filter: Filter.equals('run', id));
-          final active = await _store('runs').record(id).exists(txn);
-          // 仍被回放引用的帧不能随着进度删除。
-          if (!active) await _store('checkpoints').record(id).delete(txn);
-          if (!active && retained == 0) {
-            for (final name in [
-              'chunks',
-              'bases',
-              'heads',
-              'frames',
-              'events',
-            ]) {
-              await _store(name).delete(
-                txn,
-                finder: Finder(
-                  filter: Filter.custom(
-                    (record) => (record.key as String).startsWith('$id:'),
-                  ),
-                ),
-              );
-            }
+          if (target == 'saves') {
+            await _store('checkpoints').record(a['id']).delete(txn);
+            return;
           }
+          await _releaseUnusedRun(txn, id);
         });
         return null;
       case 'compactLegacy':
@@ -170,6 +189,25 @@ class PackedArchiveBackend implements ArchiveBackend {
         return null;
       default:
         throw UnsupportedError(command);
+    }
+  }
+
+  Future<void> _releaseUnusedRun(Transaction txn, String id) async {
+    if (await _store('runs').record(id).exists(txn)) return;
+    await _store('checkpoints').record(id).delete(txn);
+    // 手动回放独立保留，只有最后一个引用消失后才回收帧和事件。
+    final retained = await _store('replays')
+        .count(txn, filter: Filter.equals('run', id));
+    if (retained != 0) return;
+    for (final name in ['chunks', 'bases', 'heads', 'frames', 'events']) {
+      await _store(name).delete(
+        txn,
+        finder: Finder(
+          filter: Filter.custom(
+            (record) => (record.key as String).startsWith('$id:'),
+          ),
+        ),
+      );
     }
   }
 

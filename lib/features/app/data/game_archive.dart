@@ -4,7 +4,7 @@ import 'archive_database.dart';
 import 'archive_backend.dart';
 import 'state_delta.dart';
 
-/// 主页面一条自动存档或手动保存的回放。
+/// 主页面的最近游玩、手动存档或回放概要。
 class ArchiveEntry {
   /// 从版本化数据库记录读取概要，实际帧按需加载。
   ArchiveEntry(this.id, this.data);
@@ -35,9 +35,12 @@ class ArchiveEntry {
 
   /// 该局是否已经结束。
   bool get ended => data['ended'] == true;
+
+  /// 手动存档使用独立快照，不随最近游玩的进度更新。
+  bool get manual => data['manual'] == true;
 }
 
-/// 自动存档与手动回放共用帧数据，但拥有独立目录和不可变的回放终点。
+/// 最近游玩与回放共用帧数据，手动存档独立保存完整进度。
 class GameArchive {
   final _eventCache = <String, Map<String, dynamic>>{};
 
@@ -69,8 +72,14 @@ class GameArchive {
       });
 
   /// 只读取概要，不将所有历史回放展开到主线程。
-  Future<List<ArchiveEntry>> list({bool replays = false}) async {
-    final values = await (await _db).call('list', {'replays': replays}) as List;
+  Future<List<ArchiveEntry>> list({
+    bool replays = false,
+    bool manual = false,
+  }) async {
+    final values = await (await _db).call('list', {
+      'replays': replays,
+      'manual': manual,
+    }) as List;
     return [
       for (final v in values)
         ArchiveEntry(v['id'], Map<String, dynamic>.from(v['data'])),
@@ -101,9 +110,26 @@ class GameArchive {
     await (await _db).call('replay', {'id': id, 'meta': meta});
   }
 
+  /// 手动保存完整进度，与最近游玩及回放数据独立持久化。
+  Future<void> saveGame(
+    Map<String, dynamic> meta,
+    Map<String, dynamic> state,
+  ) async {
+    final id = 'save-${DateTime.now().microsecondsSinceEpoch}-${_serial++}';
+    await (await _db).call('save', {
+      'id': id,
+      'meta': meta,
+      'checkpoint': state,
+    });
+  }
+
   /// 删除单条目录，仍被回放引用的底层数据会保留。
   Future<void> delete(ArchiveEntry entry, {bool replay = false}) async {
-    await (await _db).call('delete', {'id': entry.id, 'replay': replay});
+    await (await _db).call('delete', {
+      'id': entry.id,
+      'replay': replay,
+      'manual': entry.manual,
+    });
   }
 
   /// 回放日志按事件编号单独读取，只缓存最近的可见事件。
@@ -166,8 +192,11 @@ class GameArchive {
 
   /// 续玩使用独立完整检查点，旧记录回退到原有关键帧恢复。
   Future<Map<String, dynamic>> resume(ArchiveEntry entry) async {
-    final checkpoint = await (await _db).call('checkpoint', {'run': entry.run});
+    final checkpoint = await (await _db).call('checkpoint', {
+      'run': entry.manual ? entry.id : entry.run,
+    });
     if (checkpoint != null) return Map<String, dynamic>.from(checkpoint);
+    if (entry.manual) throw const FormatException('手动存档缺少完整进度');
     return decodeFrame(
       await chunk(
         entry.run,
@@ -206,7 +235,7 @@ class GameArchive {
 
 /// 当前局只保留一小块回放与待提交帧，长局不会无限堆积内存。
 class SessionRecording {
-  /// 新局创建独立记录，旧局继续时追加到新块，已有手动回放保持不变。
+  /// 新局首次落盘替换旧自动存档，续玩追加到新块，手动回放保持不变。
   SessionRecording(
     this.archive, {
     required this.mapIndex,

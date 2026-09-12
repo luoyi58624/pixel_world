@@ -45,6 +45,142 @@ class FailingArchive extends GameArchive {
 }
 
 void main() {
+  test('手动存档冻结完整进度，覆盖最近游玩后仍可读取和独立删除', () async {
+    final archive = GameArchive.memory();
+    addTearDown(archive.close);
+    final recording = SessionRecording(archive, mapIndex: 0, signature: 'test')
+      ..capture(frame(1));
+    await recording.flush();
+    expect(await archive.list(manual: true), isEmpty);
+    await archive.saveGame(recording.metadata, frame(1));
+    recording.capture(frame(2));
+    await recording.flush();
+    await archive.saveGame(recording.metadata, frame(2));
+    final saved = await archive.list(manual: true);
+    expect(saved, hasLength(2));
+    expect(saved.every((entry) => entry.manual), isTrue);
+    final first = saved.firstWhere((entry) => entry.lastFrame == 0);
+    final second = saved.firstWhere((entry) => entry.lastFrame == 1);
+    final next = SessionRecording(archive, mapIndex: 1, signature: 'test')
+      ..capture(frame(3));
+    await next.flush();
+    await expectLater(archive.chunk(recording.run, 0), throwsFormatException);
+    expect(await archive.resume(first), frame(1));
+    expect(await archive.resume(second), frame(2));
+    expect((await archive.list()).single.run, next.run);
+    await archive.delete(first);
+    expect((await archive.list(manual: true)).single.id, second.id);
+    await expectLater(archive.resume(first), throwsFormatException);
+    expect(await archive.resume(second), frame(2));
+    expect(await archive.resume((await archive.list()).single), frame(3));
+  });
+
+  test('新局替换所有旧自动存档并回收无引用数据，续玩不另建记录', () async {
+    final db = await databaseFactoryMemory.openDatabase('replace-autosave');
+    final archive = GameArchive(open: () async => db);
+    addTearDown(archive.close);
+    final old = SessionRecording(archive, mapIndex: 0, signature: 'test')
+      ..capture(frame(1))
+      ..checkpoint(frame(1));
+    await old.flush();
+    // 模拟升级前积累的多条存档，以及旧格式帧和事件。
+    await stringMapStoreFactory.store('runs').record('legacy').put(db, {
+      ...old.metadata,
+      'run': 'legacy',
+    });
+    for (final name in ['chunks', 'events']) {
+      await stringMapStoreFactory.store(name).record('${old.run}:0').put(db, {
+        'legacy': true,
+      });
+      await stringMapStoreFactory.store(name).record('legacy:0').put(db, {
+        'legacy': true,
+      });
+    }
+    final next = SessionRecording(archive, mapIndex: 1, signature: 'test')
+      ..capture(frame(2))
+      ..checkpoint(frame(2));
+    await next.flush();
+    final saved = (await archive.list()).single;
+    expect(saved.run, next.run);
+    expect(saved.mapIndex, 1);
+    expect(await archive.resume(saved), frame(2));
+    for (final name in [
+      'chunks',
+      'bases',
+      'heads',
+      'frames',
+      'events',
+      'checkpoints',
+    ]) {
+      final keys = await stringMapStoreFactory.store(name).findKeys(db);
+      expect(
+        keys.where((key) => !key.startsWith(next.run)),
+        isEmpty,
+        reason: '$name 不应残留旧局数据',
+      );
+    }
+    final resumed = SessionRecording(
+      archive,
+      mapIndex: 1,
+      signature: 'test',
+      previous: saved,
+    )..capture(frame(3));
+    resumed.checkpoint(frame(3));
+    await resumed.flush();
+    expect((await archive.list()).single.run, next.run);
+    expect(await archive.resume((await archive.list()).single), frame(3));
+  });
+
+  test('新局覆盖进度仍保留手动回放，删除回放才回收旧帧', () async {
+    final archive = GameArchive.memory();
+    addTearDown(archive.close);
+    final old = SessionRecording(archive, mapIndex: 0, signature: 'test')
+      ..capture(frame(1));
+    await old.saveReplay();
+    old.elapsed = 1;
+    old.capture(frame(2));
+    await old.flush();
+    final replay = (await archive.list(replays: true)).single;
+    final next = SessionRecording(archive, mapIndex: 0, signature: 'test')
+      ..capture(frame(3));
+    await next.flush();
+    expect((await archive.list()).single.run, next.run);
+    expect((await archive.list(replays: true)).single.id, replay.id);
+    expect(await ReplayReader(archive, replay).seek(999), frame(1));
+    await archive.delete(replay, replay: true);
+    await expectLater(archive.chunk(old.run, 0), throwsFormatException);
+    expect(await archive.resume((await archive.list()).single), frame(3));
+  });
+
+  test('新局编码失败保留旧进度，重试成功后才替换', () async {
+    var fail = false;
+    final db = await databaseFactoryMemory.openDatabase('replace-failure');
+    final archive = GameArchive(
+      backend: () async => PackedArchiveBackend(
+        db,
+        pack: (value) async {
+          if (fail) throw const FileSystemException('模拟编码失败');
+          return value;
+        },
+        unpack: (value) async => value,
+      ),
+    );
+    addTearDown(archive.close);
+    final old = SessionRecording(archive, mapIndex: 0, signature: 'test')
+      ..capture(frame(1));
+    await old.flush();
+    final next = SessionRecording(archive, mapIndex: 1, signature: 'test')
+      ..capture(frame(2));
+    fail = true;
+    await expectLater(next.flush(), throwsA(isA<FileSystemException>()));
+    expect((await archive.list()).single.run, old.run);
+    expect(await archive.resume((await archive.list()).single), frame(1));
+    fail = false;
+    await next.flush();
+    expect((await archive.list()).single.run, next.run);
+    expect(await archive.resume((await archive.list()).single), frame(2));
+  });
+
   test('追加回放只编码新帧，关键帧在一个块中只写一次', () async {
     var bases = 0, frames = 0;
     final db = await databaseFactoryMemory.openDatabase('append-count');

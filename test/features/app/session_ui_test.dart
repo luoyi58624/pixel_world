@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/main.dart';
 import 'package:pixel_world/features/app/data/game_archive.dart';
-import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/world_map/presentation/world_controller.dart';
 import 'package:pixel_world/features/world_map/presentation/world_painter.dart';
 
@@ -60,7 +59,7 @@ WorldController controller(WidgetTester tester) =>
         .controller;
 
 Future<void> tap(WidgetTester tester, String key) async {
-  if (['save-replay', 'replay-controls'].contains(key) &&
+  if (['save-game', 'save-replay', 'replay-controls'].contains(key) &&
       find.byKey(ValueKey(key)).evaluate().isEmpty) {
     await tap(tester, 'game-settings');
   }
@@ -102,6 +101,69 @@ Future<T> storage<T>(WidgetTester tester, Future<T> operation) async {
 }
 
 void main() {
+  testWidgets('最近游玩只有一条，手动存档与回放在新局和读档后保留', (tester) async {
+    rootBundle.clear();
+    final archive = GameArchive.memory();
+    await tester.pumpWidget(PixelWorldApp(archive: archive));
+    await waitFor(
+      tester,
+      () =>
+          tester
+              .widget<FilledButton>(find.byKey(const ValueKey('start-game')))
+              .onPressed !=
+          null,
+    );
+    await tap(tester, 'start-game');
+    await waitFor(
+      tester,
+      () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
+    );
+    controller(tester).setPaused(true);
+    await tap(tester, 'save-game');
+    await waitFor(
+      tester,
+      () => find.text('存档已保存，可返回主页面继续').evaluate().isNotEmpty,
+    );
+    final saved = (await storage(tester, archive.list(manual: true))).single;
+    final snapshot = await storage(tester, archive.resume(saved));
+    await tap(tester, 'save-replay');
+    await waitFor(
+      tester,
+      () => find.text('回放已保存，可返回主页面观看').evaluate().isNotEmpty,
+    );
+    await tap(tester, 'exit-game');
+    await waitFor(tester, () => find.text('已保存的存档').evaluate().isNotEmpty);
+    final old = (await storage(tester, archive.list())).single;
+    await tap(tester, 'start-map-1');
+    await tap(tester, 'start-game');
+    await waitFor(
+      tester,
+      () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
+    );
+    await tap(tester, 'exit-game');
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
+    final recent = (await storage(tester, archive.list())).single;
+    expect(recent.run, isNot(old.run));
+    expect(recent.mapIndex, 1);
+    expect(await storage(tester, archive.list(manual: true)), hasLength(1));
+    expect(await storage(tester, archive.list(replays: true)), hasLength(1));
+    await tap(tester, 'resume-${saved.id}');
+    await waitFor(
+      tester,
+      () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
+    );
+    expect(controller(tester).index, 0);
+    expect(controller(tester).isPaused, isTrue);
+    await tap(tester, 'exit-game');
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
+    expect((await storage(tester, archive.list())).single.mapIndex, 0);
+    expect(await storage(tester, archive.resume(saved)), snapshot);
+    expect(await storage(tester, archive.list(replays: true)), hasLength(1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await storage(tester, archive.close());
+  });
+
   testWidgets('普通操作不额外写盘，每十秒保存且确认退出立即保存', (tester) async {
     rootBundle.clear();
     final archive = CountingArchive();
@@ -120,7 +182,7 @@ void main() {
       () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
     );
     final c = controller(tester);
-    c.buyCountryWeapon(0);
+    c.setTerritoryBorders(false);
     c.setPaused(true);
     expect(archive.writes, 1);
     await tester.pump(const Duration(seconds: 8));
@@ -128,7 +190,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await waitFor(tester, () => archive.writes == 2);
     await tap(tester, 'exit-game');
-    await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
     expect(archive.writes, 3);
     await tester.pumpWidget(const SizedBox.shrink());
     await storage(tester, archive.close());
@@ -160,7 +222,7 @@ void main() {
     expect(controller(tester).isPaused, isTrue);
     archive.fail = false;
     await tap(tester, 'exit-game');
-    await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await storage(tester, archive.close());
@@ -220,7 +282,7 @@ void main() {
       greaterThan(740),
     );
     await preview(tester, 'game');
-    original.buyCountryWeapon(0);
+    original.setTerritoryBorders(false);
     final gold = original.campaign.gold;
     await tap(tester, 'game-settings');
     await tap(tester, 'settings-pause');
@@ -233,7 +295,7 @@ void main() {
       () => find.text('回放已保存，可返回主页面观看').evaluate().isNotEmpty,
     );
     await tap(tester, 'exit-game');
-    await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
     List<ArchiveEntry> saves = [], replays = [];
     saves = await storage(tester, archive.list());
     replays = await storage(tester, archive.list(replays: true));
@@ -252,7 +314,7 @@ void main() {
       () => find.byKey(const ValueKey('world-canvas')).evaluate().isNotEmpty,
     );
     expect(controller(tester).campaign.gold, gold);
-    expect(controller(tester).campaign.weaponStockFor(0, 0), 1);
+    expect(controller(tester).showTerritoryBorders, isFalse);
     expect(controller(tester).isPaused, isTrue);
     await tap(tester, 'exit-game');
     await waitFor(
@@ -282,7 +344,7 @@ void main() {
     await preview(tester, 'replay');
     expect(find.byKey(const ValueKey('save-replay')), findsNothing);
     await tap(tester, 'exit-game');
-    await waitFor(tester, () => find.text('自动存档').evaluate().isNotEmpty);
+    await waitFor(tester, () => find.text('最近游玩').evaluate().isNotEmpty);
     await waitFor(
       tester,
       () => find

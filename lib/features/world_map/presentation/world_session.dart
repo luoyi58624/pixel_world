@@ -12,7 +12,6 @@ extension _WorldSession on _WorldScreenState {
         'assets/data/game_config.json5',
         'assets/data/rom_heroes.json',
         'assets/data/campaign_config.json5',
-        'assets/data/rom_weapons.json',
       ])
         rootBundle.loadString(path, cache: false),
     ]);
@@ -39,7 +38,8 @@ extension _WorldSession on _WorldScreenState {
       archive,
       mapIndex: controller.index,
       signature: signature,
-      previous: entry,
+      // 手动存档从冻结快照开启新的最近游玩记录，后续操作不改写原存档。
+      previous: entry?.manual == true ? null : entry,
     );
     _recording!.capture({
       ...controller.saveState(replay: true),
@@ -103,7 +103,7 @@ extension _WorldSession on _WorldScreenState {
     }
   }
 
-  Future<void> _saveReplay() async {
+  Future<void> _saveReplay({bool manualSave = false}) async {
     if (_savingReplay || _recording == null) return;
     _sessionChanged(() => _savingReplay = true);
     if (!_captureSession()) {
@@ -111,14 +111,21 @@ extension _WorldSession on _WorldScreenState {
       return;
     }
     try {
-      _recording!.checkpoint({
-        ..._controller!.saveState(),
-        'minimap': _showMinimap,
-      });
-      await _recording!.saveReplay();
+      final state = {..._controller!.saveState(), 'minimap': _showMinimap};
+      _recording!.checkpoint(state);
+      if (manualSave) {
+        final recording = _recording!, endpoint = recording.metadata;
+        await recording.flush();
+        await recording.archive.saveGame(endpoint, state);
+      } else {
+        await _recording!.saveReplay();
+      }
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('回放已保存，可返回主页面观看')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(manualSave ? '存档已保存，可返回主页面继续' : '回放已保存，可返回主页面观看'),
+          ),
+        );
       }
     } catch (error) {
       if (mounted) _sessionChanged(() => _saveError = error);
@@ -460,7 +467,9 @@ extension _WorldSession on _WorldScreenState {
                   ),
                   if (_recording != null) ...[
                     Text(
-                      _saveError == null ? '自动存档已开启' : '保存失败：$_saveError',
+                      _saveError == null
+                          ? '最近游玩自动保存，新游戏会覆盖；手动保存的记录会保留。'
+                          : '保存失败：$_saveError',
                       style: TextStyle(
                         fontSize: 12,
                         color: _saveError == null
@@ -469,6 +478,17 @@ extension _WorldSession on _WorldScreenState {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const ValueKey('save-game'),
+                      onPressed: _savingReplay
+                          ? null
+                          : () {
+                              Navigator.pop(dialogContext);
+                              _saveReplay(manualSave: true);
+                            },
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('保存存档'),
+                    ),
                     OutlinedButton.icon(
                       key: const ValueKey('save-replay'),
                       onPressed: _savingReplay
