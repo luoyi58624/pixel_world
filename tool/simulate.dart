@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:json5/json5.dart';
+import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/ai/runtime/worker.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
@@ -19,8 +20,8 @@ Future<void> main(List<String> args) async {
       '--backend deterministic 使用显式测试后端保证可复现；--backend native 使用真实常驻后台并等待其完成。\n'
       '--config 可选择资金配置，--heroes 可选择月俸实验目录；--trace 保留原始诊断事件，默认记录最终决策与月结。\n'
       '--commander 通过正式指令控制玩家国，主角死亡或全部失城立即判负。\n'
-      '--commander-strategy baseline|capacity-first|defense-only 选择玩家策略；defense-only 正常补兵补将升级但不出击。\n'
-      '输出位于 build/simulations/<label>/。',
+      '--commander-strategy baseline|capacity-first|defense-only|national-ai|conquest 选择玩家策略；conquest 使用集中进攻策略，national-ai 使用正式国家规划器；均执行主角阵亡失败规则。\n'
+      '输出位于 build/national_ai/<label>/。',
     );
     return;
   }
@@ -50,12 +51,20 @@ Future<void> main(List<String> args) async {
   final native = backend == 'native';
   final trace = args.contains('--trace');
   final strategy = option('commander-strategy', 'baseline');
-  if (!['baseline', 'capacity-first', 'defense-only'].contains(strategy)) {
+  if (![
+    'baseline',
+    'capacity-first',
+    'defense-only',
+    'national-ai',
+    'conquest',
+  ].contains(strategy)) {
     throw ArgumentError('未知玩家策略：$strategy');
   }
   final commanderStrategy = switch (strategy) {
     'capacity-first' => CommanderStrategy.capacityFirst,
     'defense-only' => CommanderStrategy.defenseOnly,
+    'national-ai' => CommanderStrategy.nationalAi,
+    'conquest' => CommanderStrategy.conquest,
     _ => CommanderStrategy.baseline,
   };
   final config = option('config', 'assets/data/campaign_config.json5');
@@ -64,13 +73,17 @@ Future<void> main(List<String> args) async {
   final setupSource = File(config).readAsStringSync();
   final worldSource = File('assets/maps/worlds.json').readAsStringSync();
   final heroSource = File(heroPath).readAsStringSync();
-  final out = Directory('build/simulations/$label')
-    ..createSync(recursive: true);
+  final gameConfigSource = File('assets/data/game_config.json5')
+      .readAsStringSync();
+  final out = Directory('build/national_ai/$label');
+  if (out.existsSync()) throw StateError('模拟目录已存在，请更换 label 以保留之前的结果');
+  out.createSync(recursive: true);
   File('${out.path}/inputs.json').writeAsStringSync(
     jsonEncode({
       'config': json5Decode(setupSource),
       'worlds': jsonDecode(worldSource),
       'heroes': json5Decode(heroSource),
+      'gameConfig': json5Decode(gameConfigSource),
       'commanderStrategy': strategy,
     }),
   );
@@ -78,6 +91,8 @@ Future<void> main(List<String> args) async {
   for (final seed in seeds) {
     for (final worldId in worldIds) {
       final row = await Isolate.run(() async {
+        // Isolate 不继承静态变量，必须在每局加载冻结的正式配置。
+        GameConfig.loadJson(gameConfigSource);
         final setup = CampaignSetup.decode(setupSource);
         final world = decodeWorlds(
           worldSource,
@@ -111,6 +126,8 @@ Future<void> main(List<String> args) async {
               );
               sink.writeln(event.toJsonLine());
             },
+            onProgress: (state) =>
+                stdout.writeln(jsonEncode({'progress': state})),
           );
         } finally {
           for (final sink in streams.values) {

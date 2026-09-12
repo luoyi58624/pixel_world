@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../core/time/game_clock.dart';
+import '../core/config/game_config.dart';
 import '../features/ai/runtime/worker.dart';
 import '../features/campaign/domain/campaign.dart';
 import '../features/events/domain/game_events.dart';
@@ -11,6 +12,7 @@ import 'scenario.dart';
 import 'commander.dart';
 import 'commander_mine.dart';
 import 'defensive_commander.dart';
+import 'conquest_commander.dart';
 
 /// 纯数据战役验收器：运行真实规则，不创建 Widget、画布或窗口。
 class SimulationRunner {
@@ -32,6 +34,7 @@ class SimulationRunner {
   Future<Map<String, Object?>> run(
     SimulationScenario scenario, {
     void Function(GameEvent)? onEvent,
+    void Function(Map<String, Object?>)? onProgress,
   }) async {
     if (scenario.worldId != world.id || scenario.seconds <= 0) {
       throw ArgumentError('模拟地图必须匹配，时长必须大于零');
@@ -39,6 +42,7 @@ class SimulationRunner {
     final stopwatch = Stopwatch()..start();
     var tick = 0, unsafe = 0, invalidResources = 0, duplicateHeroes = 0;
     var unified = false;
+    var playerPeakCities = 1;
     var playerExposedSamples = 0;
     final firstWaveLosses = <int, int>{}, attacksStarted = <int, int>{};
     final haltedByCountry = <int, int>{};
@@ -72,6 +76,14 @@ class SimulationRunner {
       onEvent: (event) {
         onEvent?.call(event);
         if (event.kind == GameEventKind.cityCaptured) {
+          if (liveCampaign != null) {
+            playerPeakCities = math.max(
+              playerPeakCities,
+              liveCampaign.cities.values
+                  .where((c) => c.ownerCountryId == 0)
+                  .length,
+            );
+          }
           maxCaptureGapTicks = math.max(
             maxCaptureGapTicks,
             event.tick - lastCaptureTick,
@@ -182,7 +194,9 @@ class SimulationRunner {
       world,
       heroes,
       aiWorkerFactory: aiWorkerFactory,
-      aiControlsPlayer: !scenario.playerCommander,
+      aiControlsPlayer:
+          !scenario.playerCommander ||
+          scenario.commanderStrategy == CommanderStrategy.nationalAi,
       endOnPlayerDefeat: scenario.playerCommander,
       aiRandom: math.Random(scenario.seed),
       economyRandom: math.Random(scenario.seed + 10),
@@ -217,6 +231,9 @@ class SimulationRunner {
             0.0,
             (n, h) => n + h.maxHp * .5 + h.combat * 3 + h.politics,
           ),
+      'phase': c.warPlanFor(id)?.phase.name,
+      'targetCity': c.warPlanFor(id)?.targetCityId,
+      'targetCountry': c.warPlanFor(id)?.targetCountryId,
     };
     final initial = [for (final id in countries) state(id)];
     liveCampaign = c;
@@ -226,6 +243,8 @@ class SimulationRunner {
             CommanderStrategy.baseline => SimulationCommander(),
             CommanderStrategy.capacityFirst => MineCommander(),
             CommanderStrategy.defenseOnly => DefensiveCommander(),
+            CommanderStrategy.nationalAi => null,
+            CommanderStrategy.conquest => ConquestCommander(),
           }
         : null;
     final maxTicks = scenario.seconds * 60;
@@ -330,6 +349,14 @@ class SimulationRunner {
               'countries': [for (final id in countries) state(id)],
             });
           }
+          if (tick % (300 * 60) == 0) {
+            onProgress?.call({
+              'second': tick ~/ 60,
+              'world': world.id,
+              'seed': scenario.seed,
+              'player': state(0),
+            });
+          }
         });
         if (!scenario.deterministic) {
           final wait = Stopwatch()..start();
@@ -356,6 +383,18 @@ class SimulationRunner {
             'emptyCitySeconds': emptySeconds[id] ?? 0,
             'longestEmptyCitySeconds': longestEmpty[id] ?? 0,
             'voluntaryEmptyDepartures': vacatedCounts[id] ?? 0,
+            'cityDetails': [
+              for (final city in c.world.cities)
+                if (c.cities[city.id]!.ownerCountryId == id)
+                  {
+                    'id': city.id,
+                    'name': c.cityName(city.id),
+                    'level': c.cities[city.id]!.level,
+                    'guards': [
+                      for (final hero in c.garrisonAt(city.id)) hero.name,
+                    ],
+                  },
+            ],
           },
       ];
       final remaining = c.cities.values
@@ -388,6 +427,8 @@ class SimulationRunner {
                 CommanderStrategy.baseline => 'command-api',
                 CommanderStrategy.capacityFirst => 'command-api-capacity-first',
                 CommanderStrategy.defenseOnly => 'command-api-defense-only',
+                CommanderStrategy.nationalAi => 'national-ai-player',
+                CommanderStrategy.conquest => 'command-api-conquest',
               }
             : 'national-ai',
         'outcome': c.defeated
@@ -396,6 +437,10 @@ class SimulationRunner {
             ? 'conquest'
             : 'timeout',
         'playerCommands': commander?.commands,
+        'rules': GameConfig.toJson(),
+        'playerPeakCities': playerPeakCities,
+        'totalCities': c.cities.length,
+        'defeatReason': c.defeatReason?.name,
         'seed': scenario.seed,
         'speed': scenario.speed,
         'backend': scenario.deterministic
@@ -418,6 +463,7 @@ class SimulationRunner {
         'maxQuietCaptureSeconds':
             math.max(maxCaptureGapTicks, tick - lastCaptureTick) / 60,
         'diagnostics': {
+          'runtime': c.aiDiagnostics.toJson(),
           'plans': [
             for (final id in countries)
               {
