@@ -32,6 +32,13 @@ void main() {
         );
       }
       final ids = world.cities.map((c) => c.id).toSet();
+      for (final city in world.cities) {
+        for (final other in map.neighborsOf(city.id)) {
+          expect(other, isNot(city.id));
+          expect(ids, contains(other));
+          expect(map.neighborsOf(other), contains(city.id));
+        }
+      }
       for (var y = 0; y < world.height; y++) {
         for (var x = 0; x < world.width; x++) {
           expect(
@@ -47,6 +54,49 @@ void main() {
       expect(borders, isNotEmpty);
       expect(map.borders({for (final c in world.cities) c.id: 0}), isEmpty);
     }
+  });
+
+  test('敌军在同国不同辖区间移动时，新的城池也立即接到戒备通知', () {
+    final c = nationalScenario(
+      ai: false,
+      guards: [0, 18],
+      friendly: true,
+      friendHeroes: [19],
+    );
+    addTearDown(c.dispose);
+    final enemy = c.heroes.firstWhere((h) => h.sourceId == 40);
+    final first = c
+        .cityBounds(c.world.cities.firstWhere((city) => city.id == 1))
+        .center;
+    final second = c
+        .cityBounds(c.world.cities.firstWhere((city) => city.id == 3))
+        .center;
+    final march = c.dispatchTo(enemy, first)!;
+    march.position = first;
+    march.camp();
+    c.advance(1 / 60);
+    march.position = second;
+    march.camp();
+    c.advance(1 / 60);
+    final alerts = c.events.retainedEvents.where(
+      (e) =>
+          e.kind == GameEventKind.territoryEntered &&
+          e.countryId == 1 &&
+          e.heroId == enemy.id,
+    );
+    expect(alerts.map((e) => e.cityId), containsAll([1, 3]));
+    c.advance(1);
+    expect(
+      c.events.retainedEvents
+          .where(
+            (e) =>
+                e.kind == GameEventKind.territoryEntered &&
+                e.countryId == 1 &&
+                e.heroId == enemy.id,
+          )
+          .length,
+      2,
+    );
   });
 
   test('越境即触发本国事件和防守观察，在辖区停留不会每帧重复记录', () {

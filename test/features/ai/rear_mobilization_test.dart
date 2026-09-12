@@ -195,7 +195,7 @@ void main() {
     );
     final target = view.city(2)!;
     // 三名强将分布很远，不能强行要求后方将领凑齐同一批次才准出发。
-    expect(planner.raidTeamSize(1, target, ledger), 2);
+    expect(planner.raidTeamSize(1, target, ledger), 1);
     expect(
       planner.raidTeamSize(1, target, ledger, lead: view.hero('rom-0')),
       1,
@@ -307,7 +307,7 @@ void main() {
     );
   });
 
-  test('安全后方也不把低攻击高内政将领当攻城或解雇耗材', () {
+  test('后方内政将领也允许前移，但不解雇最后一人作为耗材', () {
     final c = nationalScenario(
       ai: false,
       rearEmpire: true,
@@ -319,7 +319,7 @@ void main() {
     addTearDown(c.dispose);
     final ledger = _ledger(c), hero = ledger.view.hero('rom-0')!;
     expect(ledger.safeRear(ledger.view.city(1)!), isTrue);
-    expect(ledger.canSpareForOffense(hero), isFalse);
+    expect(ledger.canSpareForOffense(hero), isTrue);
     expect(ledger.dismiss(hero), isFalse);
     expect(_moveToFront(c), isNotNull, reason: '可沿安全路线转移去建设前线');
   });

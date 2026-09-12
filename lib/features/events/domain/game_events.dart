@@ -47,6 +47,7 @@ enum GameEventKind {
   retreatResolved('撤退结果', GameEventCategory.battle),
   threatDetected('发现城池威胁', GameEventCategory.decision),
   territoryEntered('敌军进入国境', GameEventCategory.decision),
+  reinforcementsRequested('通知后方增援', GameEventCategory.decision),
   threatCleared('威胁状态变化', GameEventCategory.decision),
   hatredChanged('记下敌国侵袭', GameEventCategory.decision),
   decisionRequested('开始判断局势', GameEventCategory.decision),
@@ -125,9 +126,10 @@ class GameEvent {
   bool get isFinalDecision =>
       kind == GameEventKind.decisionFinalized && source == GameEventSource.ai;
 
-  /// 国家面板仅保留最终决策和月度收支，过滤调度过程噪音。
+  /// 国家面板保留最终决策、前线增援通知和月度收支，过滤调度过程噪音。
   bool get isVisibleInCountryLog =>
       isFinalDecision ||
+      kind == GameEventKind.reinforcementsRequested ||
       kind == GameEventKind.monthSettled ||
       kind == GameEventKind.treasuryCaptured;
 

@@ -138,6 +138,7 @@ extension _CampaignEventRecording on CampaignState {
     'intercept' => '野外截击',
     'evacuate' => '撤离',
     'transfer' => '调防',
+    'staging' => '前线集结',
     'regroup' => '回城整备',
     'standby' => '安全待命',
     'newBase' => '建立新据点',

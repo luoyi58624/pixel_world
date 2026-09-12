@@ -1,4 +1,5 @@
 import 'package:pixel_world/core/geometry/geometry.dart';
+import 'package:pixel_world/core/config/game_config.dart';
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -53,7 +54,11 @@ void main() {
     schedule.submitted(defense);
     schedule.finish(defense.id, 1, adopted: true);
     expect(schedule.defenseAlarmPending, isFalse);
-    expect(schedule.due(1), AiDecisionStage.attack);
+    expect(
+      schedule.due(1),
+      AiDecisionStage.resources,
+      reason: '警报后立即补募和补兵，再恢复进攻周期',
+    );
   });
   test('资源30秒、哨兵8秒，资源结果落地后才防守，最后进攻', () {
     final c = nationalScenario(ai: false);
@@ -109,7 +114,7 @@ void main() {
     advanceAi(c, 2);
     final requests = worker.requests.where((r) => r.country == 1).toList();
     expect(requests.length, 1);
-    expect(requests.single.stage, AiDecisionStage.resources);
+    expect(requests.single.stage, AiDecisionStage.defense);
   });
 
   test('初始城防和守将占优时，不召回更强的在外将领', () {
@@ -178,6 +183,11 @@ void main() {
   });
 
   test('本地可升级改善防守时，先使用国库而非打断远征', () {
+    final previous = GameConfig.toJson();
+    GameConfig.loadJson(
+      File('assets/data/game_config.json5').readAsStringSync(),
+    );
+    addTearDown(() => GameConfig.loadMap(previous));
     final c = nationalScenario(
       gold: 600,
       ai: false,
@@ -187,7 +197,8 @@ void main() {
       attackerCombat: 20,
       overrides: {
         0: {'combat': 45},
-        18: {'combat': 18, 'maxHp': 95},
+        // 本月只允许升一级，本例必须跨过真实整数伤害档位才能改善防线。
+        18: {'combat': 21, 'maxHp': 95, 'politics': 15},
       },
     );
     final hero = c.garrisonAt(1).first;
@@ -202,6 +213,7 @@ void main() {
           .expand((g) => g.actions)
           .any((a) => a.kind == AiActionKind.upgrade),
       isTrue,
+      reason: plan.toJson().toString(),
     );
     expect(
       plan.groups.expand((g) => g.tasks).any((t) => t.hero == hero.id),

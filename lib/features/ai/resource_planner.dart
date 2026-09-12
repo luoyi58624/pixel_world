@@ -255,9 +255,35 @@ class ResourcePlanner {
               reports[city.id]?.risk?.advantage != CombatAdvantage.favorable);
       if (missingGuard || weakDefense) recruit(city, defense: true);
     }
+    // 前线警报优先动用已有后援；仍有缺口且没有在途援军时通知最近后方补募。
+    for (final report in reports.values.where(
+      (r) => r.threatened && r.risk?.advantage != CombatAdvantage.favorable,
+    )) {
+      if (ledger.tasks.values.any(
+        (t) => t.role == 'rescue' && t.city == report.city.id,
+      )) {
+        continue;
+      }
+      final rear =
+          cities
+              .where(
+                (c) =>
+                    ledger.safeRear(c) &&
+                    ledger.garrison(c.id).isEmpty &&
+                    c.recruitAllowed,
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.center
+                  .distance(report.city.center)
+                  .compareTo(b.center.distance(report.city.center)),
+            );
+      if (rear.isNotEmpty) recruit(rear.first, defense: true);
+    }
     for (final city in cities) {
       if (groups.length >= rules.tuning.maxCommands - 2) break;
       final desiredAssault = operations.desiredAssaultHeroes(ledger);
+      if (ledger.safeRear(city)) continue;
       final strongest = view.heroes
           .where((h) => h.country == view.country && !h.marked)
           .fold<int>(0, (n, h) => math.max(n, h.combat));

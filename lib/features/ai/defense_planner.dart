@@ -378,7 +378,8 @@ class DefensePlanner {
             .where(
               (h) =>
                   h.country == _view.country &&
-                  h.canMove &&
+                  (h.canMove ||
+                      h.canDispatch && base.safeRear(_view.city(h.city)!)) &&
                   !h.marked &&
                   base.tasks[h.id]?.arrivalSlot != true &&
                   !base.reservedHeroes.contains(h.id) &&
@@ -453,6 +454,7 @@ class DefensePlanner {
         }
       }
       for (final incoming in report.incoming.take(2)) {
+        if (!hero.canMove) break;
         final continuing =
             base.tasks[hero.id]?.role == 'intercept' &&
             base.tasks[hero.id]?.enemy == incoming.hero.id;

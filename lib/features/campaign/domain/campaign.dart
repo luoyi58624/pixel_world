@@ -320,6 +320,7 @@ class HeroMarch {
   double _departureAt = 0;
   bool _trafficBlocked = false;
   bool _arrivalWaitLogged = false;
+  bool _siegeWaiting = false;
 
   /// 暂时避让时仍保留原行军任务，不能当作主动扎营或抵达目的地。
   bool get waitingForTraffic => _trafficBlocked;
@@ -368,6 +369,7 @@ class HeroMarch {
     _rememberPosition();
     if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
+    _siegeWaiting = false;
     target = city;
     destination = point;
     if (point != position) {
@@ -385,6 +387,7 @@ class HeroMarch {
     _rememberPosition();
     _walkAnimation.reset();
     _siegeArrival = null;
+    _siegeWaiting = false;
     target = null;
     destination = position;
     phase = MarchPhase.camped;
@@ -834,6 +837,7 @@ class CampaignState {
   /// 城池辖区固定，国家边界随当前占领关系即时变化。
   late final territories = TerritoryMap(world);
   final _lastTerritoryOwner = <String, int>{};
+  final _lastTerritoryRegion = <String, int>{};
 
   /// 建筑绘制与点击共用当前等级图块范围，左下基座保持在原地图位置。
   GameRect cityBounds(CityDefinition city) {
@@ -1996,6 +2000,16 @@ class CampaignState {
     for (final march in marches.values.where(
       (march) => march.target?.id == cityId,
     )) {
+      if (march._siegeWaiting) {
+        final origin = cityBounds(march.target!).topLeft;
+        final nearest =
+            origin +
+            _cityContact(march.target!).nearest(march.destination - origin);
+        if ((nearest - march.destination).distance < 24) {
+          _positionSiegeQueue(march, avoid: march.position);
+        }
+        continue;
+      }
       if (march.phase == MarchPhase.dueling ||
           march.phase == MarchPhase.awaitingBattle) {
         continue;
@@ -2219,6 +2233,8 @@ class CampaignState {
             if (cities[city.id]!.ownerCountryId == march.hero.countryId) {
               continue;
             }
+            // 排队部队移往外围空位时允许离开原城墙，其他敌城仍按实际接触拦截。
+            if (march._siegeWaiting && march.target?.id == city.id) continue;
             final origin = cityBounds(city).topLeft;
             final contact = _cityContact(city);
             // 已贴城时也必须拦截，不能利用起点在轮廓内的线段跳过城战。

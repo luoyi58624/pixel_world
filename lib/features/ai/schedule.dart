@@ -38,6 +38,7 @@ class CountryAiSchedule {
   void requestDefense(double now) {
     _defenseAlarmTick = (now * 60).round();
     _retryAt = now;
+    if (_resourceAt > now) _resourceAt = now;
   }
 
   /// 未完成请求阻止同国新观察覆盖旧任务。
@@ -46,8 +47,8 @@ class CountryAiSchedule {
   /// 选择到期的最高优先级阶段，不因每次战斗伤害重置周期。
   AiDecisionStage? due(double now) {
     if (_pending != null || now < _retryAt) return null;
-    if (now >= _resourceAt) return AiDecisionStage.resources;
     if (defenseAlarmPending) return AiDecisionStage.defense;
+    if (now >= _resourceAt) return AiDecisionStage.resources;
     if (now >= _defenseAt) return AiDecisionStage.defense;
     if (now >= _attackAt) return AiDecisionStage.attack;
     return null;

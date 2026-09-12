@@ -138,7 +138,12 @@ void main() {
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
       expect(ledger.recruit(view.city(1)!), salary == 7);
-      expect(ledger.gold, salary == 7 ? 87 : 100);
+      expect(ledger.gold, salary == 7 ? 100 - rules.integer('drawCost') : 100);
+      expect(
+        ledger.extraSalary,
+        salary == 7 ? 8 : 0,
+        reason: '月俸预留到下次结算，不在招募时重复预付',
+      );
     }
   });
 

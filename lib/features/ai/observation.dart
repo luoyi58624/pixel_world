@@ -217,6 +217,7 @@ class AiCity {
     required this.rearStagingCapacity,
     required this.recruitAllowed,
     required this.revision,
+    this.neighborCities,
     this.baseIncome = 10,
     this.upgradeAllowed = true,
     this.initialBattleLevel,
@@ -243,6 +244,7 @@ class AiCity {
     poorIncome: d['poor'],
     capacityContribution: d['cap'],
     rearStagingCapacity: d['recruitCap'],
+    neighborCities: (d['neighbors'] as List?)?.cast<int>(),
     recruitAllowed: d['recruit'],
     upgradeAllowed: d['upgrade'] as bool? ?? true,
     revision: d['rev'],
@@ -259,6 +261,9 @@ class AiCity {
 
   /// 城市身份、归属、原生国家与建筑等级。
   final int id, country, nativeCountry, level;
+
+  /// 实际国土网格中接壤的城池；旧观察没有此字段时不推断为安全后方。
+  final List<int>? neighborCities;
 
   /// 实际中心及接触轮廓。
   final AiPoint center;
@@ -317,6 +322,7 @@ class AiCity {
     'poor': poorIncome,
     'cap': capacityContribution,
     'recruitCap': rearStagingCapacity,
+    'neighbors': neighborCities,
     'recruit': recruitAllowed,
     'upgrade': upgradeAllowed,
     'rev': revision,

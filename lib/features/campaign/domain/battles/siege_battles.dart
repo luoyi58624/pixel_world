@@ -24,7 +24,7 @@ extension _CitySieges on CampaignState {
       );
       _emitEvent(
         GameEventKind.battleQueued,
-        '${march.hero.name}抵达城下，按到达顺序等待攻城',
+        '${march.hero.name}抵达城下，同国部队按战力优先等待攻城',
         hero: march.hero,
         cityId: march.target!.id,
         targetCountryId: cities[march.target!.id]!.ownerCountryId,
@@ -54,7 +54,8 @@ extension _CitySieges on CampaignState {
           });
     var changed = false;
     final admittedCities = <int>{};
-    for (final march in arrived) {
+    for (final entry in arrived) {
+      var march = entry;
       if (!marches.containsKey(march.hero.id) || !march.hero.health.alive) {
         continue;
       }
@@ -66,8 +67,42 @@ extension _CitySieges on CampaignState {
         continue;
       }
       // 整场攻城（含换守将）都占用名额，不能中途换将或提前夺城。
-      if (battles[city.id]?.isActive == true || !admittedCities.add(city.id)) {
+      if (battles[city.id]?.isActive == true) {
+        changed = _positionSiegeQueue(march) || changed;
         continue;
+      }
+      if (!admittedCities.add(city.id)) {
+        continue;
+      }
+      // 国家之间保留到达顺序，同国已抵达的候战部队优先派出当前战力最强者。
+      final ownQueue =
+          arrived
+              .where(
+                (m) =>
+                    m.target?.id == city.id &&
+                    m.hero.countryId == march.hero.countryId &&
+                    m.hero.health.alive &&
+                    !m.returningFromRetreat &&
+                    activeBattleForHero(m.hero.id) == null &&
+                    m._siegeArrival != null,
+              )
+              .toList()
+            ..sort((a, b) {
+              double strength(CampaignHero h) =>
+                  h.combat * h.hp / h.maxHp +
+                  h.soldiers * BattleSimulation.soldierAttack;
+              final power = strength(b.hero).compareTo(strength(a.hero));
+              return power != 0
+                  ? power
+                  : a._siegeArrival!.order.compareTo(b._siegeArrival!.order);
+            });
+      if (ownQueue.isNotEmpty) march = ownQueue.first;
+      if (march._siegeWaiting) {
+        march._siegeWaiting = false;
+        if (!_atCityContact(march)) {
+          changed = true;
+          continue;
+        }
       }
       // 城堡缩小或扩建后，队首到轮次再重新贴城，其余部队继续原地等待。
       if (march.phase == MarchPhase.marching) continue;
@@ -85,6 +120,65 @@ extension _CitySieges on CampaignState {
       }
     }
     return changed;
+  }
+
+  // 候战部队围在城外的分散空位，保持真实行走和队列身份，为出城撤退留下间隙。
+  bool _positionSiegeQueue(HeroMarch march, {GamePoint? avoid}) {
+    if (march._siegeWaiting && avoid == null ||
+        march.returningFromRetreat ||
+        march.target == null ||
+        activeBattleForHero(march.hero.id) != null) {
+      return false;
+    }
+    final city = march.target!, bounds = cityBounds(march.target!);
+    final radius =
+        _cityContact(city).outline.fold<double>(
+          0,
+          (r, p) => math.max(r, (bounds.topLeft + p - bounds.center).distance),
+        ) +
+        36;
+    final angle = math.atan2(
+      march.position.dy - bounds.center.dy,
+      march.position.dx - bounds.center.dx,
+    );
+    for (var ring = 0; ring < 4; ring++) {
+      for (var slot = 0; slot < 8; slot++) {
+        final turn = angle + slot * math.pi / 4;
+        final point =
+            bounds.center +
+            GamePoint(math.cos(turn), math.sin(turn)) * (radius + ring * 40);
+        final outward = march.position - bounds.center,
+            movement = point - march.position;
+        // 外围换位只能沿当前墙面向外走，不能借候战标记穿过正在交战的城堡。
+        if (outward.dx * movement.dx + outward.dy * movement.dy < 0) continue;
+        if (!_containsPoint(point) ||
+            avoid != null && (point - avoid).distance < 64 ||
+            world.cities.any(
+              (c) => _cityContact(c).contains(point - cityBounds(c).topLeft),
+            ) ||
+            marches.values.any(
+              (other) =>
+                  other != march &&
+                  other.visibleOnMap &&
+                  ((other.position - point).distance < 34 ||
+                      other._siegeWaiting &&
+                          (other.destination - point).distance < 34),
+            )) {
+          continue;
+        }
+        march._resumeToward(point, city: city);
+        march._siegeWaiting = true;
+        _record(
+          '${march.hero.name}移往城外围攻位置',
+          kind: GameEventKind.heroMoved,
+          hero: march.hero,
+          source: GameEventSource.system,
+          reason: '城内已有部队交战，外围分散候战，保留撤退通路',
+        );
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _atCityContact(HeroMarch march) {

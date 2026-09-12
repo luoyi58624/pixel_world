@@ -41,18 +41,19 @@ WorldDefinition _world() => WorldDefinition.fromJson(
   [0, 1, 2, 3],
 );
 
-CampaignState _campaign({WorldDefinition? world}) => ongoingCampaign(
-  CampaignState.fromRom(
-    world ?? _world(),
-    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
-    aiEnabled: false,
-    siegeRandom: const FixedSiegeRandom(),
-    retreatRandom: const FixedSiegeRandom(.9),
-    startingGold: 1000,
-  ),
+CampaignState _campaign({WorldDefinition? world, double retreatRoll = .9}) =>
+    ongoingCampaign(
+      CampaignState.fromRom(
+        world ?? _world(),
+        decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+        aiEnabled: false,
+        siegeRandom: const FixedSiegeRandom(),
+        retreatRandom: FixedSiegeRandom(retreatRoll),
+        startingGold: 1000,
+      ),
 
-  year: 1,
-);
+      year: 1,
+    );
 
 CampaignHero _hero(CampaignState c, int id) =>
     c.heroes.firstWhere((hero) => hero.sourceId == id);
@@ -106,6 +107,48 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
+  test('同国强将晚到仍先上场，弱将保持外围候战', () {
+    final c = _campaign(retreatRoll: .99);
+    addTearDown(c.dispose);
+    final active = _attack(c);
+    _hero(c, 1).hp = 10;
+    final weak = _dispatch(c, 1), strong = _dispatch(c, 2);
+    _arrive(c, weak);
+    _arrive(c, strong);
+    _withdraw(c, active);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == strong.hero,
+    );
+    expect(c.activeBattleForHero(weak.hero.id), isNull);
+    expect(weak.target?.id, 1);
+  });
+
+  test('成功撤退可穿过围攻通路返城，不被候战队友堵成扎营', () {
+    final c = _campaign(retreatRoll: .99);
+    addTearDown(c.dispose);
+    final active = _attack(c);
+    final first = _dispatch(c, 1), second = _dispatch(c, 2);
+    _arrive(c, first);
+    _arrive(c, second);
+    _until(c, () => c.battles[1]!.simulation.canRetreat);
+    expect(c.retreatHero(active.hero.id), isTrue);
+    var returning = false;
+    for (
+      var tick = 0;
+      tick < 3600 && c.marches.containsKey(active.hero.id);
+      tick++
+    ) {
+      c.advance(1 / 60);
+      if (!active.returningFromRetreat) continue;
+      returning = true;
+      expect(active.phase, isNot(MarchPhase.camped));
+    }
+    expect(returning, isTrue);
+    expect(c.marches.containsKey(active.hero.id), isFalse);
+    expect(c.garrisonAt(0), contains(active.hero));
+  });
+
   test('原版驻军按目录以主角开头，扩展将领不改变原身份编号', () {
     final catalog = decodeRomHeroes(
       File('assets/data/heroes.json5').readAsStringSync(),
@@ -192,7 +235,7 @@ void main() {
     _kill(battle.defender);
     _until(c, () => battle.wave == 2);
     expect(battle.defender, same(_hero(c, 3)));
-    expect(waiter.phase, MarchPhase.awaitingBattle);
+    expect(waiter.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
   });
 
   test('跳过出征或阵亡将领，别城驻军不会被选为守将', () {
@@ -206,7 +249,7 @@ void main() {
     expect(c.battles[1]!.defender.sourceId, 6);
   });
 
-  test('同城按抵达顺序逐支接战，同国等待者保持原位', () {
+  test('同战力按抵达顺序逐支接战，同国等待者向外围分散', () {
     final c = _campaign();
     final active = _attack(c);
     final laterArrival = _dispatch(c, 1);
@@ -215,14 +258,29 @@ void main() {
     _arrive(c, laterArrival);
     final positions = [earlierArrival.position, laterArrival.position];
     c.advance(0.5);
-    expect([earlierArrival.position, laterArrival.position], positions);
+    expect([earlierArrival.position, laterArrival.position], isNot(positions));
+    expect(earlierArrival.target, laterArrival.target);
     expect(c.fieldBattles, isEmpty);
     _withdraw(c, active);
     c.advance(1 / 60);
+    _until(
+      c,
+      () =>
+          c.battles[1]!.isActive &&
+          c.battles[1]!.attacker == earlierArrival.hero,
+    );
     expect(c.battles[1]!.attacker, same(earlierArrival.hero));
-    expect(laterArrival.phase, MarchPhase.awaitingBattle);
+    expect(
+      laterArrival.phase,
+      anyOf(MarchPhase.awaitingBattle, MarchPhase.marching),
+    );
     _withdraw(c, earlierArrival);
     c.advance(1 / 60);
+    _until(
+      c,
+      () =>
+          c.battles[1]!.isActive && c.battles[1]!.attacker == laterArrival.hero,
+    );
     expect(c.battles[1]!.attacker, same(laterArrival.hero));
   });
 
@@ -244,14 +302,17 @@ void main() {
     final position = waiter.position;
     _kill(battle.defender);
     _until(c, () => battle.nextWaveIn > 0);
-    expect(waiter.phase, MarchPhase.awaitingBattle);
+    expect(waiter.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
     expect(c.cities[1]!.ownerCountryId, 1);
     c.advance(0.5);
     expect(c.battles[1], same(battle));
-    expect(waiter.position, position);
+    expect(
+      (waiter.position - position).distance,
+      lessThanOrEqualTo(waiter.walkDistance + 1),
+    );
     _until(c, () => battle.wave == 2);
     expect(battle.defender.sourceId, 3);
-    expect(waiter.phase, MarchPhase.awaitingBattle);
+    expect(waiter.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
   });
 
   test('排队者遭遇敌军进行野战，城内攻守双方不会卷入且战斗继续', () {
@@ -294,17 +355,21 @@ void main() {
     expect(enemy.phase, MarchPhase.dueling);
     final later = _dispatch(c, 2);
     _arrive(c, later);
-    expect(later.phase, MarchPhase.awaitingBattle);
+    expect(later.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
     _kill(enemy.hero);
     _until(c, () => !field.isActive);
     expect(c.marches.containsKey(enemy.hero.id), isFalse);
     expect(first.target, same(c.world.cities[1]));
-    expect(first.phase, MarchPhase.awaitingBattle);
+    expect(first.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
     expect(c.cities[2]!.level, 3);
     _withdraw(c, active);
     c.advance(1 / 60);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == first.hero,
+    );
     expect(c.battles[1]!.attacker, same(first.hero));
-    expect(later.phase, MarchPhase.awaitingBattle);
+    expect(later.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
   });
 
   test('队首正在野战时让下一支攻城，败方被清除后队列仍能推进', () {
@@ -321,15 +386,23 @@ void main() {
     _arrive(c, later);
     _withdraw(c, active);
     c.advance(1 / 60);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == later.hero,
+    );
     expect(c.battles[1]!.attacker, same(later.hero));
     expect(first.phase, MarchPhase.dueling);
     _kill(first.hero);
     _until(c, () => !field.isActive);
     expect(c.marches.containsKey(first.hero.id), isFalse);
-    expect(enemy.phase, MarchPhase.awaitingBattle);
+    expect(enemy.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
     expect(c.cities[0]!.level, 3);
     _withdraw(c, later);
     c.advance(1 / 60);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == enemy.hero,
+    );
     expect(c.battles[1]!.attacker, same(enemy.hero));
   });
 
@@ -348,6 +421,10 @@ void main() {
     c.advance(1 / 60);
     _withdraw(c, active);
     c.advance(1 / 60);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == later.hero,
+    );
     expect(c.battles[1]!.attacker, same(later.hero));
   });
 
@@ -387,16 +464,26 @@ void main() {
     _kill(c.battles[1]!.defender);
     _until(c, () => c.battles[1]!.nextWaveIn > 0);
     expect(c.cities[1]!.level, 4);
-    expect(first.position, oldPosition);
+    expect(
+      (first.position - oldPosition).distance,
+      lessThanOrEqualTo(first.walkDistance + 1),
+    );
     _withdraw(c, active);
     expect(c.cities[1]!.level, 3);
     c.advance(1 / 60);
-    expect(first.position, oldPosition);
+    expect(
+      (first.position - oldPosition).distance,
+      lessThanOrEqualTo(first.walkDistance + 1),
+    );
     expect(first.phase, MarchPhase.marching);
-    expect(later.phase, MarchPhase.awaitingBattle);
+    expect(later.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
     _until(c, () => c.battles[1]!.isActive);
+    _until(
+      c,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == first.hero,
+    );
     expect(c.battles[1]!.attacker, same(first.hero));
     expect(first.position, isNot(oldPosition));
-    expect(later.phase, MarchPhase.awaitingBattle);
+    expect(later.phase, anyOf(MarchPhase.awaitingBattle, MarchPhase.marching));
   });
 }

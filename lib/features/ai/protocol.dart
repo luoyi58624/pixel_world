@@ -109,7 +109,7 @@ class ArmyTask {
 
   /// 原敌城变为本国城池或其他国家领土时重新评估，兼容未记录原属国的旧任务。
   bool needsTargetReview(int? currentOwner, int ownCountry) =>
-      role == 'expedition' &&
+      (role == 'expedition' || role == 'staging') &&
       currentOwner != null &&
       (currentOwner == ownCountry ||
           targetCountry != null && currentOwner != targetCountry);

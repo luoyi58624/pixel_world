@@ -131,38 +131,29 @@ class AiLedger {
 
   /// 安全后方允许空城，边境、受威胁城市和小国仍需要实际守将。
   int defendersToKeep(AiCity city) {
-    if (garrison(city.id).any((h) => h.type == 2)) return 2;
+    if (garrison(city.id).any((h) => h.type == 2)) {
+      return safeRear(city) ? 1 : 2;
+    }
     return abandoned.contains(city.id) || safeRear(city) ? 0 : 1;
   }
 
   /// 同一观察下缓存后方判断；敌情或领土变化后的新账本必须重新计算。
   bool safeRear(AiCity city) => _rearSafety.putIfAbsent(city.id, () {
-    double radius(AiCity c) => c.outline.points.fold<double>(
-      0,
-      (n, p) => math.max(n, c.center.distance(p)),
-    );
     return city.country == view.country &&
         safeRearArea(
-          ownedCities: view.owned.length,
+          country: view.country,
+          neighborOwners: city.neighborCities?.map(
+            (id) => view.city(id)?.country,
+          ),
           fighting: city.initialBattleLevel != null,
-          center: city.center,
-          radius: radius(city),
-          fastestSpeed:
-              rules.number('marchSpeed') *
-              rules.movementFactors.reduce(math.max),
-          threatSeconds: rules.tuning.threatSeconds,
-          enemyCities: view.cities
-              .where((c) => c.country != view.country)
-              .map((c) => (c.center, radius(c))),
-          enemyArmies: view.heroes
-              .where(
-                (h) =>
-                    h.country != view.country &&
-                    !h.stationed &&
-                    !h.marked &&
-                    h.hp > 0,
-              )
-              .map((h) => (h.position, h.regionCity == city.id)),
+          enemyPresent: view.heroes.any(
+            (h) =>
+                h.country != view.country &&
+                !h.stationed &&
+                !h.marked &&
+                h.hp > 0 &&
+                h.regionCity == city.id,
+          ),
         );
   });
 
@@ -175,6 +166,7 @@ class AiLedger {
               .where(
                 (c) =>
                     !abandoned.contains(c.id) &&
+                    !safeRear(c) &&
                     c.recruitAllowed &&
                     (c.initialBattleLevel == null ||
                         occupancy(c.id) < slots(c)),
@@ -206,6 +198,8 @@ class AiLedger {
   bool canSpareForOffense(AiHero hero) {
     final city = view.city(hero.city);
     if (city == null) return false;
+    // 安全后方只沿用主角本人的生存保护，普通和高级护卫也统一释放到前线。
+    if (safeRear(city)) return hero.type != 2;
     final guards = garrison(hero.city);
     final protagonist = guards.where((h) => h.type == 2).firstOrNull;
     if (protagonist != null) {
@@ -248,9 +242,6 @@ class AiLedger {
           .last;
       return hero.id != guardian.id;
     }
-    if (safeRear(city)) {
-      return !(valuableGovernor(hero) && hero.combat < 12);
-    }
     if (guards.length <= 1) return false;
     double strength(AiHero h) => heroDefenseValue(
       h,
@@ -259,12 +250,6 @@ class AiLedger {
       math.min(rules.integer('soldierLimit'), reserves),
     );
     guards.sort((a, b) => strength(b).compareTo(strength(a)));
-    final governors = guards.where(valuableGovernor).toList()
-      ..sort((a, b) {
-        final politics = b.politics.compareTo(a.politics);
-        return politics != 0 ? politics : a.combat.compareTo(b.combat);
-      });
-    if (governors.isNotEmpty) return hero.id != governors.first.id;
     // 留下达到本城最强守将六成战力的较弱者，让更强主力仍可出击。
     final threshold = strength(guards.first) * .6;
     final keeper = guards.where((h) => strength(h) >= threshold).last;

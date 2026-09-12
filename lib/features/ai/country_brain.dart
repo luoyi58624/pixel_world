@@ -209,6 +209,7 @@ class CountryBrain {
       final exhausted =
           hero.state == AiArmyState.attacking &&
           target != null &&
+          ledger.tasks[hero.id]?.attrition != true &&
           hero.soldierCount < other.soldierCount &&
           assessor.compare(hero, other, enemyDefense: target.safeSlots).upper <
               0;
@@ -254,25 +255,54 @@ class CountryBrain {
       final task = ledger.tasks[hero.id];
       final needsRecovery = _needsAssaultRecovery(hero, task);
       final expired = task != null && task.deadlineTick < _view.tick;
+      if (task?.role == 'staging' && hero.hp >= hero.maxHp * .65) {
+        final target = _view.city(task?.city);
+        if (target != null &&
+            !task!.needsTargetReview(target.country, _view.country) &&
+            !expired) {
+          if (hero.state == AiArmyState.camped && !hero.movementPending) {
+            final attack = _redirectFieldAttack(ledger, hero, task);
+            if (attack != null) {
+              ledger = attack.ledger;
+              groups.add(attack.group);
+            }
+          }
+          continue;
+        }
+        final staging = _stageAtFront(ledger, hero);
+        if (staging != null) {
+          ledger = staging.ledger;
+          groups.add(staging.group);
+          continue;
+        }
+      }
       final changedOwner =
           task?.needsTargetReview(
             _view.city(task.city)?.country,
             _view.country,
           ) ??
           false;
+      // 返程已抵达但被驻军名额挡住时，旧进攻任务常因撤退改令而失效，仍须另选整备城。
+      final waitingForReturnSlot =
+          hero.state == AiArmyState.retreating &&
+          hero.returnPath.length <= 1 &&
+          hero.destination != null &&
+          hero.position.distance(hero.destination!) < 1;
       final stopped =
           task != null &&
           hero.state == AiArmyState.camped &&
           !hero.movementPending &&
           task.leg + 1 >= task.points.length;
       final idle =
+          waitingForReturnSlot ||
           hero.state == AiArmyState.camped &&
-          !hero.movementPending &&
-          (task == null ||
-              expired ||
-              stopped && ['intercept', 'standby'].contains(task.role));
+              !hero.movementPending &&
+              (task == null ||
+                  expired ||
+                  stopped && ['intercept', 'standby'].contains(task.role));
       final reconsider = changedOwner || stopped || idle || needsRecovery;
       if (!protectProtagonist &&
+          !waitingForReturnSlot &&
           (changedOwner || stopped && task.role == 'expedition' || idle) &&
           hero.hp >= hero.maxHp * .65) {
         final attack = _redirectFieldAttack(ledger, hero, task);
@@ -385,6 +415,8 @@ class CountryBrain {
               ? '当前随军兵力不足以安全继续，回城补兵后重新组织进攻'
               : hero.hp < hero.maxHp * .65
               ? '将领受伤，回城恢复生命后再战'
+              : waitingForReturnSlot
+              ? '原返程城池没有入城名额，改往其他有空位的友城整备'
               : changedOwner
               ? '目标易主后原城与附近敌城均不适合继续进攻，回城整备'
               : stopped
@@ -653,6 +685,27 @@ class CountryBrain {
         launched = true;
       }
       yield 6;
+    }
+
+    // 后方全员、前线多余部队都前移，弱将也进入外围候战，不能因单挑门槛囤在城内。
+    if (!protectProtagonist && request.stage != AiDecisionStage.defense) {
+      for (final hero in spare) {
+        if (ledger.reservedHeroes.contains(hero.id)) continue;
+        final home = _view.city(hero.city)!;
+        if (_reports[home.id]?.threatened == true &&
+            !_remainingDefenseSafe(home, hero, ledger)) {
+          continue;
+        }
+        if (groups.fold(0, (n, g) => n + g.actions.length) >=
+            rules.tuning.maxCommands) {
+          break;
+        }
+        final staging = _stageAtFront(ledger, hero);
+        if (staging != null) {
+          ledger = staging.ledger;
+          groups.add(staging.group);
+        }
+      }
     }
 
     if (!launched &&
@@ -972,6 +1025,77 @@ class CountryBrain {
             : '原目标不再适合进攻，转向附近可形成有效交换的敌城',
       );
       if (operation != null) return operation;
+    }
+    return null;
+  }
+
+  // 后方余部集结到最近敌城外围，分散站位，不占友城驻军名额也不强迫弱将抢先攻城。
+  PlannedOperation? _stageAtFront(AiLedger ledger, AiHero hero) {
+    final protection = _view.owned.fold<int>(
+      0,
+      (total, city) =>
+          total +
+          math.min(
+                math.max(
+                  0,
+                  ledger.garrison(city.id).length -
+                      (hero.stationed && hero.city == city.id ? 1 : 0),
+                ),
+                ledger.defendersToKeep(city),
+              ) *
+              rules.integer('soldierLimit'),
+    );
+    final enemies =
+        _view.cities.where((c) => c.country != _view.country).toList()..sort(
+          (a, b) => hero.position
+              .distance(a.center)
+              .compareTo(hero.position.distance(b.center)),
+        );
+    for (final target in enemies.take(3)) {
+      final assigned = ledger.tasks.values
+          .where((t) => t.city == target.id && t.role == 'staging')
+          .length;
+      final radius =
+          target.outline.points.fold<double>(
+            0,
+            (r, p) => math.max(r, p.distance(target.center)),
+          ) +
+          36 +
+          (assigned ~/ 8) * 40;
+      final startAngle = math.atan2(
+        hero.position.y - target.center.y,
+        hero.position.x - target.center.x,
+      );
+      for (var offset = 0; offset < 8; offset++) {
+        final angle = startAngle + ((assigned + offset) % 8) * math.pi / 4;
+        final point = target.center.translated(
+          math.cos(angle) * radius,
+          math.sin(angle) * radius,
+        );
+        if (!map.contains(point) ||
+            _view.cities.any((c) => c.outline.contains(point)) ||
+            ledger.tasks.values.any(
+              (t) => t.points.isNotEmpty && t.points.last.distance(point) < 34,
+            )) {
+          continue;
+        }
+        final route = routes.to(hero, point, _view);
+        if (!route.complete) continue;
+        final operation = operations.send(
+          ledger,
+          hero,
+          route,
+          role: 'staging',
+          target: target,
+          emergency: true,
+          protectSoldiers: math.min(
+            protection,
+            math.max(0, ledger.capacity - rules.integer('soldierLimit')),
+          ),
+          reason: '释放后方及前线多余兵力，前往最近敌城外围分散集结，强将优先进攻',
+        );
+        if (operation != null) return operation;
+      }
     }
     return null;
   }

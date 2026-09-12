@@ -146,15 +146,39 @@ void main() {
     expect(rear.position.dx, greaterThan(170));
   });
 
-  test('扎营十秒扣一金币，主动扎营不会自行解除', () {
+  test('免费行军规则下主动扎营不扣金币，也不会自行解除', () {
     final c = fixture();
     addTearDown(c.dispose);
     final march = send(c, 0, const GamePoint(500, 200));
     march.camp();
     final gold = c.gold;
     c.advance(10);
-    expect(c.gold, gold - 1);
+    expect(c.gold, gold);
     expect(march.phase, MarchPhase.camped);
+  });
+
+  test('原出口被驻留部队占住时改从空闲墙面出城，不永久候发或重叠', () {
+    final c = fixture();
+    addTearDown(c.dispose);
+    final blocker = send(c, 0, const GamePoint(500, 200));
+    blocker.camp();
+    final original = blocker.position;
+    final pending = send(c, 2, const GamePoint(500, 200), stagger: true);
+    expect(pending.waitingForDeparture, isTrue);
+    c.advance(.1);
+    expect(pending.waitingForDeparture, isFalse);
+    expect(pending.visibleOnMap, isTrue);
+    expect(pending.destination, const GamePoint(500, 200));
+    expect(blocker.position, original);
+    expect(
+      (pending.position.dx - blocker.position.dx).abs() >= 16 ||
+          (pending.position.dy - blocker.position.dy).abs() >= 16,
+      isTrue,
+    );
+    for (var i = 0; i < 120; i++) {
+      c.advance(1 / 60);
+    }
+    expect(pending.walkDistance, greaterThan(10));
   });
 
   test('绕过前方野战占位，不加入已有战斗且保留目标', () {

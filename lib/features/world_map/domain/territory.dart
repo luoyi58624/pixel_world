@@ -72,8 +72,33 @@ class TerritoryMap {
   /// 这份辖区依附的静态地图。
   final WorldDefinition world;
   final Int32List _regions;
+  late final Map<int, List<int>> _neighbors = _buildNeighbors();
   String _edgeKey = '';
   List<TerritoryEdge> _edges = const [];
+
+  /// 返回共享辖区边界的城池，复用实际国土网格而非另算直线距离。
+  List<int> neighborsOf(int city) => _neighbors[city] ?? const [];
+
+  Map<int, List<int>> _buildNeighbors() {
+    final result = <int, Set<int>>{};
+    void connect(int a, int b) {
+      if (a < 0 || b < 0 || a == b) return;
+      result.putIfAbsent(a, () => {}).add(b);
+      result.putIfAbsent(b, () => {}).add(a);
+    }
+
+    for (var y = 0; y < world.height; y++) {
+      for (var x = 0; x < world.width; x++) {
+        final i = y * world.width + x;
+        if (x > 0) connect(_regions[i], _regions[i - 1]);
+        if (y > 0) connect(_regions[i], _regions[i - world.width]);
+      }
+    }
+    return {
+      for (final e in result.entries)
+        e.key: List.unmodifiable(e.value.toList()..sort()),
+    };
+  }
 
   /// 常数时间查询位置所属城池辖区，地图外返回空。
   int? regionAt(GamePoint point) {

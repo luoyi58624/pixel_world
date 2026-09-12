@@ -10,7 +10,7 @@ import '../../support/coalition_fixture.dart';
 import '../../support/national_ai_fixture.dart';
 
 void main() {
-  test('日常资源先补兵补将，最后用余钱升级', () {
+  test('日常先补满补将，余钱升级后在同窗口补齐新增兵员容量', () {
     final c = nationalScenario(
       ai: false,
       gold: 1000,
@@ -46,8 +46,9 @@ void main() {
     );
     expect(
       kinds.indexOf(AiActionKind.upgrade),
-      greaterThan(kinds.lastIndexOf(AiActionKind.soldiers)),
+      greaterThan(kinds.indexOf(AiActionKind.recruit)),
     );
+    expect(kinds.last, AiActionKind.soldiers);
   });
 
   test('跨城优先补空缺守将，不用后方扩军抢前线守城预算', () {
@@ -70,7 +71,7 @@ void main() {
     expect(recruits.first.city, 3);
   });
 
-  test('守将预算尚不足时先攒钱，不先升级城防', () {
+  test('余额不足时优先补兵，不将剩余零钱用于城防升级', () {
     final c = nationalScenario(
       ai: false,
       gold: 14,
@@ -85,13 +86,11 @@ void main() {
     final plan = coalitionPlan(c);
     final actions = plan.groups.expand((g) => g.actions).toList();
     expect(
-      actions.where(
-        (a) =>
-            a.kind == AiActionKind.soldiers || a.kind == AiActionKind.upgrade,
-      ),
+      actions.where((a) => a.kind == AiActionKind.upgrade),
       isEmpty,
       reason: plan.toJson().toString(),
     );
+    expect(actions.where((a) => a.kind == AiActionKind.soldiers), isNotEmpty);
   });
 
   test('补兵可用最后余额但不能透支，不让招将升级抢钱', () {

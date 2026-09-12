@@ -52,7 +52,10 @@ extension _AiMarchRecovery on _AiCoordinator {
             task.expectedOrderRevision == revision &&
             task.leg + 1 < task.points.length) {
           final leg = task.leg + 1, point = task.points[leg];
-          final city = leg == task.points.length - 1 && task.role != 'intercept'
+          final city =
+              leg == task.points.length - 1 &&
+                  task.role != 'intercept' &&
+                  task.role != 'staging'
               ? campaign.world.cities
                     .where((c) => c.id == task.city)
                     .firstOrNull

@@ -55,6 +55,8 @@ class OffensiveFocus {
           hero.country != view.country ||
           hero.marked ||
           hero.hp <= 0 ||
+          task.deadlineTick < view.tick ||
+          hero.movementPending && task.committedUntil < view.tick ||
           ledger.removed.contains(hero.id) ||
           hero.state == AiArmyState.retreating ||
           (hero.stationed && !ledger.departed.contains(hero.id))) {

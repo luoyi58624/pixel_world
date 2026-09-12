@@ -28,8 +28,9 @@ extension _MarchTraffic on CampaignState {
 
   bool _advanceMarchTraffic(HeroMarch march, double dt) {
     if (march.waitingForDeparture) {
-      if (_strategyTime + 1e-8 < march._departureAt ||
-          _trafficOccupied(march.position, except: march)) {
+      if (_strategyTime + 1e-8 < march._departureAt) return false;
+      if (_trafficOccupied(march.position, except: march) &&
+          !_relocateDeparture(march)) {
         return false;
       }
       // 门口阻塞延误后，后续队员也从本次实际放行时间重新保持间距。
@@ -68,6 +69,7 @@ extension _MarchTraffic on CampaignState {
         .toList();
     // 城堡可以从任意墙面接触；同一入口被排队部队占住时改选邻近空位。
     if (march.target != null &&
+        !march._siegeWaiting &&
         obstacles.any(
           (p) =>
               (p.dx - march.destination.dx).abs() < _trafficSize &&
@@ -122,9 +124,23 @@ extension _MarchTraffic on CampaignState {
       }
     }
     if (march._trafficRoute.isEmpty) {
+      if (march.returningFromRetreat) {
+        // 撤退者优先通行，附近候战队伍沿外围换位，不能将返程锁成永久扎营。
+        for (final other in marches.values) {
+          if (other != march &&
+              other.hero.countryId == march.hero.countryId &&
+              (other.phase == MarchPhase.awaitingBattle ||
+                  other._siegeWaiting) &&
+              (other.position - march.position).distance < 64) {
+            _positionSiegeQueue(other, avoid: march.position);
+          }
+        }
+      }
       if (!march._trafficBlocked) {
         march._trafficBlocked = true;
-        march.phase = MarchPhase.camped;
+        march.phase = march.returningFromRetreat
+            ? MarchPhase.marching
+            : MarchPhase.camped;
         _record(
           '${march.hero.name}前方被占用，保留目标等待安全通路',
           kind: GameEventKind.heroCamped,
@@ -163,6 +179,48 @@ extension _MarchTraffic on CampaignState {
       return true;
     }
     return movement.distance > 0;
+  }
+
+  // 候发部队仍在城内，原出口被返程或扎营部队占住时从其他空闲墙面出城。
+  bool _relocateDeparture(HeroMarch march) {
+    final city = world.cities.firstWhere((c) => c.id == march.departureCityId);
+    if (cities[city.id]!.ownerCountryId != march.hero.countryId) return false;
+    final origin = cityBounds(city).topLeft;
+    final outline = _cityContact(city).outline;
+    final candidates = <GamePoint>[];
+    for (var i = 0; i < outline.length; i++) {
+      final a = outline[i], b = outline[(i + 1) % outline.length];
+      final steps = math.max(1, ((b - a).distance / _trafficMargin).ceil());
+      for (var step = 0; step < steps; step++) {
+        candidates.add(origin + a + (b - a) * (step / steps));
+      }
+    }
+    candidates.sort(
+      (a, b) => (a - march.position).distanceSquared.compareTo(
+        (b - march.position).distanceSquared,
+      ),
+    );
+    final free = candidates
+        .where((p) => _containsPoint(p) && !_trafficOccupied(p, except: march))
+        .firstOrNull;
+    if (free == null) return false;
+    final target = march.target;
+    final destination = target == null
+        ? march.destination
+        : cityBounds(target).center;
+    march.position = free;
+    march.moveTo(
+      target == null ? destination : _contactPoint(free, destination, target),
+      city: target,
+    );
+    _record(
+      '${march.hero.name}改从空闲墙面出城',
+      kind: GameEventKind.heroMoved,
+      hero: march.hero,
+      source: GameEventSource.system,
+      reason: '原出口被部队占用，保留进攻目标和离城间隔，避免出城与返城互相等待',
+    );
+    return true;
   }
 
   // 只围绕附近实际占位点构建可见性图，不推演战斗；最短绕行仍以原目标为终点。
@@ -227,7 +285,7 @@ bool _trafficIntersects(GamePoint from, GamePoint to, GamePoint center) {
   // 交战收尾或外观变更可能留下已有重叠，只允许向外脱离，不能向内穿人。
   if (offset.dx.abs() < radius &&
       offset.dy.abs() < radius &&
-      offset.dx * movement.dx + offset.dy * movement.dy > 0 &&
+      offset.dx * movement.dx + offset.dy * movement.dy >= 0 &&
       math.max((to.dx - center.dx).abs(), (to.dy - center.dy).abs()) >
           math.max(offset.dx.abs(), offset.dy.abs())) {
     return false;

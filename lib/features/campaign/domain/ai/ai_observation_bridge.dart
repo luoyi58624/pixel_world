@@ -130,6 +130,7 @@ extension _AiObservationBridge on CampaignState {
           baseIncome: city.baseIncome,
           capacityContribution: city.reserveCapacity,
           rearStagingCapacity: city.rearStagingCapacity,
+          neighborCities: territories.neighborsOf(definition.id),
           upgradeAllowed: upgradeWindowBlockReason(definition.id) == null,
           recruitAllowed:
               city.ownerCountryId == countryId &&

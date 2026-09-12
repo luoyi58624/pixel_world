@@ -88,6 +88,7 @@ extension CampaignSnapshots on CampaignState {
           'at': m._departureAt,
           'blocked': m._trafficBlocked,
           'arrivalWaitLogged': m._arrivalWaitLogged,
+          'siegeWaiting': m._siegeWaiting,
           'traffic': m._trafficRoute.map(_point).toList(),
           'arrival': m._siegeArrival == null
               ? null
@@ -196,6 +197,7 @@ extension CampaignSnapshots on CampaignState {
       'nextDeparture': _keys(_nextAiDeparture),
       'disband': _disbandAfterBattle.toList(),
       'territoryOwner': Map.of(_lastTerritoryOwner),
+      'territoryRegion': Map.of(_lastTerritoryRegion),
       'reserve': {
         for (final e in countryTroops.entries)
           '${e.key}': e.value.reserveSoldiers,
@@ -381,7 +383,8 @@ extension CampaignSnapshots on CampaignState {
             .._departurePending = m['pending']
             .._departureAt = _double(m['at'])
             .._trafficBlocked = m['blocked']
-            .._arrivalWaitLogged = m['arrivalWaitLogged'] as bool? ?? false;
+            .._arrivalWaitLogged = m['arrivalWaitLogged'] as bool? ?? false
+            .._siegeWaiting = m['siegeWaiting'] as bool? ?? false;
       // 旧存档的断粮营地重新进入避让检查；旧粮草零头不再补扣。
       if (m['halted'] == true && !march.returningFromRetreat) {
         march._trafficBlocked = true;
@@ -505,6 +508,9 @@ extension CampaignSnapshots on CampaignState {
     _intMap(c._nextAiDeparture, d['nextDeparture'], _double);
     c._disbandAfterBattle.addAll((d['disband'] as List).cast<String>());
     c._lastTerritoryOwner.addAll(Map<String, int>.from(d['territoryOwner']));
+    c._lastTerritoryRegion.addAll(
+      Map<String, int>.from(d['territoryRegion'] ?? {}),
+    );
     _intMap(
       c.countryTroops,
       d['reserve'],

@@ -151,7 +151,8 @@ class OperationPlanner {
       if (previous.committedUntil > _view.tick && !emergency) return null;
       if (previous.role == role &&
           previous.city == target?.id &&
-          (role != 'expedition' || previous.targetCountry == target?.country) &&
+          (role != 'expedition' && role != 'staging' ||
+              previous.targetCountry == target?.country) &&
           previous.enemy == enemy?.id &&
           previous.points.isNotEmpty &&
           previous.points.last.distance(route.points.last) < 32 &&
@@ -199,7 +200,9 @@ class OperationPlanner {
       rearStaging: arrival && rearSafe,
       reason: reason,
       expectedOrderRevision: hero.orderRevision + 1,
-      targetCountry: role == 'expedition' ? target?.country : null,
+      targetCountry: role == 'expedition' || role == 'staging'
+          ? target?.country
+          : null,
       attrition: attrition,
     );
     if (arrival &&
@@ -239,7 +242,10 @@ class OperationPlanner {
         AiAction(
           AiActionKind.dispatch,
           hero: hero.id,
-          city: role == 'intercept' || route.points.length > 1
+          city:
+              role == 'intercept' ||
+                  role == 'staging' ||
+                  route.points.length > 1
               ? null
               : target?.id,
           point: route.points.first,
@@ -251,7 +257,10 @@ class OperationPlanner {
         AiAction(
           AiActionKind.move,
           hero: hero.id,
-          city: role == 'intercept' || route.points.length > 1
+          city:
+              role == 'intercept' ||
+                  role == 'staging' ||
+                  route.points.length > 1
               ? null
               : target?.id,
           point: route.points.first,

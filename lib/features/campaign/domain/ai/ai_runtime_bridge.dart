@@ -386,7 +386,9 @@ class _AiCoordinator {
             !march.supplyHalted) {
           final next = task.points[task.leg + 1];
           final endCity =
-              task.leg + 2 == task.points.length && task.role != 'intercept'
+              task.leg + 2 == task.points.length &&
+                  task.role != 'intercept' &&
+                  task.role != 'staging'
               ? campaign.world.cities
                     .where((c) => c.id == task.city)
                     .firstOrNull
@@ -441,7 +443,8 @@ class _AiCoordinator {
         ? '目标城池已经被本国占领，停止旧远征并重新选择进攻目标或整备地点'
         : '目标城池已经易主，停止旧路线并重新评估当前守军和其他敌城';
     var changed = false;
-    if (march.phase != MarchPhase.camped || march.waitingForTraffic) {
+    if (owner == hero.countryId &&
+        (march.phase != MarchPhase.camped || march.waitingForTraffic)) {
       final previousContext = campaign._eventContext;
       final decisionId = _taskDecisions[hero.id];
       if (decisionId != null) {
@@ -508,43 +511,20 @@ extension _AiSafety on CampaignState {
 
   bool _aiSafeRear(int id) {
     final owner = cities[id]!.ownerCountryId;
-    final definition = world.cities.firstWhere((c) => c.id == id);
-    (AiPoint, double) area(CityDefinition c) {
-      final bounds = cityBounds(c), center = bounds.center;
-      final radius = _cityContact(c).outline.fold<double>(
-        0,
-        (n, p) => math.max(n, (p + bounds.topLeft - center).distance),
-      );
-      return (AiPoint(center.dx, center.dy), radius);
-    }
-
-    final ownArea = area(definition);
     return safeRearArea(
-      ownedCities: cities.values.where((c) => c.ownerCountryId == owner).length,
+      country: owner,
+      neighborOwners: territories
+          .neighborsOf(id)
+          .map((neighbor) => cities[neighbor]?.ownerCountryId),
       fighting: battles[id]?.isActive == true,
-      center: ownArea.$1,
-      radius: ownArea.$2,
-      fastestSpeed:
-          GameConfig.baseMarchSpeed *
-          MovementTerrain.values.map((t) => t.speedFactor).reduce(math.max),
-      threatSeconds: GameConfig.nationalAi.threatSeconds,
-      enemyCities: world.cities
-          .where((c) => cities[c.id]!.ownerCountryId != owner)
-          .map(area),
-      enemyArmies: marches.values
-          .where(
-            (m) =>
-                m.hero.countryId != owner &&
-                m.hero.health.alive &&
-                m.visibleOnMap &&
-                !_disbandAfterBattle.contains(m.hero.id),
-          )
-          .map(
-            (m) => (
-              AiPoint(m.position.dx, m.position.dy),
-              territories.regionAt(m.position) == id,
-            ),
-          ),
+      enemyPresent: marches.values.any(
+        (m) =>
+            m.hero.countryId != owner &&
+            m.hero.health.alive &&
+            m.visibleOnMap &&
+            !_disbandAfterBattle.contains(m.hero.id) &&
+            territories.regionAt(m.position) == id,
+      ),
     );
   }
 

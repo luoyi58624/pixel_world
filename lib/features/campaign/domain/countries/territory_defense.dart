@@ -7,6 +7,7 @@ extension TerritoryDefense on CampaignState {
 
   void _scanTerritoryEntries() {
     _lastTerritoryOwner.removeWhere((id, _) => !marches.containsKey(id));
+    _lastTerritoryRegion.removeWhere((id, _) => !marches.containsKey(id));
     for (final march in marches.values) {
       if (march.waitingForDeparture ||
           !march.hero.health.alive ||
@@ -17,9 +18,21 @@ extension TerritoryDefense on CampaignState {
           owner = cities[region]?.ownerCountryId;
       if (owner == null) continue;
       final previous = _lastTerritoryOwner[march.hero.id];
+      final previousRegion = _lastTerritoryRegion[march.hero.id];
       _lastTerritoryOwner[march.hero.id] = owner;
-      if (owner == previous || owner == march.hero.countryId) continue;
-      final reason = '${march.hero.name}进入${world.countryName(owner)}国境';
+      if (region != null) _lastTerritoryRegion[march.hero.id] = region;
+      if (owner == march.hero.countryId ||
+          owner == previous && region == previousRegion) {
+        continue;
+      }
+      final reason = '${march.hero.name}进入${cityName(region!)}城池辖区，立即戒备并通知后方增援';
+      final support = [
+        for (final c in world.cities)
+          if (c.id != region &&
+              cities[c.id]!.ownerCountryId == owner &&
+              _aiSafeRear(c.id))
+            c.id,
+      ];
       _emitEvent(
         GameEventKind.territoryEntered,
         reason,
@@ -28,9 +41,25 @@ extension TerritoryDefense on CampaignState {
         cityId: region,
         targetCountryId: march.hero.countryId,
         source: GameEventSource.system,
-        data: {'previousOwner': previous, 'regionCity': region},
+        data: {
+          'previousOwner': previous,
+          'previousRegion': previousRegion,
+          'regionCity': region,
+          'supportCities': support,
+        },
       );
-      _ai?.urgent(owner, reason: '敌军越过国土边界，立即评估防御', defenseNow: true);
+      _emitEvent(
+        GameEventKind.reinforcementsRequested,
+        '${cityName(region)}城池进入戒备，通知后方准备增援',
+        countryId: owner,
+        cityId: region,
+        targetCountryId: march.hero.countryId,
+        source: GameEventSource.ai,
+        phase: GameEventPhase.observed,
+        reason: '优先调动现有兵力支援，仍有缺口时在前线及最近后方补募',
+        data: {'enemyHeroId': march.hero.id, 'supportCities': support},
+      );
+      _ai?.urgent(owner, reason: '敌军进入城池辖区，立即戒备、通知后方调援并补募守军', defenseNow: true);
     }
   }
 }
