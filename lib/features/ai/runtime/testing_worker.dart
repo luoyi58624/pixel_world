@@ -19,7 +19,11 @@ class SynchronousAiWorker implements AiWorker {
   late AiMap _map;
   final _replies = <AiReply>[];
   @override
-  void initialize(AiRules rules, AiMap map) {
+  void initialize(
+    AiRules rules,
+    AiMap map, {
+    Map<String, Object?>? gameConfig,
+  }) {
     _rules = rules;
     _map = map;
     status = AiWorkerStatus.ready;

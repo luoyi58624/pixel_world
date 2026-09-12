@@ -18,6 +18,7 @@ Future<void> main(List<String> arguments) async {
           File('lib/features/battle/domain/combat_rules.dart'),
           File('lib/features/economy/domain/military_upkeep.dart'),
           File('lib/core/config/game_config.dart'),
+          File('assets/data/game_config.json'),
           File('tool/ai_worker.dart'),
         ])
         ..sort((a, b) => a.path.compareTo(b.path));

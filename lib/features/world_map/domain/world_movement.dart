@@ -13,7 +13,7 @@ typedef MovementResult = ({
 });
 
 /// 叠加地形倍率前的基础行军速度，单位为原生像素每秒。
-const double baseMarchSpeed = GameConfig.baseMarchSpeed;
+double get baseMarchSpeed => GameConfig.baseMarchSpeed;
 
 /// 用实际地形积分估算直线行军秒数，不改变部队位置或动画。
 double estimateMarchSeconds(

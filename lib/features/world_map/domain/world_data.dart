@@ -9,24 +9,29 @@ import '../../../core/config/game_config.dart';
 /// 行军地形只改变速度，地图内的格子均可通行。
 enum MovementTerrain {
   /// 草地、树林和土路使用基础速度的四分之三。
-  plain('平地', GameConfig.grassSpeedFactor),
+  plain('平地'),
 
   /// 涉水时使用基础速度的四成。
-  water('涉水', GameConfig.waterSpeedFactor),
+  water('涉水'),
 
   /// 翻越山地时使用基础速度的两成。
-  mountain('山地', GameConfig.mountainSpeedFactor),
+  mountain('山地'),
 
   /// 桥梁和城堡图块保持基础速度。
-  structure('桥梁/建筑', 1);
+  structure('桥梁/建筑');
 
-  const MovementTerrain(this.label, this.speedFactor);
+  const MovementTerrain(this.label);
 
   /// 用于行军状态显示的名称。
   final String label;
 
   /// 相对于基础行军速度的地形倍率。
-  final double speedFactor;
+  double get speedFactor => switch (this) {
+    plain => GameConfig.grassSpeedFactor,
+    water => GameConfig.waterSpeedFactor,
+    mountain => GameConfig.mountainSpeedFactor,
+    structure => 1,
+  };
 }
 
 /// 地图中的整数格子坐标，与屏幕缩放无关。

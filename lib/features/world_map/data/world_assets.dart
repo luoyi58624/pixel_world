@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../heroes/domain/hero_sprite.dart';
 import '../../cities/domain/city_appearance.dart';
 import '../../heroes/data/rom_hero.dart';
+import '../../../core/config/game_config.dart';
 import '../domain/world_data.dart';
 import '../../battle/domain/field_terrain.dart';
 import '../../campaign/data/campaign_setup.dart';
@@ -147,6 +148,9 @@ class WorldAssets {
 
   /// 加载资源并在内存中拼接地图，保留 JSON 作为地图定义。
   static Future<WorldAssets> load() async {
+    GameConfig.loadJson(
+      await rootBundle.loadString('assets/data/game_config.json', cache: false),
+    );
     final worlds = decodeWorlds(
       await rootBundle.loadString('assets/maps/worlds.json'),
       setup: CampaignSetup.decode(

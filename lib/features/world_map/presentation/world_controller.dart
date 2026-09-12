@@ -28,14 +28,14 @@ class WorldController extends ChangeNotifier {
     List<RomHeroDefinition> heroCatalog = const [],
     int? startingGold,
     Map<int, CountryConfig>? countryConfigs,
-    bool aiEnabled = GameConfig.countryAiEnabled,
+    bool? aiEnabled,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
     AiWorker Function()? aiWorkerFactory,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
        _countryConfigs = countryConfigs == null
            ? null
            : Map.unmodifiable(countryConfigs),
-       _aiEnabled = aiEnabled,
+       _aiEnabled = aiEnabled ?? GameConfig.countryAiEnabled,
        _weaponCatalog = weaponCatalog,
        _aiWorkerFactory = aiWorkerFactory,
        camera = WorldCamera(worlds.first.pixelSize),
@@ -46,7 +46,7 @@ class WorldController extends ChangeNotifier {
                heroCatalog,
                startingGold: startingGold,
                countryConfigs: countryConfigs,
-               aiEnabled: aiEnabled,
+               aiEnabled: aiEnabled ?? GameConfig.countryAiEnabled,
                weaponCatalog: weaponCatalog,
                aiWorkerFactory: aiWorkerFactory,
              ),
@@ -247,7 +247,7 @@ class WorldController extends ChangeNotifier {
   int get animationStep => walking ? _walkAnimation.step : 0;
 
   /// 叠加地形倍率前的行军速度，单位为原生地图像素每秒。
-  static const double baseMovementSpeed = baseMarchSpeed;
+  static double get baseMovementSpeed => baseMarchSpeed;
 
   /// 是否显示格子边界。
   bool showGrid = false;

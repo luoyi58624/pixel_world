@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../country_brain.dart';
 import '../protocol.dart';
 import '../rules_data.dart';
+import '../../../core/config/game_config.dart';
 import 'build_stamp.dart';
 
 /// 在常驻后台执行的共享服务，不接触真实战役或界面。
@@ -42,6 +43,11 @@ class AiWorkerServer {
           _generation++;
           _active = null;
           _cancelled.clear();
+          final config = data['gameConfig'];
+          if (config is! Map) {
+            throw const FormatException('AI 初始化缺少 gameConfig');
+          }
+          GameConfig.loadMap(Map<String, dynamic>.from(config));
           _rules = AiRules.fromJson(Map<String, dynamic>.from(data['rules']));
           _map = AiMap.fromJson(Map<String, dynamic>.from(data['map']));
           _send({

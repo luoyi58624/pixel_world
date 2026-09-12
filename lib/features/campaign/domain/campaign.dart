@@ -120,7 +120,7 @@ class CitySituation {
       level < maxLevel ? GameConfig.cityUpgradeCosts[level - 1] : null;
 
   /// 城池最高等级。
-  static const maxLevel = GameConfig.maxCityLevel;
+  static int get maxLevel => GameConfig.maxCityLevel;
 }
 
 /// 带有身份、所属城池及可变生命值的英雄，静态数值来自提取目录。
@@ -147,7 +147,7 @@ class CampaignHero {
     RomHeroDefinition definition, {
     required this.cityId,
     required this.countryId,
-    int initialSoldiers = GameConfig.initialHeroSoldiers,
+    int? initialSoldiers,
   }) : sourceId = definition.id,
        rosterOrder = definition.rosterOrder,
        id = 'rom-${definition.id}',
@@ -162,7 +162,9 @@ class CampaignHero {
          math.min(definition.soldierLimit, GameConfig.heroSoldierLimit),
          (slot) => BattleHealth(
            BattleSimulation.soldierHp,
-           hp: slot < initialSoldiers ? BattleSimulation.soldierHp : 0,
+           hp: slot < (initialSoldiers ?? GameConfig.initialHeroSoldiers)
+               ? BattleSimulation.soldierHp
+               : 0,
          ),
        ),
        appearance = switch (definition.type) {
@@ -671,7 +673,7 @@ class CampaignState {
 
   /// 读取国家的初始资金配置。
   CountryConfig configFor(int countryId) =>
-      countryConfigs[countryId] ?? const CountryConfig();
+      countryConfigs[countryId] ?? CountryConfig.fromGameConfig();
 
   /// 当前国家的保守经营预算，仅预留月俸和应急资金。
   CountryAiBudget aiBudgetFor(int countryId) => _planAiBudget(countryId);
@@ -708,7 +710,7 @@ class CampaignState {
     List<RomHeroDefinition> catalog, {
     int? startingGold,
     Map<int, CountryConfig>? countryConfigs,
-    bool aiEnabled = GameConfig.countryAiEnabled,
+    bool? aiEnabled,
     math.Random? economyRandom,
     math.Random? recruitmentRandom,
     math.Random? aiRandom,
@@ -722,6 +724,7 @@ class CampaignState {
     CampaignEvents? eventLog,
     WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
+    final resolvedAiEnabled = aiEnabled ?? GameConfig.countryAiEnabled;
     final home = world.cities.first.id;
     final resolvedCountries = {...world.setup.countries, ...?countryConfigs};
     final placement = <int, int>{};
@@ -776,7 +779,7 @@ class CampaignState {
       aiRandom ?? StateRandom(),
       siegeRandom ?? StateRandom(),
       retreatRandom ?? StateRandom(),
-      aiEnabled,
+      resolvedAiEnabled,
       Map.unmodifiable(resolvedCountries),
       weaponCatalog,
       weaponDropRandom ?? StateRandom(),
@@ -813,7 +816,7 @@ class CampaignState {
       throw ArgumentError('事件日志的地图不匹配');
     }
     campaign._eventLog = eventLog;
-    if (aiEnabled) {
+    if (resolvedAiEnabled) {
       campaign._ai = _AiCoordinator(
         campaign,
         aiWorkerFactory ?? createAiWorker,

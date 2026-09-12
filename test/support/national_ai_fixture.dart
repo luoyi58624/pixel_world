@@ -29,7 +29,7 @@ class ManualAiWorker implements AiWorker {
   late AiMap map;
   final requests = <AiRequest>[], replies = <AiReply>[];
   @override
-  void initialize(AiRules r, AiMap m) {
+  void initialize(AiRules r, AiMap m, {Map<String, Object?>? gameConfig}) {
     rules = r;
     map = m;
     status = AiWorkerStatus.ready;

@@ -15,7 +15,7 @@ Windows 发布构建：`flutter build windows --release`。输出在 `build/wind
 
 ## 调整数值
 
-将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。字段说明见 [开局配置说明](docs/campaign_config.md)。其余全局规则在 [`lib/core/config/game_config.dart`](lib/core/config/game_config.dart)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
+将领属性、月俸和顺序统一放在 `assets/data/rom_heroes.json`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json`](assets/data/campaign_config.json)。全局时间、经济、战斗、行军和 AI 规则配置在 [`assets/data/game_config.json`](assets/data/game_config.json)，使用 JSON5 语法，可以写中文注释。字段说明见 [开局配置说明](docs/campaign_config.md)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
 
 ## 操作
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../../../core/config/game_config.dart';
 import '../protocol.dart';
 import '../rules_data.dart';
 import 'build_stamp.dart';
@@ -80,8 +81,8 @@ abstract interface class AiWorker {
   /// 等待或执行的请求数。
   int get pendingCount;
 
-  /// 静态地图和规则仅初始化一次。
-  void initialize(AiRules rules, AiMap map);
+  /// 静态地图、规则和当前全局配置仅初始化一次。
+  void initialize(AiRules rules, AiMap map, {Map<String, Object?>? gameConfig});
 
   /// 同国只保留最新待办。
   void submit(AiRequest request);
@@ -130,15 +131,21 @@ class MessageAiWorker implements AiWorker {
   StreamSubscription<String>? _subscription;
   AiRules? _rules;
   AiMap? _map;
+  Map<String, Object?>? _gameConfig;
   final _pending = <int, _QueuedRequest>{}, _latest = <int, int>{};
   final _replies = <AiReply>[];
   _QueuedRequest? _active;
   int _generation = 0, _tick = 0, _startedAt = 0;
   @override
-  void initialize(AiRules rules, AiMap map) {
+  void initialize(
+    AiRules rules,
+    AiMap map, {
+    Map<String, Object?>? gameConfig,
+  }) {
     if (status == AiWorkerStatus.closed) return;
     _rules = rules;
     _map = map;
+    _gameConfig = gameConfig ?? GameConfig.toJson();
     _start();
   }
 
@@ -197,6 +204,7 @@ class MessageAiWorker implements AiWorker {
             'build': aiBuildStamp,
             'rules': _rules!.toJson(),
             'map': _map!.toJson(),
+            'gameConfig': _gameConfig!,
           });
         case 'ready':
           if (data['rules'] != _rules!.version ||

@@ -9,6 +9,7 @@ extension _WorldSession on _WorldScreenState {
     final sources = await Future.wait([
       for (final path in [
         'assets/maps/worlds.json',
+        'assets/data/game_config.json',
         'assets/data/rom_heroes.json',
         'assets/data/campaign_config.json',
         'assets/data/rom_weapons.json',

@@ -43,10 +43,9 @@ String battleNumber(num value) =>
 /// 原版红条资源，来自独立的 AE/AF 数值而非将领生命。
 class BattleMorale {
   /// 用本场总士气创建显示快照，红条最多展示100点。
-  BattleMorale(
-    this.initial, {
-    this.powerScale = GameConfig.battleMoralePowerScale,
-  }) : remaining = initial.clamp(0, 100);
+  BattleMorale(this.initial, {int? powerScale})
+    : powerScale = powerScale ?? GameConfig.battleMoralePowerScale,
+      remaining = initial.clamp(0, 100);
 
   /// 将累积士气换算为实际碰撞强度的倍率。
   final int powerScale;
@@ -266,9 +265,9 @@ class BattleSimulation {
     this.cityAppearanceLevel,
     this.fieldTerrain,
     this.autoCharge = true,
-    this.useMorale = GameConfig.battleUseMorale,
+    bool? useMorale,
     this.resultPerspective = BattleSide.attacker,
-  }) {
+  }) : useMorale = useMorale ?? GameConfig.battleUseMorale {
     _kernel = NesBattleKernel(
       attack: [
         _combat(attacker),
@@ -292,7 +291,7 @@ class BattleSimulation {
       ),
       cityDefenseRecoilScale: GameConfig.cityDefenseRecoilScale,
       randomChargeEnabled: true,
-      moraleEnabled: useMorale,
+      moraleEnabled: this.useMorale,
       moraleDrainPerSecond: GameConfig.battleMoraleDrainPerSecond,
       moraleDrainRandomRange: GameConfig.battleMoraleDrainRandomRange,
       moralePowerScale: GameConfig.battleMoralePowerScale,

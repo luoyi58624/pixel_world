@@ -9,7 +9,7 @@
 | `assets/data/campaign_config.json` | 各国 `initialGold`、`monthlyBaseIncome`，各地图城池的 `initialLevel` 和 `baseIncome` |
 | `assets/data/rom_heroes.json` | 英雄顺序、身份、战斗、内政、生命上限、`morale`、`salary`、`nativeCountryId` |
 | `assets/data/rom_weapons.json` | 武器价格、伤害、解锁年份、动画和初始库存 |
-| `lib/core/config/game_config.dart` | 月份时长、收入、兵力、升级费用、年度城防上限、战斗倍率 |
+| `assets/data/game_config.json` | 月份时长、收入、兵力、升级费用、年度城防上限、战斗倍率、行军和 AI 规则 |
 | `lib/features/ai/config.dart` | 决策间隔、预算、集中进攻和极端召回阈值 |
 
 修改开局数值后热重启，重新创建战役。英雄固定 ID 用于引用，数组顺序用于驻军展示，主角排首位；自动守城按驻軍名单从后向前出战。英雄JSON只保留 `id`、`name`、`type`、`maxHp`、`combat`、`morale`、`politics`、`salary`、`eggCapable`、`soldierLimit`、`nativeCountryId`；原版报酬、姓名编码和来源偏移由离线提取报告保存。41名原版将领的 `combat` 已还原；续玩时按历史受影响角色识别并纠正统一加3的遗留值，同步正在进行的战斗。回放和已结束战斗保留历史属性，扩展将领保持自定义配置。
