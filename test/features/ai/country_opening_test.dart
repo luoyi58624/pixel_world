@@ -112,17 +112,17 @@ void main() {
     expect(c.aiStrategicDecisions, 1);
     expect(c.marches, isEmpty);
     advanceAi(c, .5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
-    expect(c.garrisonAt(1).length, 3);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 3);
+    expect(c.garrisonAt(1).length, 1);
     for (var i = 0; i < 4; i++) {
       final before = c.aiStrategicDecisions;
       c.advance(1 / 60);
       expect(c.aiStrategicDecisions - before, lessThanOrEqualTo(1));
     }
-    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 2);
-    expect(c.garrisonAt(2).length, 2);
+    expect(c.marches.values.where((m) => m.hero.countryId == 2).length, 3);
+    expect(c.garrisonAt(2).length, 1);
     expect(c.marches.values.any((m) => m.hero.countryId == 0), isFalse);
-    expect(c.marches.values.map((m) => m.target!.id).toSet(), {3, 4});
+    expect(c.aiTasks.values.map((t) => t.city).toSet(), {3, 4});
     for (final country in [1, 2]) {
       expect(
         c.goldFor(country),
@@ -135,8 +135,8 @@ void main() {
     final c = _game(level: 5, guards: 1, largeArmy: true);
     advanceAi(c, .5);
 
-    expect(c.garrisonAt(1).length, 6);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
+    expect(c.garrisonAt(1).length, 1);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 6);
     c.cities[1]!.ownerCountryId = 2;
     expect(c.cities[1]!.level, 1);
   });

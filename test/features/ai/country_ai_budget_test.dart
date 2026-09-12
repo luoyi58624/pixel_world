@@ -11,6 +11,7 @@ import '../../support/national_ai_fixture.dart' show advanceAi;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+
 import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -49,9 +50,7 @@ CampaignState _campaign({
   bool secondCity = false,
   math.Random? economy,
 }) {
-  final data = json5Decode(
-    File('assets/data/heroes.json5').readAsStringSync(),
-  );
+  final data = json5Decode(File('assets/data/heroes.json5').readAsStringSync());
   final initialIds = {40, 0, 2, 18, 19, if (secondCity) 3};
   for (final row in data['heroes'] as List) {
     row['nativeCountryId'] = null;
@@ -192,13 +191,18 @@ void main() {
     }
   });
 
-  test('只剩一金币时不征兵、不升级、不新增远征，即使已有充足士兵', () {
+  test('只剩一金币仍可补一名士兵，不升级或招募将领，不透支', () {
     final c = _campaign(gold: 1, recruitment: true);
     final count = c.heroes.length;
     advanceAi(c, 8);
-    expect(c.goldFor(1), 1);
-    expect(c.marches, isEmpty);
-    expect(c.soldiersAt(1), 12);
+    expect(c.goldFor(1), 0);
+    expect(
+      c.reserveSoldiersFor(1) +
+          c.marches.values
+              .where((m) => m.hero.countryId == 1)
+              .fold(0, (n, m) => n + m.hero.soldiers),
+      13,
+    );
     expect(c.cities[1]!.level, 2);
     expect(c.heroes.length, count);
     expect(c.remainingHeroDraws(1), 1);
@@ -220,12 +224,12 @@ void main() {
     b.position = const GamePoint(220, 30);
     final moving = c.aiBudgetFor(1);
     expect(moving.planningSeconds, 90);
-    expect(moving.minimumMonthlyIncome, 10);
+    expect(moving.minimumMonthlyIncome, 0);
     expect(
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, 5); // 全国欠收最多扣十金币，剩余月收入可覆盖六金币月俸。
+    expect(moving.reserveGold, greaterThanOrEqualTo(5 + moving.monthlySalary));
     b.camp();
     expect(c.aiBudgetFor(1).reserveGold, moving.reserveGold);
     expect(c.aiBudgetFor(0).reserveGold, 5);
@@ -323,7 +327,7 @@ void main() {
       );
     }
     expect(c.lastSettlementFor(1)!.harvest?.name, 'poor');
-    expect(c.goldFor(0), 120); // 全国欠收最多扣十金币，玩家国库不受敌国经营影响。
+    expect(c.goldFor(0), 100); // 全国基础收入二十抵消最大欠收扣款，玩家国库不受敌国经营影响。
   });
 
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {

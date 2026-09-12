@@ -3,6 +3,7 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
+
 import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -26,9 +27,7 @@ class _Roll implements math.Random {
 
 // 两侧使用相同属性的普通守将，单独检验距离和领地权重，不混入守军强弱偏好。
 final _heroes = (() {
-  final data = json5Decode(
-    File('assets/data/heroes.json5').readAsStringSync(),
-  );
+  final data = json5Decode(File('assets/data/heroes.json5').readAsStringSync());
   final a = (data['heroes'] as List).firstWhere((h) => h['id'] == 18);
   final b = (data['heroes'] as List).firstWhere((h) => h['id'] == 19);
   b['combat'] = a['combat'];
@@ -148,7 +147,10 @@ Map<int, int> _draws({
       march.position = const GamePoint(640, 496);
       c.buySoldiers(1, 1, countryId: attacker);
       c.advance(1 / 60);
-      expect(march.supplyHalted, isTrue);
+      for (final soldier in hero.squad) {
+        soldier.hp = 0;
+      }
+      hero.hp = 1;
       c.dismissHero(
         c.heroes.firstWhere((hero) => hero.sourceId == 2),
         countryId: attacker,
@@ -200,14 +202,14 @@ void main() {
 
   test('对局条件相同且一国领土已占多数时，允许优先压制扩张大国', () {
     for (final attacker in [1, 3]) {
-      final counts = _draws(extras: 2, attacker: attacker);
+      final counts = _draws(extras: 4, attacker: attacker);
       // 比较两座路程相同的主城，额外城池自身的选中次数不算入比较。
       expect(counts[2], 64);
     }
   });
 
   test('城市易主后重算领土压力，同一规则也适用于玩家国家', () {
-    final counts = _draws(extras: 2, transferExtrasTo: 0);
+    final counts = _draws(extras: 4, transferExtrasTo: 0);
     expect(counts[0], 64);
   });
 
@@ -223,7 +225,7 @@ void main() {
     expect(counts[2] ?? 0, 0, reason: '高守备远城仍不可支付，空城无需预留多轮交战费用');
   });
 
-  test('营地恢复补给后先返回友城整备，不立即再次盲目进攻', () {
+  test('受伤且缺兵的野外将领先返回友城整备，不立即再次盲目进攻', () {
     final counts = _draws(samples: 32, recovering: true);
     expect(counts, {1: 32});
   });

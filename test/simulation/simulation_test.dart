@@ -9,6 +9,35 @@ import 'package:pixel_world/simulation/runner.dart';
 import 'package:pixel_world/simulation/scenario.dart';
 
 void main() {
+  test('正式随机源可在运行中反复保存恢复，读档后各国继续调度', () async {
+    final worlds = decodeWorlds(
+      File('assets/maps/worlds.json').readAsStringSync(),
+      setup: CampaignSetup.decode(
+        File('assets/data/campaign_config.json5').readAsStringSync(),
+      ),
+    );
+    final result =
+        await SimulationRunner(
+          world: worlds.first,
+          heroes: decodeRomHeroes(
+            File('assets/data/heroes.json5').readAsStringSync(),
+          ),
+          aiWorkerFactory: SynchronousAiWorker.new,
+        ).run(
+          const SimulationScenario(
+            worldId: 0,
+            seed: 503,
+            seconds: 120,
+            reloadEverySeconds: 30,
+          ),
+        );
+    expect(result['reloads'], 4);
+    expect(result['gameSeconds'], 120);
+    expect(result['duplicateHeroSamples'], 0);
+    expect(result['invalidResourceSamples'], 0);
+    final coverage = (result['schedulingAudit'] as Map)['coverage'] as Map;
+    expect(coverage['taskAssigned'], greaterThan(0));
+  });
   test('曾在月结前耗尽粮草的紧急采购对局保持正数国库', () async {
     final worlds = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),

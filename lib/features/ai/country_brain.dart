@@ -1005,6 +1005,8 @@ class CountryBrain {
           ),
         );
         if (risk.upper <= 0 || risk.lower < rules.tuning.breakthroughMargin) {
+          final team = _prepareFieldAssault(ledger, city, guard, assigned);
+          if (team != null) return team;
           continue;
         }
       }
@@ -1027,6 +1029,105 @@ class CountryBrain {
       if (operation != null) return operation;
     }
     return null;
+  }
+
+  // 外围编队使用实际随身兵力合计静态攻防负担，不能重新退化成逐将单挑门槛。
+  PlannedOperation? _prepareFieldAssault(
+    AiLedger base,
+    AiCity target,
+    AiHero guard,
+    int assigned,
+  ) {
+    final candidates =
+        _view.heroes.where((h) {
+          final task = base.tasks[h.id];
+          return h.country == _view.country &&
+              h.canMove &&
+              h.state == AiArmyState.camped &&
+              !h.movementPending &&
+              !h.marked &&
+              h.hp >= h.maxHp * .65 &&
+              h.soldierCount == rules.integer('soldierLimit') &&
+              !base.reservedHeroes.contains(h.id) &&
+              task?.role == 'staging' &&
+              task?.city == target.id &&
+              operations.canRaidFrom(h, target);
+        }).toList()..sort(
+          (a, b) =>
+              (b.combat * b.hp / b.maxHp).compareTo(a.combat * a.hp / a.maxHp),
+        );
+    final enemyReserve = _view.countries
+        .firstWhere((c) => c.id == target.country)
+        .reserves;
+    final enemySoldiers = math.min(
+      rules.integer('soldierLimit'),
+      guard.soldierCount + enemyReserve,
+    );
+    final enemyPower =
+        rules.attack(
+          guard.combat,
+          field: false,
+          defenseLevel: target.safeSlots,
+        ) +
+        enemySoldiers * rules.integer('soldierPower');
+    final burden = guard.hp + enemySoldiers * rules.integer('soldierHp');
+    var support = 0.0, earliest = double.infinity, latest = 0.0;
+    final team = <({AiHero hero, AiRoute route})>[];
+    for (final h in candidates.take(rules.tuning.maxTeam * 2)) {
+      if (team.length >= rules.tuning.maxTeam - assigned || !work.candidate()) {
+        break;
+      }
+      final route = routes.to(h, target.center, _view, target: target);
+      if (!route.complete || route.seconds > rules.tuning.raidArrivalSpread * 2) {
+        continue;
+      }
+      final first = math.min(earliest, route.seconds),
+          last = math.max(latest, route.seconds);
+      if (last - first > rules.tuning.raidArrivalSpread) continue;
+      final power =
+          rules.attack(h.combat, field: false) +
+          h.soldierCount * rules.integer('soldierPower');
+      final ratio = power / math.max(1, enemyPower);
+      support +=
+          (h.hp + h.soldiers.fold(0.0, (a, b) => a + b)) * ratio * .85;
+      team.add((hero: h, route: route));
+      earliest = first;
+      latest = last;
+      if (support >= burden) break;
+    }
+    if (team.length < 2 || support < burden) return null;
+    var ledger = base;
+    final actions = <AiAction>[], tasks = <ArmyTask>[];
+    final dependencies = operations.dependencies([guard], [target]);
+    for (final (index, member) in team.indexed) {
+      final option = operations.send(
+        ledger,
+        member.hero,
+        member.route,
+        role: 'expedition',
+        target: target,
+        emergency: true,
+        attrition: true,
+        queueIndex: assigned + index,
+        reason: '外围编队已到位，按实际兵力轮攻前排，强将先攻、其余接续',
+      );
+      if (option == null) return null;
+      ledger = option.ledger;
+      actions.addAll(option.group.actions);
+      tasks.addAll(option.group.tasks);
+      dependencies.addAll(option.group.dependencies);
+    }
+    return PlannedOperation(
+      ledger,
+      AiCommandGroup(
+        reason: '外围兵力合计足以发起轮攻，不再要求每名将领单独占优',
+        actions: actions,
+        tasks: tasks,
+        dependencies: dependencies,
+        minimumGold: ledger.gold,
+        emergency: true,
+      ),
+    );
   }
 
   // 后方余部集结到最近敌城外围，分散站位，不占友城驻军名额也不强迫弱将抢先攻城。

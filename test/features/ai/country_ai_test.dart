@@ -1,5 +1,3 @@
-import 'package:pixel_world/core/geometry/geometry.dart';
-
 import '../../support/national_ai_fixture.dart' show advanceAi;
 
 import 'dart:io';
@@ -48,10 +46,11 @@ CampaignState _campaign({
   math.Random? random,
   math.Random? recruit,
   Map<int, int> stocks = const {},
+  List<RomHeroDefinition>? catalog,
 }) {
   final c = CampaignState.fromRom(
     _worlds().first,
-    _catalog(),
+    catalog ?? _catalog(),
     aiEnabled: ai,
     startingGold: gold,
     countryConfigs:
@@ -119,7 +118,7 @@ void main() {
     expect(c.reinforceHero(governor, countryId: 1), 4);
     expect(c.soldiersAt(1), 0);
     final price = c.upgradeCostFor(1, governor, countryId: 1)!;
-    expect(price, 60 - governor.politics);
+    expect(price, 40 - governor.politics);
     expect(c.upgradeCity(1, hero: governor), isFalse);
     expect(c.upgradeCity(1, hero: governor, countryId: 1), isTrue);
     expect(c.goldFor(1), 96 - price);
@@ -130,19 +129,21 @@ void main() {
     expect(c.hasDispatched, isFalse);
   });
 
-  test('同月可重复抽将，放弃不退费，易主后按新国家扣款', () {
+  test('抽将每城每月一次，放弃按内政退款，易主不重置月度机会', () {
     final c = _campaign(gold: 100);
-    for (var n = 0; n < 4; n++) {
-      final offer = c.drawHero(0)!;
-      c.declineHero(offer);
-    }
-    expect(c.gold, 80);
+    final offer = c.drawHero(0)!;
+    c.declineHero(offer);
+    expect(c.gold, 95 + offer.hero.politics);
+    expect(c.drawHero(0), isNull);
     c.heroes.firstWhere((h) => h.sourceId == 40).cityId = 2;
     c.cities[2]!.ownerCountryId = 0;
     c.cities[0]!.ownerCountryId = 1;
     expect(c.drawHero(0), isNull);
-    final before = c.goldFor(1), offer = c.drawHero(0, countryId: 1)!;
-    expect(c.goldFor(1), before - 5 - offer.initialSalary);
+    expect(c.drawHero(0, countryId: 1), isNull);
+    c.settledMonths++;
+    final before = c.goldFor(1);
+    expect(c.drawHero(0, countryId: 1), isNotNull);
+    expect(c.goldFor(1), before - 5);
     expect(c.recruitmentOfferFor(1), isNull);
   });
 
@@ -164,7 +165,7 @@ void main() {
     expect(signed.countryId, 1);
     expect(signed.cityId, 1);
     expect(signed.soldiers, 0);
-    expect(c.goldFor(1), 95 - foreign.initialSalary);
+    expect(c.goldFor(1), 95);
     expect(c.gold, 95);
     expect(c.recruitmentOffer, same(player));
     c.cities[0]!.ownerCountryId = 1;
@@ -175,20 +176,21 @@ void main() {
   });
 
   test('唯一候选被玩家锁定后所有国家都抽不到，放弃后可被NPC立即签走', () {
-    final c = _campaign(gold: 10000);
+    final initialIds = _worlds().first.cities.expand((v) => v.unitIds).toSet();
+    final pool = _catalog();
+    final candidate = pool.firstWhere((h) => !initialIds.contains(h.id));
+    final c = _campaign(
+      gold: 10000,
+      catalog: [...pool.where((h) => initialIds.contains(h.id)), candidate],
+    );
     prepareRecruitmentCity(c, 0);
     prepareRecruitmentCity(c, 1);
-    while (c.recruitPool.length > 1) {
-      final hero = c.signHero(c.drawHero(0)!)!;
-      c.dispatchTo(hero, const GamePoint(8, 8))!.camp();
-      c.advance(60);
-    }
     final reserved = c.drawHero(0)!;
     final before = c.goldFor(1);
     expect(c.recruitPool, isEmpty);
     expect(c.drawHero(1, countryId: 1), isNull);
     expect(c.goldFor(1), before);
-    expect(c.remainingHeroDraws(1), isNull);
+    expect(c.remainingHeroDraws(1), 1);
     expect(c.heroes.any((hero) => hero.sourceId == reserved.hero.id), isFalse);
     c.declineHero(reserved);
     final taken = c.drawHero(1, countryId: 1)!;
@@ -206,24 +208,26 @@ void main() {
     expect(c.drawHero(2, countryId: 2), isNull);
   });
 
-  test('NPC先备足抽取和可能的签约费用，钱不够不锁人、不扣钱、不占月次数', () {
-    final c = _campaign(gold: 9);
+  test('NPC不足抽取费时不锁人、不扣钱、不占月次数，够五金币即可签约', () {
+    final c = _campaign(gold: 4);
     prepareRecruitmentCity(c, 0);
     prepareRecruitmentCity(c, 1);
     expect(c.recruitPool.any((hero) => hero.type == HeroType.advanced), isTrue);
     final before = c.recruitPool.map((hero) => hero.id).toList();
     expect(c.drawHero(1, countryId: 1), isNull);
     expect(c.recruitPool.map((hero) => hero.id), before);
-    expect(c.goldFor(1), 9);
-    expect(c.remainingHeroDraws(1), isNull);
+    expect(c.goldFor(1), 4);
+    expect(c.remainingHeroDraws(1), 1);
     expect(c.recruitmentOfferFor(1), isNull);
-    // 玩家仍然可以只付抽取费，保留结果再选择是否签约。
-    expect(c.drawHero(0), isNotNull);
+    final affordable = _campaign(gold: 5);
+    expect(affordable.drawHero(1, countryId: 1), isNotNull);
+    expect(affordable.goldFor(1), 0);
+    expect(c.drawHero(0), isNull);
     expect(c.gold, 4);
-    expect(c.recruitmentOffer, isNotNull);
+    expect(c.recruitmentOffer, isNull);
   });
 
-  test('NPC按专属归属立即扣首月月俸，不收额外高级签约费', () {
+  test('NPC签约不预付月俸，也不收额外高级签约费', () {
     for (final type in [HeroType.advanced, HeroType.normal]) {
       final pick = _Pick();
       final c = _campaign(gold: 15, recruit: pick);
@@ -233,7 +237,7 @@ void main() {
       expect(pick.value, greaterThanOrEqualTo(0));
       final offer = c.drawHero(1, countryId: 1)!;
       expect(offer.hero.type, type);
-      expect(c.goldFor(1), 15 - 5 - offer.initialSalary);
+      expect(c.goldFor(1), 10);
       expect(c.recruitmentOfferFor(1), isNull);
       expect(
         c.heroes
@@ -243,27 +247,26 @@ void main() {
         1,
       );
       expect(c.recruitPool.any((hero) => hero.id == offer.hero.id), isFalse);
-      expect(c.remainingHeroDraws(1), isNull);
+      expect(c.remainingHeroDraws(1), 0);
     }
   });
 
-  test('签约跨月保留原结果，处理完成后同月可以继续招募', () {
+  test('跨月签约保留原结果，并占用签约月的本城招募机会', () {
     final c = _campaign(gold: 4);
     prepareRecruitmentCity(c, 0);
     prepareRecruitmentCity(c, 1);
     expect(c.drawHero(0), isNull);
-    expect(c.remainingHeroDraws(0), isNull);
+    expect(c.remainingHeroDraws(0), 1);
     c.advance(60);
     final offer = c.drawHero(0)!;
     c.advance(60);
     expect(c.dateLabel, '1年4月');
     expect(c.recruitmentOffer, same(offer));
     expect(c.signHero(offer), isNotNull);
-    final nextOffer = c.drawHero(0)!;
-    c.declineHero(nextOffer);
-    expect(c.remainingHeroDraws(0), isNull);
+    expect(c.drawHero(0), isNull);
+    expect(c.remainingHeroDraws(0), 0);
     c.advance(60);
-    expect(c.remainingHeroDraws(0), isNull);
+    expect(c.remainingHeroDraws(0), 1);
     expect(c.drawHero(0), isNotNull);
   });
 
@@ -275,15 +278,15 @@ void main() {
     c.advance(0);
     expect(c.marches, isEmpty);
     advanceAi(c, .8);
-    expect(c.marches.length, 1);
+    expect(c.marches.length, 2);
     final march = c.marches.values.first;
     expect(march.hero, same(initial.first));
-    expect(c.garrisonAt(1).length, initial.length - 1);
+    expect(c.garrisonAt(1).length, 1);
     expect(c.cities[march.target!.id]!.ownerCountryId, isNot(1));
     expect(c.hasDispatched, isFalse);
     expect(c.gold, 50);
     c.advance(GameConfig.countryAiInterval);
-    expect(c.marches.length, 1);
+    expect(c.marches.length, 2);
   });
 
   test('新招将领配兵后由最强者出击，经营升级和兵员都真实扣款', () {
@@ -307,12 +310,12 @@ void main() {
       (hero) => hero.sourceId == weakest.first.id,
     );
     expect(newHero.countryId, 1);
-    expect(newHero.soldiers, 0);
+    expect(newHero.soldiers, 4);
     final ranked = [...previous, newHero]..sort(_strength);
     expect(c.marches.values.map((march) => march.hero), contains(ranked.first));
     expect(c.garrisonAt(1).length, greaterThanOrEqualTo(1));
     expect(c.cities[1]!.level, 3);
-    expect(c.remainingHeroDraws(1), isNull);
+    expect(c.remainingHeroDraws(1), 0);
     expect(c.goldFor(1), lessThan(150 - GameConfig.heroDrawCost));
     expect(c.goldFor(1), greaterThanOrEqualTo(0));
     final count = c.heroes.length;
@@ -334,7 +337,7 @@ void main() {
     expect(c.marches, isEmpty);
     expect(c.goldFor(1), 0);
     expect(c.gold, 50);
-    expect(c.remainingHeroDraws(1), isNull);
+    expect(c.remainingHeroDraws(1), 1);
   });
 
   test('同一国家拥有多座城时分别留守，而非把全国驻军集中一座城', () {
@@ -444,9 +447,9 @@ void main() {
     expect(c.cities[1]!.level, 2); // 资源阶段保留必要迎战名额。
     expect(
       c.marches.values.where((march) => march.hero.countryId == 1).length,
-      1,
+      count - 1,
     );
-    expect(c.garrisonAt(1).length, count - 1);
+    expect(c.garrisonAt(1).length, 1);
   });
 
   test('三张地图多国经营交战持续模拟，英雄不重复、资金和储备不越界，结束后停止AI', () {

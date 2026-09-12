@@ -16,6 +16,7 @@ import 'package:pixel_world/features/ai/routes.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
 import 'package:pixel_world/features/ai/runtime/worker.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/simulation/scheduling_audit.dart';
 
 /// 读取存档副本审计各国调度；可按正式规则续跑，输出不会覆盖输入存档。
 Future<void> main(List<String> args) async {
@@ -60,8 +61,19 @@ Future<void> main(List<String> args) async {
       c.cities.values.map((c) => c.ownerCountryId).toSet().toList()..sort();
   final sink = File('${folder.path}/events.jsonl').openWrite();
   final counts = <String, int>{};
+  var issueFiles = 0;
+  final audit = SchedulingAudit(
+    onIssue: (issue) {
+      if (++issueFiles <= 12) {
+        File('${folder.path}/issue$issueFiles.json').writeAsStringSync(
+          jsonEncode({'issue': issue, 'campaign': c.saveState()}),
+        );
+      }
+    },
+  );
   for (final id in [null, ...countries]) {
     c.events.forCountry(id).listen((e) {
+      audit.event(c, e);
       sink.writeln(e.toJsonLine());
       counts.update(
         '${e.countryId}:${e.kind.name}',
@@ -224,12 +236,20 @@ Future<void> main(List<String> args) async {
   File('${folder.path}/audit.json').writeAsStringSync(jsonEncode(audits));
   File('${folder.path}/initial.json').writeAsStringSync(jsonEncode(initial));
   final watch = Stopwatch()..start();
+  var nextSample = 0;
   final realtime = args.contains('realtime'), clock = GameClock()..speed = 16;
   for (var tick = 0; tick < seconds * 60 && !c.defeated; tick += 16) {
     if (realtime) {
       clock.advance(1 / 60, c.advance);
     } else {
       c.advance(16 / 60);
+    }
+    if (tick >= nextSample) {
+      audit.sample(
+        c,
+        (data['strategyTime'] as num).toDouble() + (tick + 16) / 60,
+      );
+      nextSample += 60;
     }
     if (realtime) {
       await Future<void>.delayed(const Duration(microseconds: 16667));
@@ -257,6 +277,7 @@ Future<void> main(List<String> args) async {
     'counts': counts,
     'final': snapshot(),
     'diagnostics': c.aiDiagnostics.toJson(),
+    'schedulingAudit': audit.toJson(),
   };
   File('${folder.path}/result.json').writeAsStringSync(jsonEncode(result));
   File('${folder.path}/final_checkpoint.json')

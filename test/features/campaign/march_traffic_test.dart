@@ -54,6 +54,48 @@ HeroMarch send(
 }
 
 void main() {
+  test('读档后尚无排队编号的贴城部队也能向外让行，不被敌城接触逐帧拦回', () {
+    final original = fixture();
+    addTearDown(original.dispose);
+    final city = original.world.cities[0];
+    final waiter = original.dispatch(
+      original.garrisonAt(1).first,
+      city,
+      countryId: 1,
+    )!;
+    waiter.position = waiter.destination;
+    waiter.moveTo(waiter.position, city: city);
+    final corner = waiter.position + const GamePoint(8, 0);
+    final returning = original.dispatchTo(
+      original.garrisonAt(1).first,
+      corner,
+      countryId: 1,
+    )!;
+    returning.position = corner + const GamePoint(40, 0);
+    final start = returning.position;
+    final data = original.saveState();
+    final row = (data['marches'] as List).last as Map;
+    row['returning'] = true;
+    row['return'] = [row['outbound'].first];
+    final c = CampaignSnapshots.restore(
+      data,
+      original.world,
+      decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+    )..endOnPlayerDefeat = false;
+    addTearDown(c.dispose);
+    final back = c.marches[returning.hero.id]!,
+        blocker = c.marches[waiter.hero.id]!;
+    expect(blocker.siegeQueueOrder, isNull);
+    for (var n = 0; n < 1800; n++) {
+      c.advance(1 / 60);
+      if (!c.marches.containsKey(back.hero.id)) break;
+      expect(back.phase, isNot(MarchPhase.camped));
+    }
+    expect((back.position - start).distance, greaterThan(50));
+    expect(blocker.walkDistance, greaterThan(20));
+    expect(back.waitingForTraffic, isFalse);
+  });
+
   test('多将自然抵达同一城池，进堡者不再占用外部通路', () {
     final c = fixture();
     addTearDown(c.dispose);

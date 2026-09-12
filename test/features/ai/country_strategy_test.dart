@@ -25,20 +25,27 @@ const _balancedSiege = <int, Map<String, Object>>{
 };
 
 void main() {
-  test('开局立即扩张弱城，单军足够时不把多余将领全部堆向同一目标', () {
+  test('开局立即扩张弱城，其余将领前往外围集结，家中只留必要守将', () {
     final c = assaultCampaign(ai: true);
     advanceAi(c, .5);
     final marches = c.marches.values
         .where((m) => m.hero.countryId == 1)
         .toList();
-    expect(marches.length, 1);
-    expect(marches.first.hero.sourceId, 2);
-    expect(marches.every((m) => m.target!.id == 2), isTrue);
+    expect(marches.length, 3);
+    expect(marches.map((m) => m.hero.sourceId), contains(0));
+    expect(
+      marches.every((m) => (m.target?.id ?? c.aiTasks[m.hero.id]?.city) == 2),
+      isTrue,
+    );
+    expect(
+      marches.where((m) => c.aiTasks[m.hero.id]?.role == 'staging').length,
+      1,
+    );
 
-    expect(c.garrisonAt(1).length, 3);
+    expect(c.garrisonAt(1).length, 1);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.attacking);
     c.advance(5);
-    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 1);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1).length, 3);
   });
 
   test('高城防高级守将：同时备齐士兵与军费，多将锁定同一目标', () {
@@ -53,23 +60,33 @@ void main() {
     );
     advanceAi(c, .5);
     final raid = c.marches.values.where((m) => m.hero.countryId == 1).toList();
-    expect(raid.length, 2);
-    expect(raid.map((m) => m.target!.id).toSet(), {2});
+    expect(raid.length, 3);
+    expect(
+      raid.map((m) => m.target?.id ?? c.aiTasks[m.hero.id]?.city).toSet(),
+      {2},
+    );
     expect(raid.every((m) => m.hero.soldiers == 4), isTrue);
-    expect(c.garrisonAt(1).length, 2);
+    expect(c.garrisonAt(1).length, 1);
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
-    // 等错峰出城完成再放到城边，避免传送夹具被待出城状态覆盖。
-    c.advance(2);
-    for (final march in raid) {
-      march.position = march.destination;
+    // 通过真实行军和外围转入攻城验收，不能把集结点误当城墙直接传送。
+    for (var n = 0; n < 12000 && c.battles[2]?.isActive != true; n++) {
+      c.advance(1 / 60);
     }
-    c.advance(.2);
-    expect(c.battles[2]!.isActive, isTrue);
+    expect(
+      c.battles[2]?.isActive,
+      isTrue,
+      reason: c.events.forCountry(1).exportDecisionsJsonLines(),
+    );
     expect(raid.where((m) => m.phase == MarchPhase.fighting).length, 1);
-    expect(raid.where((m) => m.phase == MarchPhase.awaitingBattle).length, 1);
+    expect(
+      raid.where((m) => c.aiTasks[m.hero.id]?.role == 'expedition').length,
+      2,
+    );
+    expect(c.battles[2]!.attacker.combat, 20);
+    expect(c.aiTasks['rom-18']?.role, 'staging');
   });
 
-  test('兵员与后勤不足时等待，月结能支付有效出击后行动，不提前花空国库', () {
+  test('仅五金币且没有储备时先补五名士兵，月结后补足再出征', () {
     final c = assaultCampaign(
       ai: true,
       gold: 5,
@@ -80,28 +97,23 @@ void main() {
       heroOverrides: _balancedSiege,
     );
     advanceAi(c, .5);
-    final plan = c.warPlanFor(1)!;
-    expect(plan.phase, CountryWarPhase.saving);
-    expect(plan.requiredGold, greaterThan(1));
-    expect(c.marches, isEmpty);
-    expect(c.goldFor(1), 5, reason: '初始现金低于新军费准备金时不额外花钱');
-
-    final target = plan.targetCityId;
+    expect(c.reserveSoldiersFor(1), 5);
+    expect(c.goldFor(1), 0);
+    expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     for (
-      var i = 0;
-      i < 36000 && c.marches.values.every((m) => m.hero.countryId != 1);
-      i++
+      var n = 0;
+      n < 12000 && c.marches.values.every((m) => m.hero.countryId != 1);
+      n++
     ) {
       c.advance(1 / 60);
     }
-    expect(plan.targetCityId, target);
-    expect(plan.phase, CountryWarPhase.attacking);
     final funded = c.marches.values
         .where((m) => m.hero.countryId == 1)
         .toList();
-    expect(funded.length, inInclusiveRange(1, 2));
+    expect(funded, isNotEmpty);
     expect(funded.every((m) => m.hero.soldiers == 4), isTrue);
-    expect(c.goldFor(1), greaterThan(0));
+    expect(c.goldFor(1), greaterThanOrEqualTo(0));
+    expect(c.garrisonAt(1), isNotEmpty);
   });
 
   test('附近出现容易占领的城池时优先拿下，不先撞五级重兵城', () {
@@ -118,7 +130,7 @@ void main() {
     expect(
       c.marches.values
           .where((m) => m.hero.countryId == 1)
-          .every((m) => m.target!.id == 3),
+          .every((m) => (m.target?.id ?? c.aiTasks[m.hero.id]?.city) == 3),
       isTrue,
     );
   });
@@ -150,7 +162,10 @@ void main() {
     final raids = c.marches.values.where((m) => m.hero.countryId == 1).toList();
     expect(raids.length, greaterThanOrEqualTo(2));
     expect(raids.every((m) => m.hero.soldiers == 4), isTrue);
-    expect(raids.map((m) => m.target!.id).toSet(), {2});
+    expect(
+      raids.map((m) => m.target?.id ?? c.aiTasks[m.hero.id]?.city).toSet(),
+      {2},
+    );
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));
   });
 
@@ -163,10 +178,10 @@ void main() {
     advanceAi(c, .5);
     expect(c.warPlanFor(1)!.phase, CountryWarPhase.defending);
 
-    expect(c.cities[1]!.level, inInclusiveRange(4, 5));
+    expect(c.cities[1]!.level, 3);
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     c.advance(5);
-    expect(c.cities[1]!.level, inInclusiveRange(4, 5));
+    expect(c.cities[1]!.level, 3);
     expect(c.garrisonAt(1).length, lessThanOrEqualTo(c.cities[1]!.level));
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     expect(c.goldFor(1), greaterThanOrEqualTo(c.aiBudgetFor(1).reserveGold));

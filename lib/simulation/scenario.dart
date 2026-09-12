@@ -27,6 +27,8 @@ class SimulationScenario {
     this.deterministic = true,
     this.playerCommander = false,
     this.commanderStrategy = CommanderStrategy.baseline,
+    this.realtime = false,
+    this.reloadEverySeconds = 0,
   });
 
   /// 地图与可复现种子。
@@ -46,4 +48,10 @@ class SimulationScenario {
 
   /// 玩家国使用的策略，仅用于无界面对照。
   final CommanderStrategy commanderStrategy;
+
+  /// 使用真实帧间隔推进，不等待后台回复后才增加游戏时间。
+  final bool realtime;
+
+  /// 周期性保存并恢复同一局，以覆盖进行中任务的读档；零表示关闭。
+  final int reloadEverySeconds;
 }

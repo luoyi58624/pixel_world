@@ -6,6 +6,7 @@ import 'package:json5/json5.dart';
 import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/ai/runtime/worker.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
+import 'package:pixel_world/features/ai/runtime/build_stamp.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
@@ -18,6 +19,7 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       '无界面战役验收：dart run tool/simulate.dart --speed 16 --seconds 600 --worlds 0,1,2 --seeds 101,223,337 --label trial\n'
       '--backend deterministic 使用显式测试后端保证可复现；--backend native 使用真实常驻后台并等待其完成。\n'
+      '--realtime 按真实帧间隔推进，--reload-every <游戏秒> 周期性读档，调度异常自动保存现场。\n'
       '--config 可选择资金配置，--heroes 可选择月俸实验目录；--trace 保留原始诊断事件，默认记录最终决策与月结。\n'
       '--commander 通过正式指令控制玩家国，主角死亡或全部失城立即判负。\n'
       '--commander-strategy baseline|capacity-first|defense-only|national-ai|conquest 选择玩家策略；conquest 使用集中进攻策略，national-ai 使用正式国家规划器；均执行主角阵亡失败规则。\n'
@@ -50,6 +52,9 @@ Future<void> main(List<String> args) async {
   }
   final native = backend == 'native';
   final trace = args.contains('--trace');
+  final realtime = args.contains('--realtime');
+  final reloadEvery = int.parse(option('reload-every', '0'));
+  if (reloadEvery < 0) throw ArgumentError('读档周期不能为负');
   final strategy = option('commander-strategy', 'baseline');
   if (![
     'baseline',
@@ -85,6 +90,10 @@ Future<void> main(List<String> args) async {
       'heroes': json5Decode(heroSource),
       'gameConfig': json5Decode(gameConfigSource),
       'commanderStrategy': strategy,
+      'aiBuildStamp': aiBuildStamp,
+      'randomSource': 'StateRandom',
+      'realtime': realtime,
+      'reloadEverySeconds': reloadEvery,
     }),
   );
   final rows = <Map<String, Object?>>[];
@@ -100,6 +109,7 @@ Future<void> main(List<String> args) async {
         ).firstWhere((w) => w.id == worldId);
         final catalog = decodeRomHeroes(heroSource);
         final streams = <int, IOSink>{};
+        var issueFiles = 0;
         final runner = SimulationRunner(
           world: world,
           heroes: catalog,
@@ -115,7 +125,17 @@ Future<void> main(List<String> args) async {
               deterministic: !native,
               playerCommander: args.contains('--commander'),
               commanderStrategy: commanderStrategy,
+              realtime: realtime,
+              reloadEverySeconds: reloadEvery,
             ),
+            onAuditIssue: (issue, checkpoint) {
+              if (++issueFiles > 12) return;
+              File(
+                '${out.path}/world${worldId}_seed${seed}_issue$issueFiles.json',
+              ).writeAsStringSync(
+                jsonEncode({'issue': issue, 'campaign': checkpoint}),
+              );
+            },
             onEvent: (event) {
               if (!trace && !event.isVisibleInCountryLog) return;
               final sink = streams.putIfAbsent(

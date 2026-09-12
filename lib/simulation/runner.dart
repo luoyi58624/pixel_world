@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import '../core/time/game_clock.dart';
 import '../core/config/game_config.dart';
+import '../core/persistence/state_random.dart';
 import '../features/ai/runtime/worker.dart';
 import '../features/campaign/domain/campaign.dart';
 import '../features/events/domain/game_events.dart';
@@ -13,6 +14,7 @@ import 'commander.dart';
 import 'commander_mine.dart';
 import 'defensive_commander.dart';
 import 'conquest_commander.dart';
+import 'scheduling_audit.dart';
 
 /// 纯数据战役验收器：运行真实规则，不创建 Widget、画布或窗口。
 class SimulationRunner {
@@ -35,6 +37,7 @@ class SimulationRunner {
     SimulationScenario scenario, {
     void Function(GameEvent)? onEvent,
     void Function(Map<String, Object?>)? onProgress,
+    void Function(Map<String, Object?>, Map<String, dynamic>)? onAuditIssue,
   }) async {
     if (scenario.worldId != world.id || scenario.seconds <= 0) {
       throw ArgumentError('模拟地图必须匹配，时长必须大于零');
@@ -65,6 +68,13 @@ class SimulationRunner {
     final rejectedPlans = <Map<String, Object?>>[];
     final exposedCities = <Map<String, Object?>>[];
     CampaignState? liveCampaign;
+    final audit = SchedulingAudit(
+      onIssue: (issue) {
+        if (liveCampaign != null && onAuditIssue != null) {
+          onAuditIssue(issue, liveCampaign.saveState());
+        }
+      },
+    );
     final emptySeconds = <int, int>{}, longestEmpty = <int, int>{};
     final emptyStreak = <(int, int), int>{};
     final recruits = <int, int>{}, dismissals = <int, int>{};
@@ -74,6 +84,7 @@ class SimulationRunner {
       worldId: world.id,
       runId: 'simulation-${world.id}-${scenario.seed}',
       onEvent: (event) {
+        if (liveCampaign != null) audit.event(liveCampaign, event);
         onEvent?.call(event);
         if (event.kind == GameEventKind.cityCaptured) {
           if (liveCampaign != null) {
@@ -190,7 +201,7 @@ class SimulationRunner {
         }
       },
     );
-    final c = CampaignState.fromRom(
+    var c = CampaignState.fromRom(
       world,
       heroes,
       aiWorkerFactory: aiWorkerFactory,
@@ -198,11 +209,11 @@ class SimulationRunner {
           !scenario.playerCommander ||
           scenario.commanderStrategy == CommanderStrategy.nationalAi,
       endOnPlayerDefeat: scenario.playerCommander,
-      aiRandom: math.Random(scenario.seed),
-      economyRandom: math.Random(scenario.seed + 10),
-      recruitmentRandom: math.Random(scenario.seed + 20),
-      siegeRandom: math.Random(scenario.seed + 30),
-      retreatRandom: math.Random(scenario.seed + 40),
+      aiRandom: StateRandom(scenario.seed),
+      economyRandom: StateRandom(scenario.seed + 10),
+      recruitmentRandom: StateRandom(scenario.seed + 20),
+      siegeRandom: StateRandom(scenario.seed + 30),
+      retreatRandom: StateRandom(scenario.seed + 40),
       eventLog: eventLog,
     );
     final countries =
@@ -248,6 +259,7 @@ class SimulationRunner {
           }
         : null;
     final maxTicks = scenario.seconds * 60;
+    var nextReload = scenario.reloadEverySeconds * 60, reloads = 0;
     try {
       while (tick < maxTicks && !unified && !c.defeated) {
         final realStep = math.min(
@@ -266,6 +278,7 @@ class SimulationRunner {
                   .length ==
               1;
           if (tick % 60 != 0) return;
+          audit.sample(c, tick / 60);
           final ids = c.heroes.map((h) => h.id).toSet();
           if (ids.length != c.heroes.length) duplicateHeroes++;
           emptyStreak.removeWhere(
@@ -355,10 +368,40 @@ class SimulationRunner {
               'world': world.id,
               'seed': scenario.seed,
               'player': state(0),
+              'auditCounts': audit.toJson()['counts'],
+              'reloads': reloads,
             });
           }
         });
-        if (!scenario.deterministic) {
+        if (scenario.reloadEverySeconds > 0 &&
+            tick >= nextReload &&
+            !unified &&
+            !c.defeated) {
+          final snapshot = c.saveState();
+          final automatedPlayer = c.aiControlsPlayer,
+              endOnDefeat = c.endOnPlayerDefeat;
+          c.dispose();
+          c =
+              CampaignSnapshots.restore(
+                  snapshot,
+                  world,
+                  heroes,
+                  aiWorkerFactory: aiWorkerFactory,
+                )
+                ..aiControlsPlayer = automatedPlayer
+                ..endOnPlayerDefeat = endOnDefeat;
+          liveCampaign = c;
+          for (final id in <int?>[null, ...countries]) {
+            c.events.forCountry(id).listen(eventLog.onEvent!);
+          }
+          nextReload += scenario.reloadEverySeconds * 60;
+          reloads++;
+        }
+        if (scenario.realtime) {
+          await Future<void>.delayed(
+            Duration(microseconds: (realStep * 1000000).round()),
+          );
+        } else if (!scenario.deterministic) {
           final wait = Stopwatch()..start();
           while (c.pendingAiRequests > 0 && wait.elapsedMilliseconds < 5000) {
             await Future<void>.delayed(const Duration(milliseconds: 1));
@@ -445,7 +488,11 @@ class SimulationRunner {
         'speed': scenario.speed,
         'backend': scenario.deterministic
             ? 'deterministic-test'
+            : scenario.realtime
+            ? 'native-realtime'
             : 'native-lockstep',
+        'reloads': reloads,
+        'schedulingAudit': audit.toJson(),
         'gameSeconds': tick / 60,
         'wallMilliseconds': stopwatch.elapsedMilliseconds,
         'winner': remaining.length == 1 ? remaining.single : null,

@@ -186,6 +186,14 @@ extension _CitySieges on CampaignState {
     final origin = cityBounds(city).topLeft;
     // 城堡扩建或在途拦截后可能已在轮廓内，不能要求向外走再被逐帧拦回。
     if (_cityContact(city).contains(march.position - origin)) return true;
+    // 正在走向有效墙面时沿用已有路线，反复改令会清空避让路线并把每帧位置写入返程。
+    if (march.phase == MarchPhase.marching &&
+        (_cityContact(city).nearest(march.destination - origin) -
+                    (march.destination - origin))
+                .distanceSquared <
+            1e-8) {
+      return false;
+    }
     final point = _contactPoint(march.position, cityBounds(city).center, city);
     if ((point - march.position).distanceSquared <= 1e-8) return true;
     march._resumeToward(point, city: city);

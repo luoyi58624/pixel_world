@@ -26,7 +26,7 @@ void main() {
       expect(policy.dangerous, cities >= 5);
       expect(
         policy.extraGold,
-        cities < 5 ? 0 : (30 * (.5 + (cities - 5) * .25)).ceil(),
+        cities < 5 ? 0 : (20 * (.5 + (cities - 5) * .25)).ceil(),
       );
       if (cities < 5) {
         expect(policy.priorityBonus, 0);
@@ -157,7 +157,7 @@ void main() {
     expect(c.goldFor(2), 0);
   });
 
-  test('围攻提高招聘月俸预算，实际签约成本照常扣除，不修改资源', () {
+  test('围攻提高月俸比例，充足现款也能支持普通目标的招募，签约只扣抽取费', () {
     for (final cities in [4, 5]) {
       final c = coalitionCampaign(enemyCities: cities, year: 1);
       addTearDown(c.dispose);
@@ -168,9 +168,9 @@ void main() {
         'salary': 6,
         'heroes': [
           for (final h in original.heroes)
-            // 正常收入三十：三名现役工资十五，再招六金币将领跨过普通预算但符合围攻预算。
+            // 正常收入二十：现役工资九，再加六金币跨过普通预算但符合围攻预算。
             if (h.id != 'rom-18')
-              {...h.toJson(), 'pay': h.country == 1 ? 5 : 0},
+              {...h.toJson(), 'pay': h.country == 1 ? 3 : 0},
         ],
         'cities': [
           for (final city in original.cities)
@@ -182,8 +182,9 @@ void main() {
         rules,
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
-      expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), cities == 5);
-      expect(ledger.gold, cities == 5 ? 989 : 1000);
+      expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), isTrue);
+      expect(ledger.gold, 995);
+      expect(ledger.extraSalary, 6);
       expect(c.goldFor(1), 1000);
     }
   });

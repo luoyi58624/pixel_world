@@ -5,7 +5,7 @@ import 'package:pixel_world/features/ai/protocol.dart';
 import '../../support/national_ai_fixture.dart';
 
 void main() {
-  test('D01/D04 有钱可连续升级，先用城防解决迎战名额不足', () {
+  test('D01/D04 优先升级且遵守每城每月一次，剩余名额用调度修复', () {
     final c = nationalScenario();
     addTearDown(c.dispose);
     approaching(c);
@@ -17,8 +17,8 @@ void main() {
       isNotEmpty,
     );
     advanceAi(c, .6);
-    expect(c.cities[1]!.level, 3);
-    expect(c.garrisonAt(1).length, lessThanOrEqualTo(3));
+    expect(c.cities[1]!.level, 2);
+    expect(c.garrisonAt(1).length, lessThanOrEqualTo(2));
     expect(c.heroes.any((h) => h.sourceId == 0), isTrue);
   });
   test('D02/D03/D08 无资金时合法清理挡位者，留守偏好不覆盖一级城安全名额', () {

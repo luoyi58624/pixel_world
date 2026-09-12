@@ -7,6 +7,42 @@ import 'package:pixel_world/features/world_map/domain/world_movement.dart';
 import '../../support/retreat_fixture.dart';
 
 void main() {
+  test('撤退原路拐点被集结营地占住时友军侧向让行，返城不扎营或重叠', () {
+    final c = retreatCampaign();
+    addTearDown(c.dispose);
+    c.buySoldiers(0, 12);
+    const corner = GamePoint(600, 240);
+    final hero = retreatHeroById(c, 0);
+    final march = c.dispatchTo(hero, corner)!;
+    advanceRetreatUntil(c, () => march.phase == MarchPhase.camped);
+    c.moveTo(hero.id, c.cityBounds(c.world.cities[1]).center);
+    advanceRetreatUntil(c, () => c.battles[1]?.isActive == true);
+    final blocker = c.dispatchTo(retreatHeroById(c, 2), corner)!;
+    blocker.position = corner;
+    blocker.camp();
+    final battle = c.battles[1]!;
+    expect(c.retreatHero(hero.id), isTrue);
+    advanceRetreatUntil(c, () => !battle.isActive);
+    for (
+      var frame = 0;
+      frame < 9000 && c.marches.containsKey(hero.id);
+      frame++
+    ) {
+      c.advance(1 / 60);
+      if (!c.marches.containsKey(hero.id)) break;
+      expect(march.phase, isNot(MarchPhase.camped));
+      expect(
+        (march.position.dx - blocker.position.dx).abs() >= 16 - 1e-5 ||
+            (march.position.dy - blocker.position.dy).abs() >= 16 - 1e-5,
+        isTrue,
+      );
+    }
+    expect(c.marches.containsKey(hero.id), isFalse);
+    expect(hero.cityId, 0);
+    expect(blocker.position, isNot(corner));
+    expect(blocker.hero.countryId, 0);
+  });
+
   test('撤退过场后可手动改道，取消自动返城且保留伤势兵员', () {
     final c = retreatCampaign();
     addTearDown(c.dispose);

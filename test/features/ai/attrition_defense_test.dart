@@ -93,7 +93,7 @@ void main() {
     );
   });
 
-  test('消耗效果只计能保留到下一场的整兵伤亡，不把伤兵回血忽略掉', () {
+  test('静态评估可重复，增加实际兵员能够改善当前战力判断', () {
     final c = nationalScenario(ai: false, guards: [34], level: 5);
     addTearDown(c.dispose);
     final v = c.aiObservationFor(1), r = c.aiRulesForTesting();
@@ -103,14 +103,14 @@ void main() {
       hero,
       enemy,
       ownDefense: 5,
-      ownSoldiers: 4,
+      ownSoldiers: 2,
       enemySoldiers: 4,
     );
     final b = assessor.compare(
       hero,
       enemy,
       ownDefense: 5,
-      ownSoldiers: 4,
+      ownSoldiers: 2,
       enemySoldiers: 4,
     );
     final stronger = assessor.compare(

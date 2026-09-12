@@ -50,13 +50,13 @@ void main() {
     });
   }
 
-  test('同等高内政保留低攻击建设将领，释放强攻击主力', () {
+  test('同等高内政保留战力足够的较弱守将，释放强攻击主力', () {
     final c = nationalScenario(
       ai: false,
       guards: [0, 18],
       overrides: {
         0: {'combat': 18, 'politics': 15},
-        18: {'combat': 5, 'politics': 15},
+        18: {'combat': 14, 'politics': 15, 'maxHp': 100},
       },
     );
     addTearDown(c.dispose);

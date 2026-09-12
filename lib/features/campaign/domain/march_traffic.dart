@@ -125,16 +125,7 @@ extension _MarchTraffic on CampaignState {
     }
     if (march._trafficRoute.isEmpty) {
       if (march.returningFromRetreat) {
-        // 撤退者优先通行，附近候战队伍沿外围换位，不能将返程锁成永久扎营。
-        for (final other in marches.values) {
-          if (other != march &&
-              other.hero.countryId == march.hero.countryId &&
-              (other.phase == MarchPhase.awaitingBattle ||
-                  other._siegeWaiting) &&
-              (other.position - march.position).distance < 64) {
-            _positionSiegeQueue(other, avoid: march.position);
-          }
-        }
+        _yieldRetreatPassage(march);
       }
       if (!march._trafficBlocked) {
         march._trafficBlocked = true;
@@ -179,6 +170,90 @@ extension _MarchTraffic on CampaignState {
       return true;
     }
     return movement.distance > 0;
+  }
+
+  // 集结营地也会占住原路拐点；沿返程两侧让出通道，不能只处理攻城候战者。
+  void _yieldRetreatPassage(HeroMarch retreat) {
+    final direction = retreat.destination - retreat.position;
+    final angle = math.atan2(direction.dy, direction.dx);
+    for (final other in marches.values) {
+      if (other == retreat ||
+          other.hero.countryId != retreat.hero.countryId ||
+          !other.visibleOnMap ||
+          !other.hero.health.alive ||
+          other.returningFromRetreat ||
+          activeBattleForHero(other.hero.id) != null ||
+          !(other.phase == MarchPhase.camped ||
+              other.phase == MarchPhase.awaitingBattle ||
+              other._siegeWaiting) ||
+          (other.position - retreat.position).distance > 96 ||
+          !_trafficIntersects(
+            retreat.position,
+            retreat.destination,
+            other.position,
+          )) {
+        continue;
+      }
+      // 已经向通道外移动的队员继续走，不逐帧改令和累积无用返程拐点。
+      if (other.phase == MarchPhase.marching &&
+          !_trafficIntersects(
+            retreat.position,
+            retreat.destination,
+            other.destination,
+          )) {
+        continue;
+      }
+      final obstacles = marches.values
+          .where((m) => m != other && m.visibleOnMap && m.hero.health.alive)
+          .map((m) => m.position)
+          .toList();
+      GamePoint? free;
+      for (final distance in [36.0, 54.0, 72.0]) {
+        for (final turn in [math.pi / 2, -math.pi / 2, 0.0, math.pi]) {
+          final point =
+              other.position +
+              GamePoint(math.cos(angle + turn), math.sin(angle + turn)) *
+                  distance;
+          final target = other.target;
+          if (target != null) {
+            final outward = other.position - cityBounds(target).center;
+            final step = point - other.position;
+            // 保持沿当前墙面向外让行，不能借避让标记穿过敌城。
+            if (outward.dx * step.dx + outward.dy * step.dy < -1e-7) continue;
+          }
+          if (!_containsPoint(point) ||
+              _trafficIntersects(
+                retreat.position,
+                retreat.destination,
+                point,
+              ) ||
+              world.cities.any(
+                (c) => _cityContact(c).contains(point - cityBounds(c).topLeft),
+              ) ||
+              obstacles.any(
+                (p) => _trafficIntersects(other.position, point, p),
+              )) {
+            continue;
+          }
+          free = point;
+          break;
+        }
+        if (free != null) break;
+      }
+      if (free == null) continue;
+      final queued =
+          other.target != null &&
+          cities[other.target!.id]?.ownerCountryId != other.hero.countryId;
+      other._resumeToward(free, city: other.target);
+      other._siegeWaiting = queued;
+      _record(
+        '${other.hero.name}向侧方让出撤退通路',
+        kind: GameEventKind.heroMoved,
+        hero: other.hero,
+        source: GameEventSource.system,
+        reason: '自家部队正在撤退，集结和候战部队先让行',
+      );
+    }
   }
 
   // 候发部队仍在城内，原出口被返程或扎营部队占住时从其他空闲墙面出城。

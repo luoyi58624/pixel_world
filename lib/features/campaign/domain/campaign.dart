@@ -316,6 +316,15 @@ class HeroMarch {
 
   /// 已承诺出征、正在城内等候安全放行，不参与地图碰撞。
   bool get waitingForDeparture => _departurePending;
+
+  /// 计划离城的游戏时刻，用于区分正常错峰候发和出口长期堵塞。
+  double get scheduledDepartureTime => _departureAt;
+
+  /// 已抵达的攻城排队顺序，外围换位时仍保留。
+  int? get siegeQueueOrder => _siegeArrival?.order;
+
+  /// 正在向分散的城外围攻位置移动或等待，不属于主动扎营。
+  bool get waitingForSiegePosition => _siegeWaiting;
   bool _departurePending = false;
   double _departureAt = 0;
   bool _trafficBlocked = false;
