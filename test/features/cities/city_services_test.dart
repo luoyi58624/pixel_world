@@ -30,7 +30,7 @@ Future<WorldController> _load(
   int? startingGold,
 }) async {
   rootBundle.evict('assets/maps/worlds.json');
-  rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/heroes.json5');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -57,7 +57,6 @@ Future<WorldController> _load(
       economyRandom: _RandomValue(),
       recruitmentRandom: random,
     ),
-    stock: 10,
   );
   c.openCity(c.world.cities.first);
   await tester.pump();
@@ -564,11 +563,10 @@ void main() {
       CampaignState.fromRom(
         c.world,
         painter.assets.heroCatalog,
-        weaponCatalog: painter.assets.weaponCatalog,
+
         aiRandom: math.Random(3),
         recruitmentRandom: math.Random(7),
       ),
-      stock: 10,
     );
     c.refreshUi();
     // 正式 AI 为异步后台；推进显示帧并让原生回复实际返回，不能一次补帧后立即断言。
@@ -596,7 +594,6 @@ void main() {
         painter.assets.heroCatalog,
         aiEnabled: false,
       ),
-      stock: 10,
     );
     // 让一支仍可出征的非玩家部队抵达敌国，使用真实后台交战入口。
     final hero = c.campaign.heroes.firstWhere(

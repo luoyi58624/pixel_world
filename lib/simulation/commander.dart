@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import '../core/config/game_config.dart';
 import '../core/geometry/geometry.dart';
 import '../features/campaign/domain/campaign.dart';
 import '../features/heroes/data/rom_hero.dart';
@@ -228,71 +227,16 @@ class SimulationCommander implements PlayerCommander {
         }
       }
       if (best == null || bestSeconds > 150) continue;
-      final guards = c.garrisonAt(best.id), level = c.cities[best.id]!.level;
       final keepGold = reserve;
       if (c.gold < keepGold + 6) continue;
-      final needWeapons =
-          guards.isNotEmpty &&
-          (guards.length > 1 ||
-              hero.combat <
-                  guards.last.combat +
-                      GameConfig.cityDefenseAttackBonusFor(level) +
-                      4);
-      final slots = <int, int>{};
-      if (needWeapons) {
-        final budget = c.gold - keepGold;
-        final choices =
-            c.weaponCatalog.weapons.values
-                .where(
-                  (w) =>
-                      c.weaponUnlocked(0, w) &&
-                      w.selfDamage == 0 &&
-                      w.price * c.weaponCatalog.carryLimit <= budget,
-                )
-                .toList()
-              ..sort((a, b) => b.damage.compareTo(a.damage));
-        if (choices.isEmpty) continue;
-        final weapon = choices.first;
-        final guard = guards.last;
-        final ownPower = hero.combat + 8;
-        final enemyPower =
-            guard.combat + GameConfig.cityDefenseAttackBonusFor(level) + 8;
-        final enemyHealth =
-            guard.hp + math.min(4, c.reserveSoldiersFor(guard.countryId)) * 20;
-        // 只按当前可见属性核算静态余量，后两件武器不视为必定释放。
-        if ((hero.hp + 80) * ownPower <
-            math.max(0, enemyHealth - weapon.damage * 1.5) * enemyPower * 1.2) {
-          continue;
-        }
-        for (var slot = 0; slot < c.weaponCatalog.carryLimit; slot++) {
-          if (c.weaponStockFor(0, weapon.id) == 0 && c.buyWeapon(weapon.id)) {
-            _record(second, '购买出征武器', {
-              'weapon': weapon.name,
-              'price': weapon.price,
-            });
-          }
-          if (c.weaponStockFor(0, weapon.id) >
-              slots.values.where((id) => id == weapon.id).length) {
-            slots[slot] = weapon.id;
-          } else if (c.buyWeapon(weapon.id)) {
-            slots[slot] = weapon.id;
-            _record(second, '购买出征武器', {
-              'weapon': weapon.name,
-              'price': weapon.price,
-            });
-          }
-        }
-      }
       final first = bestRoute.first;
-      if (c.dispatchTo(hero, GamePoint(first.x, first.y), weaponSlots: slots) !=
-          null) {
+      if (c.dispatchTo(hero, GamePoint(first.x, first.y)) != null) {
         _objective = best.id;
         _waypoints[hero.id] = bestRoute.skip(1).toList();
         _record(second, '出征', {
           'hero': hero.name,
           'city': best.id,
           'travelSeconds': bestSeconds,
-          'weapons': slots.values.toList(),
         });
       }
     }

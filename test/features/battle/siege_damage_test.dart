@@ -53,13 +53,13 @@ CampaignState _campaign(_Rolls rolls) => ongoingCampaign(
       },
       [0, 1, 2, 3],
     ),
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
     startingGold: 10000,
     siegeRandom: rolls,
     retreatRandom: const FixedSiegeRandom(.9),
   ),
-  stock: 0,
+
   year: 1,
 );
 

@@ -1,34 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 import 'fixed_siege_random.dart';
 
-/// 加载原版武器目录，可给指定国家设置可复核的测试库存。
-WeaponCatalog testWeaponCatalog({
-  Map<String, dynamic> stock = const {},
-  bool original = false,
-}) {
-  final data = jsonDecode(
-    File(
-      original
-          ? 'docs/reference/rom_weapons_original.json'
-          : 'assets/data/rom_weapons.json',
-    ).readAsStringSync(),
-  );
-  data['initialCountryStock'] = stock;
-  return WeaponCatalog.decode(jsonEncode(data));
-}
-
 /// 隔离其他国家的购买行为，构造可调整防守强度与兵力的战略地图。
-CampaignState weaponStrategyCampaign({
+CampaignState assaultCampaign({
   int gold = 1000,
   bool ai = false,
   int targetLevel = 1,
@@ -39,8 +23,6 @@ CampaignState weaponStrategyCampaign({
   bool easyNeighbor = false,
   bool recruitment = false,
   bool fortifiedCapital = false,
-  WeaponCatalog? catalog,
-  math.Random? weaponRandom,
   Map<int, Map<String, Object>> heroOverrides = const {},
 }) {
   final records = [
@@ -74,8 +56,8 @@ CampaignState weaponStrategyCampaign({
     },
     [0, 1, 2, 3],
   );
-  final heroData = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final heroData = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   if (fortifiedCapital) {
     final capitalHero = (heroData['heroes'] as List).firstWhere(
@@ -92,8 +74,7 @@ CampaignState weaponStrategyCampaign({
     decodeRomHeroes(jsonEncode(heroData))
         .where((h) => recruitment || ids.contains(h.id))
         .toList(),
-    weaponCatalog: catalog ?? testWeaponCatalog(),
-    weaponRandom: weaponRandom,
+
     aiEnabled: ai,
     countryConfigs: {
       0: const CountryConfig(initialGold: 1000),
@@ -108,7 +89,7 @@ CampaignState weaponStrategyCampaign({
     siegeRandom: const FixedSiegeRandom(),
     retreatRandom: const FixedSiegeRandom(.9),
   );
-  c.settledMonths = 36; // 武器效果测试使用全部已解锁的年份。
+  c.settledMonths = 36; // 战略调度测试使用后期年份。
   c.countryTroops[1] = CountryTroops();
   c.countryTroops[2] = CountryTroops(reserveSoldiers: enemyStock);
   c.countryTroops[0] = CountryTroops(reserveSoldiers: 4);
@@ -116,5 +97,5 @@ CampaignState weaponStrategyCampaign({
 }
 
 /// 按原编号取得将领。
-CampaignHero weaponHero(CampaignState c, int id) =>
+CampaignHero scenarioHero(CampaignState c, int id) =>
     c.heroes.firstWhere((h) => h.sourceId == id);

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:pixel_world/core/config/game_config.dart';
 
@@ -9,7 +10,6 @@ import 'package:pixel_world/features/ai/protocol.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 /// 两国从相反方向面对同一扩张国，额外城市远离主城，排除距离与守将强弱混淆。
@@ -53,8 +53,8 @@ CampaignState coalitionCampaign({
     },
     [0, 1, 2, 3],
   );
-  final catalog = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final catalog = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   final ids = records.expand((row) => row.$6).toSet();
   for (final row in catalog['heroes']) {
@@ -71,9 +71,7 @@ CampaignState coalitionCampaign({
     decodeRomHeroes(jsonEncode(catalog))
         .where((h) => ids.contains(h.id))
         .toList(),
-    weaponCatalog: WeaponCatalog.decode(
-      File('assets/data/rom_weapons.json').readAsStringSync(),
-    ),
+
     countryConfigs: {
       0: const CountryConfig(initialGold: 0),
       1: CountryConfig(initialGold: gold),
@@ -85,7 +83,6 @@ CampaignState coalitionCampaign({
     economyRandom: math.Random(11),
     recruitmentRandom: math.Random(7),
     siegeRandom: math.Random(3),
-    weaponRandom: math.Random(17),
   )..settledMonths = (year - 1) * 12;
 }
 

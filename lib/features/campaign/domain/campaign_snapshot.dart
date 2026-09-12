@@ -45,11 +45,9 @@ extension CampaignSnapshots on CampaignState {
           'notice': [
             b._aiNoticedClashes,
             b._aiNoticedTroops,
-            b._aiNoticedWeapons,
             b._aiNoticedAttackerHp,
             b._aiNoticedDefenderHp,
           ],
-          'opening': b._weaponOpeningDone.toList(),
           'events': List.of(b.events),
           if (b is CityBattle) ...{
             'city': b.city.id,
@@ -114,17 +112,14 @@ extension CampaignSnapshots on CampaignState {
           'salary': h.salary,
           'paid': h._salaryPaidMonth,
           'squad': h.squad.map(healthId).toList(),
-          'weapons': List.of(h._weaponIds),
         },
     ];
     final ai = _ai;
     return {
       'version': 1,
       'payrollVersion': 2,
+      'stateRevision': 2,
       'world': world.id,
-      'weaponDropRandom': _weaponDropRandom is StateRandom
-          ? _weaponDropRandom.state
-          : throw StateError('测试随机源不能用于正式存档'),
       'aiEnabled': aiEnabled,
       'cities': {
         for (final e in cities.entries)
@@ -163,9 +158,6 @@ extension CampaignSnapshots on CampaignState {
           if (r is StateRandom) r.state else throw StateError('测试随机源不能用于正式存档'),
       ],
       'pool': _heroPool.keys.toList(),
-      'stock': {
-        for (final e in _weaponStock.entries) '${e.key}': _keys(e.value),
-      },
       'offers': [
         for (final o in _recruitmentOffers.values)
           [o.hero.id, o.cityId, o.countryId, o.initialSalary, o.drawnMonth],
@@ -257,8 +249,7 @@ extension CampaignSnapshots on CampaignState {
   static CampaignState restore(
     Map<String, dynamic> d,
     WorldDefinition world,
-    List<RomHeroDefinition> catalog,
-    WeaponCatalog weapons, {
+    List<RomHeroDefinition> catalog, {
     bool replay = false,
     AiWorker Function()? aiWorkerFactory,
   }) {
@@ -299,23 +290,21 @@ extension CampaignSnapshots on CampaignState {
     final people = <CampaignHero>[
       for (final h in d['people'])
         CampaignHero._saved(
-            id: h['id'],
-            rosterOrder: h['order'],
-            sourceId: h['source'],
-            name: h['name'],
-            type: HeroType.values[h['type']],
-            appearance: HeroAppearance.values[h['appearance']],
-            cityId: h['city'],
-            countryId: h['country'],
-            health: health[h['health']],
-            combat: combat(h['combat'], h['source']),
-            morale: h['morale'],
-            politics: h['politics'],
-            salary: salary(h['salary'], h['source'], h['type']),
-            squad: [for (final id in h['squad']) health[id]],
-          )
-          .._salaryPaidMonth = h['paid']
-          .._weaponIds.addAll((h['weapons'] as List).cast<int>()),
+          id: h['id'],
+          rosterOrder: h['order'],
+          sourceId: h['source'],
+          name: h['name'],
+          type: HeroType.values[h['type']],
+          appearance: HeroAppearance.values[h['appearance']],
+          cityId: h['city'],
+          countryId: h['country'],
+          health: health[h['health']],
+          combat: combat(h['combat'], h['source']),
+          morale: h['morale'],
+          politics: h['politics'],
+          salary: salary(h['salary'], h['source'], h['type']),
+          squad: [for (final id in h['squad']) health[id]],
+        ).._salaryPaidMonth = h['paid'],
     ];
     final random = [for (final value in d['random']) StateRandom(value)];
     final c = CampaignState._(
@@ -360,8 +349,6 @@ extension CampaignSnapshots on CampaignState {
                       : e.value[1],
                 ),
             }),
-      weapons,
-      StateRandom(d['weaponDropRandom'] as int? ?? world.id + 1),
     );
     CityDefinition? city(dynamic id) =>
         id == null ? null : world.cities.firstWhere((v) => v.id == id);
@@ -413,7 +400,7 @@ extension CampaignSnapshots on CampaignState {
           'attack': defender.combat,
         };
       }
-      final simulation = BattleSnapshots.restore(battleData, health, weapons);
+      final simulation = BattleSnapshots.restore(battleData, health);
       final WorldBattle battle;
       if (b.containsKey('city')) {
         final v =
@@ -452,22 +439,15 @@ extension CampaignSnapshots on CampaignState {
       battle._settled = b['settled'];
       battle._aiNoticedClashes = b['notice'][0];
       battle._aiNoticedTroops = b['notice'][1];
-      battle._aiNoticedWeapons = b['notice'][2];
-      battle._aiNoticedAttackerHp = _double(b['notice'][3]);
-      battle._aiNoticedDefenderHp = _double(b['notice'][4]);
-      battle._weaponOpeningDone.addAll((b['opening'] as List).cast<String>());
+      final notice = b['notice'] as List;
+      final offset = (d['stateRevision'] as int? ?? 1) >= 2 ? 2 : 3;
+      battle._aiNoticedAttackerHp = _double(notice[offset]);
+      battle._aiNoticedDefenderHp = _double(notice[offset + 1]);
       battle.events.addAll((b['events'] as List).cast<String>());
     }
     c._heroPool.addAll({
       for (final id in d['pool']) id as int: c._catalog[id]!,
     });
-    _intMap(
-      c._weaponStock,
-      d['stock'],
-      (v) => {
-        for (final e in (v as Map).entries) int.parse(e.key): e.value as int,
-      },
-    );
     for (final o in d['offers']) {
       c._recruitmentOffers[o[2]] = RecruitmentOffer(
         hero: c._catalog[o[0]]!,

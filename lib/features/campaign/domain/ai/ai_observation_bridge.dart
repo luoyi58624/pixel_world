@@ -9,7 +9,6 @@ extension _AiObservationBridge on CampaignState {
       for (var level = 1; level <= 5; level++)
         'cityMoraleBonus$level': GameConfig.cityDefenseMoraleBonusFor(level),
       'soldierLimit': GameConfig.heroSoldierLimit,
-      'carryLimit': weaponCatalog.carryLimit,
       'marchSpeed': GameConfig.baseMarchSpeed,
       'encounterDistance': GameConfig.fieldEncounterDistance,
       'monthSeconds': GameConfig.secondsPerMonth,
@@ -32,27 +31,13 @@ extension _AiObservationBridge on CampaignState {
       'drawCost': GameConfig.heroDrawCost,
       'retreatSurvivalRatio': GameConfig.aiRetreatSurvivalRatio,
       'retreatFailure': 1 - GameConfig.retreatBaseSuccessChance,
-      'weaponChance': 0,
     };
-    final weapons = [
-      for (final w in weaponCatalog.weapons.values)
-        AiWeapon(
-          w.id,
-          w.price,
-          w.damage,
-          w.selfDamage,
-          w.unlockYear,
-          w.shopEnabled,
-          w.animationFrames / 60,
-        ),
-    ];
     final stamp = _aiHash(
       jsonEncode([
         values,
         GameConfig.cityUpgradeCosts,
         GameConfig.cityDefenseAttackBonuses,
         GameConfig.nationalAi.toJson(),
-        [for (final w in weapons) w.toJson()],
       ]).codeUnits,
     );
     return AiRules(
@@ -69,7 +54,7 @@ extension _AiObservationBridge on CampaignState {
         GameConfig.mountainHeroAttackFactor,
         GameConfig.grassHeroAttackFactor,
       ],
-      weapons: weapons,
+
       tuning: GameConfig.nationalAi,
     );
   }
@@ -112,7 +97,7 @@ extension _AiObservationBridge on CampaignState {
       _aiKnownHeroes[hero.id] = hero;
       _aiLifeVersions.update(hero.id, (n) => n + 1, ifAbsent: () => 0);
     }
-    return '${_aiLifeVersions[hero.id]}:${hero.countryId}:${hero.cityId}:${hero.hp}:${hero.squad.map((s) => s.hp).join(',')}:${hero._weaponIds.join(',')}:${_aiArmyState(hero).index}:${_disbandAfterBattle.contains(hero.id)}:${hero.countryId == observer ? (_aiOrderVersions[hero.id] ?? 0) : 0}';
+    return '${_aiLifeVersions[hero.id]}:${hero.countryId}:${hero.cityId}:${hero.hp}:${hero.squad.map((s) => s.hp).join(',')}:${_aiArmyState(hero).index}:${_disbandAfterBattle.contains(hero.id)}:${hero.countryId == observer ? (_aiOrderVersions[hero.id] ?? 0) : 0}';
   }
 
   String _aiCityRevision(int id) {
@@ -175,13 +160,6 @@ extension _AiObservationBridge on CampaignState {
                   GameConfig.battleFormationFrames / 60 -
                       battle.simulation.elapsed,
                 )
-              : battle.simulation.weaponStrike != null
-              ? math.max(
-                      0,
-                      battle.simulation.weaponStrike!.weapon.animationFrames -
-                          math.max(0, battle.simulation.weaponStrike!.frame),
-                    ) /
-                    60
               : 0,
         ),
       );
@@ -234,7 +212,7 @@ extension _AiObservationBridge on CampaignState {
               march != null &&
               (march.waitingForDeparture || march.waitingForTraffic),
           soldiers: hero.squad.map((s) => s.hp).toList(),
-          weapons: hero.weaponIds,
+
           morale: battle == null
               ? hero.morale.toDouble()
               : battle.simulation
@@ -277,13 +255,6 @@ extension _AiObservationBridge on CampaignState {
               : attacking
               ? hit.attackerDamage
               : hit.defenderDamage,
-          openingAvailable:
-              battle == null || !battle._weaponOpeningDone.contains(hero.id),
-          weaponReady:
-              battle == null ||
-              battle.simulation.canUseWeaponFor(
-                attacking ? BattleSide.attacker : BattleSide.defender,
-              ),
         ),
       );
     }
@@ -308,7 +279,7 @@ extension _AiObservationBridge on CampaignState {
                 (n, c) => n + c.income,
               ),
           baseIncome: configFor(id).monthlyBaseIncome,
-          stock: id == countryId ? (_weaponStock[id] ?? {}) : {},
+
           garrisonAccrued: id == countryId ? garrisonUpkeepAccruedFor(id) : 0,
           hatred: id == countryId ? (_countryHatred[id] ?? {}) : {},
         ),

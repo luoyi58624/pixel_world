@@ -72,12 +72,12 @@ void main() {
     expect(legacy.saveState()['damageEighths'], [0, 0]);
   });
 
-  test('80点武器直伤保持精确，不消费或累加普通伤害的小数', () {
+  test('80点整队直伤保持精确，不消费或累加普通伤害的小数', () {
     final k = _duel(15);
     _clashes(k, 1);
     final before = k.ram[0x7452];
     final carry = k.saveState()['damageEighths'];
-    k.applyWeaponDamage(1, 80);
+    k.applyArmyDamage(1, 80);
     expect(before - k.ram[0x7452], 80);
     expect(k.saveState()['damageEighths'], carry);
   });

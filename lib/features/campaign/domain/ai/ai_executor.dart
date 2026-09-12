@@ -206,11 +206,7 @@ extension _AiCommands on CampaignState {
         reply.plan.requiredGold > 0 ||
         reply.plan.groups.any(
           (g) =>
-              g.actions.any(
-                (a) =>
-                    a.kind == AiActionKind.buyWeapon ||
-                    a.kind == AiActionKind.dispatch,
-              ) &&
+              g.actions.any((a) => a.kind == AiActionKind.dispatch) &&
               (reply.plan.phase == 'attacking' ||
                   reply.plan.phase == 'preparing' ||
                   reply.plan.phase == 'saving'),
@@ -318,8 +314,6 @@ extension _AiCommands on CampaignState {
                     action.amount,
                     countryId: reply.country,
                   );
-            case AiActionKind.buyWeapon:
-              ok = buyWeapon(action.amount, countryId: reply.country);
             case AiActionKind.dispatch:
               ok =
                   hero != null &&
@@ -329,10 +323,6 @@ extension _AiCommands on CampaignState {
                         point,
                         countryId: reply.country,
                         staggerDeparture: true,
-                        weaponSlots: {
-                          for (var i = 0; i < action.weaponIds.length; i++)
-                            i: action.weaponIds[i],
-                        },
                       ) !=
                       null;
             case AiActionKind.move:
@@ -458,7 +448,6 @@ extension _AiCommands on CampaignState {
         reserve = reserveSoldiersFor(countryId),
         capacity = reserveCapacityFor(countryId);
     final levels = {for (final c in cities.entries) c.key: c.value.level},
-        stock = Map<int, int>.of(_weaponStock[countryId] ?? {}),
         removed = <String>{};
     final upgraded = <int>{}, recruited = <int>{};
     for (final action in group.actions) {
@@ -469,7 +458,6 @@ extension _AiCommands on CampaignState {
         AiActionKind.upgrade,
         AiActionKind.recruit,
         AiActionKind.soldiers,
-        AiActionKind.buyWeapon,
       ].contains(action.kind);
       if (purchase && gold <= 0) return false;
       switch (action.kind) {
@@ -526,13 +514,6 @@ extension _AiCommands on CampaignState {
           }
           gold -= action.amount * GameConfig.soldierRecruitCost;
           reserve += action.amount;
-        case AiActionKind.buyWeapon:
-          final weapon = weaponCatalog.weapons[action.amount];
-          if (weapon == null || !weaponUnlocked(countryId, weapon)) {
-            return false;
-          }
-          gold -= weapon.price;
-          stock.update(weapon.id, (n) => n + 1, ifAbsent: () => 1);
         case AiActionKind.dispatch:
           if (hero == null ||
               removed.contains(hero.id) ||
@@ -543,11 +524,6 @@ extension _AiCommands on CampaignState {
             reserve,
             GameConfig.heroSoldierLimit - hero.soldiers,
           );
-          if (action.weaponIds.length > weaponCatalog.carryLimit) return false;
-          for (final id in action.weaponIds) {
-            if ((stock[id] ?? 0) == 0) return false;
-            stock[id] = stock[id]! - 1;
-          }
         case AiActionKind.move:
           if (hero == null || _moveProblem(hero.id, countryId) != null) {
             return false;
@@ -569,11 +545,7 @@ extension _AiCommands on CampaignState {
     }
     // 补兵可以花完现有余额；免费调动不受现金限制，其他采购仍保留经营底线。
     final militaryOnly = group.actions.every(
-      (a) => ![
-        AiActionKind.upgrade,
-        AiActionKind.recruit,
-        AiActionKind.buyWeapon,
-      ].contains(a.kind),
+      (a) => ![AiActionKind.upgrade, AiActionKind.recruit].contains(a.kind),
     );
     if (!militaryOnly && gold < group.minimumGold) return false;
     final replacing = group.tasks.map((t) => t.hero).toSet();

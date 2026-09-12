@@ -1,6 +1,6 @@
 part of 'battle_simulation.dart';
 
-/// 战斗的完整快照，包括内核、武器命中标记、撤退和结束动画。
+/// 战斗的完整快照，包括内核、撤退和结束动画。
 extension BattleSnapshots on BattleSimulation {
   /// 生命对象通过编号共享，恢复后战役与战场不会各持一份血量。
   Map<String, dynamic> saveState(int Function(BattleHealth) healthId) {
@@ -13,6 +13,7 @@ extension BattleSnapshots on BattleSimulation {
       'soldiers': a.soldiers.map(healthId).toList(),
     };
     return {
+      'version': 2,
       'attacker': army(attacker),
       'defender': army(defender),
       'cityLevel': defenderCityLevel,
@@ -75,17 +76,6 @@ extension BattleSnapshots on BattleSimulation {
       ],
       'events': List.of(events),
       'synced': {for (final e in _syncedHp.entries) '${e.key.index}': e.value},
-      'weaponUsers': _weaponUsers.map((s) => s.index).toList(),
-      'weapon': _weaponStrike == null
-          ? null
-          : {
-              'id': _weaponStrike!.weapon.id,
-              'attacking': _weaponStrike!.attackingSide,
-              'at': _weaponStrike!.startedAt,
-              'actors': _weaponStrike!.visibleActors,
-              'frame': _weaponStrike!.frame,
-              'applied': _weaponStrike!.applied,
-            },
       'retreat': _retreat == null
           ? null
           : [
@@ -101,7 +91,6 @@ extension BattleSnapshots on BattleSimulation {
   static BattleSimulation restore(
     Map<String, dynamic> d,
     List<BattleHealth> health,
-    WeaponCatalog weapons,
   ) {
     BattleArmy army(Map<String, dynamic> a) => BattleArmy(
       id: a['id'],
@@ -136,7 +125,13 @@ extension BattleSnapshots on BattleSimulation {
     s._ticks = t[2];
     s._endingTicks = t[3];
     s._endingCompleteAt = t[4];
-    s.stage = BattleStage.values[d['stage']];
+    final savedStage = d['stage'] as int;
+    // 旧版中已移除的演出阶段回到拼杀，后续阶段按旧编号迁移。
+    s.stage = (d['version'] as int? ?? 1) >= 2
+        ? BattleStage.values[savedStage]
+        : savedStage == 4
+        ? BattleStage.fighting
+        : BattleStage.values[savedStage > 4 ? savedStage - 1 : savedStage];
     s.stopped = d['stopped'];
     s.result = d['result'] == null ? null : BattleResult.values[d['result']];
     s._pendingResult = d['pendingResult'] == null
@@ -211,21 +206,6 @@ extension BattleSnapshots on BattleSimulation {
         for (final e in (d['synced'] as Map).entries)
           BattleSide.values[int.parse(e.key)]: (e.value as num).toDouble(),
       });
-    s._weaponUsers.addAll([
-      for (final i in d['weaponUsers']) BattleSide.values[i],
-    ]);
-    final w = d['weapon'];
-    if (w != null) {
-      s._weaponStrike =
-          WeaponStrike(
-              weapons.weapons[w['id']]!,
-              attackingSide: w['attacking'],
-              startedAt: (w['at'] as num).toDouble(),
-              visibleActors: w['actors'],
-            )
-            ..frame = w['frame']
-            ..applied = w['applied'];
-    }
     final r = d['retreat'];
     if (r != null) {
       s._retreat = (side: BattleSide.values[r[0]], succeeded: r[1] as bool);

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/simulation/runner.dart';
 import 'package:pixel_world/simulation/scenario.dart';
@@ -21,11 +20,9 @@ void main() {
         await SimulationRunner(
           world: worlds[2],
           heroes: decodeRomHeroes(
-            File('assets/data/rom_heroes.json').readAsStringSync(),
+            File('assets/data/heroes.json5').readAsStringSync(),
           ),
-          weapons: WeaponCatalog.decode(
-            File('assets/data/rom_weapons.json').readAsStringSync(),
-          ),
+
           aiWorkerFactory: SynchronousAiWorker.new,
         ).run(
           const SimulationScenario(
@@ -48,11 +45,9 @@ void main() {
     final runner = SimulationRunner(
       world: worlds.first,
       heroes: decodeRomHeroes(
-        File('assets/data/rom_heroes.json').readAsStringSync(),
+        File('assets/data/heroes.json5').readAsStringSync(),
       ),
-      weapons: WeaponCatalog.decode(
-        File('assets/data/rom_weapons.json').readAsStringSync(),
-      ),
+
       aiWorkerFactory: SynchronousAiWorker.new,
     );
     final a = await runner.run(

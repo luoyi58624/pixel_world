@@ -108,7 +108,7 @@ void main() {
   test('事件深度冻结，计划和库存后续变化不污染历史，关联编号不会串国', () {
     final events = CampaignEvents(worldId: 0, runId: 'immutable');
     final ids = <int>[1, 2];
-    final details = <String, Object?>{'weapons': ids, 'gold': 20};
+    final details = <String, Object?>{'ids': ids, 'gold': 20};
     final first = _emit(
       events,
       1,
@@ -119,11 +119,8 @@ void main() {
     details['gold'] = 0;
     _emit(events, 2, decision: 'country-2/request-1');
     expect(first.data['gold'], 20);
-    expect(first.data['weapons'], [1, 2]);
-    expect(
-      () => (first.data['weapons'] as List).add(4),
-      throwsUnsupportedError,
-    );
+    expect(first.data['ids'], [1, 2]);
+    expect(() => (first.data['ids'] as List).add(4), throwsUnsupportedError);
     expect(
       events.forCountry(1).query(decisionId: 'country-2/request-1'),
       isEmpty,

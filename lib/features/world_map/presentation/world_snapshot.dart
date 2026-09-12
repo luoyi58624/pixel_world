@@ -21,8 +21,6 @@ extension WorldSnapshots on WorldController {
     'pendingHero': pendingHero?.id,
     'movingHero': movingHeroId,
     'returnUnit': _targetReturnUnitId,
-    'selectedWeapons': List.of(_selectedWeaponIds),
-    'pendingWeapons': List.of(_pendingWeaponIds),
     'battle': watchedBattle is CityBattle
         ? ['city', (watchedBattle as CityBattle).city.id]
         : watchedBattle is FieldBattle
@@ -57,7 +55,6 @@ extension WorldSnapshots on WorldController {
       Map<String, dynamic>.from(d['campaign']),
       worlds[next],
       _heroCatalog,
-      _weaponCatalog,
       replay: replay,
       aiWorkerFactory: _aiWorkerFactory,
     );
@@ -89,10 +86,6 @@ extension WorldSnapshots on WorldController {
         .firstOrNull;
     movingHeroId = d['movingHero'];
     _targetReturnUnitId = d['returnUnit'];
-    _selectedWeaponIds
-      ..clear()
-      ..addAll((d['selectedWeapons'] as List).cast<int>());
-    _pendingWeaponIds = (d['pendingWeapons'] as List).cast<int>().toList();
     final b = d['battle'];
     watchedBattle = b == null
         ? null

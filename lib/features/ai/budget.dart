@@ -24,7 +24,7 @@ class CashRequirement {
   final double horizon;
 }
 
-/// 只在规划账本上扣除确定资源，不修改真实英雄、城市或库存。
+/// 只在规划账本上扣除确定资源，不修改真实英雄、城市或国库。
 class AiLedger {
   /// 以当前国库建立全国共用账本。
   AiLedger(
@@ -35,7 +35,6 @@ class AiLedger {
   }) : gold = view.nation.gold,
        reserves = view.nation.reserves,
        capacity = view.nation.capacity,
-       stock = Map.of(view.nation.stock),
        levels = {for (final c in view.owned) c.id: c.level},
        tasks = {for (final t in tasks) t.hero: t};
 
@@ -46,7 +45,7 @@ class AiLedger {
 
   /// 当前候选的剩余资源。
   int gold, reserves, capacity, extraSalary = 0;
-  final Map<int, int> stock, levels;
+  final Map<int, int> levels;
 
   /// 已选择的任务、移出/解雇英雄及入城名额。
   final Map<String, ArmyTask> tasks;
@@ -85,9 +84,6 @@ class AiLedger {
     next.reserves = reserves;
     next.capacity = capacity;
     next.extraSalary = extraSalary;
-    next.stock
-      ..clear()
-      ..addAll(stock);
     next.levels
       ..clear()
       ..addAll(levels);
@@ -418,11 +414,6 @@ class AiLedger {
       capacity,
       reserves + (hero.stationed ? hero.soldierCount : 0),
     );
-    if (hero.stationed) {
-      for (final id in hero.weapons) {
-        stock.update(id, (v) => v + 1, ifAbsent: () => 1);
-      }
-    }
     return true;
   }
 
@@ -438,21 +429,6 @@ class AiLedger {
     }
     gold -= cost;
     reserves += count;
-    return true;
-  }
-
-  /// 商店已开放的武器只检查价格，不按城池数解锁。
-  bool buyWeapon(int id) {
-    final w = rules.weapons[id];
-    if (w == null ||
-        !w.shopEnabled ||
-        view.year < w.unlockYear ||
-        gold <= 0 ||
-        gold < w.price) {
-      return false;
-    }
-    gold -= w.price;
-    stock.update(id, (n) => n + 1, ifAbsent: () => 1);
     return true;
   }
 
@@ -531,7 +507,7 @@ class AiLedger {
   }
 
   /// 派兵必须扣除真实自动领取的兵员，再登记全国唯一任务。
-  bool depart(AiHero hero, List<int> weapons, ArmyTask task) {
+  bool depart(AiHero hero, ArmyTask task) {
     if (!hero.canDispatch ||
         reservedHeroes.contains(hero.id) ||
         removed.contains(hero.id)) {
@@ -545,15 +521,6 @@ class AiLedger {
             task.arrivalSlot)) {
       return false;
     }
-    final stockCopy = Map<int, int>.of(stock);
-    if (weapons.length > rules.integer('carryLimit')) return false;
-    for (final id in weapons) {
-      if ((stockCopy[id] ?? 0) == 0) return false;
-      stockCopy[id] = stockCopy[id]! - 1;
-    }
-    stock
-      ..clear()
-      ..addAll(stockCopy);
     reserves -= math.min(
       reserves,
       rules.integer('soldierLimit') - hero.soldierCount,

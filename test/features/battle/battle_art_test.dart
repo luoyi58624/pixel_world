@@ -91,7 +91,7 @@ void main() {
     );
     expect(layout['levelStages'], [5, 4, 4, 4, 3]);
     expect(data['frameOrder'], ['side_a', 'side_b', 'clash']);
-    // 原版 E9B9 的普通人物近身姿势只有四块身体和一块武器，不能多拼另一方向。
+    // 原版 E9B9 的普通人物近身姿势只有四块身体和一块动作部件，不能多拼另一方向。
     for (final sprite in (data['sprites'] as Map).values) {
       expect(sprite['frames'][2].length, 5);
       expect(sprite['frames'][2].last['x'], -8);
@@ -132,20 +132,14 @@ void main() {
     });
   });
 
-  testWidgets('原版战斗角色包含武器动作，背景和角色缓存能按阵营独立读取', (tester) async {
+  testWidgets('原版战斗角色包含近身动作，背景和角色缓存能按阵营独立读取', (tester) async {
     await tester.runAsync(() async {
       final assets = await WorldAssets.load();
       final art = BattleArt(assets);
       expect(assets.battleSprites.length, 11);
       for (final image
           in assets.battleSprites.entries
-              .where(
-                (e) => !{
-                  'hero_names',
-                  'result_labels',
-                  'weapon_effects',
-                }.contains(e.key),
-              )
+              .where((e) => !{'hero_names', 'result_labels'}.contains(e.key))
               .map((e) => e.value)) {
         expect(
           Size(image.width.toDouble(), image.height.toDouble()),

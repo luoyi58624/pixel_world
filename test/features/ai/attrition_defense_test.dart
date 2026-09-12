@@ -9,7 +9,7 @@ void main() {
   for (final (label, guards, gold, enemyAttack) in [
     ('没有多余将领', [33], 200, 32),
     ('城内防线能够抵挡', [33, 34], 200, 1),
-    ('最强武器买不起', [33, 34], 10, 32),
+    ('国库资金不足', [33, 34], 10, 32),
     ('没有低攻击余将', [34, 35], 200, 32),
   ]) {
     test('$label时不派城内将领去做消耗截击', () {
@@ -37,7 +37,7 @@ void main() {
       );
     });
   }
-  test('即使低攻击余将和武器预算齐备，也不再安排出城消耗', () {
+  test('即使低攻击余将和军费齐备，也不再安排出城消耗', () {
     final c = nationalScenario(
       ai: false,
       guards: [33, 34],
@@ -105,7 +105,6 @@ void main() {
       ownDefense: 5,
       ownSoldiers: 4,
       enemySoldiers: 4,
-      enemyPressure: 20,
     );
     final b = assessor.compare(
       hero,
@@ -113,7 +112,6 @@ void main() {
       ownDefense: 5,
       ownSoldiers: 4,
       enemySoldiers: 4,
-      enemyPressure: 35,
     );
     final stronger = assessor.compare(
       hero,
@@ -121,7 +119,6 @@ void main() {
       ownDefense: 5,
       ownSoldiers: 4,
       enemySoldiers: 4,
-      enemyPressure: 60,
     );
     expect(a.lower, b.lower);
     expect(stronger.lower, greaterThan(a.lower));

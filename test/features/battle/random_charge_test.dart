@@ -82,7 +82,7 @@ void main() {
   });
 
   test('旧城防存档恢复后使用当前城防攻击，已扣血和士气不会重置', () {
-    final old = _kernel(456, city: 10)..applyWeaponDamage(1, 25);
+    final old = _kernel(456, city: 10)..applyArmyDamage(1, 25);
     final restored = _kernel(1, city: 5)
       ..restoreState(jsonDecode(jsonEncode(old.saveState())));
     expect(restored.ram[0x1b], 20);

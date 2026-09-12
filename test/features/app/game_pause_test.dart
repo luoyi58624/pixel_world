@@ -12,20 +12,13 @@ import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 import '../../support/national_ai_fixture.dart';
 import '../../support/recruitment_fixture.dart';
-import '../../support/weapon_strategy_fixture.dart';
+import '../../support/assault_fixture.dart';
 
 String _resources(CampaignState c) => jsonEncode({
   'month': c.settledMonths,
   'countries': [
     for (final id in c.cities.values.map((c) => c.ownerCountryId).toSet())
-      [
-        id,
-        c.goldFor(id),
-        c.reserveSoldiersFor(id),
-        [
-          for (final e in c.weaponInventoryFor(id).entries) [e.key, e.value],
-        ],
-      ],
+      [id, c.goldFor(id), c.reserveSoldiersFor(id)],
   ],
   'cities': [
     for (final e in c.cities.entries)
@@ -33,14 +26,7 @@ String _resources(CampaignState c) => jsonEncode({
   ],
   'heroes': [
     for (final h in c.heroes)
-      [
-        h.id,
-        h.hp,
-        h.cityId,
-        h.countryId,
-        h.squad.map((s) => s.hp).toList(),
-        h.weaponIds,
-      ],
+      [h.id, h.hp, h.cityId, h.countryId, h.squad.map((s) => s.hp).toList()],
   ],
   'marches': [
     for (final m in c.marches.values)
@@ -56,13 +42,7 @@ String _resources(CampaignState c) => jsonEncode({
   ],
   'battles': [
     for (final b in c.allBattles)
-      [
-        b.rounds,
-        b.simulation.elapsed,
-        b.simulation.stage.index,
-        b.simulation.weaponStrike?.frame,
-        b.outcome,
-      ],
+      [b.rounds, b.simulation.elapsed, b.simulation.stage.index, b.outcome],
   ],
   'pool': c.recruitPool.map((h) => h.id).toList(),
   'offer': c.recruitmentOffer?.hero.id,
@@ -71,10 +51,10 @@ String _resources(CampaignState c) => jsonEncode({
 
 void main() {
   test('暂停冻结各国行军和月结，恢复行军仍不额外扣款', () {
-    final c = weaponStrategyCampaign();
+    final c = assaultCampaign();
     c.settledMonths = 0;
     addTearDown(c.dispose);
-    final hero = weaponHero(c, 0);
+    final hero = scenarioHero(c, 0);
     final march = c.dispatchTo(hero, const GamePoint(500, 650), countryId: 1)!;
     c.advance(9.5);
     c.setPaused(true);
@@ -97,33 +77,22 @@ void main() {
     expect(c.settledMonths, 1);
   });
 
-  test('暂停冻结真实战斗和武器动画，不能扣武器或触发撤退与战败结算', () {
-    final c = weaponStrategyCampaign(
-      catalog: testWeaponCatalog(
-        stock: {
-          '1': {'0': 3},
-        },
-      ),
-    );
+  test('暂停冻结真实战斗，不能触发撤退与战败结算', () {
+    final c = assaultCampaign();
     addTearDown(c.dispose);
-    final hero = weaponHero(c, 0);
-    final march = c.dispatch(
-      hero,
-      c.world.cities[2],
-      countryId: 1,
-      weaponSlots: {0: 0},
-    )!;
+    final hero = scenarioHero(c, 0);
+    final march = c.dispatch(hero, c.world.cities[2], countryId: 1)!;
     march.position = march.destination;
     c.advance(1 / 60);
     final battle = c.battles[2]!;
-    for (var i = 0; i < 300 && battle.simulation.weaponStrike == null; i++) {
+    for (var i = 0; i < 300 && battle.simulation.forming; i++) {
       c.advance(1 / 60);
     }
-    expect(battle.simulation.weaponStrike, isNotNull);
+
     c.setPaused(true);
     final snapshot = _resources(c), elapsed = battle.simulation.elapsed;
     c.advance(3600);
-    expect(c.useWeapon(hero, 0, countryId: 1), isFalse);
+
     expect(c.retreatHero(hero.id, countryId: 1), isNull);
     expect(c.defeatHero(hero.id, winnerCountryId: 2), isNull);
     expect(_resources(c), snapshot);
@@ -133,7 +102,7 @@ void main() {
   });
 
   test('暂停时所有国家的采购、升级、补兵、抽取、签约和解雇都不生效', () {
-    final c = weaponStrategyCampaign(recruitment: true);
+    final c = assaultCampaign(recruitment: true);
     addTearDown(c.dispose);
     prepareRecruitmentCity(c, 0);
     final offer = c.drawHero(0)!;
@@ -143,7 +112,7 @@ void main() {
     for (final country in [0, 1]) {
       final hero = c.garrisonAt(country).first;
       expect(c.buySoldiers(country, 1, countryId: country), isFalse);
-      expect(c.buyWeapon(0, countryId: country), isFalse);
+
       expect(c.upgradeCity(country, hero: hero, countryId: country), isFalse);
       expect(c.reinforceHero(hero, countryId: country), 0);
       expect(c.drawHero(country, countryId: country), isNull);
@@ -197,7 +166,7 @@ void main() {
     final c = WorldController(
       decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()),
       heroCatalog: decodeRomHeroes(
-        File('assets/data/rom_heroes.json').readAsStringSync(),
+        File('assets/data/heroes.json5').readAsStringSync(),
       ),
       aiEnabled: false,
     );

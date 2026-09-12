@@ -398,8 +398,6 @@ class DefensePlanner {
             rules.integer('soldierLimit'),
             base.reserves + hero.soldierCount,
           ),
-          ownOpening: false,
-          enemyOpening: enemy.openingAvailable,
         );
         if (score.lower > (report.risk?.lower ?? -1) + .05) {
           final route = operations.routes.to(
@@ -448,8 +446,6 @@ class DefensePlanner {
           hero,
           incoming.hero,
           terrain: operations.routes.map.at(incoming.hero.position),
-          ownOpening: hero.openingAvailable,
-          enemyOpening: incoming.hero.openingAvailable,
         );
         if (score.advantage != CombatAdvantage.favorable) continue;
         final option = operations.send(
@@ -665,8 +661,6 @@ class DefensePlanner {
           army.hero,
           ownDefense: math.max(1, l.slots(r.city) - i),
           ownSoldiers: hero.soldierCount + add,
-          ownOpening: false,
-          enemyOpening: army.hero.openingAvailable,
         );
         if (worst == null || pair.lower < worst.lower) worst = pair;
       }

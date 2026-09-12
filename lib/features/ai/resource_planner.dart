@@ -30,7 +30,7 @@ class ResourcePlanner {
   final CombatAssessor assessor;
   final Map<int, CityDefenseReport> reports;
 
-  /// 日常依次补兵、补守将与进攻将、购进攻武器，余钱升级；紧急防御可优先升级。
+  /// 日常依次补兵、补守将与进攻将、余钱升级；紧急防御可优先升级。
   CountryPlan plan(AiLedger initial) {
     var ledger = initial;
     final view = request.observation;
@@ -147,7 +147,7 @@ class ResourcePlanner {
         );
       }
     }
-    // 明确来敌触发防御策略时，必要升级排在日常招将与武器之前。
+    // 明确来敌触发防御策略时，必要升级排在日常招将之前。
     for (final city in cities) {
       if (groups.length >= rules.tuning.maxCommands - 2) break;
       if (reports[city.id]?.threatened != true ||
@@ -184,7 +184,7 @@ class ResourcePlanner {
         return false;
       }
       final next = ledger.copy();
-      // 新将到位也需要随军兵，先计入补兵支出，不能把这笔钱再拿去买武器。
+      // 新将到位也需要随军兵，先计入补兵支出，不能把这笔钱重复用于其他采购。
       final troopTarget = math.min(
         next.capacity,
         desired + (next.recruited.length + 1) * rules.integer('soldierLimit'),
@@ -288,20 +288,10 @@ class ResourcePlanner {
       final governors = local.where((h) => h.canUpgrade).toList()
         ..sort((a, b) => b.politics.compareTo(a.politics));
       var extraHeroes = 1;
-      if (local.isNotEmpty && rules.weapons.isNotEmpty) {
+      if (local.isNotEmpty) {
         final lead = local.reduce(
           (a, b) => heroDeploymentValue(a) > heroDeploymentValue(b) ? a : b,
         );
-        final gear =
-            rules.weapons.values
-                .where(
-                  (w) =>
-                      w.shopEnabled &&
-                      w.selfDamage == 0 &&
-                      view.year >= w.unlockYear,
-                )
-                .toList()
-              ..sort((a, b) => b.damage.compareTo(a.damage));
         final targets =
             view.cities
                 .where(
@@ -328,16 +318,7 @@ class ResourcePlanner {
               );
         var team = targets.isEmpty ? 0 : 2;
         for (final target in targets.take(3)) {
-          final readiness = assessRaid(
-            lead,
-            target,
-            view,
-            rules,
-            assessor,
-            gear.isEmpty
-                ? []
-                : List.filled(rules.integer('carryLimit'), gear.first.id),
-          );
+          final readiness = assessRaid(lead, target, view, rules, assessor);
           if (readiness.teamSize > 0) {
             if (coalition?.dangerous == true &&
                 target.country == objective?.country) {
@@ -439,152 +420,130 @@ class ResourcePlanner {
                 request.seed,
               ).compareTo(targetPriority(a, hero, view, rules, request.seed)),
             );
-      var equipped = false;
+      var prepared = false;
       for (final target in targets.take(rules.tuning.maxTargets)) {
         final nearby = spare
             .where((h) => operations.canRaidFrom(h, target))
             .toList();
         if (nearby.isEmpty) continue;
         final hero = nearby.first;
-        for (final gear in operations.raidLoadouts(
-          hero,
-          ledger,
+
+        final readiness = assessRaid(hero, target, view, rules, assessor);
+        final queued = focus.assignedTo(target.id);
+        final teamSize = operations.raidTeamSize(
+          readiness.teamSize,
           target,
-          assessor,
-        )) {
-          final readiness = assessRaid(
-            hero,
-            target,
-            view,
-            rules,
-            assessor,
-            gear,
-          );
-          final queued = focus.assignedTo(target.id);
-          final teamSize = operations.raidTeamSize(
-            readiness.teamSize,
-            target,
-            ledger,
-            lead: hero,
-          );
-          final needed = teamSize - queued;
-          final secondary = focus.primary != null && focus.primary != target.id;
-          if (readiness.teamSize == 0 ||
-              needed <= 0 ||
-              needed > nearby.length ||
-              secondary &&
-                  (teamSize != 1 ||
-                      readiness.lower < rules.tuning.splitAdvantageMargin)) {
-            continue;
-          }
-          // 只求整队报价，虚拟资金不进入真实采购或回复中的命令。
-          var quote = ledger.copy()..gold = 1000000;
-          final purchases = <AiAction>[];
-          var ready = true;
-          var earliest = double.infinity, latest = 0.0;
-          for (var i = 0; i < needed; i++) {
-            final member = nearby[i];
-            final memberRisk = assessRaid(
-              member,
-              target,
-              view,
-              rules,
-              assessor,
-              gear,
-            );
-            if (memberRisk.teamSize == 0) {
-              ready = false;
-              break;
-            }
-            final route = operations.routes.to(
-              member,
-              target.center,
-              view,
-              target: target,
-            );
-            earliest = math.min(earliest, route.seconds);
-            latest = math.max(latest, route.seconds);
-            if (!route.complete ||
-                latest - earliest > rules.tuning.raidArrivalSpread) {
-              ready = false;
-              break;
-            }
-            final protection = cities.fold(
-              0,
-              (n, c) =>
-                  n +
-                  math.min(
-                        math.max(
-                          0,
-                          quote.garrison(c.id).length -
-                              (c.id == member.city ? 1 : 0),
-                        ),
-                        quote.defendersToKeep(c),
-                      ) *
-                      rules.integer('soldierLimit'),
-            );
-            final option = operations.send(
-              quote,
-              member,
-              route,
-              role: 'expedition',
-              reason: '按共同攻防门槛核算整队武器与兵员',
-              target: target,
-              gear: gear,
-              protectSoldiers: math.min(
-                protection,
-                math.max(0, quote.capacity - rules.integer('soldierLimit')),
-              ),
-              queueIndex: queued + i,
-              attrition: readiness.breakthrough,
-            );
-            if (option == null) {
-              ready = false;
-              break;
-            }
-            quote = option.ledger;
-            purchases.addAll(
-              option.group.actions.where(
-                (a) => a.kind == AiActionKind.buyWeapon,
-              ),
-            );
-          }
-          if (!ready) continue;
-          final neededGold = 1000000 - quote.gold + quote.cash().reserve;
-          if (ledger.gold < neededGold) {
-            if (requiredGold == 0 || neededGold < requiredGold) {
-              requiredGold = neededGold;
-              requiredHeroes = teamSize;
-              savingTarget = target.id;
-            }
-            continue;
-          }
-          final next = ledger.copy();
-          for (final action in purchases) {
-            if (!next.buyWeapon(action.amount)) {
-              ready = false;
-              break;
-            }
-          }
-          if (!ready || !affordable(next)) continue;
-          if (purchases.isNotEmpty) {
-            accept(
-              next,
-              purchases,
-              '按目标城防与守将配齐$teamSize名进攻将领的高级武器，保留月俸预算',
-              view.city(hero.city)!,
-            );
-          }
-          equipped = true;
-          preparedTarget = target.id;
-          requiredGold = 0;
-          savingTarget = null;
-          break;
+          ledger,
+          lead: hero,
+        );
+        final needed = teamSize - queued;
+        final secondary = focus.primary != null && focus.primary != target.id;
+        if (readiness.teamSize == 0 ||
+            needed <= 0 ||
+            needed > nearby.length ||
+            secondary &&
+                (teamSize != 1 ||
+                    readiness.lower < rules.tuning.splitAdvantageMargin)) {
+          continue;
         }
-        if (equipped) break;
+        // 只求整队报价，虚拟资金不进入真实采购或回复中的命令。
+        var quote = ledger.copy()..gold = 1000000;
+        final purchases = <AiAction>[];
+        var ready = true;
+        var earliest = double.infinity, latest = 0.0;
+        for (var i = 0; i < needed; i++) {
+          final member = nearby[i];
+          final memberRisk = assessRaid(member, target, view, rules, assessor);
+          if (memberRisk.teamSize == 0) {
+            ready = false;
+            break;
+          }
+          final route = operations.routes.to(
+            member,
+            target.center,
+            view,
+            target: target,
+          );
+          earliest = math.min(earliest, route.seconds);
+          latest = math.max(latest, route.seconds);
+          if (!route.complete ||
+              latest - earliest > rules.tuning.raidArrivalSpread) {
+            ready = false;
+            break;
+          }
+          final protection = cities.fold(
+            0,
+            (n, c) =>
+                n +
+                math.min(
+                      math.max(
+                        0,
+                        quote.garrison(c.id).length -
+                            (c.id == member.city ? 1 : 0),
+                      ),
+                      quote.defendersToKeep(c),
+                    ) *
+                    rules.integer('soldierLimit'),
+          );
+          final option = operations.send(
+            quote,
+            member,
+            route,
+            role: 'expedition',
+            reason: '按共同攻防门槛核算整队兵员',
+            target: target,
+
+            protectSoldiers: math.min(
+              protection,
+              math.max(0, quote.capacity - rules.integer('soldierLimit')),
+            ),
+            queueIndex: queued + i,
+            attrition: readiness.breakthrough,
+          );
+          if (option == null) {
+            ready = false;
+            break;
+          }
+          quote = option.ledger;
+          purchases.addAll(
+            option.group.actions.where((a) => a.kind == AiActionKind.soldiers),
+          );
+        }
+        if (!ready) continue;
+        final neededGold = 1000000 - quote.gold + quote.cash().reserve;
+        if (ledger.gold < neededGold) {
+          if (requiredGold == 0 || neededGold < requiredGold) {
+            requiredGold = neededGold;
+            requiredHeroes = teamSize;
+            savingTarget = target.id;
+          }
+          continue;
+        }
+        final next = ledger.copy();
+        for (final action in purchases) {
+          if (!next.buySoldiers(action.amount)) {
+            ready = false;
+            break;
+          }
+        }
+        if (!ready || !affordable(next)) continue;
+        if (purchases.isNotEmpty) {
+          accept(
+            next,
+            purchases,
+            '按目标城防与守将配齐$teamSize名进攻将领的随军兵员，保留月俸预算',
+            view.city(hero.city)!,
+          );
+        }
+        prepared = true;
+        preparedTarget = target.id;
+        requiredGold = 0;
+        savingTarget = null;
+
+        if (prepared) break;
       }
     }
-    // 常规升级不能抢占补兵、补将和已确定攻城武器的资金。
+    // 常规升级不能抢占补兵、补将和已确定远征军需的资金。
     if (savingTarget == null && !recruitmentPending) {
       for (final (city, governor) in routineUpgrades) {
         if (groups.fold(0, (n, g) => n + g.actions.length) >=
@@ -640,7 +599,7 @@ class ResourcePlanner {
       routeSteps: assessor.work.routeSteps,
       expansions: assessor.work.candidates,
       notes: [
-        if (protectProtagonist) '主角所在城存在明确风险，军费优先用于守军与城防，暂停进攻武器采购',
+        if (protectProtagonist) '主角所在城存在明确风险，军费优先用于守军与城防，暂停新增远征军需',
         if (groups.isEmpty) '本轮无必要且可支付的采购，保留国库',
         if (selectedPolicy?.dangerous == true) selectedPolicy!.decisionNote,
       ],

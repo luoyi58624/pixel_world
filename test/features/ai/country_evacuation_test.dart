@@ -142,33 +142,4 @@ void main() {
     expect(battle.effectiveDefenseLevel, 1);
     expect(c.garrisonAt(1).where((h) => h.health.alive).length, 1);
   });
-  test('T01/T05 可兑现的武器消耗确实改变防线余量，允许计入代价的自伤截击', () {
-    final c = nationalScenario(
-      originalWeapons: true,
-      ai: false,
-      level: 5,
-      gold: 50,
-      attackerCombat: 63,
-      overrides: {
-        2: {'maxHp': 200},
-        18: {'combat': 2},
-        19: {'combat': 2},
-      },
-      stock: {
-        '1': {'8': 1},
-      },
-    );
-    approaching(c, distance: 140);
-    c.advance(1 / 60);
-    final plan = planFor(c);
-    final strikes = plan.groups
-        .expand((g) => g.actions)
-        .where(
-          (a) => a.kind == AiActionKind.dispatch && a.weaponIds.contains(8),
-        )
-        .toList();
-    expect(strikes, isNotEmpty, reason: plan.toJson().toString());
-    expect(strikes.every((a) => a.hero != 'rom-0'), isTrue);
-    expect(c.weaponStockFor(1, 8), 1); // 评估不会提前消耗装备。
-  });
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/core/config/game_config.dart';
@@ -15,7 +16,6 @@ import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/economy/domain/economy.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/simulation/defensive_commander.dart';
 
@@ -39,10 +39,7 @@ class _Sequence implements Random {
 }
 
 final _heroes = decodeRomHeroes(
-  File('assets/data/rom_heroes.json').readAsStringSync(),
-);
-final _weapons = WeaponCatalog.decode(
-  File('assets/data/rom_weapons.json').readAsStringSync(),
+  File('assets/data/heroes.json5').readAsStringSync(),
 );
 
 CampaignState _game({
@@ -83,8 +80,8 @@ CampaignState _game({
   );
   var catalog = _heroes;
   if (regularSalary != null) {
-    final data = jsonDecode(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+    final data = json5Decode(
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     for (final row in data['heroes']) {
       if (row['type'] != 'protagonist') row['salary'] = regularSalary;
@@ -94,7 +91,7 @@ CampaignState _game({
   final c = CampaignState.fromRom(
     world,
     catalog,
-    weaponCatalog: _weapons,
+
     aiEnabled: ai,
     aiControlsPlayer: ai,
     aiWorkerFactory: SynchronousAiWorker.new,
@@ -132,7 +129,7 @@ void main() {
   });
 
   test('正式JSON逐国配置10至30保底，阿尔玛为10，一级城市产出20', () {
-    final raw = jsonDecode(
+    final raw = json5Decode(
       File('assets/data/campaign_config.json5').readAsStringSync(),
     );
     final setup = CampaignSetup.decode(jsonEncode(raw));
@@ -254,7 +251,7 @@ void main() {
     expect(c.gold, 0);
     expect(c.maxSoldierPurchase(0), 0);
     expect(c.buySoldiers(0, 1), isFalse);
-    expect(c.buyWeapon(0), isFalse);
+
     expect(c.drawHero(0), isNull);
     final hero = c.garrisonAt(0).first;
     expect(c.upgradeCity(0, hero: hero), isFalse);
@@ -288,7 +285,7 @@ void main() {
     final old = (saved['marches'] as List).single;
     old['halted'] = true;
     old['phase'] = MarchPhase.camped.index;
-    final copy = CampaignSnapshots.restore(saved, c.world, _heroes, _weapons);
+    final copy = CampaignSnapshots.restore(saved, c.world, _heroes);
     addTearDown(copy.dispose);
     final restored = copy.marches[march.hero.id]!;
     final origin = restored.position;
@@ -314,7 +311,7 @@ void main() {
     final hero = c.garrisonAt(0).first;
     expect(c.maxSoldierPurchase(0), 0);
     expect(c.buySoldiers(0, 1), isFalse);
-    expect(c.buyWeapon(0), isFalse);
+
     expect(c.drawHero(0), isNull);
     expect(c.upgradeCity(0, hero: hero), isFalse);
     expect(c.gold, 20 - c.salaryCost);
@@ -337,7 +334,7 @@ void main() {
     expect(c.gold, 0);
   });
 
-  test('AI零余额不补兵、不招将也不买武器', () {
+  test('AI零余额不补兵也不招将', () {
     final c = _game(gold: 0, ai: true, random: _Sequence([]));
     c.countryTroops[0] = CountryTroops();
     expect(c.buySoldiers(0, 1), isFalse);
@@ -347,14 +344,7 @@ void main() {
     expect(c.reserveSoldiersFor(0), 0);
     expect(c.gold, 0);
     final events = c.events.forCountry(0).query();
-    expect(
-      events.where(
-        (e) =>
-            e.kind == GameEventKind.heroSigned ||
-            e.kind == GameEventKind.weaponPurchased,
-      ),
-      isEmpty,
-    );
+    expect(events.where((e) => e.kind == GameEventKind.heroSigned), isEmpty);
   });
 
   test('只防守的验收玩家只补买得起的士兵，不透支或改变军队规模', () {
@@ -378,12 +368,11 @@ void main() {
     for (final hero in saved['people'] as List) {
       hero['salary'] = 5;
     }
-    final copy = CampaignSnapshots.restore(saved, c.world, _heroes, _weapons);
+    final copy = CampaignSnapshots.restore(saved, c.world, _heroes);
     final replay = CampaignSnapshots.restore(
       saved,
       c.world,
       _heroes,
-      _weapons,
       replay: true,
     );
     addTearDown(copy.dispose);
@@ -409,7 +398,7 @@ void main() {
   test('不同国家保底与逐城账单在存档恢复后保持，跨月不重抽旧收成', () {
     final c = _game(base: 13)..advance(60);
     final saved = jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
-    final copy = CampaignSnapshots.restore(saved, c.world, _heroes, _weapons);
+    final copy = CampaignSnapshots.restore(saved, c.world, _heroes);
     addTearDown(copy.dispose);
     expect(copy.configFor(0).monthlyBaseIncome, 13);
     expect(
@@ -437,12 +426,7 @@ void main() {
     final cities = history[11] as List;
     cities[1].addAll({'harvest': 'abundant', 'adjustment': 5, 'income': 25});
     cities[2].addAll({'harvest': 'poor', 'adjustment': -30, 'income': -10});
-    final restored = CampaignSnapshots.restore(
-      saved,
-      c.world,
-      _heroes,
-      _weapons,
-    );
+    final restored = CampaignSnapshots.restore(saved, c.world, _heroes);
     addTearDown(restored.dispose);
     expect(restored.lastSettlementFor(0)!.harvest, isNull);
     expect(jsonDecode(jsonEncode(restored.saveState())), saved);

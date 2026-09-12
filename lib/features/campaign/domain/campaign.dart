@@ -18,7 +18,6 @@ import '../../economy/domain/economy.dart';
 import '../../economy/domain/military_upkeep.dart';
 import '../../heroes/domain/recruitment.dart';
 import '../../battle/domain/field_terrain.dart';
-import '../../weapons/domain/weapon.dart';
 import '../../events/domain/game_events.dart';
 import '../../ai/geometry.dart';
 import '../../ai/threat_geometry.dart';
@@ -41,7 +40,6 @@ part 'economy/garrison_upkeep.dart';
 part 'economy/country_troops.dart';
 part 'economy/war_spoils.dart';
 part 'battles/battle_retreat.dart';
-part 'economy/campaign_weapons.dart';
 part 'countries/country_strategy.dart';
 part 'countries/country_relations.dart';
 part 'countries/territory_defense.dart';
@@ -243,10 +241,6 @@ class CampaignHero {
 
   /// 出征或当前守城战携带的小兵，空闲驻城时兵员归入城市。
   final List<BattleHealth> squad;
-  final List<int> _weaponIds = [];
-
-  /// 将领出征携带的武器，回城归库，守城禁用，上限读取武器目录。
-  List<int> get weaponIds => List.unmodifiable(_weaponIds);
 
   /// 当前存活的随行士兵数量。
   int get soldiers => squad.where((soldier) => soldier.alive).length;
@@ -434,9 +428,8 @@ abstract class WorldBattle {
   String? outcome;
   bool _settled = false;
   int _aiNoticedClashes = -1;
-  int _aiNoticedTroops = -1, _aiNoticedWeapons = -1;
+  int _aiNoticedTroops = -1;
   double _aiNoticedAttackerHp = -1, _aiNoticedDefenderHp = -1;
-  final Set<String> _weaponOpeningDone = {};
 
   /// 战斗记录，用于显示过程与结果。
   final List<String> events = [];
@@ -538,7 +531,6 @@ class CityBattle extends WorldBattle {
     wave++;
     nextWaveIn = 0;
     _settled = false;
-    _weaponOpeningDone.clear();
     simulation = BattleSimulation(
       attacker: attacker.battleArmy,
       defender: hero.battleArmy,
@@ -591,8 +583,6 @@ class CampaignState {
     this._retreatRandom,
     this.aiEnabled,
     this.countryConfigs,
-    this.weaponCatalog,
-    this._weaponDropRandom,
   ) : _protagonist = heroes
           .where((hero) => hero.isPlayer && hero.type == HeroType.protagonist)
           .firstOrNull;
@@ -606,7 +596,6 @@ class CampaignState {
   final math.Random _aiRandom;
   final math.Random _siegeRandom;
   final math.Random _retreatRandom;
-  final math.Random _weaponDropRandom;
   // 成功脱战的双方在拉开接触距离前不重复开打，其他敌军仍可拦截。
   final Set<(String, String)> _retreatSeparations = {};
   int _siegeArrivalSerial = 0;
@@ -617,9 +606,6 @@ class CampaignState {
   /// 本局国家配置快照，未配置的国家采用默认值。
   final Map<int, CountryConfig> countryConfigs;
 
-  /// 已加载的静态武器目录，各国适用相同的价格与效果。
-  final WeaponCatalog weaponCatalog;
-  final Map<int, Map<int, int>> _weaponStock = {};
   final Map<int, RecruitmentOffer> _recruitmentOffers = {};
   double _strategyTime = 0;
   final Map<int, Map<int, int>> _countryHatred = {};
@@ -716,13 +702,10 @@ class CampaignState {
     math.Random? aiRandom,
     math.Random? siegeRandom,
     math.Random? retreatRandom,
-    math.Random? weaponRandom,
-    math.Random? weaponDropRandom,
     AiWorker Function()? aiWorkerFactory,
     bool aiControlsPlayer = false,
     bool endOnPlayerDefeat = true,
     CampaignEvents? eventLog,
-    WeaponCatalog weaponCatalog = WeaponCatalog.empty,
   }) {
     final resolvedAiEnabled = aiEnabled ?? GameConfig.countryAiEnabled;
     final home = world.cities.first.id;
@@ -781,12 +764,8 @@ class CampaignState {
       retreatRandom ?? StateRandom(),
       resolvedAiEnabled,
       Map.unmodifiable(resolvedCountries),
-      weaponCatalog,
-      weaponDropRandom ?? StateRandom(),
     );
-    for (final entry in weaponCatalog.initialCountryStock.entries) {
-      campaign._weaponStock[entry.key] = Map.of(entry.value);
-    }
+
     for (final owner
         in campaign.cities.values.map((city) => city.ownerCountryId).toSet()) {
       final initial =
@@ -991,7 +970,6 @@ class CampaignState {
     // 城内配兵先归还，野外随军直接离队；都不凭空生成新的兵员。
     if (!marches.containsKey(hero.id)) {
       _returnSoldiers(hero);
-      _returnWeapons(hero);
     }
     marches.remove(hero.id);
     heroes.remove(hero);
@@ -1494,7 +1472,6 @@ class CampaignState {
   }
 
   void _recycleHero(CampaignHero hero, {bool dismissed = false}) {
-    hero._weaponIds.clear();
     _disbandAfterBattle.remove(hero.id);
     final definition = _catalog[hero.sourceId];
     if ((dismissed || GameConfig.recycleDefeatedHeroes) &&
@@ -1572,7 +1549,6 @@ class CampaignState {
         cityIncomes: cityIncomes,
       );
       _settlements[id] = report;
-      _rollMonthlyWeaponDrops(id, owned.length);
       _emitEvent(
         GameEventKind.monthSettled,
         '${world.countryName(id)}国 $dateLabel ${report.harvestLabel}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
@@ -1760,28 +1736,21 @@ class CampaignState {
     return true;
   }
 
-  /// 提交合法目标；weaponSlots 指定英雄槽位对应的库存武器编号，确认前不扣兵器。
+  /// 提交合法出征目标，确认后自动分配随军兵员。
   HeroMarch? dispatch(
     CampaignHero hero,
     CityDefinition target, {
     int countryId = 0,
-    Map<int, int> weaponSlots = const {},
   }) {
     if (!world.cities.contains(target)) return null;
-    return dispatchTo(
-      hero,
-      cityBounds(target).center,
-      countryId: countryId,
-      weaponSlots: weaponSlots,
-    );
+    return dispatchTo(hero, cityBounds(target).center, countryId: countryId);
   }
 
-  /// 确认目标后预留兵器与兵员，staggerDeparture 使同国出征至少间隔两秒。
+  /// 确认目标后分配兵员，staggerDeparture 使同国出征至少间隔两秒。
   HeroMarch? dispatchTo(
     CampaignHero hero,
     GamePoint point, {
     int countryId = 0,
-    Map<int, int> weaponSlots = const {},
     bool staggerDeparture = false,
   }) {
     final problem = dispatchBlockReason(hero, countryId: countryId);
@@ -1799,10 +1768,10 @@ class CampaignState {
     }
     final target = cityAt(point);
     final source = world.cities.firstWhere((city) => city.id == hero.cityId);
-    if (target == source || !_validWeaponSelection(hero, weaponSlots)) {
+    if (target == source) {
       _rejectEvent(
         GameEventKind.heroDispatched,
-        target == source ? '目标仍是出发城' : '装备选择已失效',
+        '目标仍是出发城',
         countryId: countryId,
         hero: hero,
         cityId: target?.id,
@@ -1810,7 +1779,6 @@ class CampaignState {
       return null;
     }
     final before = _eventResources(countryId);
-    _loadDispatchWeapons(hero, weaponSlots);
     reinforceHero(hero, countryId: countryId);
     final start = _departurePoint(source, point);
     final end = target == null ? point : _contactPoint(start, point, target);
@@ -2302,25 +2270,19 @@ class CampaignState {
     for (final battle in allBattles.toList()) {
       if (closingOnly && !_hasDisbandingArmy(battle)) continue;
       changed = battle.simulation.advance(dt) || changed;
-      final troopCount = battle.attacker.soldiers + battle.defender.soldiers,
-          weaponCount =
-              battle.attacker.weaponIds.length +
-              battle.defender.weaponIds.length;
+      final troopCount = battle.attacker.soldiers + battle.defender.soldiers;
       if (battle._aiNoticedClashes != battle.rounds ||
           battle._aiNoticedAttackerHp != battle.attacker.hp ||
           battle._aiNoticedDefenderHp != battle.defender.hp ||
-          battle._aiNoticedTroops != troopCount ||
-          battle._aiNoticedWeapons != weaponCount) {
+          battle._aiNoticedTroops != troopCount) {
         battle._aiNoticedTroops = troopCount;
-        battle._aiNoticedWeapons = weaponCount;
         battle._aiNoticedClashes = battle.rounds;
         battle._aiNoticedAttackerHp = battle.attacker.hp;
         battle._aiNoticedDefenderHp = battle.defender.hp;
-        _ai?.urgent(battle.attacker.countryId, reason: '战况、兵力或武器发生变化');
-        _ai?.urgent(battle.defender.countryId, reason: '战况、兵力或武器发生变化');
+        _ai?.urgent(battle.attacker.countryId, reason: '战况或兵力发生变化');
+        _ai?.urgent(battle.defender.countryId, reason: '战况或兵力发生变化');
       }
       if (!battle.isActive) continue;
-      if (!closingOnly) changed = _tryAutomaticWeapons(battle) || changed;
       if (battle.simulation.result != null && !battle._settled) {
         battle._settled = true;
         if (battle.simulation.retreat?.succeeded == true) {
@@ -2568,7 +2530,6 @@ class CampaignState {
     _aiOrderVersions.update(march.hero.id, (n) => n + 1, ifAbsent: () => 1);
     march.hero.hp = march.hero.maxHp;
     final returned = _returnSoldiers(march.hero);
-    _returnWeapons(march.hero);
     _record(
       '${march.hero.name}已进驻${cityName(march.target!.id)}，$returned 名士兵归营',
       kind: GameEventKind.heroStationed,

@@ -8,7 +8,7 @@ import 'package:pixel_world/features/ai/threat_geometry.dart';
 import '../../support/national_ai_fixture.dart';
 
 void main() {
-  test('三位守将不能反复借用同一份满血、满兵与三件武器', () {
+  test('三位守将不能反复借用同一份满血与满兵', () {
     final c = nationalScenario(
       ai: false,
       guards: [18, 19, 20],
@@ -25,7 +25,6 @@ void main() {
       view,
       rules,
       CombatAssessor(rules, AiWorkBudget(rules.tuning)),
-      [14, 14, 14],
     );
     expect(result.teamSize, greaterThan(1));
     c.dispose();

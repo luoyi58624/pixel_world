@@ -4,7 +4,7 @@ import '../core/config/game_config.dart';
 import '../features/campaign/domain/campaign.dart';
 import 'player_commander.dart';
 
-/// 纯防守玩家：正常补兵、补将和升级城防，永不派遣、移动或购买进攻武器。
+/// 纯防守玩家：正常补兵、补将和升级城防，永不派遣或移动。
 class DefensiveCommander implements PlayerCommander {
   @override
   final List<Map<String, Object?>> commands = [];

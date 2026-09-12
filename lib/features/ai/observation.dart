@@ -30,7 +30,6 @@ class AiHero {
     this.velocity = const AiPoint(0, 0),
     this.state = AiArmyState.garrison,
     List<double> soldiers = const [],
-    List<int> weapons = const [],
     this.morale = 0,
     this.destination,
     this.targetCity,
@@ -47,14 +46,11 @@ class AiHero {
     this.clashes = 0,
     this.received = 0,
     this.dealt = 0,
-    this.openingAvailable = true,
-    this.weaponReady = true,
     this.returnPath = const [],
     this.regionCity,
     this.salaryPaidMonth = -1,
     this.movementPending = false,
-  }) : soldiers = List.unmodifiable(soldiers),
-       weapons = List.unmodifiable(weapons);
+  }) : soldiers = List.unmodifiable(soldiers);
 
   /// 解码不含领域对象的记录。
   factory AiHero.fromJson(Map<String, dynamic> d) => AiHero(
@@ -72,7 +68,7 @@ class AiHero {
     velocity: AiPoint.fromJson(d['v']),
     state: AiArmyState.values[d['s']],
     soldiers: [for (final n in d['troops'] as List) (n as num).toDouble()],
-    weapons: List<int>.from(d['w']),
+
     morale: (d['m'] as num).toDouble(),
     destination: d['to'] == null ? null : AiPoint.fromJson(d['to']),
     targetCity: d['target'],
@@ -89,8 +85,7 @@ class AiHero {
     clashes: d['clashes'],
     received: (d['received'] as num).toDouble(),
     dealt: (d['dealt'] as num).toDouble(),
-    openingAvailable: d['opening'],
-    weaponReady: d['weaponReady'],
+
     returnPath: [for (final p in d['returnPath']) AiPoint.fromJson(p)],
     regionCity: d['regionCity'] as int?,
     salaryPaidMonth: d['salaryPaidMonth'] as int? ?? -1,
@@ -111,9 +106,7 @@ class AiHero {
   /// 当前实际状态。
   final AiArmyState state;
 
-  /// 实际随军小兵生命及有序背包。
   final List<double> soldiers;
-  final List<int> weapons;
 
   /// 已显示的士气。
   final double morale;
@@ -136,9 +129,6 @@ class AiHero {
   final String? opponent;
   final int clashes;
   final double received, dealt;
-
-  /// 当前动作是否允许释放及本场开场释放是否尚未发生。
-  final bool openingAvailable, weaponReady;
 
   /// 仅己方撤退的已走过路线。
   final List<AiPoint> returnPath;
@@ -178,7 +168,6 @@ class AiHero {
     'v': velocity.toJson(),
     's': state.index,
     'troops': soldiers,
-    'w': weapons,
     'm': morale,
     'to': destination?.toJson(),
     'target': targetCity,
@@ -195,8 +184,6 @@ class AiHero {
     'clashes': clashes,
     'received': received,
     'dealt': dealt,
-    'opening': openingAvailable,
-    'weaponReady': weaponReady,
     'returnPath': [for (final p in returnPath) p.toJson()],
     'regionCity': regionCity,
     'salaryPaidMonth': salaryPaidMonth,
@@ -296,7 +283,7 @@ class AiCity {
   /// 已阵亡守将仍在播放结束动画时，AI 不再把其占用的胜轮当成空闲名额。
   final bool defenderFallen;
 
-  /// 只由公开的当前准备或武器动画得出的最早结算下界，未知时为零。
+  /// 只由公开的当前准备动画得出的最早结算下界，未知时为零。
   final double dangerSeconds;
 
   /// 当前仍可能迎战的真实名额。
@@ -334,7 +321,7 @@ class AiCity {
   };
 }
 
-/// 全国资源及公开经济数据；武器库存只发送本国的。
+/// 全国资源及公开经济数据。
 class AiCountry {
   /// 创建国库视图。
   AiCountry(
@@ -346,10 +333,8 @@ class AiCountry {
     this.poorIncome, {
     this.baseIncome,
     this.garrisonAccrued = 0,
-    Map<int, int> stock = const {},
     Map<int, int> hatred = const {},
-  }) : stock = Map.unmodifiable(stock),
-       hatred = Map.unmodifiable(hatred);
+  }) : hatred = Map.unmodifiable(hatred);
 
   /// 解码资源记录。
   factory AiCountry.fromJson(Map<String, dynamic> d) => AiCountry(
@@ -361,10 +346,7 @@ class AiCountry {
     d['poor'],
     baseIncome: d['baseIncome'] as int?,
     garrisonAccrued: (d['garrisonAccrued'] as num? ?? 0).toDouble(),
-    stock: {
-      for (final e in (d['stock'] as Map).entries)
-        int.parse(e.key): e.value as int,
-    },
+
     hatred: {
       for (final e in (d['hate'] as Map).entries)
         int.parse(e.key): e.value as int,
@@ -380,8 +362,8 @@ class AiCountry {
   /// 本国已累计、将于月底支付的驻军军费，不能因重新分配任务消失。
   final double garrisonAccrued;
 
-  /// 库存和有方向的本国仇恨。
-  final Map<int, int> stock, hatred;
+  /// 有方向的本国仇恨。
+  final Map<int, int> hatred;
 
   /// 跨平台记录。
   Map<String, Object?> toJson() => {
@@ -393,7 +375,6 @@ class AiCountry {
     'poor': poorIncome,
     'baseIncome': baseIncome,
     'garrisonAccrued': garrisonAccrued,
-    'stock': {for (final e in stock.entries) '${e.key}': e.value},
     'hate': {for (final e in hatred.entries) '${e.key}': e.value},
   };
 }
@@ -442,7 +423,7 @@ class AiObservation {
   /// 当前决策国与逻辑时刻。
   final int country, tick;
 
-  /// 当前年份和已结算月份，武器解锁与首月经营禁用共同使用。
+  /// 当前年份和已结算月份，用于经营时机判断。
   final int year, monthIndex;
 
   /// 本月剩余时间。

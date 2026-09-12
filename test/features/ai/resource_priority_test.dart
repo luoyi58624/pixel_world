@@ -10,14 +10,14 @@ import '../../support/coalition_fixture.dart';
 import '../../support/national_ai_fixture.dart';
 
 void main() {
-  test('日常资源先补兵补将，再配进攻武器，最后用余钱升级', () {
+  test('日常资源先补兵补将，最后用余钱升级', () {
     final c = nationalScenario(
       ai: false,
       gold: 1000,
       level: 1,
       reserves: 0,
       recruitment: true,
-      // 本例验证采购顺序，弱守军确保存在可执行的进攻武器需求。
+      // 本例验证采购顺序，弱守军确保存在可执行的进攻兵员需求。
       attackerCombat: 5,
     );
     addTearDown(c.dispose);
@@ -32,12 +32,12 @@ void main() {
     );
     expect(
       kinds,
-      contains(AiActionKind.buyWeapon),
+      contains(AiActionKind.soldiers),
       reason: plan.toJson().toString(),
     );
     expect(
-      kinds.indexOf(AiActionKind.buyWeapon),
-      greaterThan(kinds.lastIndexOf(AiActionKind.recruit)),
+      kinds.indexOf(AiActionKind.recruit),
+      greaterThan(kinds.indexOf(AiActionKind.soldiers)),
     );
     expect(
       kinds,
@@ -46,7 +46,7 @@ void main() {
     );
     expect(
       kinds.indexOf(AiActionKind.upgrade),
-      greaterThan(kinds.lastIndexOf(AiActionKind.buyWeapon)),
+      greaterThan(kinds.lastIndexOf(AiActionKind.soldiers)),
     );
   });
 
@@ -70,7 +70,7 @@ void main() {
     expect(recruits.first.city, 3);
   });
 
-  test('守将预算尚不足时先攒钱，不先购买较便宜的进攻武器', () {
+  test('守将预算尚不足时先攒钱，不先升级城防', () {
     final c = nationalScenario(
       ai: false,
       gold: 14,
@@ -87,14 +87,14 @@ void main() {
     expect(
       actions.where(
         (a) =>
-            a.kind == AiActionKind.buyWeapon || a.kind == AiActionKind.upgrade,
+            a.kind == AiActionKind.soldiers || a.kind == AiActionKind.upgrade,
       ),
       isEmpty,
       reason: plan.toJson().toString(),
     );
   });
 
-  test('补兵可用最后余额但不能透支，不让招将武器升级抢钱', () {
+  test('补兵可用最后余额但不能透支，不让招将升级抢钱', () {
     final c = nationalScenario(
       ai: false,
       gold: 1,
@@ -127,7 +127,7 @@ void main() {
     expect(ledger.gold, 1);
   });
 
-  test('受防御策略影响的紧急升级可优先于日常招将武器', () {
+  test('受防御策略影响的紧急升级可优先于日常招将', () {
     final c = nationalScenario(
       ai: false,
       gold: 1000,
@@ -148,15 +148,8 @@ void main() {
     ], reason: plan.toJson().toString());
   });
 
-  test('零或负国库不限制无采购的出征、途中改令及已有武器使用', () {
-    final c = nationalScenario(
-      ai: false,
-      gold: 0,
-      level: 3,
-      stock: {
-        '1': {'10': 1},
-      },
-    );
+  test('零或负国库不限制无采购的出征、途中改令', () {
+    final c = nationalScenario(ai: false, gold: 0, level: 3);
     addTearDown(c.dispose);
     final rules = c.aiRulesForTesting(), map = c.aiMapForTesting();
     final view = c.aiObservationFor(1);
@@ -179,13 +172,12 @@ void main() {
       role: 'expedition',
       reason: '验证免费行军',
       target: target,
-      gear: [10],
     );
     expect(option, isNotNull);
     expect(option!.ledger.gold, -10);
     expect(option.group.tasks.single.gold, 0);
     expect(option.group.actions.map((a) => a.kind), [AiActionKind.dispatch]);
-    expect(option.ledger.buyWeapon(0), isFalse);
+
     final march = c.dispatchTo(
       c.garrisonAt(1).first,
       const GamePoint(700, 600),

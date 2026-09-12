@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
 import '../../support/fixed_siege_random.dart';
@@ -40,10 +39,8 @@ CampaignState spoilsCampaign() => CampaignState.fromRom(
     },
     [0, 1, 2, 3],
   ),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-  weaponCatalog: WeaponCatalog.decode(
-    File('assets/data/rom_weapons.json').readAsStringSync(),
-  ),
+  decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+
   aiEnabled: false,
   startingGold: 1000,
   siegeRandom: const FixedSiegeRandom(),
@@ -51,22 +48,18 @@ CampaignState spoilsCampaign() => CampaignState.fromRom(
 
 void main() {
   for (final winner in [0, 2]) {
-    test('国家 $winner 攻占城池和灭国均不继承金币武器，败国库存清空', () {
+    test('国家 $winner 攻占城池和灭国均不继承金币，败国国库清空', () {
       final c = spoilsCampaign();
       addTearDown(c.dispose);
-      c.buyWeapon(0, countryId: 1);
-      c.buyWeapon(0, countryId: 1);
-      c.buyWeapon(0, countryId: winner);
       final defeatedGold = c.goldFor(1), winnerGold = c.goldFor(winner);
       c.defeatHero('rom-3', winnerCountryId: 0, defendedCityId: 1);
       expect(c.goldFor(1), defeatedGold);
-      expect(c.weaponStockFor(1, 0), 2);
+
       expect(c.events.forCountry(1).timeline(), isEmpty);
       c.defeatHero('rom-4', winnerCountryId: winner, defendedCityId: 2);
       expect(c.goldFor(1), 0);
       expect(c.goldFor(winner), winnerGold);
-      expect(c.weaponInventoryFor(1), isEmpty);
-      expect(c.weaponStockFor(winner, 0), 1);
+
       expect(c.reserveCapacityFor(1), 0);
       expect(c.reserveSoldiersFor(1), 0);
       expect(
@@ -81,7 +74,7 @@ void main() {
         isNull,
       );
       expect(c.goldFor(winner), winnerGold);
-      expect(c.weaponStockFor(winner, 0), 1);
+
       expect(c.events.forCountry(winner).timeline(), isEmpty);
     });
   }

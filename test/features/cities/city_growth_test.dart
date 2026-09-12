@@ -17,12 +17,12 @@ CampaignState _campaign([int map = 0]) => ongoingCampaign(
   CampaignState.fromRom(
     aiEnabled: false,
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync())[map],
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 10000,
     siegeRandom: const FixedSiegeRandom(),
     retreatRandom: const FixedSiegeRandom(.9),
   ),
-  stock: 0,
+
   year: 3,
 );
 

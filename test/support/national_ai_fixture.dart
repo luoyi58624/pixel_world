@@ -3,11 +3,11 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/features/ai/country_brain.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
@@ -76,9 +76,7 @@ CampaignState nationalScenario({
   int attackerCombat = 15,
   Map<int, Map<String, Object>> overrides = const {},
   AiWorker Function()? workerFactory,
-  Map<String, dynamic> stock = const {},
   int terrain = 0,
-  bool originalWeapons = false,
   math.Random? retreatRandom,
 }) {
   final records = [
@@ -150,8 +148,8 @@ CampaignState nationalScenario({
     [0, 1, 2, 3],
     setup: setup,
   );
-  final data = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final data = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   for (final row in data['heroes'] as List) {
     row['salary'] = 0;
@@ -165,14 +163,6 @@ CampaignState nationalScenario({
     row.addAll(overrides[row['id']] ?? <String, Object>{});
   }
   final ids = records.expand((r) => r.$5).toSet();
-  final weapons = jsonDecode(
-    File(
-      originalWeapons
-          ? 'docs/reference/rom_weapons_original.json'
-          : 'assets/data/rom_weapons.json',
-    ).readAsStringSync(),
-  );
-  weapons['initialCountryStock'] = stock;
   final campaign = CampaignState.fromRom(
     world,
     decodeRomHeroes(jsonEncode(data))
@@ -180,14 +170,13 @@ CampaignState nationalScenario({
         .toList(),
     aiEnabled: ai,
     aiWorkerFactory: workerFactory ?? SynchronousAiWorker.new,
-    weaponCatalog: WeaponCatalog.decode(jsonEncode(weapons)),
+
     economyRandom: math.Random(11),
     recruitmentRandom: math.Random(7),
     siegeRandom: math.Random(3),
     retreatRandom: retreatRandom ?? math.Random(5),
-    weaponRandom: math.Random(17),
   );
-  campaign.settledMonths = 36; // 此组检验完整武器与经营调度，开局限制由独立测试覆盖。
+  campaign.settledMonths = 36; // 此组检验完整经营调度，开局限制由独立测试覆盖。
   campaign.countryTroops[1] = CountryTroops(reserveSoldiers: reserves);
   campaign.countryTroops[2] = CountryTroops(reserveSoldiers: 4);
   return campaign;

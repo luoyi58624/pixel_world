@@ -4,6 +4,7 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
@@ -17,8 +18,8 @@ CampaignState _campaign({
   int homeStock = 10,
   int enemyStock = 10,
 }) {
-  final json = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final json = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   ) as Map<String, dynamic>;
   // 用低攻击守军构造可稳定观察到兵员耗尽、将领仍存活的真实战斗。
   for (final row in json['heroes'] as List) {
@@ -61,7 +62,7 @@ CampaignState _campaign({
       retreatRandom: const FixedSiegeRandom(.9),
       startingGold: 10000,
     ),
-    stock: 0,
+
     year: 1,
   );
   if (homeStock > 0) expect(c.buySoldiers(0, homeStock), isTrue);

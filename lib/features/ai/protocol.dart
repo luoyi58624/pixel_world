@@ -2,7 +2,7 @@ import 'geometry.dart';
 import 'observation.dart';
 
 /// 消息协议版本；改变格式必须同时重建 UI 与 Worker。
-const aiProtocolVersion = 1;
+const aiProtocolVersion = 2;
 
 /// 正式调度按资源、防守、进攻串行执行；完整周期供独立评估测试使用。
 enum AiDecisionStage { full, resources, defense, attack }
@@ -13,7 +13,6 @@ enum AiActionKind {
   dismiss,
   recruit,
   soldiers,
-  buyWeapon,
   dispatch,
   move,
   camp,
@@ -29,7 +28,6 @@ class AiAction {
     this.city,
     this.point,
     this.amount = 0,
-    this.weaponIds = const [],
   });
 
   /// 指令类型与参数。
@@ -38,7 +36,6 @@ class AiAction {
   final int? city;
   final AiPoint? point;
   final int amount;
-  final List<int> weaponIds;
 
   /// 跨平台命令记录。
   Map<String, Object?> toJson() => {
@@ -47,7 +44,6 @@ class AiAction {
     'city': city,
     'point': point?.toJson(),
     'amount': amount,
-    'weapons': weaponIds,
   };
 
   /// 解码建议。
@@ -57,7 +53,6 @@ class AiAction {
     city: d['city'],
     point: d['point'] == null ? null : AiPoint.fromJson(d['point']),
     amount: d['amount'],
-    weaponIds: List<int>.from(d['weapons']),
   );
 }
 

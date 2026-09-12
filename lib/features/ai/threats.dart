@@ -184,8 +184,6 @@ class ThreatAnalyzer {
             army.hero,
             ownDefense: math.max(1, city.safeSlots - position),
             ownSoldiers: allocated[guard.id],
-            ownOpening: false,
-            enemyOpening: army.hero.openingAvailable,
           );
           if (worst == null || pair.lower < worst.lower) worst = pair;
         }

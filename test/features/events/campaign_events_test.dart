@@ -14,7 +14,7 @@ import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
 import '../../support/national_ai_fixture.dart';
-import '../../support/weapon_strategy_fixture.dart';
+import '../../support/assault_fixture.dart';
 
 void main() {
   for (final mutual in [false, true]) {
@@ -57,7 +57,7 @@ void main() {
       File('assets/maps/worlds.json').readAsStringSync(),
     ).first;
     final heroes = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     CampaignState make(bool enabled) => ongoingCampaign(
       CampaignState.fromRom(
@@ -68,7 +68,7 @@ void main() {
         economyRandom: math.Random(18),
         recruitmentRandom: math.Random(19),
         siegeRandom: math.Random(20),
-        weaponRandom: math.Random(21),
+
         retreatRandom: math.Random(22),
         eventLog: CampaignEvents(
           worldId: world.id,
@@ -76,7 +76,7 @@ void main() {
           onEvent: (_) => throw StateError('测试接收器错误'),
         ),
       ),
-      stock: 0,
+
       year: 1,
     );
     final recorded = make(true), silent = make(false);
@@ -99,10 +99,9 @@ void main() {
     expect(silent.events.totalCount, 0);
   });
   test('玩家和各国操作归入自己的日志，记录真实扣费和不可变等级', () {
-    final c = weaponStrategyCampaign(sourceLevel: 2);
+    final c = assaultCampaign(sourceLevel: 2);
     final player = c.garrisonAt(0).first;
     final general = c.garrisonAt(1).first;
-    c.buyWeapon(0);
     final before = c.goldFor(1);
     expect(c.upgradeCity(1, hero: general, countryId: 1), isTrue);
     final record = c.events.forCountry(1).query().last;
@@ -126,7 +125,6 @@ void main() {
     expect(
       own.map((e) => e.kind),
       containsAll([
-        GameEventKind.weaponPurchased,
         GameEventKind.heroDispatched,
         GameEventKind.heroMoved,
         GameEventKind.heroCamped,
@@ -135,7 +133,7 @@ void main() {
     expect(own.last.source, GameEventSource.player);
     c.setPaused(true);
     final gold = c.gold;
-    expect(c.buyWeapon(0), isFalse);
+    expect(c.camp(troop.hero.id), isFalse);
     expect(c.events.forCountry(0).query().last.phase, GameEventPhase.rejected);
     expect(c.gold, gold);
   });
@@ -279,7 +277,7 @@ void main() {
     expect(event.summary, isNot(contains('999')));
   });
   test('进攻双方各有战况记录，受袭国独立记仇且同次攻城不逐帧重复', () {
-    final c = weaponStrategyCampaign();
+    final c = assaultCampaign();
     final hero = c.garrisonAt(1).first;
     final march = c.dispatch(hero, c.world.cities[2], countryId: 1)!;
     march.position = march.destination;

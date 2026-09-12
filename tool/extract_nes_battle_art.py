@@ -49,7 +49,7 @@ def decompress(data, offset, count):
 
 
 def battle_frames(prg, kind):
-    """按 A0EA 指针、拼接编号、翻转属性及追加武器部件还原三个侧面动作。"""
+    """按 A0EA 指针、拼接编号、翻转属性及追加动作部件还原三个侧面动作。"""
     pointer = int.from_bytes(prg[0x160EA + kind * 2:0x160EC + kind * 2], 'little')
     attributes = pointer + 0xC000
     indices = attributes - 0x302
@@ -68,7 +68,7 @@ def battle_frames(prg, kind):
             parts.append((prg[indices + entry], prg[attributes + entry], q % 2 * 8, q // 2 * 8))
         if source_frame == 6:
             start, end = prg[0x163EC + kind:0x163EE + kind]
-            # 普通人物执行 EA56 和 EA64 两次 LSR，只有四分之一是当前方向的武器。
+            # 普通人物执行 EA56 和 EA64 两次 LSR，只有四分之一是当前方向的动作部件。
             for i in range((end - start) // 4):
                 entry = start + i
                 x, y = prg[0x1649D + entry * 2:0x1649F + entry * 2]

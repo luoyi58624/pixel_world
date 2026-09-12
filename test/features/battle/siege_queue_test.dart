@@ -44,13 +44,13 @@ WorldDefinition _world() => WorldDefinition.fromJson(
 CampaignState _campaign({WorldDefinition? world}) => ongoingCampaign(
   CampaignState.fromRom(
     world ?? _world(),
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
     siegeRandom: const FixedSiegeRandom(),
     retreatRandom: const FixedSiegeRandom(.9),
     startingGold: 1000,
   ),
-  stock: 0,
+
   year: 1,
 );
 
@@ -108,7 +108,7 @@ void _withdraw(CampaignState c, HeroMarch march) {
 void main() {
   test('原版驻军按目录以主角开头，扩展将领不改变原身份编号', () {
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     final heroes =
         catalog

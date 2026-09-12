@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../campaign/domain/campaign.dart';
+import '../../countries/presentation/country_flag.dart';
 import '../../world_map/data/world_assets.dart';
 import '../../world_map/presentation/world_controller.dart';
 import 'hero_dismiss_button.dart';
 import 'hero_retreat_button.dart';
-import '../../weapons/presentation/weapon_loadout.dart';
 
 const _cream = Color(0xffece7d1);
 const _muted = Color(0xffa7b5a4);
@@ -54,6 +54,13 @@ class UnitPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 6, 8),
             child: Row(
               children: [
+                CountryFlag(
+                  key: const ValueKey('unit-country-flag'),
+                  image: assets.flags,
+                  countryId: hero.countryId,
+                  countryName: c.world.countryName(hero.countryId),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     hero.name,
@@ -113,6 +120,7 @@ class UnitPanel extends StatelessWidget {
   Widget _unit(CampaignHero hero) {
     final c = controller;
     final unit = c.selectedUnit;
+    final battle = c.campaign.activeBattleForHero(hero.id);
     final status = switch (unit?.phase) {
       MarchPhase.marching => unit!.returningFromRetreat ? '撤退返程中' : '行军中',
       MarchPhase.camped =>
@@ -122,9 +130,8 @@ class UnitPanel extends StatelessWidget {
       MarchPhase.awaitingBattle => '城下待战',
       MarchPhase.fighting => '交战中',
       MarchPhase.dueling => '野战中',
-      null => '驻守中',
+      null => battle != null ? '战斗中' : '驻守中',
     };
-    final battle = c.campaign.activeBattleForHero(hero.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -144,7 +151,6 @@ class UnitPanel extends StatelessWidget {
             _stat('士兵', '${hero.soldiers} 人'),
           ],
         ),
-        WeaponLoadout(controller: c, hero: hero),
         if (hero.isPlayer) ...[
           const SizedBox(height: 16),
           Row(

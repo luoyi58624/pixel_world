@@ -72,5 +72,5 @@ class CoalitionPolicy {
 
   /// 最终决策解释沿用所在日志的目标国家名称，不输出内部身份编号。
   String get decisionNote =>
-      '目标国占有 $cityCount 座城，列为危险国家；追加进攻预算 $extraGold 金币，准备强化武器和轮攻兵力';
+      '目标国占有 $cityCount 座城，列为危险国家；追加进攻预算 $extraGold 金币，准备轮攻兵力';
 }

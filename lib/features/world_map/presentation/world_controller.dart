@@ -15,7 +15,6 @@ import 'world_camera.dart';
 import '../domain/world_data.dart';
 import '../domain/world_movement.dart';
 import '../../heroes/domain/recruitment.dart';
-import '../../weapons/domain/weapon.dart';
 import '../../ai/runtime/worker.dart';
 
 part 'world_snapshot.dart';
@@ -29,14 +28,12 @@ class WorldController extends ChangeNotifier {
     int? startingGold,
     Map<int, CountryConfig>? countryConfigs,
     bool? aiEnabled,
-    WeaponCatalog weaponCatalog = WeaponCatalog.empty,
     AiWorker Function()? aiWorkerFactory,
   }) : _heroCatalog = List.unmodifiable(heroCatalog),
        _countryConfigs = countryConfigs == null
            ? null
            : Map.unmodifiable(countryConfigs),
        _aiEnabled = aiEnabled ?? GameConfig.countryAiEnabled,
-       _weaponCatalog = weaponCatalog,
        _aiWorkerFactory = aiWorkerFactory,
        camera = WorldCamera(worlds.first.pixelSize),
        campaigns = worlds
@@ -47,7 +44,6 @@ class WorldController extends ChangeNotifier {
                startingGold: startingGold,
                countryConfigs: countryConfigs,
                aiEnabled: aiEnabled ?? GameConfig.countryAiEnabled,
-               weaponCatalog: weaponCatalog,
                aiWorkerFactory: aiWorkerFactory,
              ),
            )
@@ -72,7 +68,6 @@ class WorldController extends ChangeNotifier {
   final List<RomHeroDefinition> _heroCatalog;
   final Map<int, CountryConfig>? _countryConfigs;
   final bool _aiEnabled;
-  final WeaponCatalog _weaponCatalog;
   final AiWorker Function()? _aiWorkerFactory;
   bool _gameOverShown = false;
 
@@ -114,21 +109,6 @@ class WorldController extends ChangeNotifier {
 
   /// 已点出击、尚未在地图上确认位置的英雄。
   CampaignHero? pendingHero;
-
-  final List<int> _selectedWeaponIds = [];
-  List<int> _pendingWeaponIds = [];
-
-  /// 当前面板准备携带的武器总数，选中本身不改变库存。
-  int get selectedWeaponCount => _selectedWeaponIds.length;
-
-  /// 同类武器本次准备携带的件数。
-  int selectedWeaponCountFor(int id) =>
-      _selectedWeaponIds.where((value) => value == id).length;
-
-  void _clearWeaponSelection() {
-    _selectedWeaponIds.clear();
-    _pendingWeaponIds = [];
-  }
 
   /// 正等待重新指定目的地的在外英雄。
   String? movingHeroId;
@@ -279,7 +259,6 @@ class WorldController extends ChangeNotifier {
     if (isPaused || campaign.defeated) return;
     _clock.clearPending();
     if (value != index) campaign.pauseAi();
-    _clearWeaponSelection();
     _gameOverShown = false;
     camera.cancelMotion();
     battleCamera.cancelMotion();
@@ -396,10 +375,6 @@ class WorldController extends ChangeNotifier {
     }
     if (changed) {
       if (campaign.lastEvent.isNotEmpty) message = campaign.lastEvent;
-      if (_selectedWeaponIds.isNotEmpty &&
-          (selectedHero == null || !campaign.canDispatch(selectedHero!))) {
-        _clearWeaponSelection();
-      }
     }
     if (watchedBattle != null && !watchedBattle!.isActive) {
       // 整场交战结束才退出；连续守将的短暂换人仍属于同一场攻城。
@@ -411,7 +386,6 @@ class WorldController extends ChangeNotifier {
     }
     if (pendingHero != null && !campaign.canDispatch(pendingHero!)) {
       pendingHero = null;
-      _clearWeaponSelection();
       _targetReturnUnitId = null;
       changed = true;
     }
@@ -438,7 +412,6 @@ class WorldController extends ChangeNotifier {
 
   void _showDefeat() {
     if (_gameOverShown) return;
-    _clearWeaponSelection();
     _gameOverShown = true;
     watchedBattle = null;
     camera.cancelMotion();
@@ -468,7 +441,6 @@ class WorldController extends ChangeNotifier {
       _heroCatalog,
       countryConfigs: _countryConfigs,
       aiEnabled: _aiEnabled,
-      weaponCatalog: _weaponCatalog,
       aiWorkerFactory: _aiWorkerFactory,
     );
     time = 0;
@@ -503,7 +475,6 @@ class WorldController extends ChangeNotifier {
     } else if (city != null) {
       openCity(city);
     } else {
-      _clearWeaponSelection();
       selectedCity = null;
       selectedUnitId = null;
       watchedBattle = null;
@@ -554,7 +525,6 @@ class WorldController extends ChangeNotifier {
     if (campaign.defeated) return;
     if (isPaused && choosingTarget) cancelCityAction();
     if (!world.cities.contains(city) || choosingTarget) return;
-    _clearWeaponSelection();
     selectedUnitId = null;
     watchedBattle = null;
     selectedCity = city;
@@ -580,7 +550,6 @@ class WorldController extends ChangeNotifier {
       return;
     }
     selectedHeroId = id;
-    _clearWeaponSelection();
     refreshUi();
   }
 
@@ -591,8 +560,6 @@ class WorldController extends ChangeNotifier {
       return;
     }
     pendingHero = hero;
-    _pendingWeaponIds = List.of(_selectedWeaponIds);
-    _selectedWeaponIds.clear();
     movingHeroId = null;
     _targetReturnUnitId = null;
     selectedUnitId = null;
@@ -614,18 +581,9 @@ class WorldController extends ChangeNotifier {
     final hero = pendingHero ?? campaign.marches[movingHeroId]?.hero;
     if (hero == null) return;
     final accepted = pendingHero != null
-        ? campaign.dispatchTo(
-                hero,
-                point,
-                weaponSlots: {
-                  for (var slot = 0; slot < _pendingWeaponIds.length; slot++)
-                    slot: _pendingWeaponIds[slot],
-                },
-              ) !=
-              null
+        ? campaign.dispatchTo(hero, point) != null
         : campaign.moveTo(hero.id, point);
     if (!accepted) return;
-    _clearWeaponSelection();
     pendingHero = null;
     movingHeroId = null;
     _targetReturnUnitId = null;
@@ -641,7 +599,6 @@ class WorldController extends ChangeNotifier {
 
   /// 取消选目标时回到原城池面板，面板内取消则直接关闭。
   void cancelCityAction() {
-    _clearWeaponSelection();
     if (watchedBattle != null) {
       leaveMap();
       battleCamera.cancelMotion();
@@ -668,7 +625,6 @@ class WorldController extends ChangeNotifier {
 
   /// 关闭城池面板，不改变任何已出征部队。
   void closeCity() {
-    _clearWeaponSelection();
     selectedCity = null;
     refreshUi();
   }
@@ -708,7 +664,6 @@ class WorldController extends ChangeNotifier {
   void signRecruitment(RecruitmentOffer offer) {
     final hero = campaign.signHero(offer);
     if (hero != null) {
-      _clearWeaponSelection();
       selectedHeroId = hero.id;
       message = campaign.lastEvent;
       refreshUi();
@@ -731,14 +686,12 @@ class WorldController extends ChangeNotifier {
       return;
     }
     if (pendingHero == hero || movingHeroId == hero.id) {
-      _clearWeaponSelection();
       pendingHero = null;
       movingHeroId = null;
       _targetReturnUnitId = null;
     }
     if (selectedUnitId == hero.id) selectedUnitId = null;
     if (selectedHeroId == hero.id) {
-      _clearWeaponSelection();
       selectedHeroId = selectedCity == null
           ? null
           : campaign.garrisonAt(selectedCity!.id).firstOrNull?.id;
@@ -857,7 +810,6 @@ class WorldController extends ChangeNotifier {
     if (choosingTarget || !campaign.marches.containsKey(id)) {
       return;
     }
-    _clearWeaponSelection();
     selectedUnitId = id;
     selectedCity = null;
     watchedBattle = null;
@@ -892,42 +844,10 @@ class WorldController extends ChangeNotifier {
     refreshUi();
   }
 
-  /// 从全局商店购买国家共用武器，不依赖当前选中的城池或英雄。
-  void buyCountryWeapon(int weaponId) {
-    if (!campaign.buyWeapon(weaponId)) return;
-    message = campaign.lastEvent;
-    refreshUi();
-  }
-
-  /// 选择库存武器，满额时替换最早选择的一件，已选完该类型时再次点击减一。
-  void selectWeapon(int weaponId) {
-    final hero = selectedHero;
-    if (selectedCity == null || hero == null || !campaign.canDispatch(hero)) {
-      return;
-    }
-    final count = selectedWeaponCountFor(weaponId);
-    if (count < campaign.weaponStockFor(0, weaponId)) {
-      if (selectedWeaponCount >= campaign.weaponCatalog.carryLimit) {
-        _selectedWeaponIds.removeAt(0);
-      }
-      _selectedWeaponIds.add(weaponId);
-    } else if (count > 0) {
-      _selectedWeaponIds.remove(weaponId);
-    }
-    refreshUi();
-  }
-
-  /// 从当前携带选择中减少一件，不影响国家库存或英雄原装备。
-  void deselectWeapon(int weaponId) {
-    _selectedWeaponIds.remove(weaponId);
-    refreshUi();
-  }
-
   /// 查看后台正在运行的战斗，不创建新战斗或暂停时间。
   void watchBattle(WorldBattle battle) {
     if (campaign.defeated) return;
     if (isPaused && choosingTarget) cancelCityAction();
-    _clearWeaponSelection();
     leaveMap();
     camera.cancelMotion();
     battleCamera.cancelMotion();

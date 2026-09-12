@@ -4,40 +4,6 @@ import 'config.dart';
 import 'geometry.dart';
 import '../battle/domain/combat_rules.dart';
 
-/// 只含公开数值的武器定义。
-class AiWeapon {
-  /// 保存实际价格、伤害、自伤、门槛与演出时长。
-  const AiWeapon(
-    this.id,
-    this.price,
-    this.damage,
-    this.selfDamage,
-    this.unlockYear,
-    this.shopEnabled,
-    this.seconds,
-  );
-
-  /// 武器属性。
-  final int id, price, damage, selfDamage, unlockYear;
-  final bool shopEnabled;
-  final double seconds;
-
-  /// 简洁序列化。
-  List<Object> toJson() => [
-    id,
-    price,
-    damage,
-    selfDamage,
-    unlockYear,
-    shopEnabled,
-    seconds,
-  ];
-
-  /// 解码武器。
-  factory AiWeapon.fromJson(List<dynamic> d) =>
-      AiWeapon(d[0], d[1], d[2], d[3], d[4], d[5], (d[6] as num).toDouble());
-}
-
 /// 初始化时下发一次的实际规则，核心不读取 Flutter 资源或战斗内核。
 class AiRules {
   /// 规则数值由主环境统一适配。
@@ -48,14 +14,12 @@ class AiRules {
     required List<int> defenseBonuses,
     required List<double> movementFactors,
     required List<double> fieldFactors,
-    List<AiWeapon> weapons = const [],
     this.tuning = const AiTuning(),
   }) : values = Map.unmodifiable(values),
        upgradeCosts = List.unmodifiable(upgradeCosts),
        defenseBonuses = List.unmodifiable(defenseBonuses),
        movementFactors = List.unmodifiable(movementFactors),
-       fieldFactors = List.unmodifiable(fieldFactors),
-       weapons = Map.unmodifiable({for (final w in weapons) w.id: w});
+       fieldFactors = List.unmodifiable(fieldFactors);
 
   /// 解码规则。
   factory AiRules.fromJson(Map<String, dynamic> d) => AiRules(
@@ -65,7 +29,6 @@ class AiRules {
     defenseBonuses: List<int>.from(d['defenseBonuses']),
     movementFactors: [for (final v in d['movement']) (v as num).toDouble()],
     fieldFactors: [for (final v in d['field']) (v as num).toDouble()],
-    weapons: [for (final v in d['weapons']) AiWeapon.fromJson(v)],
     tuning: AiTuning.fromJson(Map<String, dynamic>.from(d['tuning'])),
   );
 
@@ -82,8 +45,7 @@ class AiRules {
   /// 按平地、水、山、建筑排列的行军与野战倍率。
   final List<double> movementFactors, fieldFactors;
 
-  /// 武器目录和策略预算。
-  final Map<int, AiWeapon> weapons;
+  /// 策略预算。
   final AiTuning tuning;
 
   /// 读取小数配置。
@@ -140,7 +102,6 @@ class AiRules {
     'defenseBonuses': defenseBonuses,
     'movement': movementFactors,
     'field': fieldFactors,
-    'weapons': [for (final w in weapons.values) w.toJson()],
     'tuning': tuning.toJson(),
   };
 }

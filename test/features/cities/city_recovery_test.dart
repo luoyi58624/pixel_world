@@ -19,11 +19,11 @@ CampaignState campaign([int map = 0]) => ongoingCampaign(
         File('assets/data/campaign_config.json5').readAsStringSync(),
       ),
     )[map],
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 10000,
     aiEnabled: false,
   ),
-  stock: 10,
+
   year: 1,
 );
 

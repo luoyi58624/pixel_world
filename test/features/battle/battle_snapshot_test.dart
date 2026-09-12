@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 
 Map<String, dynamic> snapshot(BattleSimulation sim) {
   final health = <BattleHealth>[];
@@ -28,9 +26,6 @@ Map<String, dynamic> snapshot(BattleSimulation sim) {
 }
 
 void main() {
-  final weapons = WeaponCatalog.decode(
-    File('assets/data/rom_weapons.json').readAsStringSync(),
-  );
   BattleArmy army(String id) => BattleArmy(
     id: id,
     name: id,
@@ -39,7 +34,7 @@ void main() {
     morale: 50,
     soldiers: List.generate(4, (_) => BattleHealth(20)),
   );
-  for (final mode in ['weapon', 'retreat', 'ending']) {
+  for (final mode in ['fighting', 'retreat', 'ending']) {
     test('保存 $mode 动画中途，恢复后每一帧的内核与血量一致', () {
       final sim = BattleSimulation(
         attacker: army('a'),
@@ -49,9 +44,7 @@ void main() {
       while (sim.stage != BattleStage.fighting) {
         sim.advance(1 / 60);
       }
-      if (mode == 'weapon') {
-        expect(sim.useWeapon(BattleSide.attacker, weapons.weapons[0]!), isTrue);
-      }
+
       if (mode == 'retreat') {
         expect(sim.beginRetreat(BattleSide.attacker, succeeded: false), isTrue);
       }
@@ -69,7 +62,6 @@ void main() {
       final restored = BattleSnapshots.restore(
         Map<String, dynamic>.from(saved['sim']),
         [for (final h in saved['health']) BattleHealth(h[0], hp: h[1])],
-        weapons,
       );
       expect(snapshot(restored), saved);
       for (var i = 0; i < 240; i++) {

@@ -33,7 +33,7 @@ void main() {
       c.campaigns[0] = CampaignState.fromRom(
         c.world,
         painter.assets.heroCatalog,
-        weaponCatalog: painter.assets.weaponCatalog,
+
         startingGold: 1000,
         aiEnabled: false,
       );

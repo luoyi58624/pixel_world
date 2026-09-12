@@ -75,9 +75,6 @@ void main() {
       guards: [0],
       friendHeroes: [18],
       gold: 2000,
-      stock: {
-        '1': {'11': 4},
-      },
     );
     addTearDown(c.dispose);
     final ledger = _ledger(c), view = ledger.view, rules = ledger.rules;
@@ -105,7 +102,6 @@ void main() {
         role: 'expedition',
         reason: '直接远征',
         target: target,
-        gear: [11],
       ),
       isNotNull,
     );

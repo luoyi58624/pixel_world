@@ -22,6 +22,6 @@ class CountryWarPlan {
   /// 本次计划需要出征的将领数量。
   int requiredHeroes = 1;
 
-  /// 配齐武器、兵力并预留月俸后的最低国库要求。
+  /// 配齐兵力并预留月俸后的最低国库要求。
   int requiredGold = 0;
 }

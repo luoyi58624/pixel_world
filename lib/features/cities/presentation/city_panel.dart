@@ -9,7 +9,6 @@ import '../../world_map/presentation/world_controller.dart';
 import '../../countries/presentation/country_flag.dart';
 import 'city_services.dart';
 import 'city_panel_style.dart';
-import '../../weapons/presentation/weapon_loadout.dart';
 import '../../heroes/presentation/hero_dismiss_button.dart';
 import '../../countries/presentation/country_event_log.dart';
 
@@ -193,11 +192,6 @@ class _CityPanelState extends State<CityPanel> {
         CityServices(controller: c, assets: assets, onAction: onAction),
         const SizedBox(height: CityPanelStyle.sectionGap),
         _heroSelection(),
-        if (situation.isPlayer &&
-            c.campaign.weaponCatalog.weapons.isNotEmpty) ...[
-          const SizedBox(height: CityPanelStyle.sectionGap),
-          WeaponLibrary(controller: c, onAction: onAction),
-        ],
       ],
     );
   }
@@ -339,7 +333,10 @@ class _CityPanelState extends State<CityPanel> {
         MarchPhase.awaitingBattle => '城下待战',
         MarchPhase.fighting => '交战中',
         MarchPhase.dueling => '野战中',
-        null => '驻守中',
+        null =>
+          controller.campaign.activeBattleForHero(hero.id) != null
+              ? '战斗中'
+              : '驻守中',
       };
 
   Widget _footer(bool isPlayer) {

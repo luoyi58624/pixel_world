@@ -9,8 +9,6 @@ import '../../../core/config/game_config.dart';
 import '../domain/world_data.dart';
 import '../../battle/domain/field_terrain.dart';
 import '../../campaign/data/campaign_setup.dart';
-import '../../weapons/domain/weapon.dart';
-import '../../weapons/data/weapon_animation.dart';
 
 /// 共享纹理及由地图数据生成的绘制缓存。
 class WorldAssets {
@@ -27,8 +25,6 @@ class WorldAssets {
     this.battleSprites,
     this.battleScenes,
     this.fieldScenes,
-    this.weaponCatalog,
-    this.weaponAnimations,
   );
 
   /// 三个场景的独立地图定义。
@@ -36,12 +32,6 @@ class WorldAssets {
 
   /// 从 ROM 提取的正式英雄静态目录。
   final List<RomHeroDefinition> heroCatalog;
-
-  /// 原版一次性武器目录与可调价格。
-  final WeaponCatalog weaponCatalog;
-
-  /// 从原动画脚本离线提取的逐帧精灵数据。
-  final WeaponAnimations weaponAnimations;
 
   /// 原版 8×8 国旗和特殊地点标记图集。
   final ui.Image flags;
@@ -149,7 +139,10 @@ class WorldAssets {
   /// 加载资源并在内存中拼接地图，保留 JSON 作为地图定义。
   static Future<WorldAssets> load() async {
     GameConfig.loadJson(
-      await rootBundle.loadString('assets/data/game_config.json5', cache: false),
+      await rootBundle.loadString(
+        'assets/data/game_config.json5',
+        cache: false,
+      ),
     );
     final worlds = decodeWorlds(
       await rootBundle.loadString('assets/maps/worlds.json'),
@@ -161,7 +154,7 @@ class WorldAssets {
       ),
     );
     final heroCatalog = decodeRomHeroes(
-      await rootBundle.loadString('assets/data/rom_heroes.json'),
+      await rootBundle.loadString('assets/data/heroes.json5'),
     );
     const battleNames = [
       'soldier_red',
@@ -192,7 +185,6 @@ class WorldAssets {
         'battle/stage_5',
         'battle/hero_names',
         'battle/result_labels',
-        'battle/weapon_effects',
       ].map(_image),
     );
     for (final hero in [
@@ -263,7 +255,6 @@ class WorldAssets {
         HeroAppearance.protagonist: textures[8],
       }),
       {
-        'weapon_effects': textures[24],
         'hero_names': textures[22],
         'result_labels': textures[23],
         for (var n = 0; n < battleNames.length; n++)
@@ -274,21 +265,6 @@ class WorldAssets {
         for (var i = 0; i < FieldTerrain.values.length; i++)
           FieldTerrain.values[i]: fieldImages[i],
       },
-      WeaponCatalog.decode(
-        await rootBundle.loadString(
-          'assets/data/rom_weapons.json',
-          cache: false,
-        ),
-      ),
-      WeaponAnimations.decode(
-        await rootBundle.loadString(
-          'assets/data/weapon_animations.json',
-          cache: false,
-        ),
-        Uint8List.sublistView(
-          await rootBundle.load('assets/data/weapon_animations.bin'),
-        ),
-      ),
     );
   }
 

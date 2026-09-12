@@ -6,7 +6,7 @@ import 'package:pixel_world/simulation/defensive_commander.dart';
 import '../support/national_ai_fixture.dart';
 
 void main() {
-  test('纯防守玩家正常补兵补将，不出城且不采购武器', () {
+  test('纯防守玩家正常补兵补将，不出城', () {
     final c = nationalScenario(ai: false, recruitment: true);
     addTearDown(c.dispose);
     c.countryTroops[0] = CountryTroops(reserveSoldiers: 0);
@@ -27,7 +27,6 @@ void main() {
             (e) => [
               GameEventKind.heroDispatched,
               GameEventKind.heroMoved,
-              GameEventKind.weaponPurchased,
               GameEventKind.retreatRequested,
             ].contains(e.kind),
           ),

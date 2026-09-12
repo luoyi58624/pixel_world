@@ -105,7 +105,7 @@ void main() {
     expect(focus.objectiveCountry, isNull);
   });
 
-  test('完整配装后执行同目标攻城，预算不足不先派裸装部队', () {
+  test('整队后执行同目标攻城，预算不足不先派缺兵部队', () {
     final c = nationalScenario(
       ai: false,
       guards: [0, 4, 5, 18],
@@ -131,12 +131,7 @@ void main() {
       (g) => g.tasks.any((t) => t.role == 'expedition'),
     )) {
       expect(group.tasks, isNotEmpty);
-      expect(
-        group.actions
-            .where((a) => a.kind == AiActionKind.dispatch)
-            .every((a) => a.weaponIds.length == 1),
-        isTrue,
-      );
+
       expect(
         group.actions.where((a) => a.kind == AiActionKind.dispatch).length,
         group.tasks.length,

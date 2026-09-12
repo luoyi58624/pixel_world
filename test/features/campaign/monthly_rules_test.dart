@@ -7,7 +7,6 @@ import 'package:pixel_world/features/battle/domain/combat_rules.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 class _Roll implements math.Random {
@@ -29,10 +28,8 @@ CampaignState fresh({double harvest = 0, double siege = 0}) =>
           File('assets/data/campaign_config.json5').readAsStringSync(),
         ),
       ).first,
-      decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-      weaponCatalog: WeaponCatalog.decode(
-        File('assets/data/rom_weapons.json').readAsStringSync(),
-      ),
+      decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+
       aiEnabled: false,
       economyRandom: _Roll(harvest),
       siegeRandom: _Roll(siege),
@@ -137,56 +134,6 @@ void main() {
       expect(c.aiBudgetFor(0).minimumMonthlyIncome, -10);
     });
   }
-
-  test('商店第一行按现有价格顺序开放，之后每年增加一行', () {
-    final c = fresh();
-    addTearDown(c.dispose);
-    List<int> available() => c.weaponCatalog.shopWeapons
-        .where((w) => c.weaponUnlocked(0, w))
-        .map((w) => w.id)
-        .toList();
-    expect(available(), [0, 1, 2]);
-    expect(c.buyWeapon(11), isFalse);
-    c.advance(11 * 60);
-    expect(c.year, 1);
-    expect(available().length, 3);
-    c.advance(60);
-    expect(c.year, 2);
-    expect(available().length, 6);
-    c.advance(12 * 60);
-    expect(c.year, 3);
-    expect(available().length, 9);
-    c.advance(12 * 60);
-    expect(c.year, 4);
-    expect(available().length, 12);
-  });
-
-  test('唯一武器使用后换守将也不会重新补装', () {
-    final c = fresh();
-    addTearDown(c.dispose);
-    for (var i = 0; i < 3; i++) {
-      expect(c.buyWeapon(0), isTrue);
-    }
-    final hero = c.garrisonAt(0).last;
-    final march = c.dispatch(hero, c.world.cities[1], weaponSlots: {0: 0})!;
-    march.position = march.destination;
-    c.advance(3);
-    final battle = c.battles[1]!;
-    expect(hero.weaponIds, isEmpty);
-    for (var i = 0; i < 180; i++) {
-      c.advance(1 / 60);
-    }
-    expect(hero.weaponIds, isEmpty);
-    expect(c.useWeapon(hero, 0), isFalse);
-    battle.defender.hp = 0;
-    for (var i = 0; i < 3000 && battle.wave == 1; i++) {
-      c.advance(1 / 60);
-    }
-    expect(battle.wave, 2);
-    c.advance(3);
-    expect(hero.weaponIds, isEmpty);
-    expect(c.weaponStockFor(0, 0), 2);
-  });
 
   test('撤退概率按缺兵与每四分之一失血分档', () {
     expect(CombatRules.retreatSuccess(100, 100, 4), closeTo(.9, 1e-9));

@@ -10,7 +10,7 @@ extension _WorldSession on _WorldScreenState {
       for (final path in [
         'assets/maps/worlds.json',
         'assets/data/game_config.json5',
-        'assets/data/rom_heroes.json',
+        'assets/data/heroes.json5',
         'assets/data/campaign_config.json5',
       ])
         rootBundle.loadString(path, cache: false),
@@ -20,7 +20,10 @@ extension _WorldSession on _WorldScreenState {
         .toString();
     final entry = widget.entry;
     if (entry != null) {
-      if (entry.data['version'] != 1 || entry.data['signature'] != signature) {
+      final previousSignature = entry.data['signature'];
+      if (entry.data['version'] != 1 ||
+          (previousSignature != signature &&
+              archiveSignatureMigrations[previousSignature] != signature)) {
         throw const FormatException('这份记录的游戏版本或地图配置已改变，无法安全读取。原记录仍然保留。');
       }
       if (widget.replay) {

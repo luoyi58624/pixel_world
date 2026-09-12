@@ -6,7 +6,6 @@ import '../features/ai/runtime/worker.dart';
 import '../features/campaign/domain/campaign.dart';
 import '../features/events/domain/game_events.dart';
 import '../features/heroes/data/rom_hero.dart';
-import '../features/weapons/domain/weapon.dart';
 import '../features/world_map/domain/world_data.dart';
 import 'scenario.dart';
 import 'commander.dart';
@@ -19,14 +18,12 @@ class SimulationRunner {
   SimulationRunner({
     required this.world,
     required this.heroes,
-    required this.weapons,
     required this.aiWorkerFactory,
   });
 
   /// 本组静态数据。
   final WorldDefinition world;
   final List<RomHeroDefinition> heroes;
-  final WeaponCatalog weapons;
 
   /// AI 执行后端。
   final AiWorker Function() aiWorkerFactory;
@@ -184,7 +181,6 @@ class SimulationRunner {
     final c = CampaignState.fromRom(
       world,
       heroes,
-      weaponCatalog: weapons,
       aiWorkerFactory: aiWorkerFactory,
       aiControlsPlayer: !scenario.playerCommander,
       endOnPlayerDefeat: scenario.playerCommander,
@@ -193,8 +189,6 @@ class SimulationRunner {
       recruitmentRandom: math.Random(scenario.seed + 20),
       siegeRandom: math.Random(scenario.seed + 30),
       retreatRandom: math.Random(scenario.seed + 40),
-      weaponRandom: math.Random(scenario.seed + 50),
-      weaponDropRandom: math.Random(scenario.seed + 60),
       eventLog: eventLog,
     );
     final countries =
@@ -382,7 +376,6 @@ class SimulationRunner {
               h.cityId,
               h.hp,
               h.soldiers,
-              h.weaponIds,
               if (c.marches[h.id] != null)
                 [c.marches[h.id]!.position.dx, c.marches[h.id]!.position.dy],
             ],

@@ -36,12 +36,10 @@ class AiTuning {
     this.assaultCommitDistance = 64,
     this.recallCriticalMargin = .25,
     this.attritionCombatCeiling = 8,
-    this.attritionMinImprovement = .06,
     this.maxTargets = 6,
     this.maxSliceSteps = 8,
     this.advantageMargin = .12,
     this.expansionMargin = .05,
-    this.laterWeaponCredit = .35,
     this.maximumRequestAge = 3,
     this.workerTimeoutMs = 2500,
     this.maxRestarts = 2,
@@ -107,12 +105,11 @@ class AiTuning {
   /// 临敌城保护距离；召回远征要求连最有利的守城评估也明显落后。
   final double assaultCommitDistance, recallCriticalMargin;
 
-  /// 按实际攻击力筛选消耗将领，并要求武器能明显改善接下来的守城余量。
+  /// 按实际攻击力筛选可替换的低战力将领。
   final int attritionCombatCeiling;
-  final double attritionMinImprovement;
 
-  /// 明显优势门槛与后续概率武器的保守折算，不代表统计胜率。
-  final double advantageMargin, laterWeaponCredit;
+  /// 明显优势门槛，不代表统计胜率。
+  final double advantageMargin;
 
   /// 低城防单守将的普通扩张允许有限风险，仍要求保守余量为正。
   final double expansionMargin;
@@ -159,12 +156,10 @@ class AiTuning {
     'assaultCommitDistance': assaultCommitDistance,
     'recallCriticalMargin': recallCriticalMargin,
     'attritionCombat': attritionCombatCeiling,
-    'attritionGain': attritionMinImprovement,
     'targets': maxTargets,
     'slice': maxSliceSteps,
     'advantage': advantageMargin,
     'expansion': expansionMargin,
-    'credit': laterWeaponCredit,
     'age': maximumRequestAge,
     'timeout': workerTimeoutMs,
     'restarts': maxRestarts,
@@ -215,12 +210,10 @@ class AiTuning {
         .toDouble(),
     recallCriticalMargin: (d['recallCriticalMargin'] as num? ?? .25).toDouble(),
     attritionCombatCeiling: d['attritionCombat'] as int? ?? 8,
-    attritionMinImprovement: (d['attritionGain'] as num? ?? .06).toDouble(),
     maxTargets: d['targets'],
     maxSliceSteps: d['slice'],
     advantageMargin: (d['advantage'] as num).toDouble(),
     expansionMargin: (d['expansion'] as num).toDouble(),
-    laterWeaponCredit: (d['credit'] as num).toDouble(),
     maximumRequestAge: (d['age'] as num).toDouble(),
     workerTimeoutMs: d['timeout'],
     maxRestarts: d['restarts'],

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 // 固定样本区分原版角色的旧+3属性和自定义角色，样本不携带重复ROM字段。
@@ -71,7 +70,6 @@ CampaignState _restore(Map<String, dynamic> state, {bool replay = false}) {
     state,
     _world(),
     _catalog(15),
-    WeaponCatalog.empty,
     replay: replay,
   );
   addTearDown(game.dispose);

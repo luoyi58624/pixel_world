@@ -72,8 +72,6 @@ class _BattleSceneState extends State<BattleScene> {
             sim.retreatMessage ??
             (battle is CityBattle && battle.nextWaveIn > 0
                 ? '${battle.defender.name}战败 · 下一位守将即将入场'
-                : sim.weaponStrike != null
-                ? '${sim.weaponStrike!.attackingSide ? battle.attacker.name : battle.defender.name}使用${sim.weaponStrike!.weapon.name}'
                 : sim.endingMessage != null
                 ? sim.endingMessage!
                 : sim.stage == BattleStage.victory
@@ -97,7 +95,7 @@ class _BattleSceneState extends State<BattleScene> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${battle.locationLabel} · ${sim.weaponStrike == null ? '观战' : '自动使用${sim.weaponStrike!.weapon.name}'}',
+                        '${battle.locationLabel} · 观战',
                         style: TextStyle(
                           color: _cream,
                           fontSize: tight ? 13 : 16,
@@ -156,7 +154,6 @@ class _BattleSceneState extends State<BattleScene> {
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTapUp: (details) {
-                                  if (sim.weaponStrike != null) return;
                                   final point = camera.toWorld(
                                     (details.localPosition).toGame,
                                   );

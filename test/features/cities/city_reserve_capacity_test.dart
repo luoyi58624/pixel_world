@@ -41,12 +41,12 @@ CampaignState _campaign({bool duplicatePlacement = false}) => ongoingCampaign(
       },
       [0, 1, 2, 3],
     ),
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 1000,
     aiEnabled: false,
     siegeRandom: const FixedSiegeRandom(),
   ),
-  stock: 0,
+
   year: 3,
 );
 

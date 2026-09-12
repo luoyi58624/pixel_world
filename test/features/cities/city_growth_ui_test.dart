@@ -15,7 +15,7 @@ import '../../support/fixed_siege_random.dart';
 void main() {
   testWidgets('五级原版建筑各不相同，降级和易主还原画面且不残留旧城堡', (tester) async {
     await tester.runAsync(() async {
-      rootBundle.evict('assets/data/rom_heroes.json');
+      rootBundle.evict('assets/data/heroes.json5');
       final assets = await WorldAssets.load();
       final c = WorldController(assets.worlds, heroCatalog: assets.heroCatalog);
       c.campaigns[0] = ongoingCampaign(
@@ -26,7 +26,7 @@ void main() {
           assets.heroCatalog,
           startingGold: 10000,
         ),
-        stock: 0,
+
         year: 3,
       )..hasDispatched = true;
       final city = c.world.cities.first;

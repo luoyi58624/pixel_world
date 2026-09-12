@@ -6,7 +6,6 @@ import 'package:pixel_world/features/app/data/game_archive.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
@@ -25,7 +24,7 @@ void main() {
       (last['frames'] as List).length - 1,
     );
     final heroes = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     final worlds = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
@@ -33,14 +32,11 @@ void main() {
         File('assets/data/campaign_config.json5').readAsStringSync(),
       ),
     );
-    final weapons = WeaponCatalog.decode(
-      File('assets/data/rom_weapons.json').readAsStringSync(),
-    );
+
     final c = CampaignSnapshots.restore(
       Map<String, dynamic>.from(state['campaign']),
       worlds[state['index']],
       heroes,
-      weapons,
     );
     addTearDown(c.dispose);
     final full = c.saveState(), replay = c.saveState(replay: true);

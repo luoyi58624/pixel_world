@@ -3,7 +3,6 @@ import 'package:pixel_world/features/ai/budget.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
 import 'package:pixel_world/features/ai/routes.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
-import 'package:pixel_world/features/campaign/domain/campaign.dart';
 
 import '../../support/national_ai_fixture.dart';
 
@@ -28,7 +27,7 @@ void main() {
       ledger.gold = balance;
       expect(ledger.affordableSoldiers, 0);
       expect(ledger.buySoldiers(1), isFalse);
-      expect(ledger.buyWeapon(0), isFalse);
+
       expect(ledger.recruit(view.city(1)!), isFalse);
       expect(ledger.gold, balance);
       expect(ledger.reserves, 3);
@@ -115,6 +114,5 @@ void main() {
     expect(c.goldFor(1), 0);
     expect(c.reserveSoldiersFor(1), 2);
     expect(c.heroes.where((h) => h.countryId == 1).length, people);
-    expect(c.weaponStorageUsed(1), 0);
   });
 }

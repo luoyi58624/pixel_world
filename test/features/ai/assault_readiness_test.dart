@@ -9,12 +9,12 @@ import 'package:pixel_world/features/ai/country_brain.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
 
 import '../../support/national_ai_fixture.dart';
-import '../../support/weapon_strategy_fixture.dart';
+import '../../support/assault_fixture.dart';
 
 void main() {
   for (final year in [1, 4]) {
     test('$year年资金与强将齐备时组织四人轮攻，缺资金时不强制满队', () {
-      final c = weaponStrategyCampaign(
+      final c = assaultCampaign(
         gold: 1000,
         sourceLevel: 5,
         sourceHeroes: [0, 2, 3, 4, 5, 18],
@@ -70,8 +70,8 @@ void main() {
     expect(ledger.canSpareForOffense(view.hero('rom-18')!), isFalse);
   });
 
-  test('首年真实经营后同组将领带齐武器出征，保留本城守军', () {
-    final c = weaponStrategyCampaign(
+  test('首年真实经营后同组将领带齐兵员出征，保留本城守军', () {
+    final c = assaultCampaign(
       ai: true,
       gold: 1000,
       sourceLevel: 5,
@@ -87,7 +87,7 @@ void main() {
         .where((m) => m.hero.countryId == 1 && m.target?.id == 2)
         .toList();
     expect(armies.length, greaterThan(1));
-    expect(armies.every((m) => m.hero.weaponIds.length == 1), isTrue);
+
     expect(armies.every((m) => m.hero.soldiers == 4), isTrue);
     expect(c.garrisonAt(1), isNotEmpty);
     expect(c.goldFor(1), greaterThanOrEqualTo(0));
@@ -128,7 +128,7 @@ void main() {
     );
   });
 
-  test('没钱买武器时也不派低价值将领裸装出城吸收来敌武器', () {
+  test('资金不足时也不派低价值将领出城截击', () {
     final c = nationalScenario(
       ai: false,
       guards: [33, 34],
@@ -136,9 +136,7 @@ void main() {
       gold: 10,
       reserves: 12,
       attackerCombat: 32,
-      stock: {
-        '2': {'11': 1},
-      },
+
       overrides: {
         33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
         34: {'combat': 14, 'maxHp': 60, 'morale': 100},
@@ -149,7 +147,6 @@ void main() {
       c.garrisonAt(2).first,
       c.world.cities[1],
       countryId: 2,
-      weaponSlots: {0: 11},
     )!;
     enemy.position =
         c.cityBounds(c.world.cities[1]).center + const GamePoint(140, 0);
@@ -167,53 +164,6 @@ void main() {
       isFalse,
     );
   });
-
-  for (final year in [1, 3, 5]) {
-    test('$year年攻城统一使用已解锁高伤害武器，不因缺钱推荐裸装', () {
-      final c = weaponStrategyCampaign(gold: 10, targetLevel: 3);
-      addTearDown(c.dispose);
-      c.settledMonths = (year - 1) * 12;
-      final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
-      final work = AiWorkBudget(rules.tuning),
-          routes = AiRoutes(
-            c.aiMapForTesting(),
-            rules,
-            AiWorkBudget(rules.tuning),
-          );
-      final ledger = AiLedger(view, rules, routes);
-      final request = AiRequest(
-        session: 'equipment',
-        id: 1,
-        rulesVersion: rules.version,
-        mapVersion: routes.map.version,
-        observation: view,
-        deadlineTick: 6000,
-      );
-      final hero = view.garrison(1).first;
-      final gears = OperationPlanner(
-        request,
-        rules,
-        routes,
-      ).raidLoadouts(hero, ledger, view.city(2)!, CombatAssessor(rules, work));
-      expect(gears.single, hasLength(1));
-      final selected = rules.weapons[gears.single.single]!;
-      final allowed = rules.weapons.values.where(
-        (w) =>
-            w.shopEnabled &&
-            w.unlockYear <= year &&
-            w.selfDamage <
-                hero.hp +
-                    rules.integer('soldierLimit') * rules.integer('soldierHp'),
-      );
-      expect(
-        selected.damage - selected.selfDamage,
-        allowed
-            .map((w) => w.damage - w.selfDamage)
-            .reduce((a, b) => a > b ? a : b),
-      );
-      expect(ledger.gold, 10, reason: '这里只制定装备目标，不能凭空买到武器');
-    });
-  }
 
   test('强攻击优先，稀有度与高生命不能把弱攻击将领排到强攻将领前', () {
     final c = nationalScenario(

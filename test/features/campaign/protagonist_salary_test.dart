@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 class _Normal implements Random {
@@ -19,7 +19,7 @@ class _Normal implements Random {
 }
 
 void main() {
-  final source = File('assets/data/rom_heroes.json').readAsStringSync();
+  final source = File('assets/data/heroes.json5').readAsStringSync();
   final heroes = decodeRomHeroes(source);
   final worlds = decodeWorlds(
     File('assets/maps/worlds.json').readAsStringSync(),
@@ -27,12 +27,9 @@ void main() {
       File('assets/data/campaign_config.json5').readAsStringSync(),
     ),
   );
-  final weapons = WeaponCatalog.decode(
-    File('assets/data/rom_weapons.json').readAsStringSync(),
-  );
 
   test('主角按角色类型免月俸，旧目录中的非零配置不生效，其他将领照常付薪', () {
-    final data = jsonDecode(source);
+    final data = json5Decode(source);
     for (final row in data['heroes']) {
       if (row['type'] == 'protagonist') row['salary'] = 8;
     }
@@ -83,12 +80,7 @@ void main() {
 
   for (final version in [1, 2]) {
     test('月俸版本$version旧存档续玩免主角工资，历史回放保留旧工资', () {
-      final c = CampaignState.fromRom(
-        worlds.first,
-        heroes,
-        aiEnabled: false,
-        weaponCatalog: weapons,
-      );
+      final c = CampaignState.fromRom(worlds.first, heroes, aiEnabled: false);
       addTearDown(c.dispose);
       final saved =
           jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
@@ -97,17 +89,11 @@ void main() {
         if (h['type'] == HeroType.protagonist.index) h['salary'] = 8;
         if (h['source'] == 0) h['salary'] = 17;
       }
-      final restored = CampaignSnapshots.restore(
-        saved,
-        worlds.first,
-        heroes,
-        weapons,
-      );
+      final restored = CampaignSnapshots.restore(saved, worlds.first, heroes);
       final replay = CampaignSnapshots.restore(
         saved,
         worlds.first,
         heroes,
-        weapons,
         replay: true,
       );
       addTearDown(restored.dispose);

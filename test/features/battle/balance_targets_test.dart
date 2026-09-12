@@ -8,7 +8,7 @@ void main() {
   final random = math.Random(20260923);
   final seeds = List.generate(64, (_) => random.nextInt(1 << 24));
   for (final mode in [-3, -2, -1, 1, 2, 3, 4, 5]) {
-    test('固定样本$mode关闭士气：同属性无武器野战同归于尽、城防获得优势', () {
+    test('固定样本$mode关闭士气：同属性野战同归于尽、城防获得优势', () {
       final attack = mode < 0 ? [14, 11, 8][-mode - 1] : 15;
       final bonus = mode > 0 ? [1, 3, 5, 8, 12][mode - 1] : 0;
       final morale = mode > 0 ? [5, 15, 25, 35, 45][mode - 1] : 0;

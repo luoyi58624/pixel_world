@@ -62,11 +62,11 @@ WorldDefinition _world([int terrain = 0]) => WorldDefinition.fromJson(
 CampaignState _campaign([int terrain = 0]) => ongoingCampaign(
   CampaignState.fromRom(
     _world(terrain),
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 1000,
     aiEnabled: false,
   ),
-  stock: 0,
+
   year: 1,
 );
 

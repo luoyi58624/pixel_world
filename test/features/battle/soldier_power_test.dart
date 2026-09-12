@@ -18,13 +18,13 @@ NesBattleKernel _kernel({List<List<int>>? slots}) => NesBattleKernel(
 );
 
 void main() {
-  test('每兵一点，武器逐人减员立即扣强度，城防和士气保持独立', () {
+  test('每兵一点，逐人减员立即扣强度，城防和士气保持独立', () {
     final k = _kernel();
     expect(k.ram.sublist(0x1c, 0x1e), [19, 29]);
     for (final side in [0, 1]) {
       final base = side == 0 ? 15 : 25;
       for (var alive = 3; alive >= 0; alive--) {
-        k.applyWeaponDamage(side, 20);
+        k.applyArmyDamage(side, 20);
         expect(k.ram[0x702f + side], alive);
         expect(k.ram[0x1c + side], base + alive);
         expect(k.ram[0x7451 + side], 95);
@@ -34,7 +34,7 @@ void main() {
   });
 
   test('清掉四兵后的强度与开局无兵一致，重复伤害不会多扣基础攻击', () {
-    final killed = _kernel()..applyWeaponDamage(1, 80);
+    final killed = _kernel()..applyArmyDamage(1, 80);
     final empty = _kernel(
       slots: [
         [0, 1, 2, 3],
@@ -42,7 +42,7 @@ void main() {
       ],
     );
     expect(killed.ram[0x1d], empty.ram[0x1d]);
-    killed.applyWeaponDamage(1, 10);
+    killed.applyArmyDamage(1, 10);
     expect(killed.ram[0x1d], 25);
     expect(killed.ram[0x7452], 85);
   });
@@ -68,7 +68,7 @@ void main() {
   });
 
   test('旧战斗存档恢复时清除已阵亡兵员的残留加成，之后逐帧一致', () {
-    final k = _kernel()..applyWeaponDamage(1, 80);
+    final k = _kernel()..applyArmyDamage(1, 80);
     final saved = jsonDecode(jsonEncode(k.saveState())) as Map<String, dynamic>;
     saved['ram']['28'] = 23;
     saved['ram']['29'] = 33;

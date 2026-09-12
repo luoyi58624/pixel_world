@@ -11,7 +11,7 @@ def audit(directory):
     reports, errors = [], []
     kinds = {
         'cityUpgraded', 'soldiersRecruited', 'heroDrawn', 'heroSigned',
-        'heroDismissed', 'weaponPurchased', 'supplyPaid', 'monthSettled',
+        'heroDismissed', 'supplyPaid', 'monthSettled',
         'treasuryCaptured',
     }
     for run in runs:

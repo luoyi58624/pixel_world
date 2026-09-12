@@ -214,23 +214,10 @@ void main() {
   });
 
   test('无任务野外将领不能回满员战城时，改攻有能力攻取的敌城', () {
-    final c = nationalScenario(
-      ai: false,
-      level: 1,
-      guards: [0, 18],
-      gold: 500,
-      stock: {
-        '1': {'0': 1},
-      },
-    );
+    final c = nationalScenario(ai: false, level: 1, guards: [0, 18], gold: 500);
     addTearDown(c.dispose);
     final hero = c.garrisonAt(1).first;
-    final march = c.dispatchTo(
-      hero,
-      const GamePoint(400, 500),
-      countryId: 1,
-      weaponSlots: {0: 0},
-    )!;
+    final march = c.dispatchTo(hero, const GamePoint(400, 500), countryId: 1)!;
     march.position = const GamePoint(400, 500);
     march.camp();
     final enemy = approaching(c, distance: 0);
@@ -518,9 +505,7 @@ void main() {
         guards: [0, 18],
         friendly: true,
         friendHeroes: [19],
-        stock: {
-          '1': {'0': 1},
-        },
+
         overrides: {
           0: {'combat': 8},
           40: {'combat': 63},
@@ -528,7 +513,7 @@ void main() {
       );
       addTearDown(c.dispose);
       final hero = c.garrisonAt(1).first;
-      c.dispatch(hero, c.world.cities[2], countryId: 1, weaponSlots: {0: 0});
+      c.dispatch(hero, c.world.cities[2], countryId: 1);
       final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
       final view = AiObservation.fromJson({
         ...original.toJson(),

@@ -148,7 +148,7 @@ class OffensiveFocus {
         primary != null && !armies.containsKey(city.id) && mayOpenFront;
   }
 
-  /// 静态攻防承伤资源比，不扣未来生命、不预演碰撞或假定武器全部兑现。
+  /// 静态攻防承伤资源比，不扣未来生命或预演碰撞。
   double coverage(int cityId) {
     final city = view.city(cityId)!;
     var own = 0.0;

@@ -11,6 +11,7 @@ import '../../support/national_ai_fixture.dart' show advanceAi;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/core/config/game_config.dart';
@@ -20,7 +21,6 @@ import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/features/world_map/domain/world_movement.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 
 class _Poor implements math.Random {
   int calls = 0;
@@ -49,8 +49,8 @@ CampaignState _campaign({
   bool secondCity = false,
   math.Random? economy,
 }) {
-  final data = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final data = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   final initialIds = {40, 0, 2, 18, 19, if (secondCity) 3};
   for (final row in data['heroes'] as List) {
@@ -96,9 +96,7 @@ CampaignState _campaign({
       decodeRomHeroes(jsonEncode(data))
           .where((hero) => recruitment || initialIds.contains(hero.id))
           .toList(),
-      weaponCatalog: WeaponCatalog.decode(
-        File('assets/data/rom_weapons.json').readAsStringSync(),
-      ),
+
       aiEnabled: ai,
       countryConfigs: {
         0: const CountryConfig(initialGold: 100),
@@ -111,7 +109,7 @@ CampaignState _campaign({
       aiRandom: math.Random(7),
       retreatRandom: math.Random(31),
     ),
-    stock: 0,
+
     year: 1,
   );
   var initialTroops = 0;
@@ -140,16 +138,14 @@ void main() {
       ),
     );
     final heroes = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     for (final world in worlds) {
       final c = ongoingCampaign(
         CampaignState.fromRom(
           world,
           heroes,
-          weaponCatalog: WeaponCatalog.decode(
-            File('assets/data/rom_weapons.json').readAsStringSync(),
-          ),
+
           economyRandom: math.Random(17),
           aiWorkerFactory: SynchronousAiWorker.new,
           aiRandom: math.Random(7),
@@ -157,7 +153,7 @@ void main() {
           recruitmentRandom: math.Random(11),
           siegeRandom: math.Random(23),
         ),
-        stock: 0,
+
         year: 1,
       );
       var deployments = 0;
@@ -333,12 +329,12 @@ void main() {
   test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {
     final expensive = _campaign(
       gold: 50,
-      stock: 0,
+
       recruitment: true,
       hireSalary: 60,
       level: 4,
     );
-    final cheap = _campaign(gold: 50, stock: 0, recruitment: true, level: 4);
+    final cheap = _campaign(gold: 50, recruitment: true, level: 4);
     for (final c in [expensive, cheap]) {
       final view = c.aiObservationFor(1), rules = c.aiRulesForTesting();
       final ledger = AiLedger(
@@ -353,7 +349,7 @@ void main() {
   });
 
   test('资金不足也不为节省已取消的粮草而召回正常行军部队', () {
-    final c = _campaign(gold: 2, income: 0, stock: 0);
+    final c = _campaign(gold: 2, income: 0);
     final a = c.dispatchTo(
       _hero(c, 0),
       const GamePoint(400, 100),
@@ -390,7 +386,7 @@ void main() {
       income: 20, // 与正式地图的基础产出一致，升级不再增加收入。
       secondCity: true,
       recruitment: true,
-      stock: 0,
+
       salary: 1,
     );
     advanceAi(c, 8);

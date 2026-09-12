@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/battle/domain/field_terrain.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 
 BattleArmy _army(String id, int morale) => BattleArmy(
   id: id,
@@ -69,11 +68,7 @@ void main() {
     final restoredHealth = [
       for (final h in health) BattleHealth(h.maxHp, hp: h.hp),
     ];
-    final restored = BattleSnapshots.restore(
-      saved,
-      restoredHealth,
-      WeaponCatalog.empty,
-    );
+    final restored = BattleSnapshots.restore(saved, restoredHealth);
     expect(restored.defenderMorale.remaining, sim.defenderMorale.remaining);
     for (var i = 0; i < 240; i++) {
       sim.advance(1 / 60);

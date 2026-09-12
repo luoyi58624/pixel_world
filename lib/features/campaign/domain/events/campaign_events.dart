@@ -36,8 +36,6 @@ extension _CampaignEventRecording on CampaignState {
       AiActionKind.recruit => '在$target招募将领',
       AiActionKind.dismiss => '解雇$name',
       AiActionKind.soldiers => '征募${action.amount}名士兵',
-      AiActionKind.buyWeapon =>
-        '购买${weaponCatalog.weapons[action.amount]?.name ?? '武器'}',
       AiActionKind.dispatch =>
         '派$name${target == null ? mission : '前往$target$mission'}',
       AiActionKind.move =>
@@ -129,7 +127,6 @@ extension _CampaignEventRecording on CampaignState {
     AiActionKind.dismiss => '解雇将领',
     AiActionKind.recruit => '招募将领',
     AiActionKind.soldiers => '征募士兵',
-    AiActionKind.buyWeapon => '购买武器',
     AiActionKind.dispatch => '派将出征',
     AiActionKind.move => '改变行军目标',
     AiActionKind.camp => '扎营',
@@ -205,9 +202,6 @@ extension _CampaignEventRecording on CampaignState {
     'gold': goldFor(country),
     'reserveSoldiers': reserveSoldiersFor(country),
     'soldierCapacity': reserveCapacityFor(country),
-    'weapons': {
-      for (final e in weaponInventoryFor(country).entries) '${e.key}': e.value,
-    },
   };
 
   Map<String, Object?> _eventHero(CampaignHero hero) {
@@ -219,7 +213,6 @@ extension _CampaignEventRecording on CampaignState {
       'cityId': hero.cityId,
       'hp': hero.hp,
       'soldiers': hero.soldiers,
-      'weapons': hero.weaponIds,
       'phase': march?.phase.name ?? 'garrison',
       'position': march == null ? null : [march.position.dx, march.position.dy],
       'destination': march == null

@@ -29,17 +29,14 @@ CountryPlan _plan(CampaignState c, AiObservation view, AiDecisionStage stage) {
 }
 
 void main() {
-  test('即使有强将和现成武器，也不派驻城将领出城截击', () {
+  test('即使有强将和充足军费，也不派驻城将领出城截击', () {
     final c = nationalScenario(
       ai: false,
       gold: 200,
       level: 2,
       guards: [0, 4],
       attackerCombat: 15,
-      stock: {
-        '1': {'11': 1},
-        '2': {'11': 1},
-      },
+
       overrides: {
         0: {'combat': 15, 'maxHp': 99},
         4: {'combat': 25, 'maxHp': 140},
@@ -69,12 +66,6 @@ void main() {
           .any((t) => view.hero(t.hero)!.stationed && t.role == 'intercept'),
       isFalse,
       reason: plan.toJson().toString(),
-    );
-    expect(
-      plan.groups
-          .expand((g) => g.actions)
-          .where((a) => a.kind == AiActionKind.buyWeapon),
-      isEmpty,
     );
   });
 
@@ -108,7 +99,6 @@ void main() {
     expect(
       ledger.depart(
         spare.single,
-        [],
         ArmyTask(
           hero: spare.single.id,
           role: 'expedition',
@@ -189,9 +179,6 @@ void main() {
       rearEmpire: true,
       friendHeroes: [3, 5],
       attackerCombat: 40,
-      stock: {
-        '1': {'11': 4},
-      },
     );
     addTearDown(c.dispose);
     final enemy = approaching(c, distance: 65).hero;
@@ -219,12 +206,6 @@ void main() {
     );
     final resources = _plan(c, view(true), AiDecisionStage.resources);
     expect(resources.phase, 'defending');
-    expect(
-      resources.groups
-          .expand((g) => g.actions)
-          .where((a) => a.kind == AiActionKind.buyWeapon),
-      isEmpty,
-    );
   });
 
   test('没有明确来袭且主角安全时，保留现有进攻能力', () {
@@ -247,38 +228,35 @@ void main() {
     expect(plan.notes.any((n) => n.contains('主角所在城存在明确风险')), isFalse);
   });
 
-  test('高级将领打空兵和武器后可提前撤退，兵力完整或仍可用武器则不触发', () {
+  test('高级将领兵力耗尽后可提前撤退，兵力完整则不触发', () {
     final c = nationalScenario(ai: false, guards: [0, 18], attackerCombat: 25);
     addTearDown(c.dispose);
     final original = c.aiObservationFor(1);
-    AiObservation view({
-      List<double> troops = const [],
-      List<int> weapons = const [],
-    }) => AiObservation.fromJson({
-      ...original.toJson(),
-      'heroes': [
-        for (final h in original.heroes)
-          {
-            ...h.toJson(),
-            if (h.id == 'rom-0') ...{
-              's': AiArmyState.attacking.index,
-              'hp': 70.0,
-              'a': 15,
-              'troops': troops,
-              'w': weapons,
-              'retreat': true,
-              'dispatch': false,
-              'move': false,
-              'target': 2,
-              'opponent': 'rom-2',
-              'clashes': 0,
-              'received': 0.0,
-              'dealt': 0.0,
-            },
-            if (h.id == 'rom-2') 'troops': [20.0, 20.0, 20.0, 20.0],
-          },
-      ],
-    });
+    AiObservation view({List<double> troops = const []}) =>
+        AiObservation.fromJson({
+          ...original.toJson(),
+          'heroes': [
+            for (final h in original.heroes)
+              {
+                ...h.toJson(),
+                if (h.id == 'rom-0') ...{
+                  's': AiArmyState.attacking.index,
+                  'hp': 70.0,
+                  'a': 15,
+                  'troops': troops,
+                  'retreat': true,
+                  'dispatch': false,
+                  'move': false,
+                  'target': 2,
+                  'opponent': 'rom-2',
+                  'clashes': 0,
+                  'received': 0.0,
+                  'dealt': 0.0,
+                },
+                if (h.id == 'rom-2') 'troops': [20.0, 20.0, 20.0, 20.0],
+              },
+          ],
+        });
     final exhausted = _plan(c, view(), AiDecisionStage.defense);
     expect(
       exhausted.groups
@@ -288,7 +266,6 @@ void main() {
     );
     for (final ready in [
       view(troops: [20, 20, 20, 20]),
-      view(weapons: [11]),
     ]) {
       final plan = _plan(c, ready, AiDecisionStage.defense);
       expect(

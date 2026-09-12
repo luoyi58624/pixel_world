@@ -16,7 +16,6 @@ import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 
@@ -288,7 +287,7 @@ void main() {
     );
   });
 
-  test('真实开局按三阶段运行，资源门槛与进攻配装一致，不进入永久等待', () {
+  test('真实开局按三阶段运行，资源门槛与进攻兵员需求一致，不进入永久等待', () {
     final world = decodeWorlds(
       File('assets/maps/worlds.json').readAsStringSync(),
       setup: CampaignSetup.decode(
@@ -297,17 +296,14 @@ void main() {
     ).first;
     final c = CampaignState.fromRom(
       world,
-      decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
-      weaponCatalog: WeaponCatalog.decode(
-        File('assets/data/rom_weapons.json').readAsStringSync(),
-      ),
+      decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+
       aiWorkerFactory: SynchronousAiWorker.new,
       aiRandom: math.Random(101),
       recruitmentRandom: math.Random(121),
       economyRandom: math.Random(111),
       siegeRandom: math.Random(131),
       retreatRandom: math.Random(141),
-      weaponRandom: math.Random(151),
     );
     addTearDown(c.dispose);
     advanceAi(c, 31);
@@ -335,18 +331,5 @@ void main() {
       request,
     );
     for (final _ in brain.steps()) {}
-    expect(
-      brain.result!.groups
-          .expand((g) => g.actions)
-          .any(
-            (a) => [
-              AiActionKind.upgrade,
-              AiActionKind.soldiers,
-              AiActionKind.recruit,
-              AiActionKind.buyWeapon,
-            ].contains(a.kind),
-          ),
-      isFalse,
-    );
   });
 }

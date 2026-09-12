@@ -202,10 +202,7 @@ class CountryBrain {
               (h) => h.country == _view.country && !h.marked && h.canRetreat,
             )
             .where((_) => request.stage != AiDecisionStage.attack)) {
-      if (hero.type != 1 ||
-          hero.weapons.any((id) => rules.weapons[id]?.selfDamage == 0)) {
-        continue;
-      }
+      if (hero.type != 1) continue;
       final other = _view.hero(hero.opponent);
       if (other == null) continue;
       final target = _view.city(hero.targetCity);
@@ -213,15 +210,7 @@ class CountryBrain {
           hero.state == AiArmyState.attacking &&
           target != null &&
           hero.soldierCount < other.soldierCount &&
-          assessor
-                  .compare(
-                    hero,
-                    other,
-                    enemyDefense: target.safeSlots,
-                    ownOpening: false,
-                    enemyOpening: false,
-                  )
-                  .upper <
+          assessor.compare(hero, other, enemyDefense: target.safeSlots).upper <
               0;
       final dying =
           hero.hp < hero.maxHp * .25 &&
@@ -237,7 +226,7 @@ class CountryBrain {
       groups.add(
         AiCommandGroup(
           reason: exhausted
-              ? '高级将领武器已消耗且兵力落后，当前属性已不适合继续攻城，趁仍有生命申请合法撤退整备'
+              ? '高级将领兵力落后，当前属性已不适合继续攻城，趁仍有生命申请合法撤退整备'
               : '高级将领生命低于四分之一，已发生的伤害显示胜望渺茫，申请有风险的合法撤退',
           actions: [AiAction(AiActionKind.retreat, hero: hero.id)],
           dependencies: operations.dependencies(
@@ -263,7 +252,7 @@ class CountryBrain {
     for (final hero in availableField) {
       if (ledger.reservedHeroes.contains(hero.id)) continue;
       final task = ledger.tasks[hero.id];
-      final needsRearm = _needsAssaultRearm(hero, task);
+      final needsRecovery = _needsAssaultRecovery(hero, task);
       final expired = task != null && task.deadlineTick < _view.tick;
       final changedOwner =
           task?.role == 'expedition' &&
@@ -281,7 +270,7 @@ class CountryBrain {
           (task == null ||
               expired ||
               stopped && ['intercept', 'standby'].contains(task.role));
-      final reconsider = changedOwner || stopped || idle || needsRearm;
+      final reconsider = changedOwner || stopped || idle || needsRecovery;
       if (!protectProtagonist &&
           (changedOwner || stopped && task.role == 'expedition' || idle) &&
           hero.hp >= hero.maxHp * .65) {
@@ -319,7 +308,7 @@ class CountryBrain {
           hero.hp >= hero.maxHp * .5) {
         continue;
       }
-      if (hero.movementPending && task != null && !expired && !needsRearm) {
+      if (hero.movementPending && task != null && !expired && !needsRecovery) {
         continue;
       }
       final assault = assaultTarget(hero, _view, ledger);
@@ -387,8 +376,8 @@ class CountryBrain {
           route,
           role: 'regroup',
           rearSafe: _reports[city.id]?.threatened != true,
-          reason: needsRearm
-              ? '攻城武器已消耗，当前随军兵力不足以安全继续，回城补装后重新组织进攻'
+          reason: needsRecovery
+              ? '当前随军兵力不足以安全继续，回城补兵后重新组织进攻'
               : hero.hp < hero.maxHp * .65
               ? '将领受伤，回城恢复生命后再战'
               : changedOwner
@@ -414,14 +403,14 @@ class CountryBrain {
           break;
         }
       }
-      if ((idle || needsRearm) && !ledger.reservedHeroes.contains(hero.id)) {
-        final reason = needsRearm
-            ? '攻城武器已消耗且暂无安全补装地点，停止推进并等待重新调度'
+      if ((idle || needsRecovery) && !ledger.reservedHeroes.contains(hero.id)) {
+        final reason = needsRecovery
+            ? '随军兵力不足且暂无安全整备地点，停止推进并等待重新调度'
             : '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
         notes.add('${hero.id}：$reason');
         if (task?.role != 'standby' || expired) {
           final mustCamp =
-              needsRearm &&
+              needsRecovery &&
               (hero.state != AiArmyState.camped || hero.movementPending);
           final standby = ArmyTask(
             hero: hero.id,
@@ -554,118 +543,91 @@ class CountryBrain {
             .toList();
         final route = routes.to(hero, target.center, _view, target: target);
         if (!route.complete) continue;
-        final equipment = operations.raidLoadouts(
+        final readiness = assessRaid(
           hero,
-          ledger,
           target,
+          _view,
+          rules,
           assessor,
+          slack:
+              request.idleCycles >
+                      rules.tuning.stagnationSeconds /
+                          rules.tuning.intervalSeconds &&
+                  ledger.gold > 100
+              ? .05
+              : 0,
         );
-        var acceptable = false;
-        for (final gear in equipment) {
-          final readiness = assessRaid(
-            hero,
-            target,
-            _view,
-            rules,
-            assessor,
-            gear,
-            slack:
-                request.idleCycles >
-                        rules.tuning.stagnationSeconds /
-                            rules.tuning.intervalSeconds &&
-                    ledger.gold > 100
-                ? .05
-                : 0,
-          );
-          final lower = readiness.lower;
-          final neededTeam = operations.raidTeamSize(
-            readiness.teamSize,
-            target,
-            ledger,
-            lead: hero,
-          );
-          acceptable = neededTeam > 0;
-          if (!acceptable) continue;
-          final secondary = focus.primary != null && target.id != focus.primary;
-          if (secondary &&
-              (neededTeam != 1 || lower < rules.tuning.splitAdvantageMargin)) {
-            continue;
+        final lower = readiness.lower;
+        final neededTeam = operations.raidTeamSize(
+          readiness.teamSize,
+          target,
+          ledger,
+          lead: hero,
+        );
+        if (neededTeam == 0) {
+          if (targetCity == null) {
+            targetCity = target.id;
+            requiredHeroes = math.max(
+              1,
+              math.min(rules.tuning.maxTeam, guards.length),
+            );
           }
-          final queued = assigned[target.id] ?? 0;
-          final reinforcements = neededTeam - queued;
-          if (reinforcements <= 0) continue;
-          requiredHeroes = math.max(requiredHeroes, neededTeam);
-          final option = _prepareRaid(
-            ledger,
+          yield 5;
+          continue;
+        }
+        final secondary = focus.primary != null && target.id != focus.primary;
+        if (secondary &&
+            (neededTeam != 1 || lower < rules.tuning.splitAdvantageMargin)) {
+          continue;
+        }
+        final queued = assigned[target.id] ?? 0;
+        final reinforcements = neededTeam - queued;
+        if (reinforcements <= 0) continue;
+        requiredHeroes = math.max(requiredHeroes, neededTeam);
+        final option = _prepareRaid(
+          ledger,
+          hero,
+          target,
+          reinforcements,
+          queued,
+          breakthrough: readiness.breakthrough,
+        );
+        if (option == null) {
+          final quote = ledger.copy();
+          quote.gold = 1000000; // 只求静态报价；此账本绝不提交给真实世界。
+          final quoted = _prepareRaid(
+            quote,
             hero,
             target,
-            gear,
             reinforcements,
             queued,
             breakthrough: readiness.breakthrough,
           );
-          if (option == null) {
-            final quote = ledger.copy();
-            quote.gold = 1000000; // 只求静态报价；此账本绝不提交给真实世界。
-            final quoted = _prepareRaid(
-              quote,
-              hero,
-              target,
-              gear,
-              reinforcements,
-              queued,
-              breakthrough: readiness.breakthrough,
-            );
-            if (quoted != null) {
-              phase = urgent.isEmpty ? 'saving' : phase;
-              final total =
-                  quote.gold -
-                  quoted.ledger.gold +
-                  quoted.ledger.cash().reserve;
-              requiredGold = requiredGold == 0
-                  ? total
-                  : math.min(requiredGold, total);
-              targetCity ??= target.id;
-            } else {
-              phase = urgent.isEmpty ? 'preparing' : phase;
-            }
-            continue;
+          if (quoted != null) {
+            phase = urgent.isEmpty ? 'saving' : phase;
+            final total =
+                quote.gold - quoted.ledger.gold + quoted.ledger.cash().reserve;
+            requiredGold = requiredGold == 0
+                ? total
+                : math.min(requiredGold, total);
+            targetCity ??= target.id;
+          } else {
+            phase = urgent.isEmpty ? 'preparing' : phase;
           }
-          final score =
-              _targetScore(target, hero, travelSeconds: route.seconds) -
-              route.seconds * .4 -
-              (ledger.gold - option.ledger.gold) * .5 +
-              lower * 30 +
-              gear
-                      .skip(1)
-                      .fold<int>(
-                        0,
-                        (n, id) =>
-                            n +
-                            math.max(
-                              0,
-                              (rules.weapons[id]?.damage ?? 0) -
-                                  (rules.weapons[id]?.selfDamage ?? 0),
-                            ),
-                      ) *
-                  rules.tuning.laterWeaponCredit *
-                  rules.number('weaponChance') *
-                  .02;
-          if (score > selectedScore) {
-            selected = option;
-            selectedTarget = target;
-            selectedScore = score;
-            requiredHeroes = option.group.tasks.length;
-          }
-          break;
+          continue;
         }
-        if (!acceptable && targetCity == null) {
-          targetCity = target.id;
-          requiredHeroes = math.max(
-            1,
-            math.min(rules.tuning.maxTeam, guards.length),
-          );
+        final score =
+            _targetScore(target, hero, travelSeconds: route.seconds) -
+            route.seconds * .4 -
+            (ledger.gold - option.ledger.gold) * .5 +
+            lower * 30;
+        if (score > selectedScore) {
+          selected = option;
+          selectedTarget = target;
+          selectedScore = score;
+          requiredHeroes = option.group.tasks.length;
         }
+
         yield 5;
       }
       if (selected != null &&
@@ -896,9 +858,12 @@ class CountryBrain {
     return null;
   }
 
-  // 野战耗尽装备后复核眼前防线，原行军承诺不能把残部锁在失去条件的攻势里。
-  bool _needsAssaultRearm(AiHero hero, ArmyTask? task) {
-    if (task?.role != 'expedition' || hero.weapons.isNotEmpty) return false;
+  // 野战损失兵员后复核眼前防线，原行军承诺不能把残部锁在失去条件的攻势里。
+  bool _needsAssaultRecovery(AiHero hero, ArmyTask? task) {
+    if (task?.role != 'expedition' ||
+        hero.soldierCount >= rules.integer('soldierLimit')) {
+      return false;
+    }
     final city = _view.city(task?.city);
     if (city == null || city.country == _view.country) return false;
     final guard = _view
@@ -918,7 +883,6 @@ class CountryBrain {
         rules.integer('soldierLimit'),
         guard.soldierCount + reserves,
       ),
-      enemyOpening: false,
     );
     return !work.limited && risk.advantage != CombatAdvantage.favorable;
   }
@@ -929,7 +893,6 @@ class CountryBrain {
     AiHero hero,
     ArmyTask? task,
   ) {
-    if (hero.weapons.isEmpty) return null;
     final previousTarget = task?.role == 'expedition' ? task?.city : null;
     final targets =
         _view.cities.where((c) => c.country != _view.country).toList()
@@ -969,11 +932,8 @@ class CountryBrain {
             rules.integer('soldierLimit'),
             guard.soldierCount + reserve,
           ),
-          enemyOpening: false,
         );
-        if (risk.releaseRisk ||
-            risk.upper <= 0 ||
-            risk.lower < rules.tuning.breakthroughMargin) {
+        if (risk.upper <= 0 || risk.lower < rules.tuning.breakthroughMargin) {
           continue;
         }
       }
@@ -1111,12 +1071,11 @@ class CountryBrain {
     );
   }
 
-  // 整队装备、兵员、队列后勤全部可支付后，才返回一个可提交的复合命令。
+  // 整队兵员与队列后勤全部可支付后，才返回一个可提交的复合命令。
   PlannedOperation? _prepareRaid(
     AiLedger base,
     AiHero lead,
     AiCity target,
-    List<int> leadGear,
     int count,
     int queued, {
     bool breakthrough = false,
@@ -1211,60 +1170,52 @@ class CountryBrain {
       }
       final route = teamRoutes[hero.id]!;
       PlannedOperation? chosen;
-      for (final gear
-          in index == 0
-              ? [leadGear]
-              : operations.raidLoadouts(hero, ledger, target, assessor)) {
-        if (index > 0 &&
-            (breakthrough ? guards.take(1) : guards).any((guard) {
-              final score = assessor.compare(
-                hero,
-                guard,
-                enemyDefense: target.safeSlots,
-                ownSoldiers: rules.integer('soldierLimit'),
-                enemySoldiers: math.min(
-                  rules.integer('soldierLimit'),
-                  _view.countries
-                      .firstWhere((c) => c.id == target.country)
-                      .reserves,
-                ),
-                loadout: gear,
-              );
-              return (gear.isEmpty &&
-                      score.lower < rules.tuning.splitAdvantageMargin) ||
-                  score.releaseRisk ||
-                  score.upper <= rules.tuning.advantageMargin ||
-                  score.lower < -.12;
-            })) {
-          continue;
-        }
-        var protection = 0;
-        for (final city in _view.owned) {
-          final remaining =
-              ledger.garrison(city.id).length - (city.id == hero.city ? 1 : 0);
-          protection +=
-              math.min(math.max(0, remaining), ledger.defendersToKeep(city)) *
-              rules.integer('soldierLimit');
-        }
-        chosen = operations.send(
-          ledger,
-          hero,
-          route,
-          role: 'expedition',
-          reason: count == 1
-              ? '围绕主攻目标投入足够战力，保留其他方向兵力'
-              : '集中优势编队轮攻同一座城，抵达间隔不超过${rules.tuning.raidArrivalSpread.toInt()}秒',
-          target: target,
-          gear: gear,
-          protectSoldiers: math.min(
-            protection,
-            math.max(0, ledger.capacity - rules.integer('soldierLimit')),
-          ),
-          queueIndex: queued + index,
-          attrition: breakthrough,
-        );
-        if (chosen != null) break;
+
+      if (index > 0 &&
+          (breakthrough ? guards.take(1) : guards).any((guard) {
+            final score = assessor.compare(
+              hero,
+              guard,
+              enemyDefense: target.safeSlots,
+              ownSoldiers: rules.integer('soldierLimit'),
+              enemySoldiers: math.min(
+                rules.integer('soldierLimit'),
+                _view.countries
+                    .firstWhere((c) => c.id == target.country)
+                    .reserves,
+              ),
+            );
+            return score.upper <= rules.tuning.advantageMargin ||
+                score.lower < -.12;
+          })) {
+        return null;
       }
+      var protection = 0;
+      for (final city in _view.owned) {
+        final remaining =
+            ledger.garrison(city.id).length - (city.id == hero.city ? 1 : 0);
+        protection +=
+            math.min(math.max(0, remaining), ledger.defendersToKeep(city)) *
+            rules.integer('soldierLimit');
+      }
+      chosen = operations.send(
+        ledger,
+        hero,
+        route,
+        role: 'expedition',
+        reason: count == 1
+            ? '围绕主攻目标投入足够战力，保留其他方向兵力'
+            : '集中优势编队轮攻同一座城，抵达间隔不超过${rules.tuning.raidArrivalSpread.toInt()}秒',
+        target: target,
+
+        protectSoldiers: math.min(
+          protection,
+          math.max(0, ledger.capacity - rules.integer('soldierLimit')),
+        ),
+        queueIndex: queued + index,
+        attrition: breakthrough,
+      );
+
       if (chosen == null) return null;
       ledger = chosen.ledger;
       actions.addAll(chosen.group.actions);

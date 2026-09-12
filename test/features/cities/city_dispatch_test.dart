@@ -20,7 +20,7 @@ List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 
 List<RomHeroDefinition> _heroCatalog() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 
 void _prepare(WorldController c, String heroId) {
   c.openCity(c.world.cities.first);
@@ -35,7 +35,7 @@ Future<WorldController> _load(
 }) async {
   // 每个 widget 测试使用独立时钟，不能复用上个测试时钟下缓存的资源 Future。
   rootBundle.evict('assets/maps/worlds.json');
-  rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/heroes.json5');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
@@ -75,7 +75,6 @@ Future<WorldController> _load(
       painter.assets.heroCatalog,
       startingGold: startingGold,
     ),
-    stock: 10,
   );
   return c;
 }

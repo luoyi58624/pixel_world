@@ -7,7 +7,6 @@ import 'package:pixel_world/features/ai/runtime/worker.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/simulation/runner.dart';
 import 'package:pixel_world/simulation/scenario.dart';
@@ -60,20 +59,18 @@ Future<void> main(List<String> args) async {
     _ => CommanderStrategy.baseline,
   };
   final config = option('config', 'assets/data/campaign_config.json5');
-  final heroPath = option('heroes', 'assets/data/rom_heroes.json');
+  final heroPath = option('heroes', 'assets/data/heroes.json5');
   // 同一批实验固定输入，避免手动编辑配置让后几局悄悄改变条件。
   final setupSource = File(config).readAsStringSync();
   final worldSource = File('assets/maps/worlds.json').readAsStringSync();
   final heroSource = File(heroPath).readAsStringSync();
-  final weaponSource = File('assets/data/rom_weapons.json').readAsStringSync();
   final out = Directory('build/simulations/$label')
     ..createSync(recursive: true);
   File('${out.path}/inputs.json').writeAsStringSync(
     jsonEncode({
       'config': json5Decode(setupSource),
       'worlds': jsonDecode(worldSource),
-      'heroes': jsonDecode(heroSource),
-      'weapons': jsonDecode(weaponSource),
+      'heroes': json5Decode(heroSource),
       'commanderStrategy': strategy,
     }),
   );
@@ -87,12 +84,10 @@ Future<void> main(List<String> args) async {
           setup: setup,
         ).firstWhere((w) => w.id == worldId);
         final catalog = decodeRomHeroes(heroSource);
-        final weapons = WeaponCatalog.decode(weaponSource);
         final streams = <int, IOSink>{};
         final runner = SimulationRunner(
           world: world,
           heroes: catalog,
-          weapons: weapons,
           aiWorkerFactory: native ? createAiWorker : SynchronousAiWorker.new,
         );
         try {

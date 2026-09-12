@@ -418,10 +418,10 @@ class NesBattleKernel {
     }
   }
 
-  /// 执行原版切札调用的 E40C，直接扣整队兵力并将溢出交给将领。
-  void applyWeaponDamage(int side, int damage) {
+  /// 直接扣除整队生命并将溢出交给将领，供撤退失败等结算复用。
+  void applyArmyDamage(int side, int damage) {
     if (side < 0 || side > 1 || damage < 0 || damage > 255) {
-      throw ArgumentError('武器伤害超出原版范围');
+      throw ArgumentError('整队伤害超出原版范围');
     }
     _a = damage;
     _call(0xe40c, x: side);
@@ -525,7 +525,7 @@ class NesBattleKernel {
     for (var budget = 0; budget < 40000; budget++) {
       if (_pc == 0x6000 || _pc == stopBefore) return;
       if (randomChargeEnabled && _pc == 0xe411) {
-        // 原中值曲线去掉中间取整为1+3P/8，保留小数；武器直接进入E40C，不经此换算。
+        // 原中值曲线去掉中间取整为1+3P/8，保留小数；整队伤害直接进入E40C，不经此换算。
         final target = _x;
         final power = ram[0x15 + (target ^ 1)];
         final eighths = 8 + power * 3 + _damageEighths[target];
@@ -719,7 +719,7 @@ class NesBattleKernel {
         case 0xde:
           final p = (_word() + _x) & 65535;
           ram[p] = _nz(ram[p] - 1);
-          // 普通碰撞、撞墙和武器共用减员指令，同帧后续计算必须读到新强度。
+          // 普通碰撞、撞墙和整队伤害共用减员指令，同帧后续计算必须读到新强度。
           if (p == 0x702f || p == 0x7030) _refreshSoldierPower();
         case 0xe0:
           _cmp(_x, _byte());

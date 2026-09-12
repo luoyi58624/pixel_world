@@ -1,4 +1,3 @@
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/core/geometry/geometry.dart';
 
 import '../../support/national_ai_fixture.dart' show advanceAi;
@@ -94,12 +93,10 @@ CampaignState _game({
   final ids = records.expand((r) => r.$4).toSet();
   return CampaignState.fromRom(
     world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync())
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync())
         .where((h) => ids.contains(h.id))
         .toList(),
-    weaponCatalog: WeaponCatalog.decode(
-      File('assets/data/rom_weapons.json').readAsStringSync(),
-    ),
+
     aiEnabled: ai,
     aiWorkerFactory: SynchronousAiWorker.new,
     aiRandom: math.Random(7),

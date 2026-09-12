@@ -69,7 +69,11 @@ CampaignEvents _restoreEvents(Map<String, dynamic> d) {
         tick: e['tick'],
         year: e['year'],
         month: e['month'],
-        kind: GameEventKind.values.byName(e['kind']),
+        kind:
+            GameEventKind.values
+                .where((kind) => kind.name == e['kind'])
+                .firstOrNull ??
+            GameEventKind.message,
         source: GameEventSource.values.byName(e['source']),
         phase: GameEventPhase.values.byName(e['phase']),
         summary: e['summary'],

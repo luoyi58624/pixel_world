@@ -47,26 +47,4 @@ void main() {
     expect(ledger.cash().reserve, before);
     expect(ledger.gold, c.goldFor(1));
   });
-  test('T04/R09 在外英雄只能使用随身武器，不能读取其他国家库存', () {
-    final c = nationalScenario(
-      ai: false,
-      stock: {
-        '1': {'0': 3},
-        '2': {'11': 3},
-      },
-    );
-    final hero = c.garrisonAt(1).first;
-    c.dispatchTo(
-      hero,
-      const GamePoint(300, 500),
-      countryId: 1,
-      weaponSlots: {0: 0},
-    );
-    final view = c.aiObservationFor(1);
-    expect(view.hero(hero.id)!.weapons, [0]);
-    expect(view.nation.stock[0], 2);
-    expect(view.countries.firstWhere((v) => v.id == 2).stock, isEmpty);
-    final guards = view.garrison(1);
-    expect(guards.every((h) => h.weapons.isEmpty), isTrue);
-  });
 }

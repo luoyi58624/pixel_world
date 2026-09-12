@@ -63,7 +63,6 @@ void main() {
     expect(
       ledger.depart(
         h,
-        [],
         ArmyTask(
           hero: h.id,
           role: 'expedition',
@@ -91,7 +90,6 @@ void main() {
     expect(
       ledger.depart(
         guards.first,
-        [],
         ArmyTask(
           hero: guards.first.id,
           role: 'expedition',
@@ -104,7 +102,6 @@ void main() {
     expect(
       ledger.depart(
         guards.last,
-        [],
         ArmyTask(
           hero: guards.last.id,
           role: 'expedition',

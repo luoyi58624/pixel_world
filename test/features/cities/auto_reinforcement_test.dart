@@ -13,7 +13,7 @@ import 'package:pixel_world/features/world_map/domain/world_data.dart';
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 List<RomHeroDefinition> _heroes() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 CampaignState _campaign({int gold = 50}) => ongoingCampaign(
   CampaignState.fromRom(
     _worlds().first,
@@ -21,7 +21,7 @@ CampaignState _campaign({int gold = 50}) => ongoingCampaign(
     startingGold: gold,
     aiEnabled: false,
   ),
-  stock: 0,
+
   year: 1,
 );
 

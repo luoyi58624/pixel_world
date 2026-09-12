@@ -160,13 +160,12 @@ void main() {
       view,
       rules,
       CombatAssessor(rules, AiWorkBudget(rules.tuning)),
-      [11],
     );
     expect(result.breakthrough, isFalse);
     expect(result.teamSize, greaterThan(1));
   });
 
-  test('完整攻势不可行时有装备才考虑首轮交换，伤重者先整备', () {
+  test('完整攻势不可行时评估首轮交换，伤重者先整备', () {
     final c = coalitionCampaign(defenders: 2);
     addTearDown(c.dispose);
     final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
@@ -183,12 +182,11 @@ void main() {
     });
     final assessor = CombatAssessor(rules, AiWorkBudget(rules.tuning));
     final h = view.garrison(1).first, city = view.city(2)!;
-    final armed = assessRaid(h, city, view, rules, assessor, [11]);
-    expect(armed.breakthrough, isTrue);
-    expect(armed.teamSize, 1);
-    expect(assessRaid(h, city, view, rules, assessor, []).teamSize, 0);
+    final raid = assessRaid(h, city, view, rules, assessor);
+    expect(raid.breakthrough, isTrue);
+    expect(raid.teamSize, 1);
     final injured = AiHero.fromJson({...h.toJson(), 'hp': 10.0});
-    expect(assessRaid(injured, city, view, rules, assessor, [11]).teamSize, 0);
+    expect(assessRaid(injured, city, view, rules, assessor).teamSize, 0);
   });
 
   test('调走驻军只降低未来费用，已发生军费仍计入最低现金', () {
@@ -214,9 +212,9 @@ void main() {
     expect(ledger(100).cash().reserve, greaterThan(ledger(0).cash().reserve));
   });
 
-  for (final situation in ['装备完整', '装备耗尽', '目标空城', '无处补装', '现有兵力占优']) {
+  for (final situation in ['兵员完整', '兵员耗尽', '目标空城', '无处整备', '现有兵力占优']) {
     test('短时避让或行军承诺期间：$situation', () {
-      final c = coalitionCampaign(homeLevel: situation == '无处补装' ? 1 : 3);
+      final c = coalitionCampaign(homeLevel: situation == '无处整备' ? 1 : 3);
       addTearDown(c.dispose);
       final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
       final h = original.garrison(1).first;
@@ -234,7 +232,9 @@ void main() {
                   'move': true,
                   'target': 2,
                   'to': original.city(2)!.center.toJson(),
-                  'w': situation == '装备完整' ? [11] : <int>[],
+                  'troops': situation == '兵员完整'
+                      ? [20.0, 20.0, 20.0, 20.0]
+                      : <double>[],
                   if (situation == '现有兵力占优') 'troops': [20.0, 20.0, 20.0, 20.0],
                 },
               },
@@ -269,14 +269,14 @@ void main() {
       final actions = brain.result!.groups
           .expand((g) => g.actions)
           .where((a) => a.hero == h.id);
-      if (situation == '装备耗尽' || situation == '无处补装') {
+      if (situation == '兵员耗尽' || situation == '无处整备') {
         expect(actions, isNotEmpty);
         final task = brain.result!.groups
             .expand((g) => g.tasks)
             .singleWhere((t) => t.hero == h.id);
-        if (situation == '装备耗尽') {
+        if (situation == '兵员耗尽') {
           expect(task.role, 'regroup');
-          expect(task.reason, contains('回城补装'));
+          expect(task.reason, contains('回城补兵'));
         } else {
           expect(task.role, 'standby');
           expect(actions.single.kind, AiActionKind.camp);

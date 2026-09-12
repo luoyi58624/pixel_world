@@ -120,19 +120,14 @@ void main() {
   test('序列化续玩保留已用次数，旧档缺少次数字段仍能读取', () {
     final fixture = _game();
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     final c = CampaignState.fromRom(fixture.world, catalog, aiEnabled: false);
     addTearDown(c.dispose);
     c.drawHero(1, countryId: 1);
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     final saved = jsonDecode(jsonEncode(c.saveState())) as Map<String, dynamic>;
-    final restored = CampaignSnapshots.restore(
-      saved,
-      c.world,
-      catalog,
-      c.weaponCatalog,
-    );
+    final restored = CampaignSnapshots.restore(saved, c.world, catalog);
     addTearDown(restored.dispose);
     expect(restored.remainingHeroDraws(1), 0);
     expect(restored.upgradeWindowBlockReason(1), contains('本月'));
@@ -142,12 +137,7 @@ void main() {
     expect(restored.upgradeWindowBlockReason(1), isNull);
     saved.remove('cityRecruitmentMonths');
     saved.remove('cityUpgradeMonths');
-    final legacy = CampaignSnapshots.restore(
-      saved,
-      c.world,
-      catalog,
-      c.weaponCatalog,
-    );
+    final legacy = CampaignSnapshots.restore(saved, c.world, catalog);
     addTearDown(legacy.dispose);
     expect(legacy.remainingHeroDraws(1), 1);
   });
@@ -190,7 +180,7 @@ void main() {
       setup: setup,
     );
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     for (final world in worlds) {
       final c = CampaignState.fromRom(world, catalog, aiEnabled: false);
@@ -218,17 +208,11 @@ void main() {
       for (final entry in (saved['countryConfigs'] as Map).entries) {
         if (entry.key != '0') entry.value[1] = 20;
       }
-      final restored = CampaignSnapshots.restore(
-        saved,
-        world,
-        catalog,
-        c.weaponCatalog,
-      );
+      final restored = CampaignSnapshots.restore(saved, world, catalog);
       final replay = CampaignSnapshots.restore(
         saved,
         world,
         catalog,
-        c.weaponCatalog,
         replay: true,
       );
       addTearDown(restored.dispose);

@@ -17,7 +17,7 @@ Map<String, dynamic> frame(int n) => {
   'counter': n,
   'objects': {
     'hero': [n, n * 2],
-    if (n.isEven) 'weapon': 1,
+    if (n.isEven) 'effect': 1,
   },
 };
 

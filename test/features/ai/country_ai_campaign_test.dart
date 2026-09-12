@@ -7,7 +7,6 @@ import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/campaign/data/campaign_setup.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
-import 'package:pixel_world/features/weapons/domain/weapon.dart';
 import 'package:pixel_world/features/ai/runtime/testing_worker.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
@@ -33,11 +32,9 @@ void main() {
       ),
     );
     final heroes = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
-    final weapons = WeaponCatalog.decode(
-      File('assets/data/rom_weapons.json').readAsStringSync(),
-    );
+
     final rows = <Map<String, Object?>>[];
     for (final seed in seeds) {
       for (final world in worlds) {
@@ -67,14 +64,14 @@ void main() {
         final c = CampaignState.fromRom(
           world,
           heroes,
-          weaponCatalog: weapons,
+
           aiWorkerFactory: SynchronousAiWorker.new,
           aiRandom: math.Random(seed),
           economyRandom: math.Random(seed + 10),
           recruitmentRandom: math.Random(seed + 20),
           siegeRandom: math.Random(seed + 30),
           retreatRandom: math.Random(seed + 40),
-          weaponRandom: math.Random(seed + 50),
+
           eventLog: eventLog,
         );
         try {

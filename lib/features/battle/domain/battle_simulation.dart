@@ -8,7 +8,6 @@ import '../../../core/config/game_config.dart';
 import 'field_terrain.dart';
 import 'nes/nes_battle_ending.dart';
 import 'nes/nes_battle_kernel.dart';
-import '../../weapons/domain/weapon.dart';
 
 part 'battle_snapshot.dart';
 
@@ -116,7 +115,6 @@ enum BattleStage {
   fighting,
   falling,
   victory,
-  weapon,
   retreating,
   ending,
   complete,
@@ -409,62 +407,6 @@ class BattleSimulation {
   int _endingTicks = 0;
   int _endingCompleteAt = 0;
   final _syncedHp = <BattleSide, double>{};
-  WeaponStrike? _weaponStrike;
-  final _weaponUsers = <BattleSide>{};
-
-  /// 当前武器演出，伤害只在命中时计算一次。
-  WeaponStrike? get weaponStrike => _weaponStrike;
-
-  /// 双方存活且在普通拼杀阶段时才能发动武器。
-  bool get canUseWeapon =>
-      !finished &&
-      stage == BattleStage.fighting &&
-      _retreat == null &&
-      _weaponStrike == null &&
-      attacker.general.alive &&
-      defender.general.alive;
-
-  /// 城战仅右侧进攻军可使用；野战双方均为在外出征部队。
-  bool canUseWeaponFor(BattleSide side) =>
-      canUseWeapon &&
-      !_weaponUsers.contains(side) &&
-      (fieldTerrain != null || side == BattleSide.attacker);
-
-  /// 锁定一个武器动作，保留原版直接伤害及死枪反噬。
-  bool useWeapon(BattleSide side, WeaponDefinition weapon) {
-    if (!canUseWeaponFor(side)) return false;
-    _weaponUsers.add(side);
-    _kernel.ram[0x0d] = 0;
-    _weaponStrike = WeaponStrike(
-      weapon,
-      attackingSide: side == BattleSide.attacker,
-      startedAt: elapsed,
-      visibleActors: [
-        for (var actor = 0; actor < 10; actor++)
-          if (_kernel.ram[0x570 +
-                      (side == BattleSide.attacker
-                          ? actor
-                          : (actor + 5) % 10)] &
-                  128 !=
-              0)
-            1 << actor,
-      ].fold<int>(0, (a, b) => a | b),
-    );
-    if (_kernel.ram[0x81] == 200 &&
-        _kernel.ram[0x83] == 16 &&
-        !_kernel.falling) {
-      _kernel.advanceWithdrawal([200, 16]);
-      _syncMotion(_kernel.wallHits);
-      _weaponStrike!.frame = 0;
-    }
-    stage = BattleStage.weapon;
-    for (final formation in formations.values) {
-      formation.moving = false;
-      formation.motion = BattleMotion.halted;
-    }
-    return true;
-  }
-
   BattleRetreat? _retreat;
   double _retreatElapsed = 0;
   late List<int> _retreatOrigins;
@@ -577,48 +519,7 @@ class BattleSimulation {
       _accumulator = math.max(0, _accumulator - fixedStep);
       elapsed += fixedStep;
       _ticks++;
-      if (_weaponStrike != null) {
-        final strike = _weaponStrike!;
-        if (strike.frame < 0) {
-          // 原 E690 在切札前把双方每帧退一像素回阵位，已有阵亡动作继续完成。
-          final next = [
-            for (var side = 0; side < 2; side++)
-              _kernel.ram[0x81 + side * 2] +
-                  (NesBattleKernel.initialFormationX[side] -
-                          _kernel.ram[0x81 + side * 2])
-                      .sign,
-          ];
-          _kernel.advanceWithdrawal(next);
-          _syncMotion(_kernel.wallHits);
-          if (next[0] == 200 && next[1] == 16 && !_kernel.falling) {
-            strike.frame = 0;
-          }
-          changed = changed || _ticks % 6 == 0;
-          continue;
-        }
-        strike.frame++;
-        if (!strike.applied && strike.frame >= strike.weapon.animationFrames) {
-          strike.applied = true;
-          _kernel.applyWeaponDamage(
-            strike.attackingSide ? 1 : 0,
-            strike.weapon.damage,
-          );
-          if (strike.weapon.selfDamage > 0) {
-            _kernel.applyWeaponDamage(
-              strike.attackingSide ? 0 : 1,
-              strike.weapon.selfDamage,
-            );
-          }
-          _syncHealth();
-          _weaponStrike = null;
-          stage = _kernel.generalsAlive
-              ? BattleStage.fighting
-              : BattleStage.falling;
-          changed = true;
-        }
-        changed = _ticks % 6 == 0 || changed;
-        continue;
-      }
+
       if (_retreat != null &&
           (stage == BattleStage.retreating || _retreat!.succeeded)) {
         final previousStage = stage;
@@ -745,7 +646,7 @@ class BattleSimulation {
       }
       if (!_retreat!.succeeded) {
         // 撤退失败时残兵也全军覆没，先用原版整队伤害启动小兵的弹地退场。
-        _kernel.applyWeaponDamage(_side(_retreat!.side), 255);
+        _kernel.applyArmyDamage(_side(_retreat!.side), 255);
         _kernel.setHeroHp(_side(_retreat!.side), 0);
         _syncHealth();
         _ticks = math.max(_ticks, GameConfig.battleFormationFrames);

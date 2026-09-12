@@ -7,17 +7,13 @@ import 'work_budget.dart';
 /// 属性比较类别，不表示随机战斗的确定胜负。
 enum CombatAdvantage { favorable, close, unfavorable, unknown }
 
-/// 静态承伤/输出余量与武器兑现边界，不模拟任何战斗步骤。
+/// 静态承伤与输出余量，不模拟任何战斗步骤。
 class CombatAssessment {
   /// 记录可解释的范围。
   const CombatAssessment(
     this.advantage,
     this.lower,
     this.upper, {
-    this.ownWeaponLower = 0,
-    this.ownWeaponUpper = 0,
-    this.enemyWeaponUpper = 0,
-    this.releaseRisk = false,
     this.reasons = const [],
   });
 
@@ -25,17 +21,11 @@ class CombatAssessment {
   final CombatAdvantage advantage;
   final double lower, upper;
 
-  /// 按当前释放规则估算的武器伤害界限。
-  final double ownWeaponLower, ownWeaponUpper, enemyWeaponUpper;
-
-  /// 双方可能先手致命时，不能把相减归零解释成平局。
-  final bool releaseRisk;
-
   /// 主要假设和保守性原因。
   final List<String> reasons;
 }
 
-/// 只对冻结属性做有界算术，与真实生命、库存及随机源完全隔离。
+/// 只对冻结属性做有界算术，与真实生命、资源及随机源完全隔离。
 class CombatAssessor {
   /// 绑定公开规则与一次请求的预算。
   CombatAssessor(this.rules, this.work);
@@ -54,18 +44,11 @@ class CombatAssessor {
     int terrain = 0,
     int? ownSoldiers,
     int? enemySoldiers,
-    List<int>? loadout,
-    List<int>? enemyLoadout,
-    double enemyPressure = 0,
-    bool ownOpening = true,
-    bool enemyOpening = true,
   }) {
-    final gear = loadout ?? own.weapons,
-        enemyGear = enemyLoadout ?? enemy.weapons;
     final ownCount = ownSoldiers ?? own.soldierCount,
         enemyCount = enemySoldiers ?? enemy.soldierCount;
     final key =
-        '${own.id}:${own.hp}:${own.combat}:${own.soldiers}:${own.morale}:${enemy.id}:${enemy.hp}:${enemy.combat}:${enemy.soldiers}:${enemy.morale}:$ownDefense:$enemyDefense:$terrain:$ownCount:$enemyCount:$gear:$enemyGear:$enemyPressure:$ownOpening:$enemyOpening';
+        '${own.id}:${own.hp}:${own.combat}:${own.soldiers}:${own.morale}:${enemy.id}:${enemy.hp}:${enemy.combat}:${enemy.soldiers}:${enemy.morale}:$ownDefense:$enemyDefense:$terrain:$ownCount:$enemyCount';
     final cached = _cache[key];
     if (cached != null) return cached;
     if (!work.assessment()) {
@@ -81,61 +64,19 @@ class CombatAssessor {
         (ownSoldiers == null
             ? own.soldiers.fold(0.0, (a, b) => a + b)
             : ownCount * rules.integer('soldierHp'));
-    final soldierHp = rules.integer('soldierHp');
-    // 截击后会补满存活小兵血量，只计武器确定消灭的整兵及溢出将领伤害。
-    final removedByPressure = math.min(
-      enemyCount,
-      (enemyPressure / soldierHp).floor(),
-    );
-    final durablePressure =
-        removedByPressure * soldierHp +
-        math.max(0, enemyPressure - enemyCount * soldierHp);
     final enemyHp =
         enemy.hp +
-        (enemySoldiers == null && enemyPressure == 0
+        (enemySoldiers == null
             ? enemy.soldiers.fold(0.0, (a, b) => a + b)
             : enemyCount * rules.integer('soldierHp'));
-    final a = _weapons(
-      gear,
-      enabled: ownDefense == 0 && own.hp > 0,
-      opening: ownOpening,
-    );
-    final b = _weapons(
-      enemyGear,
-      enabled: enemyDefense == 0 && enemy.hp > 0,
-      opening: enemyOpening,
-    );
     final field = ownDefense == 0 && enemyDefense == 0;
     final ownPower = _power(own, ownCount, ownDefense, terrain, field),
-        enemyPower = _power(
-          enemy,
-          enemyCount - removedByPressure,
-          enemyDefense,
-          terrain,
-          field,
-        );
-    final releaseRisk =
-        (a.high >= enemyHp && b.high >= ownHp) || (a.selfHigh >= ownHp);
-    // 同一对属性只算上下两端的余量，不反复扣血、士气或制造假想战果。
-    final lowOwn = math.max(0.0, ownHp - b.high - a.selfHigh);
-    final lowEnemy = math.max(
-      0.0,
-      enemyHp - a.low - b.selfLow - durablePressure,
-    );
-    final highOwn = math.max(0.0, ownHp - b.low - a.selfLow);
-    final highEnemy = math.max(
-      0.0,
-      enemyHp - a.high - b.selfHigh - durablePressure,
-    );
+        enemyPower = _power(enemy, enemyCount, enemyDefense, terrain, field);
     final scale = math.max(1.0, ownHp * ownPower + enemyHp * enemyPower);
-    final lower =
-        (lowOwn * ownPower * .9 - lowEnemy * enemyPower * 1.1) / scale;
-    final upper =
-        (highOwn * ownPower * 1.1 - highEnemy * enemyPower * .9) / scale;
+    final lower = (ownHp * ownPower * .9 - enemyHp * enemyPower * 1.1) / scale;
+    final upper = (ownHp * ownPower * 1.1 - enemyHp * enemyPower * .9) / scale;
     final threshold = rules.tuning.advantageMargin;
-    final category = releaseRisk
-        ? CombatAdvantage.unknown
-        : lower > threshold
+    final category = lower > threshold
         ? CombatAdvantage.favorable
         : upper < -threshold
         ? CombatAdvantage.unfavorable
@@ -144,14 +85,8 @@ class CombatAssessor {
       category,
       lower,
       upper,
-      ownWeaponLower: a.low,
-      ownWeaponUpper: a.high,
-      enemyWeaponUpper: b.high,
-      releaseRisk: releaseRisk,
       reasons: [
-        if (ownDefense > 0 || enemyDefense > 0) '城防增加攻击与开场士气，守方武器贡献为零',
-        if (gear.length > 1) '本次对阵只计首件武器，其余留待下一位守将',
-        if (releaseRisk) '存在先手致命或自伤风险',
+        if (ownDefense > 0 || enemyDefense > 0) '城防增加攻击与开场士气',
         '余量为静态风险指标，并非胜率',
       ],
     );
@@ -167,33 +102,14 @@ class CombatAssessor {
       field: field,
     );
     final power = attack + soldiers * rules.integer('soldierPower');
-    final morale = rules.morale(h.morale.round(), defenseLevel: field ? 0 : defense);
+    final morale = rules.morale(
+      h.morale.round(),
+      defenseLevel: field ? 0 : defense,
+    );
     // 当前已显示红条仅影响有限偏好，不预扣未来随机士气。
     return (((power + 2) ~/ 4) + 1) *
         1.5 *
         (1 + (morale / 1000).clamp(0.0, .1));
-  }
-
-  ({double low, double high, double selfLow, double selfHigh}) _weapons(
-    List<int> ids, {
-    required bool enabled,
-    required bool opening,
-  }) {
-    if (!enabled) return (low: 0, high: 0, selfLow: 0, selfHigh: 0);
-    var low = 0.0, high = 0.0, selfLow = 0.0, selfHigh = 0.0;
-    for (var i = 0; i < math.min(ids.length, 1); i++) {
-      final w = rules.weapons[ids[i]];
-      if (w == null) continue;
-      if (i == 0 && opening) {
-        low += w.damage;
-        selfLow += w.selfDamage;
-      }
-      if (i == 0 && opening || rules.number('weaponChance') > 0) {
-        high += w.damage;
-        selfHigh += w.selfDamage;
-      }
-    }
-    return (low: low, high: high, selfLow: selfLow, selfHigh: selfHigh);
   }
 }
 
@@ -229,11 +145,7 @@ bool valuableGovernor(AiHero hero) => hero.politics >= 15;
 
 /// 仅用于选择需要细评的对手或守军，避免内政和稀有度冒充当前战力。
 double heroCombatValue(AiHero h, AiRules rules) =>
-    h.health * (h.combat + h.soldierCount * rules.integer('soldierPower')) +
-    h.weapons.fold(
-      0.0,
-      (n, id) => n + (rules.weapons[id]?.damage ?? 0) * h.combat,
-    );
+    h.health * (h.combat + h.soldierCount * rules.integer('soldierPower'));
 
 /// 守城价值按实际攻防属性计算，普通将领的高攻击不会被类型标签压低。
 double heroDefenseValue(AiHero h, AiRules rules, int level, int soldiers) =>

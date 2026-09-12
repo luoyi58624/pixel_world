@@ -23,43 +23,6 @@ class BattleArt {
   final _frames = <(HeroAppearance?, bool, int), ui.Image>{};
   int? _size;
   final _labels = <(String, double, double), TextPainter>{};
-  final _weaponFrames = <int, ui.Image>{};
-  int? _weaponSize;
-
-  /// 按物理像素缓存原武器拼接帧，移动时不重复缩放采样。
-  ui.Image weaponSprite(int id, int bodyPixelSize) {
-    if (_weaponSize != bodyPixelSize) {
-      for (final frame in _weaponFrames.values) {
-        frame.dispose();
-      }
-      _weaponFrames.clear();
-      _weaponSize = bodyPixelSize;
-    }
-    return _weaponFrames.putIfAbsent(id, () {
-      final sprite = assets.weaponAnimations.sprites[id];
-      final width = math.max(
-        1,
-        (sprite.source.width * bodyPixelSize / 16).round(),
-      );
-      final height = math.max(
-        1,
-        (sprite.source.height * bodyPixelSize / 16).round(),
-      );
-      final recorder = ui.PictureRecorder();
-      Canvas(recorder).drawImageRect(
-        assets.battleSprites['weapon_effects']!,
-        sprite.source,
-        Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
-        Paint()
-          ..filterQuality = FilterQuality.none
-          ..isAntiAlias = false,
-      );
-      final picture = recorder.endRecording();
-      final image = picture.toImageSync(width, height);
-      picture.dispose();
-      return image;
-    });
-  }
 
   /// 原版一级城用金色城墙，二至四级用青色城墙，五级用灰色城墙。
   ui.Image background(int cityLevel) =>
@@ -69,7 +32,7 @@ class BattleArt {
           ? 3
           : 4]!;
 
-  /// 读取独立战斗图块；32 像素画布包含居中的 16 像素人物与原版武器部件。
+  /// 读取独立战斗图块，32 像素画布包含居中的 16 像素人物。
   ui.Image sprite(
     HeroAppearance? appearance,
     bool friendly,
@@ -111,9 +74,6 @@ class BattleArt {
     }
     for (final text in _labels.values) {
       text.dispose();
-    }
-    for (final image in _weaponFrames.values) {
-      image.dispose();
     }
   }
 }
@@ -175,11 +135,8 @@ class BattlePainter extends CustomPainter {
     canvas.scale(camera.scale);
     _hud(canvas, battle);
     canvas.restore();
-    final playingWeapon =
-        sim.weaponStrike != null && sim.weaponStrike!.frame >= 0;
-    final units =
-        sim.units.where((unit) => unit.visible && !playingWeapon).toList()
-          ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
+    final units = sim.units.where((unit) => unit.visible).toList()
+      ..sort((a, b) => a.position.dy.compareTo(b.position.dy));
     for (final unit in units) {
       final point = unit.renderPosition(sim.elapsed);
       final center = camera.toScreen(point);
@@ -212,66 +169,7 @@ class BattlePainter extends CustomPainter {
       );
       canvas.restore();
     }
-    final strike = sim.weaponStrike;
-    if (strike != null && strike.frame >= 0) {
-      final library = assets.weaponAnimations;
-      final clip = library.clips[strike.weapon.effectId]!;
-      final frame = clip[strike.frame.clamp(0, clip.length - 1)];
-      final caster = strike.attackingSide ? battle.attacker : battle.defender;
-      final opponent = strike.attackingSide ? battle.defender : battle.attacker;
-      final bodyPixels = math.max(
-        1,
-        (16 * camera.scale * devicePixelRatio).round(),
-      );
-      for (final actor in frame) {
-        if (actor.actor < 10 &&
-            strike.visibleActors & (1 << actor.actor) == 0) {
-          continue;
-        }
-        final pose = library.poses[actor.pose];
-        final hero = pose.group < 2 ? caster : opponent;
-        var variant = 0;
-        if (pose.group == 0 || pose.group == 2) {
-          variant = hero.isPlayer ? 0 : 1;
-        } else if (pose.group == 1 || pose.group == 3) {
-          variant =
-              switch (hero.appearance) {
-                HeroAppearance.advanced => 0,
-                HeroAppearance.normal => 1,
-                HeroAppearance.protagonist => 2,
-              } +
-              (hero.isPlayer ? 0 : 3);
-        }
-        final id = pose.variants[math.min(variant, pose.variants.length - 1)];
-        final sprite = library.sprites[id];
-        final image = art.weaponSprite(id, bodyPixels);
-        final original = actor.position + sprite.offset;
-        final position = strike.attackingSide
-            ? original
-            : Offset(256 - original.dx - sprite.source.width, original.dy);
-        final screen = camera.toScreen((position).toGame);
-        canvas.save();
-        canvas.translate(
-          (screen.dx * devicePixelRatio).round() / devicePixelRatio,
-          (screen.dy * devicePixelRatio).round() / devicePixelRatio,
-        );
-        final width = image.width / devicePixelRatio,
-            height = image.height / devicePixelRatio;
-        if (!strike.attackingSide) {
-          canvas.translate(width, 0);
-          canvas.scale(-1, 1);
-        }
-        canvas.drawImageRect(
-          image,
-          Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-          Rect.fromLTWH(0, 0, width, height),
-          Paint()
-            ..filterQuality = FilterQuality.none
-            ..isAntiAlias = false,
-        );
-        canvas.restore();
-      }
-    }
+
     canvas.restore();
   }
 
