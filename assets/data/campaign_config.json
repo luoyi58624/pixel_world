@@ -162,18 +162,6 @@
           "name": "本塔",
           "baseIncome": 20,
           "initialLevel": 3
-        },
-        {
-          "id": 10,
-          "name": "洛埃",
-          "baseIncome": 20,
-          "initialLevel": 2
-        },
-        {
-          "id": 11,
-          "name": "贝尔",
-          "baseIncome": 20,
-          "initialLevel": 3
         }
       ]
     },
