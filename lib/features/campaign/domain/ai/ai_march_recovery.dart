@@ -12,6 +12,11 @@ extension _AiMarchRecovery on _AiCoordinator {
       final hero = march.hero, task = tasks[march.hero.id];
       if (!campaign._automatedCountry(hero.countryId) ||
           !hero.health.alive ||
+          task?.needsTargetReview(
+                campaign.cities[task.city]?.ownerCountryId,
+                hero.countryId,
+              ) ==
+              true ||
           march.waitingForDeparture ||
           march.returningFromRetreat ||
           march.supplyHalted ||

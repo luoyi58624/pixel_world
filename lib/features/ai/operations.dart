@@ -141,7 +141,9 @@ class OperationPlanner {
       return null;
     }
     if (route.seconds + rules.tuning.reactionMargin >= deadline) return null;
-    if (role == 'expedition' && target != null && !hasCoalitionFront(target)) {
+    if (role == 'expedition' &&
+        target != null &&
+        (target.country == _view.country || !hasCoalitionFront(target))) {
       return null;
     }
     final previous = base.tasks[hero.id];

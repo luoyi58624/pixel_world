@@ -147,7 +147,7 @@ extension _AiCommands on CampaignState {
     final schedule = coordinator._schedules[reply.country];
     if (schedule?.defenseAlarmPending == true &&
         schedule?.pending?.stage == AiDecisionStage.attack) {
-      return reject('敌军越境，先重新评估防守');
+      return reject('局势已变化，先重新评估防守与在途任务');
     }
     if (count > GameConfig.nationalAi.maxCommands) return reject('命令组超过预算');
     final assignedHeroes = <String>{};

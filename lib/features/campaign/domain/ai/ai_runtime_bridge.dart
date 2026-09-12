@@ -356,8 +356,7 @@ class _AiCoordinator {
         }
         if (campaign.activeBattleForHero(task.hero) != null ||
             march.returningFromRetreat ||
-            march.waitingForDeparture ||
-            march._trafficBlocked) {
+            march.waitingForDeparture) {
           continue;
         }
         if (task.expectedOrderRevision !=
@@ -375,18 +374,13 @@ class _AiCoordinator {
           continue;
         }
         final targetOwner = campaign.cities[task.city]?.ownerCountryId;
-        if (task.role == 'expedition' &&
-            task.targetCountry != null &&
-            targetOwner != null &&
-            targetOwner != task.targetCountry &&
-            targetOwner != hero.countryId) {
-          if (_changedTargetOwners[hero.id] != targetOwner) {
-            _changedTargetOwners[hero.id] = targetOwner;
-            urgent(hero.countryId, reason: '目标城池易主，评估继续进攻或附近新目标');
-          }
-        } else {
-          _changedTargetOwners.remove(hero.id);
+        if (task.needsTargetReview(targetOwner, hero.countryId)) {
+          changed = _pauseChangedExpedition(task, march) || changed;
+          // 旧任务只保留用于重新评估，路点续走必须等新的任务落地。
+          continue;
         }
+        _changedTargetOwners.remove(hero.id);
+        if (march._trafficBlocked) continue;
         if (march.phase == MarchPhase.camped &&
             task.leg + 1 < task.points.length &&
             !march.supplyHalted) {
@@ -430,6 +424,63 @@ class _AiCoordinator {
     } finally {
       diagnostics.frameMicros += cost.elapsedMicroseconds;
     }
+  }
+
+  // 易主是原任务失效，先合法停止旧路线，再唤醒能处理在途部队的防守阶段。
+  bool _pauseChangedExpedition(ArmyTask task, HeroMarch march) {
+    final hero = march.hero;
+    final owner = campaign.cities[task.city]?.ownerCountryId;
+    if (!campaign._automatedCountry(hero.countryId) ||
+        !task.needsTargetReview(owner, hero.countryId) ||
+        task.expectedOrderRevision !=
+            (campaign._aiOrderVersions[hero.id] ?? 0) ||
+        campaign.campBlockReason(hero.id, countryId: hero.countryId) != null) {
+      return false;
+    }
+    final reason = owner == hero.countryId
+        ? '目标城池已经被本国占领，停止旧远征并重新选择进攻目标或整备地点'
+        : '目标城池已经易主，停止旧路线并重新评估当前守军和其他敌城';
+    var changed = false;
+    if (march.phase != MarchPhase.camped || march.waitingForTraffic) {
+      final previousContext = campaign._eventContext;
+      final decisionId = _taskDecisions[hero.id];
+      if (decisionId != null) {
+        campaign._eventContext = (
+          countryId: hero.countryId,
+          decisionId: decisionId,
+          reason: reason,
+        );
+      }
+      try {
+        changed = campaign.camp(hero.id, countryId: hero.countryId);
+      } finally {
+        campaign._eventContext = previousContext;
+      }
+      if (!changed) return false;
+      // 停止行军也会更新指令版本，保留旧目标才能让新观察识别易主原因。
+      tasks[hero.id] = task.withLeg(
+        task.leg,
+        campaign._aiOrderVersions[hero.id]!,
+      );
+      campaign._finalizeAiIntervention(
+        hero.countryId,
+        task.city!,
+        '命${hero.name}停止旧远征，重新选择目标',
+        reason: reason,
+        data: {
+          'heroId': hero.id,
+          'causedByDecisionId': _taskDecisions[hero.id],
+          'previousTargetCountry': task.targetCountry,
+          'currentTargetCountry': owner,
+        },
+      );
+    }
+    _marchProgress.remove(hero.id);
+    if (_changedTargetOwners[hero.id] != owner) {
+      _changedTargetOwners[hero.id] = owner!;
+      urgent(hero.countryId, reason: reason, defenseNow: true);
+    }
+    return changed;
   }
 
   void _taskEnded(ArmyTask task, CampaignHero? hero, String reason) {
@@ -575,11 +626,22 @@ extension _AiSafety on CampaignState {
   bool _aiAllowArrival(HeroMarch march) {
     if (!_automatedCountry(march.hero.countryId)) return true;
     final id = march.target!.id;
+    final task = _ai?.tasks[march.hero.id];
+    // 同一帧占领后到达的后续部队，也要先重新规划，不能直接挤进新占领的城。
+    if (!march.returningFromRetreat &&
+        task != null &&
+        task.expectedOrderRevision == (_aiOrderVersions[march.hero.id] ?? 0) &&
+        task.needsTargetReview(
+          cities[task.city]?.ownerCountryId,
+          march.hero.countryId,
+        )) {
+      _ai!._pauseChangedExpedition(task, march);
+      return false;
+    }
     if (garrisonAt(id).where((h) => h.health.alive).length <
         _aiSafetySlots(id)) {
       return true;
     }
-    final task = _ai?.tasks[march.hero.id];
     final rear =
         !_aiThreatened(id) &&
         (march.returningFromRetreat ||

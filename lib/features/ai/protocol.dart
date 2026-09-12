@@ -107,6 +107,13 @@ class ArmyTask {
   final bool rearStaging;
   final int expectedOrderRevision;
 
+  /// 原敌城变为本国城池或其他国家领土时重新评估，兼容未记录原属国的旧任务。
+  bool needsTargetReview(int? currentOwner, int ownCountry) =>
+      role == 'expedition' &&
+      currentOwner != null &&
+      (currentOwner == ownCountry ||
+          targetCountry != null && currentOwner != targetCountry);
+
   /// 推进路段时保留全部其他任务属性。
   ArmyTask withLeg(int next, int revision) => ArmyTask(
     hero: hero,

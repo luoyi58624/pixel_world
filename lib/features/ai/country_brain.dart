@@ -255,10 +255,11 @@ class CountryBrain {
       final needsRecovery = _needsAssaultRecovery(hero, task);
       final expired = task != null && task.deadlineTick < _view.tick;
       final changedOwner =
-          task?.role == 'expedition' &&
-          task?.targetCountry != null &&
-          _view.city(task?.city)?.country != task?.targetCountry &&
-          _view.city(task?.city)?.country != _view.country;
+          task?.needsTargetReview(
+            _view.city(task.city)?.country,
+            _view.country,
+          ) ??
+          false;
       final stopped =
           task != null &&
           hero.state == AiArmyState.camped &&
@@ -280,8 +281,8 @@ class CountryBrain {
           groups.add(attack.group);
           continue;
         }
-        // 配额不足不等于无路可走，保留当前行动等待下一次完整评估。
-        if (work.limited) continue;
+        // 配额不足可以稍后重算，但失效的远征必须先停下，不能继续冲向已占领的城。
+        if (work.limited && !changedOwner) continue;
       }
       if (task?.arrivalSlot == true &&
           hero.targetCity == task?.city &&
@@ -308,7 +309,11 @@ class CountryBrain {
           hero.hp >= hero.maxHp * .5) {
         continue;
       }
-      if (hero.movementPending && task != null && !expired && !needsRecovery) {
+      if (hero.movementPending &&
+          task != null &&
+          !expired &&
+          !needsRecovery &&
+          !changedOwner) {
         continue;
       }
       final assault = assaultTarget(hero, _view, ledger);
@@ -403,14 +408,17 @@ class CountryBrain {
           break;
         }
       }
-      if ((idle || needsRecovery) && !ledger.reservedHeroes.contains(hero.id)) {
+      if ((idle || needsRecovery || changedOwner) &&
+          !ledger.reservedHeroes.contains(hero.id)) {
         final reason = needsRecovery
             ? '随军兵力不足且暂无安全整备地点，停止推进并等待重新调度'
+            : changedOwner
+            ? '原进攻目标已经易主，暂无合适的新目标或安全入城方案，停止旧远征并继续复查'
             : '当前没有合适的截击或进攻目标，友城也没有安全入城方案，暂时待命并继续复查';
         notes.add('${hero.id}：$reason');
         if (task?.role != 'standby' || expired) {
           final mustCamp =
-              needsRecovery &&
+              (needsRecovery || changedOwner) &&
               (hero.state != AiArmyState.camped || hero.movementPending);
           final standby = ArmyTask(
             hero: hero.id,
@@ -897,7 +905,7 @@ class CountryBrain {
     return risk.advantage != CombatAdvantage.favorable;
   }
 
-  // 只比较眼前守军和真实随身兵力；目标易主不应自动取消已经走完的远征路程。
+  // 易主后用真实随身兵力重新选敌城，已经占领的城池不会继续作为进攻目标。
   PlannedOperation? _redirectFieldAttack(
     AiLedger ledger,
     AiHero hero,
