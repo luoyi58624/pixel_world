@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
 import 'package:pixel_world/features/ai/combat_assessment.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
-import 'package:pixel_world/features/events/domain/game_events.dart';
 
 import '../../support/national_ai_fixture.dart';
 
@@ -38,7 +37,7 @@ void main() {
       );
     });
   }
-  test('低攻击将领带强武器消耗，高攻击普通将领留在城内接战', () {
+  test('即使低攻击余将和武器预算齐备，也不再安排出城消耗', () {
     final c = nationalScenario(
       ai: false,
       guards: [33, 34],
@@ -58,16 +57,10 @@ void main() {
     final groups = plan.groups
         .where((g) => g.tasks.any((t) => t.attrition))
         .toList();
-    expect(groups, isNotEmpty, reason: plan.toJson().toString());
-    final outgoing = groups
-        .expand((g) => g.actions)
-        .where((a) => a.kind == AiActionKind.dispatch)
-        .single;
-    expect(outgoing.hero, 'rom-33');
-    expect(outgoing.weaponIds.length, 1);
+    expect(groups, isEmpty, reason: plan.toJson().toString());
     expect(
-      c.weaponCatalog.weapons[outgoing.weaponIds.single]!.damage,
-      greaterThanOrEqualTo(60),
+      plan.groups.expand((g) => g.tasks).where((t) => t.role == 'intercept'),
+      isEmpty,
     );
     expect(
       plan.groups
@@ -80,10 +73,6 @@ void main() {
       isFalse,
     );
     expect(c.aiObservationFor(1).hero('rom-34')!.type, 0);
-    expect(
-      ArmyTask.fromJson(groups.first.tasks.first.toJson()).attrition,
-      isTrue,
-    );
   });
 
   test('高攻击普通将领的城防价值可以高于低攻击高级将领', () {
@@ -136,39 +125,5 @@ void main() {
     );
     expect(a.lower, b.lower);
     expect(stronger.lower, greaterThan(a.lower));
-  });
-
-  test('真实指令调度执行武器截击，留守普通将领不被当作消耗品', () {
-    final c = nationalScenario(
-      ai: true,
-      guards: [33, 34],
-      level: 4,
-      reserves: 12,
-      gold: 200,
-      attackerCombat: 32,
-      overrides: {
-        33: {'combat': 2, 'maxHp': 35, 'morale': 30, 'politics': 0},
-        34: {'combat': 14, 'maxHp': 60, 'morale': 100},
-      },
-    );
-    addTearDown(c.dispose);
-    approaching(c, distance: 140);
-    var used = false;
-    for (var i = 0; i < 6000 && !used; i++) {
-      c.advance(1 / 60);
-      used = c.events
-          .forCountry(1)
-          .query()
-          .any(
-            (e) => e.kind == GameEventKind.weaponUsed && e.heroId == 'rom-33',
-          );
-    }
-    expect(
-      used,
-      isTrue,
-      reason: c.events.forCountry(1).exportDecisionsJsonLines(),
-    );
-    expect(c.garrisonAt(1).any((h) => h.id == 'rom-34'), isTrue);
-    expect(c.marches['rom-33']?.hero.weaponIds, isEmpty);
   });
 }

@@ -128,7 +128,7 @@ void main() {
     );
   });
 
-  test('没钱买武器时低价值将领可裸装吸收来敌武器，但不派走守城主力', () {
+  test('没钱买武器时也不派低价值将领裸装出城吸收来敌武器', () {
     final c = nationalScenario(
       ai: false,
       guards: [33, 34],
@@ -159,14 +159,12 @@ void main() {
         .expand((g) => g.actions)
         .where((a) => a.kind == AiActionKind.dispatch)
         .toList();
-    expect(sorties, isNotEmpty, reason: plan.toJson().toString());
-    expect(sorties.single.hero, 'rom-33');
-    expect(sorties.single.weaponIds, isEmpty);
+    expect(sorties, isEmpty, reason: plan.toJson().toString());
     expect(
       plan.groups
           .expand((g) => g.tasks)
           .any((t) => t.hero == 'rom-33' && t.attrition),
-      isTrue,
+      isFalse,
     );
   });
 

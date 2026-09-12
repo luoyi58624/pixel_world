@@ -29,8 +29,64 @@ CountryPlan _plan(CampaignState c, AiObservation view, AiDecisionStage stage) {
 }
 
 void main() {
+  test('即使有强将和现成武器，也不派驻城将领出城截击', () {
+    final c = nationalScenario(
+      ai: false,
+      gold: 200,
+      level: 2,
+      guards: [0, 4],
+      attackerCombat: 15,
+      stock: {
+        '1': {'11': 1},
+        '2': {'11': 1},
+      },
+      overrides: {
+        0: {'combat': 15, 'maxHp': 99},
+        4: {'combat': 25, 'maxHp': 140},
+      },
+    );
+    addTearDown(c.dispose);
+    final enemy = approaching(c, distance: 140).hero;
+    final original = c.aiObservationFor(1);
+    final view = AiObservation.fromJson({
+      ...original.toJson(),
+      'heroes': [
+        for (final h in original.heroes)
+          {
+            ...h.toJson(),
+            if (h.id == 'rom-0') 't': 2,
+            if (h.id == enemy.id) ...{
+              'v': [-20.0, 0.0],
+              'w': [11],
+            },
+          },
+      ],
+    });
+    final plan = _plan(c, view, AiDecisionStage.defense);
+    expect(
+      plan.groups
+          .expand((g) => g.tasks)
+          .any((t) => view.hero(t.hero)!.stationed && t.role == 'intercept'),
+      isFalse,
+      reason: plan.toJson().toString(),
+    );
+    expect(
+      plan.groups
+          .expand((g) => g.actions)
+          .where((a) => a.kind == AiActionKind.buyWeapon),
+      isEmpty,
+    );
+  });
+
   test('主角城实际保留两名守军，派出一人后不能再把剩下的护卫派空', () {
-    final c = nationalScenario(ai: false, level: 3, guards: [0, 18, 19]);
+    final c = nationalScenario(
+      ai: false,
+      level: 3,
+      guards: [0, 18, 19],
+      overrides: {
+        18: {'combat': 2, 'maxHp': 23},
+      },
+    );
     addTearDown(c.dispose);
     final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
     final view = AiObservation.fromJson({
@@ -48,6 +104,7 @@ void main() {
     expect(ledger.defendersToKeep(view.city(1)!), 2);
     final spare = view.garrison(1).where(ledger.canSpareForOffense).toList();
     expect(spare.length, 1);
+    expect(spare.single.id, 'rom-18', reason: '保留生命更高的护卫，不能只留下最弱将领');
     expect(
       ledger.depart(
         spare.single,

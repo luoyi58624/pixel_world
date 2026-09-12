@@ -214,12 +214,43 @@ class AiLedger {
     final protagonist = guards.where((h) => h.type == 2).firstOrNull;
     if (protagonist != null) {
       if (guards.length <= 2 || hero.id == protagonist.id) return false;
-      // 主角之外保留一名真实守将承接首轮；让更有战略价值的主力仍可出征。
+      // 护卫必须能承接敌军开场，不能仅用一个低战力人头满足主角安全条件。
       final guardsBeforeProtagonist =
           guards.where((h) => h != protagonist).toList()..sort(
-            (a, b) => heroStrategicValue(a).compareTo(heroStrategicValue(b)),
+            (a, b) =>
+                heroDefenseValue(
+                  b,
+                  rules,
+                  slots(city),
+                  rules.integer('soldierLimit'),
+                ).compareTo(
+                  heroDefenseValue(
+                    a,
+                    rules,
+                    slots(city),
+                    rules.integer('soldierLimit'),
+                  ),
+                ),
           );
-      return hero.id != guardsBeforeProtagonist.first.id;
+      final strongest = heroDefenseValue(
+        guardsBeforeProtagonist.first,
+        rules,
+        slots(city),
+        rules.integer('soldierLimit'),
+      );
+      final guardian = guardsBeforeProtagonist
+          .where(
+            (h) =>
+                heroDefenseValue(
+                  h,
+                  rules,
+                  slots(city),
+                  rules.integer('soldierLimit'),
+                ) >=
+                strongest * .6,
+          )
+          .last;
+      return hero.id != guardian.id;
     }
     if (safeRear(city)) {
       return !(valuableGovernor(hero) && hero.combat < 12);

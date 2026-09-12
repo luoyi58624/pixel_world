@@ -232,6 +232,8 @@ class OperationPlanner {
     int queueIndex = 0,
     bool attrition = false,
   }) {
+    // 驻城将领只在城内迎敌；截击仅允许改派已经在野外的部队。
+    if (role == 'intercept' && hero.stationed) return null;
     if (!route.complete ||
         !route.seconds.isFinite ||
         route.points.isEmpty ||
