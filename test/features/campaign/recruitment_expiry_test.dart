@@ -21,7 +21,7 @@ class _Pick implements math.Random {
 CampaignState _campaign({_Pick? pick}) {
   final c = CampaignState.fromRom(
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
     startingGold: 1000,
     recruitmentRandom: pick ?? _Pick(),

@@ -5,6 +5,7 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
@@ -13,9 +14,9 @@ import 'package:pixel_world/features/world_map/presentation/world_controller.dar
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 Map<String, dynamic> _config() =>
-    jsonDecode(File('assets/data/rom_heroes.json').readAsStringSync());
+    json5Decode(File('assets/data/heroes.json5').readAsStringSync());
 List<RomHeroDefinition> _catalog() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 
 class _Pick implements math.Random {
   int index = 0;

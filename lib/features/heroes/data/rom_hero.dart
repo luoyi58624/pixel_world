@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'package:json5/json5.dart';
 
 /// 将领类型是独立领域数据，不能以主角编号或图片文件名代替。
 enum HeroType {
@@ -100,7 +100,7 @@ int _readMorale(Map<String, dynamic> json) {
 
 /// 读取原版及扩展英雄，保留基础目录并拒绝重复编号和无效生命值。
 List<RomHeroDefinition> decodeRomHeroes(String source) {
-  final json = jsonDecode(source) as Map<String, dynamic>;
+  final json = json5Decode(source) as Map<String, dynamic>;
   final rows = json['heroes'] as List;
   final heroes = [
     for (var index = 0; index < rows.length; index++)

@@ -7,7 +7,7 @@ import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 List<RomHeroDefinition> _catalog() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 CampaignState _campaign({int gold = 300}) => CampaignState.fromRom(

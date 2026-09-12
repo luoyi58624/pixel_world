@@ -20,7 +20,7 @@ Future<WorldController> _load(
   RetreatRoll random,
 ) async {
   rootBundle.evict('assets/maps/worlds.json');
-  rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/heroes.json5');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);

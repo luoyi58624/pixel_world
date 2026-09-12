@@ -10,7 +10,7 @@ import 'package:pixel_world/features/world_map/presentation/world_controller.dar
 import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 List<RomHeroDefinition> _heroes() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 

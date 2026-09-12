@@ -16,7 +16,7 @@ Map<String, dynamic> configJson() =>
         as Map<String, dynamic>;
 String mapJson() => File('assets/maps/worlds.json').readAsStringSync();
 List<RomHeroDefinition> heroes() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 Map<String, dynamic> city(
   Map<String, dynamic> data, {
   int map = 0,

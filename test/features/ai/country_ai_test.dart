@@ -30,7 +30,7 @@ List<WorldDefinition> _worlds() =>
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync());
 
 List<RomHeroDefinition> _catalog() =>
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync());
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync());
 
 final _configuredCountries = CampaignSetup.decode(
   File('assets/data/campaign_config.json5').readAsStringSync(),

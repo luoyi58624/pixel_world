@@ -45,7 +45,7 @@ CampaignState _campaign({
     },
     [0, 1, 2, 3],
   ),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync())
+  decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync())
       .where(
         (hero) => recruitment || {40, 0, 2, 18, 19, 20, 3, 4}.contains(hero.id),
       )

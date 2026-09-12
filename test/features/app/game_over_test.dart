@@ -17,7 +17,7 @@ CampaignState _campaign() => CampaignState.fromRom(
   aiEnabled: false,
   siegeRandom: const FixedSiegeRandom(),
   decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+  decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
   startingGold: 10000,
 );
 
@@ -42,7 +42,7 @@ void _fightUntilRemoved(CampaignState c, CampaignHero hero) {
 
 Future<WorldController> _load(WidgetTester tester, Size size) async {
   rootBundle.evict('assets/maps/worlds.json');
-  rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/heroes.json5');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);

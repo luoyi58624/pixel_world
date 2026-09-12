@@ -68,7 +68,7 @@ CampaignState _campaign({int firstStock = 20, int secondStock = 2}) {
   );
   return CampaignState.fromRom(
     world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 1000,
     aiEnabled: false,
     siegeRandom: const FixedSiegeRandom(),

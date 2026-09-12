@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
@@ -37,8 +38,8 @@ CampaignState retreatCampaign({
   bool weakNpc = false,
   int gold = 1000,
 }) {
-  final data = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final data = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   if (weakNpc) {
     for (final row in data['heroes'] as List) {

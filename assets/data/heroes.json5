@@ -1,17 +1,31 @@
+// 英雄玩法配置使用 JSON5，可在这里保留字段说明。
 {
+  // 配置文件格式版本。
   "version": 1,
+  // 英雄配置数组；数组顺序决定驻军和守城出战优先级。
   "heroes": [
     {
+      // 英雄唯一编号；主角使用 40，扩展英雄使用 100 起的编号。
       "id": 40,
+      // 主角名称由玩家输入，普通英雄使用固定显示名称。
       "name": null,
+      // 英雄类型：protagonist、advanced 或 normal。
       "type": "protagonist",
+      // 生命上限。
       "maxHp": 99,
+      // 攻击能力。
       "combat": 15,
+      // 战斗士气。
       "morale": 100,
+      // 内政能力，影响城池经营和守城排序。
       "politics": 15,
+      // 任职月俸金币。
       "salary": 0,
+      // 是否具备召唤蛋能力。
       "eggCapable": true,
+      // 每名英雄携带的兵力上限。
       "soldierLimit": 4,
+      // 英雄初始所属国家编号，null 表示没有专属国家。
       "nativeCountryId": 0
     },
     {

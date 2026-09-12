@@ -3,6 +3,7 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/core/config/game_config.dart';
@@ -25,8 +26,8 @@ class _Roll implements math.Random {
 
 // 两侧使用相同属性的普通守将，单独检验距离和领地权重，不混入守军强弱偏好。
 final _heroes = (() {
-  final data = jsonDecode(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+  final data = json5Decode(
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   final a = (data['heroes'] as List).firstWhere((h) => h['id'] == 18);
   final b = (data['heroes'] as List).firstWhere((h) => h['id'] == 19);

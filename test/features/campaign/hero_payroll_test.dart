@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
@@ -21,7 +22,7 @@ class _Choice implements Random {
 }
 
 final _catalog = decodeRomHeroes(
-  File('assets/data/rom_heroes.json').readAsStringSync(),
+  File('assets/data/heroes.json5').readAsStringSync(),
 );
 final _worlds = decodeWorlds(
   File('assets/maps/worlds.json').readAsStringSync(),
@@ -143,7 +144,7 @@ void main() {
     expect(hero.morale, 100);
     expect(hero.battleArmy.morale, 100);
     final rows =
-        (jsonDecode(File('assets/data/rom_heroes.json').readAsStringSync())
+        (json5Decode(File('assets/data/heroes.json5').readAsStringSync())
                 as Map)['heroes']
             as List;
     expect(rows.every((h) => h['morale'] is int && h['morale'] <= 100), isTrue);

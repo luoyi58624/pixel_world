@@ -50,7 +50,7 @@ CampaignState _campaign({int harvestRoll = 0}) {
   );
   final c = CampaignState.fromRom(
     world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: 1000,
     aiEnabled: false,
     economyRandom: _HarvestRoll(harvestRoll),

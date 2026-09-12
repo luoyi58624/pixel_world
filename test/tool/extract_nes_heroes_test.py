@@ -78,7 +78,11 @@ class HeroCatalogExportTest(unittest.TestCase):
 
     def test_runtime_catalog_has_all_characters_and_only_runtime_fields(self):
         """正式资源保持47名将领，原版与扩展角色均使用精简格式。"""
-        data = json.loads((ROOT / "assets/data/rom_heroes.json").read_text(encoding="utf-8"))
+        data = json.loads("\n".join(
+            line for line in (ROOT / "assets/data/heroes.json5")
+            .read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith("//")
+        ))
         self.assertEqual(set(data), {"version", "heroes"})
         self.assertEqual(len(data["heroes"]), 47)
         self.assertEqual({h["id"] for h in data["heroes"]}, set(range(41)) | set(range(100, 106)))

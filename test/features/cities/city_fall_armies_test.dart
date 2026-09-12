@@ -13,7 +13,7 @@ import 'package:pixel_world/features/world_map/presentation/world_controller.dar
 CampaignState campaign({bool spareCapital = true}) {
   final c = CampaignState.fromRom(
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
   );
   // 只为用例安排一级城市，捕获事件仍通过真实守将战败入口触发。
@@ -191,7 +191,7 @@ void main() {
       File('assets/maps/worlds.json').readAsStringSync(),
     );
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     final c = WorldController(worlds, heroCatalog: catalog, aiEnabled: false);
     c.campaigns[0] = CampaignState.fromRom(
@@ -245,7 +245,7 @@ void main() {
       File('assets/maps/worlds.json').readAsStringSync(),
     );
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     final c = CampaignState.fromRom(worlds.first, catalog, aiEnabled: false);
     c.cities[9]!.ownerCountryId = 0;

@@ -53,7 +53,7 @@ CampaignState _campaign(int level) {
   }, List.filled(128, 0));
   return CampaignState.fromRom(
     world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
   );
 }

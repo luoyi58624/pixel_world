@@ -20,7 +20,7 @@ class _Roll implements Random {
 
 void main() {
   final heroes = decodeRomHeroes(
-    File('assets/data/rom_heroes.json').readAsStringSync(),
+    File('assets/data/heroes.json5').readAsStringSync(),
   );
   final worlds = decodeWorlds(
     File('assets/maps/worlds.json').readAsStringSync(),

@@ -14,6 +14,14 @@ ROM_SHA256 = "c6dba3d22e2b27a804c9cb81d43d964a42bb6317e802224bfad07f37d5e3ee59"
 NAMES = "泽拉斯 亚彭龙 威拉斯 波塞伊 赫拉克 代杜罗 盖亚 柏洛梅 培尔 蒂列洛 爱吉斯 塔洛诺 亚基 乌拉诺 开伦 巴卡 迪亚 卡斯 海伦 奥伊 拉伊奥 帕狄奥 杜洛斯 亚杜尼 尼列沃 伊 普亚金 笛沃卡 帕里斯 塔列安 赫尔梅 思笛沃 纳尔基 奥杜塞 埃庇梅 帕伊安 萨丁亚 库里奥 莫伊 流卡奥".split()
 
 
+def _load_json5(source):
+    """读取当前只使用整行注释的 JSON5 英雄配置。"""
+    return json.loads("\n".join(
+        line for line in source.splitlines()
+        if not line.lstrip().startswith("//")
+    ))
+
+
 def glyph_tokens(encoded):
     """返回汉化字库页与字符码，忽略结束符及版面填充。"""
     page = None
@@ -142,6 +150,29 @@ def game_catalog(extracted, existing=None):
     return result
 
 
+def _dump_json5(game):
+    """输出带字段说明的英雄 JSON5 配置。"""
+    source = json.dumps(game, ensure_ascii=False, indent=2)
+    comments = {
+        '{\n  "version":': '{\n  // 配置文件格式版本。\n  "version":',
+        '  "heroes": [': '  // 英雄配置数组；数组顺序决定驻军和守城出战优先级。\n  "heroes": [',
+        '    {\n      "id":': '    {\n      // 英雄唯一编号；主角使用 40，扩展英雄使用 100 起的编号。\n      "id":',
+        '      "name":': '      // 主角名称由玩家输入，普通英雄使用固定显示名称。\n      "name":',
+        '      "type":': '      // 英雄类型：protagonist、advanced 或 normal。\n      "type":',
+        '      "maxHp":': '      // 生命上限。\n      "maxHp":',
+        '      "combat":': '      // 攻击能力。\n      "combat":',
+        '      "morale":': '      // 战斗士气。\n      "morale":',
+        '      "politics":': '      // 内政能力，影响城池经营和守城排序。\n      "politics":',
+        '      "salary":': '      // 任职月俸金币。\n      "salary":',
+        '      "eggCapable":': '      // 是否具备召唤蛋能力。\n      "eggCapable":',
+        '      "soldierLimit":': '      // 每名英雄携带的兵力上限。\n      "soldierLimit":',
+        '      "nativeCountryId":': '      // 英雄初始所属国家编号，null 表示没有专属国家。\n      "nativeCountryId":',
+    }
+    for original, replacement in comments.items():
+        source = source.replace(original, replacement, 1)
+    return '// 英雄玩法配置使用 JSON5，可在这里保留字段说明。\n' + source + '\n'
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("rom", type=Path)
@@ -153,10 +184,10 @@ def main():
     docs_dir = args.project / "docs"
     data_dir.mkdir(parents=True, exist_ok=True)
     docs_dir.mkdir(parents=True, exist_ok=True)
-    hero_path = data_dir / "rom_heroes.json"
-    existing = json.loads(hero_path.read_text(encoding="utf-8")) if hero_path.exists() else None
+    hero_path = data_dir / "heroes.json5"
+    existing = _load_json5(hero_path.read_text(encoding="utf-8")) if hero_path.exists() else None
     game = game_catalog(result, existing)
-    hero_path.write_text(json.dumps(game, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    hero_path.write_text(_dump_json5(game), encoding="utf-8")
     with (docs_dir / "nes_heroes.csv").open("w", encoding="utf-8-sig", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(["编号", "姓名", "类型", "HP", "战斗", "内政", "报酬", "可持蛋", "HP文件偏移"])

@@ -22,13 +22,13 @@ WorldController _controller() {
     aiEnabled: false,
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()),
     heroCatalog: decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     ),
     startingGold: 300,
   );
   c.campaigns[0] = CampaignState.fromRom(
     c.world,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     aiEnabled: false,
     startingGold: 300,
     retreatRandom: const FixedSiegeRandom(.9),
@@ -38,7 +38,7 @@ WorldController _controller() {
 
 Future<WorldController> _load(WidgetTester tester, Size size) async {
   rootBundle.evict('assets/maps/worlds.json');
-  rootBundle.evict('assets/data/rom_heroes.json');
+  rootBundle.evict('assets/data/heroes.json5');
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);

@@ -123,7 +123,7 @@ void main() {
         File('assets/maps/worlds.json').readAsStringSync(),
       );
       final catalog = decodeRomHeroes(
-        File('assets/data/rom_heroes.json').readAsStringSync(),
+        File('assets/data/heroes.json5').readAsStringSync(),
       );
       final c = WorldController(worlds, heroCatalog: catalog, aiEnabled: false);
       addTearDown(c.dispose);

@@ -16,7 +16,7 @@ void main() {
   for (final terrain in FieldTerrain.values) {
     testWidgets('${terrain.label}野战显示独立背景、双方减益，刀剑与角色入口共享战斗', (tester) async {
       rootBundle.evict('assets/maps/worlds.json');
-      rootBundle.evict('assets/data/rom_heroes.json');
+      rootBundle.evict('assets/data/heroes.json5');
       tester.view.physicalSize = terrain == FieldTerrain.river
           ? const Size(1280, 800)
           : const Size(375, 812);

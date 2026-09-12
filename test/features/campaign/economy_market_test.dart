@@ -32,7 +32,7 @@ CampaignState _campaign({
   final c = CampaignState.fromRom(
     aiEnabled: false,
     decodeWorlds(File('assets/maps/worlds.json').readAsStringSync()).first,
-    decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
     startingGold: gold,
     economyRandom: economy ?? _RandomValue(),
     recruitmentRandom: recruitment ?? _RandomValue(),
@@ -132,7 +132,7 @@ void main() {
   test('本国将领同样付薪，国库按实际工资和收成结算', () {
     final c = _campaign();
     final catalog = decodeRomHeroes(
-      File('assets/data/rom_heroes.json').readAsStringSync(),
+      File('assets/data/heroes.json5').readAsStringSync(),
     );
     expect(_hero(c, 0).salary, catalog.firstWhere((h) => h.id == 0).salary);
     expect(_hero(c, 2).salary, catalog.firstWhere((h) => h.id == 2).salary);
