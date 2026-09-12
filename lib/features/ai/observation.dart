@@ -146,6 +146,16 @@ class AiHero {
   bool get stationed =>
       state == AiArmyState.garrison || state == AiArmyState.defending;
 
+  /// 与战役守城名单保持一致：内政、攻击降序，再按主角及固定名册顺序排列。
+  static int compareDefenseOrder(AiHero a, AiHero b) {
+    final politics = b.politics.compareTo(a.politics);
+    if (politics != 0) return politics;
+    final combat = b.combat.compareTo(a.combat);
+    if (combat != 0) return combat;
+    if ((a.type == 2) != (b.type == 2)) return a.type == 2 ? -1 : 1;
+    return a.order.compareTo(b.order);
+  }
+
   /// 活着的小兵数量。
   int get soldierCount => soldiers.where((n) => n > 0).length;
 
@@ -454,7 +464,7 @@ class AiObservation {
                 h.country == cities.firstWhere((c) => c.id == city).country,
           )
           .toList()
-        ..sort((a, b) => a.order.compareTo(b.order));
+        ..sort(AiHero.compareDefenseOrder);
 
   /// 查找英雄。
   AiHero? hero(String? id) => heroes.where((h) => h.id == id).firstOrNull;

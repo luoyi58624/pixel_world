@@ -1,5 +1,7 @@
-/// 仅允许此次删减前且配置一致的记录迁移到指定版本，其他指纹仍严格校验。
+/// 为已确认兼容的策略修复和数据迁移记录版本映射，其他指纹仍严格校验。
 const archiveSignatureMigrations = <String, String>{
   '790949fb83d8cc3d8a44aa464837f1574cc2f8f2b87b047be7cf4e188ea3c69c':
       'a313c3a01f120cf450d6bbdffb71abde1e93e58c80c404d116b793074de7ac16',
+  '876ad184b377dfbcdbfe5f3fad8c39e7fb84b1665424ec185102a9f568254a44':
+      '31a618a60e4a6ab4ca76a38268346e8d33e19d38b4ac8bf3cbaabb3ab2a7bcf2',
 };

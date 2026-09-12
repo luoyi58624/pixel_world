@@ -101,12 +101,15 @@ class DefensePlanner {
                 (g) => g.actions.any(
                   (a) =>
                       a.kind == AiActionKind.upgrade ||
+                      a.kind == AiActionKind.dismiss ||
                       a.kind == AiActionKind.soldiers ||
                       a.kind == AiActionKind.dispatch,
                 ),
               ) &&
               c.ledger.occupancy(report.city.id) <=
                   c.ledger.slots(report.city) &&
+              (_risk(report, c.ledger)?.upper ?? -1) >=
+                  -rules.tuning.recallCriticalMargin &&
               ((_risk(report, c.ledger)?.lower ?? -1) >
                       (currentRisk?.lower ?? -1) + .04 ||
                   c.groups.any(
@@ -130,7 +133,11 @@ class DefensePlanner {
         return;
       }
     }
-    yield* choices;
+    // 能守住城的方案优先；安全撤走英雄不等于保住了受袭城。
+    final canDefend = choices.any(
+      (c) => c.response != 'relocation' && !c.unresolved,
+    );
+    yield* choices.where((c) => !canDefend || c.response != 'relocation');
   }
 
   Iterable<DefenseCandidate> _allCandidates(
@@ -271,19 +278,39 @@ class DefensePlanner {
       }
     }
 
+    // 先判断现有核心能否抵抗，不能把被弱将挡住名额误判为应该放弃城池。
+    final abandonCity = _shouldAbandonCity(report, base);
     // 安全转移必须在旧城危险窗口前真正入城，单纯走出城门不算保住英雄。
     final mobile =
         base
             .garrison(city.id)
             .where((h) => h.canDispatch && !base.reservedHeroes.contains(h.id))
             .toList()
-          ..sort(
-            (a, b) => heroStrategicValue(b).compareTo(heroStrategicValue(a)),
-          );
-    if ((overflow || report.risk?.advantage != CombatAdvantage.favorable) &&
-        _view.owned.length > 1) {
+          ..sort((a, b) {
+            if (abandonCity) {
+              return heroStrategicValue(b).compareTo(heroStrategicValue(a));
+            }
+            final strength =
+                heroDefenseValue(
+                  a,
+                  rules,
+                  base.slots(city),
+                  rules.integer('soldierLimit'),
+                ).compareTo(
+                  heroDefenseValue(
+                    b,
+                    rules,
+                    base.slots(city),
+                    rules.integer('soldierLimit'),
+                  ),
+                );
+            return strength != 0
+                ? strength
+                : heroStrategicValue(a).compareTo(heroStrategicValue(b));
+          });
+    if ((overflow || abandonCity) && _view.owned.length > 1) {
       var moved = base.copy();
-      if (report.risk?.advantage == CombatAdvantage.unfavorable) {
+      if (abandonCity) {
         moved.abandoned.add(city.id);
       }
       final groups = <AiCommandGroup>[];
@@ -314,8 +341,10 @@ class DefensePlanner {
             moved,
             hero,
             route,
-            role: overflow ? 'transfer' : 'evacuate',
-            reason: '在原城危险窗口前进驻安全友城，改变所属城以保全将领',
+            role: abandonCity ? 'evacuate' : 'transfer',
+            reason: abandonCity
+                ? '现有核心也明确处于劣势，在危险窗口前转移保全将领，原城风险仍未解决'
+                : '转移多余的弱将，为强将保留本城迎战名额',
             target: target,
             arrival: true,
             emergency: true,
@@ -338,7 +367,9 @@ class DefensePlanner {
             List.of(groups),
             _quality(report, moved) + saved * .65,
             note: _noteForTransfer(report),
-            response: 'relocation',
+            unresolved:
+                _risk(report, moved)?.advantage != CombatAdvantage.favorable,
+            response: abandonCity ? 'relocation' : 'local',
           );
           if (overflow) break;
         }
@@ -487,7 +518,9 @@ class DefensePlanner {
               )
               .take(3)) {
         if (!work.candidate()) break;
-        final hero = mobile.first;
+        final hero = mobile.reduce(
+          (a, b) => heroStrategicValue(a) >= heroStrategicValue(b) ? a : b,
+        );
         final route = operations.routes.to(
           hero,
           target.center,
@@ -598,6 +631,39 @@ class DefensePlanner {
     return risk != null && risk.upper < -rules.tuning.recallCriticalMargin;
   }
 
+  // 只有明确来袭且所有现有守将都明显落后才考虑弃城；接近或未知均继续守备。
+  bool _shouldAbandonCity(CityDefenseReport report, AiLedger ledger) {
+    if (!_criticalRecall(report, ledger)) return false;
+    final guards = ledger.garrison(report.city.id);
+    if (guards.isEmpty) return false;
+    for (final hero in guards) {
+      CombatAssessment? worst;
+      for (final army in report.incoming) {
+        final pair = assessor.compare(
+          hero,
+          army.hero,
+          ownDefense: math.max(1, ledger.slots(report.city)),
+          ownSoldiers:
+              hero.soldierCount +
+              (hero.state == AiArmyState.defending
+                  ? 0
+                  : math.min(
+                      ledger.reserves,
+                      rules.integer('soldierLimit') - hero.soldierCount,
+                    )),
+        );
+        if (pair.advantage == CombatAdvantage.unknown || work.limited) {
+          return false;
+        }
+        if (worst == null || pair.lower < worst.lower) worst = pair;
+      }
+      if (worst == null || worst.upper >= -rules.tuning.recallCriticalMargin) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   CombatAssessment? _risk(CityDefenseReport r, AiLedger l) {
     if (r.incoming.isEmpty) return null;
     final all = l.garrison(r.city.id);
@@ -637,7 +703,7 @@ class DefensePlanner {
         ),
       );
     }
-    all.sort((a, b) => a.order.compareTo(b.order));
+    all.sort(AiHero.compareDefenseOrder);
     final current = all.where((h) => h.id == r.city.defender).firstOrNull;
     final guards = [
       ?current,
