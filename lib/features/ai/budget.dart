@@ -135,6 +135,7 @@ class AiLedger {
 
   /// 安全后方允许空城，边境、受威胁城市和小国仍需要实际守将。
   int defendersToKeep(AiCity city) {
+    if (garrison(city.id).any((h) => h.type == 2)) return 2;
     return abandoned.contains(city.id) || safeRear(city) ? 0 : 1;
   }
 
@@ -209,16 +210,21 @@ class AiLedger {
   bool canSpareForOffense(AiHero hero) {
     final city = view.city(hero.city);
     if (city == null) return false;
-    if (safeRear(city)) {
-      return hero.type != 2 && !(valuableGovernor(hero) && hero.combat < 12);
-    }
-    final guards = view
-        .garrison(hero.city)
-        .where((h) => !removed.contains(h.id))
-        .toList();
-    if (guards.length <= 1) return false;
+    final guards = garrison(hero.city);
     final protagonist = guards.where((h) => h.type == 2).firstOrNull;
-    if (protagonist != null) return hero.id != protagonist.id;
+    if (protagonist != null) {
+      if (guards.length <= 2 || hero.id == protagonist.id) return false;
+      // 主角之外保留一名真实守将承接首轮；让更有战略价值的主力仍可出征。
+      final guardsBeforeProtagonist =
+          guards.where((h) => h != protagonist).toList()..sort(
+            (a, b) => heroStrategicValue(a).compareTo(heroStrategicValue(b)),
+          );
+      return hero.id != guardsBeforeProtagonist.first.id;
+    }
+    if (safeRear(city)) {
+      return !(valuableGovernor(hero) && hero.combat < 12);
+    }
+    if (guards.length <= 1) return false;
     double strength(AiHero h) => heroDefenseValue(
       h,
       rules,
@@ -471,7 +477,9 @@ class AiLedger {
                       ).payrollRatio);
     // 后期或警报中允许用现有积蓄扩军；只额外覆盖新将近期工资与驻军费，不强留多年现金。
     final cashBacked =
-        (view.year >= 3 || emergency) &&
+        (view.year >= 3 ||
+            emergency ||
+            futureSalary + futureUpkeep <= monthlyIncome) &&
         gold - cost >=
             cash(emergency: emergency).reserve +
                 view.maximumSalary +

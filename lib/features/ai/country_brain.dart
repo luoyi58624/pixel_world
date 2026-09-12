@@ -73,6 +73,19 @@ class CountryBrain {
       _reports[city.id] = analyzer.report(city);
       yield 0;
     }
+    final protectProtagonist = _reports.values.any(
+      (r) => r.protagonistInDanger,
+    );
+    if (request.stage == AiDecisionStage.attack && protectProtagonist) {
+      result = CountryPlan(
+        phase: 'defending',
+        notes: ['主角所在城尚有明确生命风险，暂停新远征，优先完成防守调度'],
+        budgetLimited: work.limited,
+        assessments: work.assessments,
+        routeSteps: work.routeSteps,
+      );
+      return;
+    }
     var ledger = AiLedger(
       _view,
       rules,
@@ -112,6 +125,9 @@ class CountryBrain {
     );
     final urgent = _reports.values.where((r) => r.threatened).toList()
       ..sort((a, b) {
+        if (a.protagonistInDanger != b.protagonistInDanger) {
+          return a.protagonistInDanger ? -1 : 1;
+        }
         final time = a.deadline.compareTo(b.deadline);
         return time != 0
             ? time
@@ -187,25 +203,42 @@ class CountryBrain {
             )
             .where((_) => request.stage != AiDecisionStage.attack)) {
       if (hero.type != 1 ||
-          hero.hp >= hero.maxHp * .25 ||
-          hero.clashes < 2 ||
-          hero.received <= 0 ||
           hero.weapons.any((id) => rules.weapons[id]?.selfDamage == 0)) {
         continue;
       }
       final other = _view.hero(hero.opponent);
-      if (other == null ||
-          hero.health / hero.received >=
+      if (other == null) continue;
+      final target = _view.city(hero.targetCity);
+      final exhausted =
+          hero.state == AiArmyState.attacking &&
+          target != null &&
+          hero.soldierCount < other.soldierCount &&
+          assessor
+                  .compare(
+                    hero,
+                    other,
+                    enemyDefense: target.safeSlots,
+                    ownOpening: false,
+                    enemyOpening: false,
+                  )
+                  .upper <
+              0;
+      final dying =
+          hero.hp < hero.maxHp * .25 &&
+          hero.clashes >= 2 &&
+          hero.received > 0 &&
+          hero.health / hero.received <
               other.health /
                   math.max(1, hero.dealt) *
-                  rules.number('retreatSurvivalRatio')) {
-        continue;
-      }
+                  rules.number('retreatSurvivalRatio');
+      if (!exhausted && !dying) continue;
       if (ledger.reservedHeroes.contains(hero.id)) continue;
       ledger.reservedHeroes.add(hero.id);
       groups.add(
         AiCommandGroup(
-          reason: '高级将领生命低于四分之一，已发生的伤害显示胜望渺茫，申请有风险的合法撤退',
+          reason: exhausted
+              ? '高级将领武器已消耗且兵力落后，当前属性已不适合继续攻城，趁仍有生命申请合法撤退整备'
+              : '高级将领生命低于四分之一，已发生的伤害显示胜望渺茫，申请有风险的合法撤退',
           actions: [AiAction(AiActionKind.retreat, hero: hero.id)],
           dependencies: operations.dependencies(
             [hero, other],
@@ -249,7 +282,8 @@ class CountryBrain {
               expired ||
               stopped && ['intercept', 'standby'].contains(task.role));
       final reconsider = changedOwner || stopped || idle || needsRearm;
-      if ((changedOwner || stopped && task.role == 'expedition' || idle) &&
+      if (!protectProtagonist &&
+          (changedOwner || stopped && task.role == 'expedition' || idle) &&
           hero.hp >= hero.maxHp * .65) {
         final attack = _redirectFieldAttack(ledger, hero, task);
         if (attack != null) {
@@ -427,6 +461,7 @@ class CountryBrain {
                   h.country == _view.country &&
                   h.canDispatch &&
                   ledger.canSpareForOffense(h) &&
+                  !protectProtagonist &&
                   request.stage != AiDecisionStage.defense &&
                   !h.marked &&
                   !ledger.removed.contains(h.id),
@@ -651,6 +686,7 @@ class CountryBrain {
     }
 
     if (!launched &&
+        !protectProtagonist &&
         beam.first.unresolved == 0 &&
         request.stage != AiDecisionStage.defense) {
       final staging = _stageFrontier(ledger, openingFocus);
@@ -663,6 +699,7 @@ class CountryBrain {
 
     // 无可执行远征时再为明确缺口整备，禁止边境危险溢员和无任务采购。
     if (request.stage == AiDecisionStage.full &&
+        !protectProtagonist &&
         !launched &&
         groups.fold(0, (n, g) => n + g.actions.length) <
             rules.tuning.maxCommands - 3) {

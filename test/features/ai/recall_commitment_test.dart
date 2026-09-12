@@ -121,20 +121,16 @@ void main() {
     expect(rescue.length, 1);
   });
 
-  test('本地仍能升级补强，先执行资源措施，不召回远征', () {
+  test('本月一次升级仍挡不住来敌时，即使有钱也及时召回能救城的远征', () {
     final (c, march, task) = _front(nearEnemy: false, gold: 200);
     addTearDown(c.dispose);
     final plan = planFor(c, tasks: [task]);
     expect(
       plan.groups
-          .expand((g) => g.actions)
-          .any((a) => a.kind == AiActionKind.upgrade),
+          .expand((g) => g.tasks)
+          .any((t) => t.hero == march.hero.id && t.role == 'rescue'),
       isTrue,
       reason: plan.toJson().toString(),
-    );
-    expect(
-      plan.groups.expand((g) => g.tasks).any((t) => t.hero == march.hero.id),
-      isFalse,
     );
   });
 

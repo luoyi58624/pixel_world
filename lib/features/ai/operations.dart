@@ -127,7 +127,13 @@ class OperationPlanner {
             final power = (b.damage - b.selfDamage).compareTo(
               a.damage - a.selfDamage,
             );
-            return power != 0 ? power : a.price.compareTo(b.price);
+            if (power != 0) return power;
+            // 同伤害武器优先消耗现有库存，避免有炮却等待再买同伤害陆龙卷。
+            final costA = (ledger.stock[a.id] ?? 0) > 0 ? 0 : a.price;
+            final costB = (ledger.stock[b.id] ?? 0) > 0 ? 0 : b.price;
+            return costA != costB
+                ? costA.compareTo(costB)
+                : a.price.compareTo(b.price);
           });
     return candidates;
   }

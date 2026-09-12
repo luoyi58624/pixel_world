@@ -27,6 +27,7 @@ class CityDefenseReport {
     this.soldiers,
     this.risk, {
     this.linkedValue = 0,
+    this.protagonistRisk,
   });
 
   /// 城池、真实守军顺序、来敌与可出场英雄。
@@ -39,6 +40,17 @@ class CityDefenseReport {
 
   /// 主要守将面对最强来敌的静态风险。
   final CombatAssessment? risk;
+
+  /// 主角本人面对来敌的风险，不能被其他守将的较好战力掩盖。
+  final CombatAssessment? protagonistRisk;
+
+  /// 主角无法出场或没有稳妥防线时暂停新远征，静止的远处部队不构成该警报。
+  bool get protagonistInDanger =>
+      garrison.any((h) => h.type == 2) &&
+      (city.initialBattleLevel != null ||
+          incoming.any((e) => e.confidence >= .55)) &&
+      (protagonistRisk == null ||
+          protagonistRisk!.advantage != CombatAdvantage.favorable);
 
   /// 仍依赖此城的外出英雄价值。
   final double linkedValue;
@@ -160,7 +172,7 @@ class ThreatAnalyzer {
       reserve -= add;
       allocated[h.id] = h.soldierCount + add;
     }
-    CombatAssessment? risk;
+    CombatAssessment? risk, protagonistRisk;
     if (incoming.isNotEmpty && eligible.isNotEmpty) {
       // 守城战力与内政、角色稀有度分开；对公开来敌做有配额的静态配对。
       for (var position = 0; position < eligible.length; position++) {
@@ -178,6 +190,7 @@ class ThreatAnalyzer {
           if (worst == null || pair.lower < worst.lower) worst = pair;
         }
         if (risk == null || worst!.lower > risk.lower) risk = worst;
+        if (guard.type == 2) protagonistRisk = worst;
       }
     }
     return CityDefenseReport(
@@ -187,6 +200,7 @@ class ThreatAnalyzer {
       eligible,
       allocated,
       risk,
+      protagonistRisk: protagonistRisk,
       linkedValue: view.heroes
           .where(
             (h) =>

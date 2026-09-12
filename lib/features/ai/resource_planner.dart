@@ -34,6 +34,7 @@ class ResourcePlanner {
   CountryPlan plan(AiLedger initial) {
     var ledger = initial;
     final view = request.observation;
+    final protectProtagonist = reports.values.any((r) => r.protagonistInDanger);
     final groups = <AiCommandGroup>[];
     final routineUpgrades = <(AiCity, AiHero)>[];
     var recruitmentPending = false, defenseRecruitmentPending = false;
@@ -74,7 +75,7 @@ class ResourcePlanner {
     final coalition = objective == null
         ? null
         : CoalitionPolicy(objective.country, view, rules);
-    final earmarked = coalition?.dangerous == true
+    final earmarked = !protectProtagonist && coalition?.dangerous == true
         ? math.min(
             coalition!.extraGold,
             math.max(0, initial.gold - initial.cash().reserve),
@@ -108,6 +109,9 @@ class ResourcePlanner {
 
     final cities = view.owned.toList()
       ..sort((a, b) {
+        final mainDanger = (reports[b.id]?.protagonistInDanger == true ? 1 : 0)
+            .compareTo(reports[a.id]?.protagonistInDanger == true ? 1 : 0);
+        if (mainDanger != 0) return mainDanger;
         final empty = (ledger.garrison(b.id).isEmpty ? 1 : 0).compareTo(
           ledger.garrison(a.id).isEmpty ? 1 : 0,
         );
@@ -152,7 +156,8 @@ class ResourcePlanner {
       }
       final local = ledger.garrison(city.id);
       if (local.length <= ledger.slots(city) &&
-          reports[city.id]?.risk?.advantage != CombatAdvantage.unfavorable) {
+          reports[city.id]?.risk?.advantage != CombatAdvantage.unfavorable &&
+          reports[city.id]?.protagonistInDanger != true) {
         continue;
       }
       final governors = local.where((h) => h.canUpgrade).toList()
@@ -357,6 +362,8 @@ class ResourcePlanner {
         extraHeroes = team;
       }
       final needHero =
+          (!protectProtagonist ||
+              reports[city.id]?.protagonistInDanger == true) &&
           (recruitmentFronts.contains(city.id) ||
               reports[city.id]?.threatened == true) &&
           view.cities.any((c) => c.country != view.country) &&
@@ -368,6 +375,7 @@ class ResourcePlanner {
       if (governors.isNotEmpty &&
           city.initialBattleLevel == null &&
           (local.length > ledger.slots(city) ||
+              local.any((h) => h.type == 2) ||
               needHero && local.length >= ledger.slots(city) ||
               reports[city.id]?.risk?.advantage ==
                   CombatAdvantage.unfavorable)) {
@@ -398,7 +406,7 @@ class ResourcePlanner {
     spare.sort(
       (a, b) => heroDeploymentValue(b).compareTo(heroDeploymentValue(a)),
     );
-    if (spare.isNotEmpty && !recruitmentPending) {
+    if (spare.isNotEmpty && !recruitmentPending && !protectProtagonist) {
       final hero = spare.first;
       final focus = OffensiveFocus(
         view,
@@ -615,7 +623,11 @@ class ResourcePlanner {
       boundedGroups.add(group);
     }
     return CountryPlan(
-      phase: savingTarget == null ? 'preparing' : 'saving',
+      phase: protectProtagonist
+          ? 'defending'
+          : savingTarget == null
+          ? 'preparing'
+          : 'saving',
       targetCity:
           preparedTarget ??
           savingTarget ??
@@ -628,6 +640,7 @@ class ResourcePlanner {
       routeSteps: assessor.work.routeSteps,
       expansions: assessor.work.candidates,
       notes: [
+        if (protectProtagonist) '主角所在城存在明确风险，军费优先用于守军与城防，暂停进攻武器采购',
         if (groups.isEmpty) '本轮无必要且可支付的采购，保留国库',
         if (selectedPolicy?.dangerous == true) selectedPolicy!.decisionNote,
       ],

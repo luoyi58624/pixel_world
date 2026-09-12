@@ -62,6 +62,7 @@ class DefensePlanner {
     final currentRisk = _risk(report, base);
     final overflow = base.occupancy(report.city.id) > base.slots(report.city);
     if (!overflow &&
+        !report.protagonistInDanger &&
         report.incoming.isNotEmpty &&
         report.incoming.every((enemy) => _interceptionPending(enemy, base)) &&
         !base.tasks.values.any(
@@ -77,7 +78,9 @@ class DefensePlanner {
       );
       return;
     }
-    if (!overflow && currentRisk?.advantage == CombatAdvantage.favorable) {
+    if (!overflow &&
+        !report.protagonistInDanger &&
+        currentRisk?.advantage == CombatAdvantage.favorable) {
       yield DefenseCandidate(
         base,
         [],
@@ -881,6 +884,7 @@ class DefensePlanner {
                       .01,
         );
     if (!attacking) return false;
+    if (report.protagonistInDanger) return true;
     if (ledger.garrison(report.city.id).isEmpty) return true;
     final risk = _risk(report, ledger);
     return risk != null && risk.upper < -rules.tuning.recallCriticalMargin;
@@ -954,6 +958,7 @@ class DefensePlanner {
         );
         if (worst == null || pair.lower < worst.lower) worst = pair;
       }
+      if (hero.type == 2 && hero.id == r.city.defender) return worst;
       if (best == null || worst!.lower > best.lower) best = worst;
     }
     return best;
@@ -966,6 +971,10 @@ class DefensePlanner {
         150 +
         r.city.income * 4 +
         r.linkedValue * .5 +
+        l
+            .garrison(r.city.id)
+            .where((h) => h.type == 2)
+            .fold(0.0, (n, h) => n + heroStrategicValue(h)) +
         (_view.owned.length == 1 ? 400 : 0);
     final risk = _risk(r, l);
     return -overflow * 5000 -
