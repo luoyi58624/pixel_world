@@ -71,8 +71,6 @@
   "firstYearCityUpgradeLimit": 3,
   // 每过一年新增的可升级城防等级。
   "cityUpgradeLevelsPerYear": 1,
-  // 一升二至四升五的基础升级费用。
-  "cityUpgradeCosts": [30, 40, 50, 60],
   // 每一级城防贡献给全国兵员上限的容量。
   "cityReserveCapacityPerLevel": 4,
   // 开局每位实际登场将领贡献的兵员数。
@@ -92,9 +90,11 @@
   // 阵亡或失城移除的非主角英雄是否回到回收池。
   "recycleDefeatedHeroes": true,
   // 一至五级城防攻击加成。
-  "cityDefenseAttackBonuses": [1, 3, 5, 8, 10],
+  "cityDefenseAttackBonuses": [0, 1, 2, 3, 4],
   // 一至五级城防士气加成。
   "cityDefenseMoraleBonuses": [5, 10, 15, 20, 25],
+  // 一升二至四升五的基础升级费用。
+  "cityUpgradeCosts": [30, 40, 50, 60],
 
   // 全局击退强度差倍率。
   "battleRecoilDifferenceScale": 0.25,

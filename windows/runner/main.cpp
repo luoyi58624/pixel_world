@@ -28,7 +28,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   // 默认窗口按用户的 175% 缩放保留屏幕边缘空间。
   Win32Window::Size size(1000, 600);
-  if (!window.Create(L"\u50cf\u7d20\u8fdc\u5f81", origin, size)) {
+  if (!window.Create(L"\u9f99\u73e0\u82f1\u96c4", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

@@ -42,22 +42,24 @@ class PixelWorldApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '龙珠英雄',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xffd6bd7c),
+    return ExcludeSemantics(
+      child: MaterialApp(
+        title: '龙珠英雄',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
           brightness: Brightness.dark,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xffd6bd7c),
+            brightness: Brightness.dark,
+          ),
+          scaffoldBackgroundColor: const Color(0xff141b17),
+          fontFamily: 'Microsoft YaHei',
+          useMaterial3: true,
         ),
-        scaffoldBackgroundColor: const Color(0xff141b17),
-        fontFamily: 'Microsoft YaHei',
-        useMaterial3: true,
-      ),
-      home: GameStartScreen(
-        archive: archive,
-        persistenceEnabled: persistenceEnabled,
+        home: GameStartScreen(
+          archive: archive,
+          persistenceEnabled: persistenceEnabled,
+        ),
       ),
     );
   }

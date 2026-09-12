@@ -33,7 +33,7 @@ CampaignState fixture() => CampaignState.fromRom(
     },
     [0],
   ),
-  decodeRomHeroes(File('assets/data/rom_heroes.json').readAsStringSync()),
+  decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
   aiEnabled: false,
   startingGold: 1000,
 );
@@ -54,6 +54,40 @@ HeroMarch send(
 }
 
 void main() {
+  test('多将自然抵达同一城池，进堡者不再占用外部通路', () {
+    final c = fixture();
+    addTearDown(c.dispose);
+    final city = c.world.cities[1];
+    final a = c.dispatch(c.heroes.firstWhere((h) => h.sourceId == 0), city)!;
+    final b = c.dispatch(c.heroes.firstWhere((h) => h.sourceId == 2), city)!;
+    for (var n = 0; n < 3600 && !c.battles.containsKey(1); n++) {
+      c.advance(1 / 60);
+    }
+    expect(c.battles[1]?.isActive, isTrue);
+    for (var n = 0; n < 600 && b.phase != MarchPhase.awaitingBattle; n++) {
+      c.advance(1 / 60);
+    }
+    expect(a.phase, MarchPhase.fighting);
+    expect(b.phase, MarchPhase.awaitingBattle);
+    expect(b.waitingForTraffic, isFalse);
+  });
+
+  test('城池升级不把远处避让营地吸到城墙上', () {
+    final c = fixture();
+    addTearDown(c.dispose);
+    final city = c.world.cities[1];
+    final march = c.dispatch(
+      c.heroes.firstWhere((h) => h.sourceId == 0),
+      city,
+    )!;
+    march.position = const GamePoint(250, 200);
+    march.camp();
+    final before = march.position;
+    expect(c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1), isTrue);
+    expect(march.position, before);
+    expect(march.phase, MarchPhase.camped);
+  });
+
   test('同国错峰实际离城保持两秒，等待期间不显示、不走动', () {
     final c = fixture();
     addTearDown(c.dispose);
