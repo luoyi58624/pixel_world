@@ -56,7 +56,7 @@ AI 同国出征按游戏时间至少间隔 2 秒放行；门口被占用时在�
 - `lib/features/campaign/domain/campaign.dart`：独立的新游戏配置、城池情况、英雄身份和出征状态。
 - `assets/data/rom_heroes.json`：47 位英雄（原版 41 位及扩展 6 位）的游戏属性、月俸与展示顺序，每名英雄仅保留11个运行时配置字段。
 - `lib/features/heroes/data/rom_hero.dart`：ROM 静态属性目录，和当前 HP、阵营、城池归属分开。
-- `assets/data/rom_countries.json`、`assets/images/flags.png`：原版城名、国家及国旗，来源见 [核对报告](docs/nes_cities_flags.md)。
+- `assets/images/flags.png`：当前国家旗帜图集，国家名称和玩法配置位于 `assets/data/campaign_config.json5`。
 - `lib/features/world_map/domain/world_movement.dart`：探索角色和出征部队共用的直线、地形减速积分。
 - `lib/features/world_map/domain/world_data.dart`：地图定义、城池定义、直线路线和地形速度。
 - `lib/features/world_map/presentation/world_camera.dart`：与屏幕无关的镜头坐标和缩放约束。

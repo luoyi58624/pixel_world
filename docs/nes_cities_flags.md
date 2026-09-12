@@ -29,7 +29,7 @@ CPU D027–D03F 用 `$813A+编号` 查询偏移，再加 `$814A` 取得汉化字
 | 6 | 列穆 | 14 | 格林福（特殊） |
 | 7 | 迪麦 | 15 | 沃塔（特殊） |
 
-名称按原字模转写，原编码、文件偏移见 [国家元数据](../assets/data/rom_countries.json)。[城名与旗帜核对图](nes_city_flags.png) 直接使用 ROM 字模及图块生成。
+名称按原字模转写；当前国家名称和玩法配置以 `assets/data/campaign_config.json5` 为准。[城名与旗帜核对图](nes_city_flags.png) 仅作为历史核对记录。
 
 ## 国旗
 
