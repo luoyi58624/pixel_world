@@ -145,8 +145,6 @@ void main() {
       'combat': 15,
       'politics': 15,
       'salary': 0,
-      'eggCapable': true,
-      'soldierLimit': 4,
     });
     expect(CampaignHero.fromRom(definition, cityId: 0, countryId: 0).salary, 0);
     final poor = _campaign(gold: 1, economy: _RandomValue(2));

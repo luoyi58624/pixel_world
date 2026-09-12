@@ -16,7 +16,6 @@ def _hero(hero_id):
         "id": hero_id, "name": None if hero_id == 40 else f"hero-{hero_id}",
         "type": "protagonist" if hero_id == 40 else "advanced",
         "maxHp": 95, "combat": 15, "politics": 10, "salary": 8,
-        "eggCapable": True, "soldierLimit": 4,
         "encodedName": [57, 113, 0], "romGlyphTranscription": "source-name",
         "rawTypeSeed": 0, "rawEggFlags": 128,
         "initialEggCharges": 3, "initialEggState": 0,

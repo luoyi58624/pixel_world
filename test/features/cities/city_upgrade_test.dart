@@ -112,8 +112,6 @@ void main() {
         'combat': 15,
         'politics': 300,
         'salary': 8,
-        'eggCapable': true,
-        'soldierLimit': 4,
       }),
       cityId: 0,
       countryId: 0,

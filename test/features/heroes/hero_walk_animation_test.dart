@@ -41,8 +41,6 @@ HeroMarch _march({int country = 0, GamePoint start = const GamePoint(160, 160)})
       'combat': 15,
       'politics': 15,
       'salary': 8,
-      'eggCapable': false,
-      'soldierLimit': 4,
     }),
     cityId: 0,
     countryId: country,

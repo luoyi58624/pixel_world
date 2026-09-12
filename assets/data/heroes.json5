@@ -21,10 +21,6 @@
       "politics": 15,
       // 任职月俸金币。
       "salary": 0,
-      // 是否具备召唤蛋能力。
-      "eggCapable": true,
-      // 每名英雄携带的兵力上限。
-      "soldierLimit": 4,
       // 英雄初始所属国家编号，null 表示没有专属国家。
       "nativeCountryId": 0
     },
@@ -37,8 +33,6 @@
       "morale": 100,
       "politics": 15,
       "salary": 8,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 0
     },
     {
@@ -50,8 +44,6 @@
       "morale": 100,
       "politics": 15,
       "salary": 8,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -63,8 +55,6 @@
       "morale": 100,
       "politics": 3,
       "salary": 7,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 0
     },
     {
@@ -76,8 +66,6 @@
       "morale": 100,
       "politics": 10,
       "salary": 7,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 1
     },
     {
@@ -89,8 +77,6 @@
       "morale": 90,
       "politics": 13,
       "salary": 7,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 1
     },
     {
@@ -102,8 +88,6 @@
       "morale": 90,
       "politics": 15,
       "salary": 6,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 1
     },
     {
@@ -115,8 +99,6 @@
       "morale": 80,
       "politics": 5,
       "salary": 6,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 2
     },
     {
@@ -128,8 +110,6 @@
       "morale": 80,
       "politics": 7,
       "salary": 5,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 2
     },
     {
@@ -141,8 +121,6 @@
       "morale": 80,
       "politics": 1,
       "salary": 5,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 2
     },
     {
@@ -154,8 +132,6 @@
       "morale": 80,
       "politics": 15,
       "salary": 5,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 3
     },
     {
@@ -167,8 +143,6 @@
       "morale": 80,
       "politics": 13,
       "salary": 5,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 3
     },
     {
@@ -180,8 +154,6 @@
       "morale": 75,
       "politics": 7,
       "salary": 4,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 5
     },
     {
@@ -193,8 +165,6 @@
       "morale": 75,
       "politics": 4,
       "salary": 4,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 4
     },
     {
@@ -206,8 +176,6 @@
       "morale": 70,
       "politics": 8,
       "salary": 3,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 4
     },
     {
@@ -219,8 +187,6 @@
       "morale": 75,
       "politics": 15,
       "salary": 4,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 5
     },
     {
@@ -232,8 +198,6 @@
       "morale": 70,
       "politics": 10,
       "salary": 1,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -245,8 +209,6 @@
       "morale": 70,
       "politics": 2,
       "salary": 3,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 6
     },
     {
@@ -258,8 +220,6 @@
       "morale": 70,
       "politics": 2,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 6
     },
     {
@@ -271,8 +231,6 @@
       "morale": 60,
       "politics": 9,
       "salary": 3,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 7
     },
     {
@@ -284,8 +242,6 @@
       "morale": 60,
       "politics": 10,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 7
     },
     {
@@ -297,8 +253,6 @@
       "morale": 60,
       "politics": 3,
       "salary": 4,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 7
     },
     {
@@ -310,8 +264,6 @@
       "morale": 60,
       "politics": 7,
       "salary": 3,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 8
     },
     {
@@ -323,8 +275,6 @@
       "morale": 50,
       "politics": 4,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 8
     },
     {
@@ -336,8 +286,6 @@
       "morale": 50,
       "politics": 9,
       "salary": 4,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 9
     },
     {
@@ -349,8 +297,6 @@
       "morale": 50,
       "politics": 10,
       "salary": 3,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 9
     },
     {
@@ -362,8 +308,6 @@
       "morale": 50,
       "politics": 14,
       "salary": 3,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 10
     },
     {
@@ -375,8 +319,6 @@
       "morale": 40,
       "politics": 5,
       "salary": 2,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 10
     },
     {
@@ -388,8 +330,6 @@
       "morale": 40,
       "politics": 3,
       "salary": 3,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 10
     },
     {
@@ -401,8 +341,6 @@
       "morale": 40,
       "politics": 9,
       "salary": 2,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 11
     },
     {
@@ -414,8 +352,6 @@
       "morale": 40,
       "politics": 4,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 11
     },
     {
@@ -427,8 +363,6 @@
       "morale": 30,
       "politics": 4,
       "salary": 1,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 11
     },
     {
@@ -440,8 +374,6 @@
       "morale": 30,
       "politics": 8,
       "salary": 1,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 1
     },
     {
@@ -453,8 +385,6 @@
       "morale": 30,
       "politics": 6,
       "salary": 1,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 1
     },
     {
@@ -466,8 +396,6 @@
       "morale": 30,
       "politics": 5,
       "salary": 1,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 3
     },
     {
@@ -479,8 +407,6 @@
       "morale": 70,
       "politics": 9,
       "salary": 2,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 3
     },
     {
@@ -492,8 +418,6 @@
       "morale": 60,
       "politics": 10,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": 4
     },
     {
@@ -505,8 +429,6 @@
       "morale": 50,
       "politics": 11,
       "salary": 1,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -518,8 +440,6 @@
       "morale": 50,
       "politics": 14,
       "salary": 1,
-      "eggCapable": true,
-      "soldierLimit": 4,
       "nativeCountryId": 6
     },
     {
@@ -531,8 +451,6 @@
       "morale": 40,
       "politics": 9,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -544,8 +462,6 @@
       "morale": 30,
       "politics": 8,
       "salary": 2,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -557,8 +473,6 @@
       "morale": 10,
       "politics": 15,
       "salary": 5,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -570,8 +484,6 @@
       "morale": 100,
       "politics": 0,
       "salary": 7,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -583,8 +495,6 @@
       "morale": 100,
       "politics": 12,
       "salary": 5,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -596,8 +506,6 @@
       "morale": 80,
       "politics": 0,
       "salary": 4,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -609,8 +517,6 @@
       "morale": 80,
       "politics": 0,
       "salary": 4,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     },
     {
@@ -622,8 +528,6 @@
       "morale": 90,
       "politics": 15,
       "salary": 6,
-      "eggCapable": false,
-      "soldierLimit": 4,
       "nativeCountryId": null
     }
   ]

@@ -18,8 +18,6 @@ List<RomHeroDefinition> _catalog(int combat) => [
       'morale': 80,
       'politics': 10,
       'salary': 3,
-      'eggCapable': false,
-      'soldierLimit': 4,
     }),
 ];
 

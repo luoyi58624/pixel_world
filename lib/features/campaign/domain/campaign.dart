@@ -157,7 +157,7 @@ class CampaignHero {
        politics = definition.politics,
        salary = definition.salaryFor(countryId),
        squad = List.generate(
-         math.min(definition.soldierLimit, GameConfig.heroSoldierLimit),
+         GameConfig.heroSoldierLimit,
          (slot) => BattleHealth(
            BattleSimulation.soldierHp,
            hp: slot < (initialSoldiers ?? GameConfig.initialHeroSoldiers)

@@ -112,7 +112,7 @@ def extract(original):
 # 游戏目录只保存运行时字段；原始字节与偏移仍供extract生成CSV和字模核对图。
 GAME_HERO_FIELDS = (
     "id", "name", "type", "maxHp", "combat", "morale", "politics",
-    "salary", "eggCapable", "soldierLimit", "nativeCountryId",
+    "salary", "nativeCountryId",
 )
 
 
@@ -164,8 +164,6 @@ def _dump_json5(game):
         '      "morale":': '      // 战斗士气。\n      "morale":',
         '      "politics":': '      // 内政能力，影响城池经营和守城排序。\n      "politics":',
         '      "salary":': '      // 任职月俸金币。\n      "salary":',
-        '      "eggCapable":': '      // 是否具备召唤蛋能力。\n      "eggCapable":',
-        '      "soldierLimit":': '      // 每名英雄携带的兵力上限。\n      "soldierLimit":',
         '      "nativeCountryId":': '      // 英雄初始所属国家编号，null 表示没有专属国家。\n      "nativeCountryId":',
     }
     for original, replacement in comments.items():

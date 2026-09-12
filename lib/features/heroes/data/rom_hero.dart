@@ -30,9 +30,7 @@ class RomHeroDefinition {
       morale = _readMorale(json),
       nativeCountryId = _readNativeCountry(json),
       politics = json['politics'] as int,
-      salary = _readSalary(json),
-      eggCapable = json['eggCapable'] as bool,
-      soldierLimit = json['soldierLimit'] as int;
+      salary = _readSalary(json);
 
   /// 唯一身份编号，原版为 0–40，扩展目录使用 100 起的编号。
   final int id;
@@ -66,12 +64,6 @@ class RomHeroDefinition {
 
   /// 任职月俸金币，主角固定为零，其余将领使用 JSON 配置。
   final int salary;
-
-  /// 是否具备召唤蛋能力。
-  final bool eggCapable;
-
-  /// 原版兵力上限，实际兵力另行管理。
-  final int soldierLimit;
 }
 
 int _readSalary(Map<String, dynamic> json) {
