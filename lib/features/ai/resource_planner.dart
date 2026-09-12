@@ -85,7 +85,7 @@ class ResourcePlanner {
         next.gold >=
         math.max(next.cash().reserve, rules.tuning.resourceCashBuffer) +
             (civilian ? earmarked : 0);
-    void accept(
+    bool accept(
       AiLedger next,
       List<AiAction> actions,
       String reason,
@@ -93,7 +93,18 @@ class ResourcePlanner {
       AiHero? hero,
       bool emergency = false,
     }) {
-      ledger = next;
+      // 升级新增的容量必须在本次决策的补兵窗口关闭前补齐。
+      final supplied = next.copy();
+      final topUp = actions.any((a) => a.kind == AiActionKind.upgrade)
+          ? supplied.stockUpSoldiers()
+          : 0;
+      final commandCount = groups.fold(0, (n, g) => n + g.actions.length);
+      if (commandCount + actions.length + (topUp > 0 ? 1 : 0) >
+          rules.tuning.maxCommands) {
+        assessor.work.limited = true;
+        return false;
+      }
+      ledger = supplied;
       groups.add(
         AiCommandGroup(
           reason: reason,
@@ -105,6 +116,19 @@ class ResourcePlanner {
           emergency: emergency,
         ),
       );
+      if (topUp > 0) {
+        groups.add(
+          AiCommandGroup(
+            reason: '在同一次补兵窗口内补充升级新增的全国兵员容量，不透支国库',
+            actions: [
+              AiAction(AiActionKind.soldiers, city: city.id, amount: topUp),
+            ],
+            dependencies: operations.dependencies([], [city]),
+            emergency: emergency,
+          ),
+        );
+      }
+      return true;
     }
 
     final cities = view.owned.toList()
@@ -121,7 +145,7 @@ class ResourcePlanner {
         );
         return danger != 0 ? danger : a.id.compareTo(b.id);
       });
-    final desired = math.min(
+    final guardDemand = math.min(
       ledger.capacity,
       cities.fold(
         0,
@@ -129,10 +153,10 @@ class ResourcePlanner {
             n + ledger.garrison(city.id).length * rules.integer('soldierLimit'),
       ),
     );
-    if (cities.isNotEmpty && desired > ledger.reserves) {
+    if (cities.isNotEmpty) {
       final next = ledger.copy();
-      final count = math.min(desired - next.reserves, next.affordableSoldiers);
-      if (count > 0 && next.buySoldiers(count)) {
+      final count = next.stockUpSoldiers();
+      if (count > 0) {
         accept(
           next,
           [
@@ -142,7 +166,7 @@ class ResourcePlanner {
               amount: count,
             ),
           ],
-          '优先用现有余额补充守将和待出征将领的兵员，买得起多少补多少，不透支',
+          '优先补满全国兵员容量，资金不足时买得起多少补多少，不透支',
           cities.first,
         );
       }
@@ -187,10 +211,12 @@ class ResourcePlanner {
       // 新将到位也需要随军兵，先计入补兵支出，不能把这笔钱重复用于其他采购。
       final troopTarget = math.min(
         next.capacity,
-        desired + (next.recruited.length + 1) * rules.integer('soldierLimit'),
+        guardDemand +
+            (next.recruited.length + 1) * rules.integer('soldierLimit'),
       );
-      final soldiers = math.max(0, troopTarget - next.reserves);
-      if (soldiers > 0 && !next.buySoldiers(soldiers)) return false;
+      final needed = math.max(0, troopTarget - next.reserves);
+      final soldiers = needed > 0 ? next.stockUpSoldiers() : 0;
+      if (soldiers < needed) return false;
       if (!next.recruit(
             city,
             emergency: defense || reports[city.id]?.threatened == true,
@@ -203,7 +229,7 @@ class ResourcePlanner {
         }
         return false;
       }
-      accept(
+      return accept(
         next,
         [
           if (soldiers > 0)
@@ -213,7 +239,6 @@ class ResourcePlanner {
         defense ? '优先补充本国守城缺口，并备齐新将兵员与月俸' : '守城缺口已优先处理，再补前线进攻将领及其兵员',
         city,
       );
-      return true;
     }
 
     // 跨城先补防守缺口，不能因遍历顺序先替另一座城招进攻将。
@@ -528,12 +553,14 @@ class ResourcePlanner {
         }
         if (!ready || !affordable(next)) continue;
         if (purchases.isNotEmpty) {
-          accept(
+          if (!accept(
             next,
             purchases,
             '按目标城防与守将配齐$teamSize名进攻将领的随军兵员，保留月俸预算',
             view.city(hero.city)!,
-          );
+          )) {
+            continue;
+          }
         }
         prepared = true;
         preparedTarget = target.id;

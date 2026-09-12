@@ -159,22 +159,12 @@ class DefensePlanner {
     );
     if (!work.candidate()) return;
 
-    final needed = math.max(
-      0,
-      math.min(
-            base.capacity,
-            base.garrison(city.id).length * rules.integer('soldierLimit'),
-          ) -
-          base.reserves,
-    );
-    if (needed > 0) {
-      final supplied = base.copy();
-      final count = math.min(needed, supplied.affordableSoldiers);
-      if (count > 0 && supplied.buySoldiers(count)) {
-        yield _simple(report, base, supplied, [
-          AiAction(AiActionKind.soldiers, city: city.id, amount: count),
-        ], '优先用国库补足现有守军兵员，再判断是否需要外援');
-      }
+    final supplied = base.copy();
+    final count = supplied.stockUpSoldiers();
+    if (count > 0) {
+      yield _simple(report, base, supplied, [
+        AiAction(AiActionKind.soldiers, city: city.id, amount: count),
+      ], '优先用国库补满全国兵员容量，再判断是否需要外援');
     }
 
     if (city.initialBattleLevel == null) {
@@ -559,12 +549,16 @@ class DefensePlanner {
     List<AiAction> actions,
     String reason,
   ) {
+    final supplied = after.copy();
+    final topUp = actions.any((a) => a.kind == AiActionKind.upgrade)
+        ? supplied.stockUpSoldiers()
+        : 0;
     final heroes = actions.map((a) => _view.hero(a.hero)).whereType<AiHero>();
     final losses = after.removed
         .difference(before.removed)
         .fold(0.0, (n, id) => n + heroStrategicValue(_view.hero(id)!));
     return DefenseCandidate(
-      after.copy(),
+      supplied,
       [
         AiCommandGroup(
           reason: reason,
@@ -576,13 +570,26 @@ class DefensePlanner {
           minimumGold: after.cash(emergency: true).reserve,
           emergency: true,
         ),
+        if (topUp > 0)
+          AiCommandGroup(
+            reason: '城防升级后在同一次补兵窗口内尽量补满全国兵员容量',
+            actions: [
+              AiAction(
+                AiActionKind.soldiers,
+                city: report.city.id,
+                amount: topUp,
+              ),
+            ],
+            dependencies: operations.dependencies([], [report.city]),
+            emergency: true,
+          ),
       ],
-      _quality(report, after) -
+      _quality(report, supplied) -
           losses * .65 -
-          math.max(0, before.gold - after.gold) * .2,
+          math.max(0, before.gold - supplied.gold) * .2,
       unresolved:
-          after.occupancy(report.city.id) > after.slots(report.city) ||
-          _risk(report, after)?.advantage != CombatAdvantage.favorable,
+          supplied.occupancy(report.city.id) > supplied.slots(report.city) ||
+          _risk(report, supplied)?.advantage != CombatAdvantage.favorable,
     );
   }
 

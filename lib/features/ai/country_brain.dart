@@ -659,7 +659,7 @@ class CountryBrain {
       }
     }
 
-    // 无可执行远征时再为明确缺口整备，禁止边境危险溢员和无任务采购。
+    // 无可执行远征时整理城防和编制，补兵以全国容量为目标。
     if (request.stage == AiDecisionStage.full &&
         !protectProtagonist &&
         !launched &&
@@ -713,6 +713,22 @@ class CountryBrain {
                 minimumGold: next.cash().reserve,
               ),
             );
+            final count = next.stockUpSoldiers();
+            if (count > 0) {
+              groups.add(
+                AiCommandGroup(
+                  reason: '城防升级后在同一次补兵窗口内尽量补满全国兵员容量',
+                  actions: [
+                    AiAction(
+                      AiActionKind.soldiers,
+                      city: city.id,
+                      amount: count,
+                    ),
+                  ],
+                  dependencies: operations.dependencies([], [city]),
+                ),
+              );
+            }
             break;
           }
         }
@@ -733,32 +749,21 @@ class CountryBrain {
           );
           break;
         }
-        final need =
-            math.min(
-              ledger.capacity,
-              local.length * rules.integer('soldierLimit'),
-            ) -
-            ledger.reserves;
-        if (need > 0) {
-          final supply = ledger.copy(),
-              count = math.min(
-                supply.affordableSoldiers,
-                math.min(rules.integer('soldierBatch'), need),
-              );
-          if (count > 0 && supply.buySoldiers(count)) {
-            ledger = supply;
-            groups.add(
-              AiCommandGroup(
-                reason: '补充近期守城和出征所需兵员，不填满没有任务的全国容量',
-                actions: [
-                  AiAction(AiActionKind.soldiers, city: city.id, amount: count),
-                ],
-                dependencies: operations.dependencies([], [city]),
-                minimumGold: supply.cash().reserve,
-              ),
-            );
-            break;
-          }
+        final supply = ledger.copy();
+        final count = supply.stockUpSoldiers();
+        if (count > 0) {
+          ledger = supply;
+          groups.add(
+            AiCommandGroup(
+              reason: '优先补满全国兵员容量，资金不足时买得起多少补多少，不透支',
+              actions: [
+                AiAction(AiActionKind.soldiers, city: city.id, amount: count),
+              ],
+              dependencies: operations.dependencies([], [city]),
+              minimumGold: supply.cash().reserve,
+            ),
+          );
+          break;
         }
         yield 7;
       }

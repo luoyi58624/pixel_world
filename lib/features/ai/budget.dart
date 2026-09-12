@@ -422,7 +422,16 @@ class AiLedger {
       ? math.max(0, gold ~/ rules.integer('soldierCost'))
       : 0;
 
-  /// 征兵只补明确需求，不能透支国库。
+  /// 在本月补兵窗口内尽量补满全国容量，资金不足时只购买当前能支付的兵员。
+  int stockUpSoldiers() {
+    final count = math.min(
+      math.max(0, capacity - reserves),
+      affordableSoldiers,
+    );
+    return count > 0 && buySoldiers(count) ? count : 0;
+  }
+
+  /// 按确定数量征兵，不能透支国库或超过全国容量。
   bool buySoldiers(int count) {
     if (!view.nation.soldierRecruitmentAllowed) return false;
     final cost = count * rules.integer('soldierCost');

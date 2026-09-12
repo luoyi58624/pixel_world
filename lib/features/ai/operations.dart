@@ -224,9 +224,11 @@ class OperationPlanner {
       final purchase = math.max(0, desired - ledger.reserves);
       if (purchase > 0) {
         if (!_canPurchase) return null;
-        if (!ledger.buySoldiers(purchase)) return null;
+        // 一次采购会消耗本月补兵机会，有余钱时不能只买本次出征的最低兵数。
+        final count = ledger.stockUpSoldiers();
+        if (count < purchase) return null;
         actions.add(
-          AiAction(AiActionKind.soldiers, city: hero.city, amount: purchase),
+          AiAction(AiActionKind.soldiers, city: hero.city, amount: count),
         );
       }
       if (!ledger.depart(hero, task)) return null;
