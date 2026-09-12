@@ -17,7 +17,7 @@ import 'coalition_policy.dart';
   final guards = view.garrison(city.id).reversed.take(city.safeSlots).toList();
   final coalition = CoalitionPolicy(city.country, view, rules);
   var lower = 1.0, upper = 1.0;
-  var burden = 0.0;
+  var burden = 0.0, openingBurden = 0.0;
   CombatAssessment? opening;
   final ownPower =
       rules.attack(hero.combat, field: false) +
@@ -37,6 +37,9 @@ import 'coalition_policy.dart';
       ownSoldiers: rules.integer('soldierLimit'),
       enemySoldiers: soldiers,
     );
+    if (pair.advantage == CombatAdvantage.unknown) {
+      return (lower: -1, upper: 1, teamSize: 0, breakthrough: false);
+    }
     lower = math.min(lower, pair.lower);
     if (i == 0) opening = pair;
     upper = math.min(upper, pair.upper);
@@ -49,8 +52,10 @@ import 'coalition_policy.dart';
         soldiers * rules.integer('soldierPower');
     // 全城共用进攻军的生命和兵员；这里只累加静态攻防负担，不试打后续轮次。
     final ratio = enemyPower / math.max(1, ownPower);
-    burden +=
+    final cost =
         (guard.hp + soldiers * rules.integer('soldierHp')) * ratio * ratio;
+    burden += cost;
+    if (i == 0) openingBurden = cost;
   }
   final endurance =
       hero.hp + rules.integer('soldierLimit') * rules.integer('soldierHp');
@@ -70,6 +75,19 @@ import 'coalition_policy.dart';
         lower: first.lower,
         upper: first.upper,
         teamSize: 1,
+        breakthrough: true,
+      );
+    }
+    // 单将不占优也可以组队消耗第一道防线，不能把单挑门槛当成全国禁攻令。
+    final firstTeam = (openingBurden / math.max(1, endurance * .85)).ceil();
+    if (guards.isNotEmpty &&
+        hero.hp >= hero.maxHp * .65 &&
+        firstTeam >= 2 &&
+        firstTeam <= rules.tuning.maxTeam) {
+      return (
+        lower: first!.lower,
+        upper: first.upper,
+        teamSize: firstTeam,
         breakthrough: true,
       );
     }
@@ -101,6 +119,15 @@ import 'coalition_policy.dart';
             : math.max(2, sustainedTeam),
         guards.length,
       ),
+    );
+  }
+  // 已按整城承伤与输出估算过人数，整队能承担时不再要求每个人单挑获胜。
+  if (sustainedTeam >= 2 && hero.hp >= hero.maxHp * .65) {
+    return (
+      lower: lower,
+      upper: upper,
+      teamSize: coalition.teamSize(sustainedTeam, guards.length),
+      breakthrough: false,
     );
   }
   final team =

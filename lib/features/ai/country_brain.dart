@@ -884,7 +884,12 @@ class CountryBrain {
         guard.soldierCount + reserves,
       ),
     );
-    return !work.limited && risk.advantage != CombatAdvantage.favorable;
+    if (work.limited) return false;
+    // 消耗攻击的准入和继续条件相同，避免同一支残部在进攻与待命间反复切换。
+    if (task!.attrition) {
+      return risk.upper <= 0 || risk.lower < rules.tuning.breakthroughMargin;
+    }
+    return risk.advantage != CombatAdvantage.favorable;
   }
 
   // 只比较眼前守军和真实随身兵力；目标易主不应自动取消已经走完的远征路程。
@@ -1142,6 +1147,10 @@ class CountryBrain {
     // 只考察有限候补，以真实路程约束抵达间隔，避免前队打光、后队还在远方。
     for (final h in available.take(rules.tuning.maxTeam * 2)) {
       if (team.length >= count) break;
+      final readiness = assessRaid(h, target, _view, rules, assessor);
+      if (readiness.teamSize == 0 || readiness.teamSize > count + queued) {
+        continue;
+      }
       final route = routes.to(h, target.center, _view, target: target);
       if (!route.complete) continue;
       final nextEarly = math.min(earliest, route.seconds),
@@ -1171,25 +1180,7 @@ class CountryBrain {
       final route = teamRoutes[hero.id]!;
       PlannedOperation? chosen;
 
-      if (index > 0 &&
-          (breakthrough ? guards.take(1) : guards).any((guard) {
-            final score = assessor.compare(
-              hero,
-              guard,
-              enemyDefense: target.safeSlots,
-              ownSoldiers: rules.integer('soldierLimit'),
-              enemySoldiers: math.min(
-                rules.integer('soldierLimit'),
-                _view.countries
-                    .firstWhere((c) => c.id == target.country)
-                    .reserves,
-              ),
-            );
-            return score.upper <= rules.tuning.advantageMargin ||
-                score.lower < -.12;
-          })) {
-        return null;
-      }
+      // 候补已按同一整队需求筛选；不能在这里再用单将优势否决整个编队。
       var protection = 0;
       for (final city in _view.owned) {
         final remaining =

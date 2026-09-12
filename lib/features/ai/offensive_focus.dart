@@ -137,6 +137,8 @@ class OffensiveFocus {
   bool allows(AiCity city) {
     // 尚无实际出征时，旧目标只影响偏好，不能封死所有其他可进攻城市。
     if (primary == null) return true;
+    // 已经投入的战线可以补充战损，不应因其不是主战线而永远断绝增援。
+    if (armies.containsKey(city.id)) return true;
     if (objectiveCountry != null &&
         city.country != objectiveCountry &&
         (primary == null || !mayOpenFront)) {

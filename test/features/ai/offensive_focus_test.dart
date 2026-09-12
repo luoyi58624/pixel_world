@@ -142,6 +142,8 @@ void main() {
       guards: [0, 4, 5, 18],
       level: 3,
       gold: 1,
+      // 行军免费；同时缺兵才能验证国库不足以支付整队补给。
+      reserves: 0,
     );
     addTearDown(poor.dispose);
     expect(
@@ -150,5 +152,31 @@ void main() {
           .where((t) => t.role == 'expedition'),
       isEmpty,
     );
+  });
+
+  test('第二条已有战线仍可补充战损，不被主战线选择永久封死', () {
+    final c = nationalScenario(ai: false, guards: [0, 4, 5, 18], gold: 1000);
+    addTearDown(c.dispose);
+    final tasks = <ArmyTask>[];
+    for (var n = 0; n < 2; n++) {
+      final hero = c.garrisonAt(1).first;
+      final target = n == 0 ? c.world.cities[0] : c.world.cities[2];
+      c.dispatch(hero, target, countryId: 1);
+      tasks.add(
+        ArmyTask(
+          hero: hero.id,
+          role: 'expedition',
+          city: target.id,
+          targetCountry: c.cities[target.id]!.ownerCountryId,
+          deadlineTick: 99999,
+          committedUntil: 600,
+          expectedOrderRevision: 1,
+        ),
+      );
+    }
+    final focus = _focus(c, tasks);
+    expect(focus.primary, 0);
+    expect(focus.mayOpenFront, isFalse);
+    expect(focus.allows(c.aiObservationFor(1).city(2)!), isTrue);
   });
 }
