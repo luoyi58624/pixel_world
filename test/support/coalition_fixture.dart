@@ -14,7 +14,7 @@ import 'package:pixel_world/features/world_map/domain/world_data.dart';
 
 /// 两国从相反方向面对同一扩张国，额外城市远离主城，排除距离与守将强弱混淆。
 CampaignState coalitionCampaign({
-  int enemyCities = 3,
+  int enemyCities = 5,
   int gold = 1000,
   int year = 4,
   int homeLevel = 3,

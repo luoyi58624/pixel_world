@@ -2825,7 +2825,7 @@ if(p==null)p=12
 o=A.S(c3.i(0,"payrollRatio"))
 if(o==null)o=0.5
 n=A.a1(c3.i(0,"dangerousCountryCities"))
-if(n==null)n=3
+if(n==null)n=5
 m=A.S(c3.i(0,"coalitionBudgetBase"))
 if(m==null)m=0.5
 l=A.S(c3.i(0,"coalitionBudgetStep"))
@@ -2970,7 +2970,7 @@ if(typeof s=="function")A.cB(A.cE("Attempting to rewrap a JS function.",null))
 r=function(a,b){return function(c){return a(b,c,arguments.length)}}(A.mu,s)
 r[$.jU()]=s
 p.onmessage=r
-q.$1(B.i.ar(t.G.a(A.R(["kind","hello","protocol",1,"build","2ca93cd9","backend",o],t.N,t.X)),null))},
+q.$1(B.i.ar(t.G.a(A.R(["kind","hello","protocol",1,"build","c4690acb","backend",o],t.N,t.X)),null))},
 jk:function jk(){},
 jl:function jl(a){this.a=a},
 kV(a){return v.mangledGlobalNames[a]},
@@ -8502,7 +8502,7 @@ return A.R(["version",s.a,"width",s.b,"height",s.c,"terrain",s.d],t.N,t.X)}}
 A.er.prototype={
 dw(a){var s,r,q,p,o,n,m,l,k,j,i=this
 try{s=t.d1.a(B.i.dc(a,null))
-switch(J.b0(s,"kind")){case"init":if(!J.af(J.b0(s,"protocol"),1)||!J.af(J.b0(s,"build"),"2ca93cd9"))throw A.j(B.a5);++i.f
+switch(J.b0(s,"kind")){case"init":if(!J.af(J.b0(s,"protocol"),1)||!J.af(J.b0(s,"build"),"c4690acb"))throw A.j(B.a5);++i.f
 i.e=null
 p=i.r
 if(p.a>0){p.b=p.c=p.d=p.e=p.f=null
@@ -8848,7 +8848,7 @@ B.o=new A.aF(3,"attack")
 B.M=s([],t._)
 B.t=new A.bp(B.M,1/0,!1)
 B.T=new A.bp(B.M,1/0,!1)
-B.at=new A.cD(4,24,6,1.5,10,12,0.65,3,0.5,0.25,45,15,0.8,45,25,90,-0.15,10,3,1,96,160,6000,8,24,4,6,8,2,0,1,0.3,20,900,64,0.25,8,0.06,0.12,0.35,0.05,2500,2,20)
+B.at=new A.cD(4,24,6,1.5,10,12,0.65,5,0.5,0.25,45,15,0.8,45,25,90,-0.15,10,3,1,96,160,6000,8,24,4,6,8,2,0,1,0.3,20,900,64,0.25,8,0.06,0.12,0.35,0.05,2500,2,20)
 B.A=new A.b4(A.nv(),t.E)
 B.B=new A.b4(A.nw(),t.E)
 B.H=new A.cM()

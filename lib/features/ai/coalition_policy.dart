@@ -27,7 +27,7 @@ class CoalitionPolicy {
   final AiObservation view;
   final AiRules rules;
 
-  /// 三城起列为危险国家，失城后实时退出；不把本国列为进攻对象。
+  /// 达到配置的占城门槛后列为危险国家，失城后实时退出；不针对本国。
   bool get dangerous =>
       targetCountry != view.country &&
       cityCount >= rules.tuning.dangerousCountryCityCount;

@@ -7,14 +7,16 @@ import 'package:pixel_world/features/ai/offensive_focus.dart';
 import 'package:pixel_world/features/ai/routes.dart';
 import 'package:pixel_world/features/ai/work_budget.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
+import 'package:pixel_world/features/ai/rules_data.dart';
+import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/events/domain/game_events.dart';
 
 import '../../support/coalition_fixture.dart';
 
 void main() {
-  test('三城起追加半月收入，此后每多一城加四分之一月，预算与权重递增', () {
+  test('五城起追加半月收入，此后每多一城加四分之一月，预算与权重递增', () {
     var previous = 0, weight = 0.0;
-    for (final cities in [2, 3, 4, 5, 6]) {
+    for (final cities in [1, 3, 4, 5, 6, 7]) {
       final c = coalitionCampaign(enemyCities: cities);
       addTearDown(c.dispose);
       final policy = CoalitionPolicy(
@@ -22,12 +24,17 @@ void main() {
         c.aiObservationFor(1),
         c.aiRulesForTesting(),
       );
-      expect(policy.dangerous, cities >= 3);
+      expect(policy.dangerous, cities >= 5);
       expect(
         policy.extraGold,
-        cities < 3 ? 0 : (50 * (.5 + (cities - 3) * .25)).ceil(),
+        cities < 5 ? 0 : (30 * (.5 + (cities - 5) * .25)).ceil(),
       );
-      if (cities >= 3) {
+      if (cities < 5) {
+        expect(policy.priorityBonus, 0);
+        expect(policy.extraMonths, 0);
+        expect(policy.teamSize(2, 2), 2);
+      }
+      if (cities >= 5) {
         expect(policy.extraGold, greaterThan(previous));
         expect(policy.priorityBonus, greaterThan(weight));
         expect(policy.payrollRatio, greaterThan(.5));
@@ -46,9 +53,27 @@ void main() {
     expect(tuning.coalitionBudgetStepMonths, .3);
   });
 
+  test('占城门槛可配置并经后台规则序列化生效，旧消息缺字段使用统一默认值', () {
+    final c = coalitionCampaign(enemyCities: 5);
+    addTearDown(c.dispose);
+    final original = c.aiRulesForTesting(), view = c.aiObservationFor(1);
+    expect(original.tuning.dangerousCountryCityCount, 5);
+    for (final threshold in [3, 5, 7]) {
+      final tuning = AiTuning(dangerousCountryCityCount: threshold);
+      final rules = AiRules.fromJson({
+        ...original.toJson(),
+        'tuning': tuning.toJson(),
+      });
+      expect(rules.tuning.dangerousCountryCityCount, threshold);
+      expect(CoalitionPolicy(2, view, rules).dangerous, threshold <= 5);
+    }
+    final old = (const AiTuning()).toJson()..remove('dangerousCountryCities');
+    expect(AiTuning.fromJson(old).dangerousCountryCityCount, 5);
+  });
+
   test('围攻可购买强武器但不强制加价，未来年份武器不进入采购', () {
     var oldCost = 0, oldDamage = 0;
-    for (final cities in [2, 3, 4]) {
+    for (final cities in [4, 5, 6]) {
       final c = coalitionCampaign(enemyCities: cities);
       addTearDown(c.dispose);
       final plan = coalitionPlan(c, targetCountry: 2, targetCity: 2);
@@ -59,7 +84,7 @@ void main() {
           .toList();
       final cost = gear.fold(0, (n, w) => n + w.price),
           damage = gear.fold(0, (n, w) => n + w.damage);
-      if (cities == 3) {
+      if (cities == 5) {
         expect(
           cost,
           greaterThanOrEqualTo(oldCost),
@@ -84,7 +109,7 @@ void main() {
   });
 
   test('危险国保留后备队估算，但可先用单将突破而不等待凑齐', () {
-    final c = coalitionCampaign(enemyCities: 3, defenders: 2);
+    final c = coalitionCampaign(enemyCities: 5, defenders: 2);
     addTearDown(c.dispose);
     final policy = CoalitionPolicy(
       2,
@@ -121,7 +146,7 @@ void main() {
   });
 
   test('两国通过正式调度分别付钱、共同攻击危险国家，日志记录追加预算', () {
-    final c = coalitionCampaign(enemyCities: 3, ai: true);
+    final c = coalitionCampaign(enemyCities: 5, ai: true);
     addTearDown(c.dispose);
     for (var n = 0; n < 180; n++) {
       c.advance(1 / 60);
@@ -173,7 +198,7 @@ void main() {
   });
 
   test('先买进攻武器，余钱充足且不侵占围攻预算时才升级', () {
-    for (final cities in [2, 3]) {
+    for (final cities in [4, 5]) {
       for (final gold in [58, 83]) {
         final c = coalitionCampaign(
           enemyCities: cities,
@@ -186,7 +211,7 @@ void main() {
           plan.groups
               .expand((g) => g.actions)
               .any((a) => a.kind == AiActionKind.upgrade),
-          cities == 2 && gold == 83,
+          cities == 4 && gold == 83,
           reason: plan.toJson().toString(),
         );
         expect(
@@ -200,7 +225,7 @@ void main() {
   });
 
   test('围攻提高招聘月俸预算，实际签约成本照常扣除，不修改资源', () {
-    for (final cities in [2, 3]) {
+    for (final cities in [4, 5]) {
       final c = coalitionCampaign(enemyCities: cities, year: 1);
       addTearDown(c.dispose);
       final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
@@ -210,9 +235,9 @@ void main() {
         'salary': 6,
         'heroes': [
           for (final h in original.heroes)
-            // 正常收入五十：三名现役工资三十，再招六金币将领跨过普通预算但符合围攻预算。
+            // 正常收入三十：三名现役工资十五，再招六金币将领跨过普通预算但符合围攻预算。
             if (h.id != 'rom-18')
-              {...h.toJson(), 'pay': h.country == 1 ? 10 : 0},
+              {...h.toJson(), 'pay': h.country == 1 ? 5 : 0},
         ],
         'cities': [
           for (final city in original.cities)
@@ -224,14 +249,14 @@ void main() {
         rules,
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
-      expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), cities == 3);
-      expect(ledger.gold, cities == 3 ? 989 : 1000);
+      expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), cities == 5);
+      expect(ledger.gold, cities == 5 ? 989 : 1000);
       expect(c.goldFor(1), 1000);
     }
   });
 
   test('没有出发的普通目标可重新选择，共同威胁不打断已有远征', () {
-    final c = coalitionCampaign(enemyCities: 3, year: 1);
+    final c = coalitionCampaign(enemyCities: 5, year: 1);
     addTearDown(c.dispose);
     final rules = c.aiRulesForTesting(), view = c.aiObservationFor(1);
     final ledger = AiLedger(
@@ -248,10 +273,13 @@ void main() {
     );
     expect(idle.objectiveCountry, isNull);
     expect(idle.allows(view.city(2)!), isTrue);
+    // 保持原远征装备齐全，排除正常回城补装对目标承诺测试的干扰。
+    expect(c.buyWeapon(2, countryId: 1), isTrue);
     final march = c.dispatch(
       c.garrisonAt(1).first,
       c.world.cities[0],
       countryId: 1,
+      weaponSlots: {0: 2},
     )!;
     final activeView = c.aiObservationFor(1);
     final task = ArmyTask(
@@ -285,18 +313,25 @@ void main() {
           .expand((g) => g.actions)
           .where((a) => a.hero == march.hero.id),
       isEmpty,
+      reason: plan.toJson().toString(),
     );
   });
 
-  test('跌回两城后解除额外预算，对玩家大国也执行同一门槛', () {
-    final c = coalitionCampaign(enemyCities: 3);
+  test('跌回四城后解除额外预算，对玩家大国也执行同一门槛', () {
+    final c = coalitionCampaign(enemyCities: 5);
     addTearDown(c.dispose);
     final rules = c.aiRulesForTesting();
     expect(CoalitionPolicy(2, c.aiObservationFor(1), rules).dangerous, isTrue);
     c.cities[4]!.ownerCountryId = 0;
     expect(CoalitionPolicy(2, c.aiObservationFor(1), rules).extraGold, 0);
-    c.cities[5]!.ownerCountryId = 0;
+    for (final city in [5, 6, 7]) {
+      c.cities[city]!.ownerCountryId = 0;
+    }
     expect(CoalitionPolicy(0, c.aiObservationFor(1), rules).dangerous, isTrue);
+    expect(CoalitionPolicy(1, c.aiObservationFor(1), rules).dangerous, isFalse);
+    for (final city in [2, 4, 5, 6, 7]) {
+      c.cities[city]!.ownerCountryId = 1;
+    }
     expect(CoalitionPolicy(1, c.aiObservationFor(1), rules).dangerous, isFalse);
   });
 }

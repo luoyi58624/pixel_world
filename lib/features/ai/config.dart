@@ -6,7 +6,7 @@ class AiTuning {
     this.resourceIntervalSeconds = 10,
     this.resourceCashBuffer = 12,
     this.maxPayrollIncomeRatio = .65,
-    this.dangerousCountryCityCount = 3,
+    this.dangerousCountryCityCount = 5,
     this.coalitionBudgetBaseMonths = .5,
     this.coalitionBudgetStepMonths = .25,
     this.coalitionTargetBaseBonus = 45,
@@ -58,7 +58,7 @@ class AiTuning {
   /// AI 外聘月俸占正常月收入的上限，为战损补员预留招聘空间。
   final double maxPayrollIncomeRatio;
 
-  /// 敌国达到该城池数后列为共同危险目标，玩家国家同样适用。
+  /// 占城数达到该值才增加扩张引起的敌对权重，玩家与 AI 国家共用此门槛。
   final int dangerousCountryCityCount;
 
   /// 追加军费按本国正常月收入折算，达到门槛后每多一城继续增加。
@@ -177,7 +177,9 @@ class AiTuning {
     resourceIntervalSeconds: (d['resourceInterval'] as num? ?? 30).toDouble(),
     resourceCashBuffer: d['cashBuffer'] as int? ?? 12,
     maxPayrollIncomeRatio: (d['payrollRatio'] as num? ?? .5).toDouble(),
-    dangerousCountryCityCount: d['dangerousCountryCities'] as int? ?? 3,
+    dangerousCountryCityCount:
+        d['dangerousCountryCities'] as int? ??
+        (const AiTuning()).dangerousCountryCityCount,
     coalitionBudgetBaseMonths: (d['coalitionBudgetBase'] as num? ?? .5)
         .toDouble(),
     coalitionBudgetStepMonths: (d['coalitionBudgetStep'] as num? ?? .25)
