@@ -141,16 +141,16 @@ void main() {
     expect(catalog.map((hero) => hero.id).toSet().length, catalog.length);
   });
 
-  test('驻军从高到低展示、迎战从末位向前，不受加入列表的先后影响', () {
+  test('驻军按内政和攻击力从高到低展示、迎战从末位向前', () {
     final c = _campaign();
     final first = _hero(c, 6);
     c.heroes.remove(first);
     c.heroes.insert(0, first);
     _hero(c, 10).cityId = 1;
     final roster = c.garrisonAt(1).toList();
-    expect(roster.map((hero) => hero.sourceId), [3, 4, 6, 10]);
-    expect(roster.last.type, HeroType.normal);
-    expect(roster.first.type, HeroType.advanced);
+    expect(roster.map((hero) => hero.sourceId), [4, 10, 3, 6]);
+    expect(roster.map((hero) => hero.politics), [13, 13, 10, 5]);
+    expect(roster.map((hero) => hero.combat), [15, 13, 15, 14]);
     c.settledMonths = 12;
     expect(c.upgradeCity(1, hero: first, countryId: 1), isTrue);
     final active = _attack(c);
@@ -174,7 +174,7 @@ void main() {
     expect(c.battles[0]!.defender, same(expected));
   });
 
-  test('新增驻军不会顶替当前守将，下一场继续沿用剩余名单顺序', () {
+  test('新增驻军不会顶替当前守将，下一场继续沿用剩余属性顺序', () {
     final c = _campaign();
     final third = _hero(c, 6);
     c.heroes.remove(third);
@@ -191,7 +191,7 @@ void main() {
     expect(battle.defender, same(_hero(c, 6)));
     _kill(battle.defender);
     _until(c, () => battle.wave == 2);
-    expect(battle.defender, same(lower));
+    expect(battle.defender, same(_hero(c, 3)));
     expect(waiter.phase, MarchPhase.awaitingBattle);
   });
 
@@ -203,7 +203,7 @@ void main() {
     c.dispatchTo(_hero(c, 3), const GamePoint(900, 100), countryId: 1);
     _kill(_hero(c, 4));
     _attack(c);
-    expect(c.battles[1]!.defender.sourceId, 9);
+    expect(c.battles[1]!.defender.sourceId, 6);
   });
 
   test('同城按抵达顺序逐支接战，同国等待者保持原位', () {
@@ -250,7 +250,7 @@ void main() {
     expect(c.battles[1], same(battle));
     expect(waiter.position, position);
     _until(c, () => battle.wave == 2);
-    expect(battle.defender.sourceId, 4);
+    expect(battle.defender.sourceId, 3);
     expect(waiter.phase, MarchPhase.awaitingBattle);
   });
 

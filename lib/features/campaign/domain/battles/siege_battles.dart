@@ -109,7 +109,7 @@ extension _CitySieges on CampaignState {
                     identical(battle.defender, hero)),
           ),
     );
-    // 驻军界面从高到低展示，迎战从队尾开始，主角最后上场。
+    // 驻军界面按内政、攻击力从高到低展示，迎战从队尾开始。
     return candidates.lastOrNull;
   }
 

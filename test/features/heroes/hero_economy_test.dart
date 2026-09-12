@@ -97,16 +97,16 @@ void main() {
     expect(c.gold, before + c.lastSettlementFor(0)!.baseIncome - salary);
   });
 
-  test('调整英雄JSON顺序后驻军与迎战顺序同步改变，主角仍排首位', () {
+  test('调整英雄JSON顺序不改变属性守城排序，属性最低者先迎战', () {
     final data = _config();
     data['heroes'] = (data['heroes'] as List).reversed.toList();
     final c = _campaign(config: data);
     expect(decodeRomHeroes(jsonEncode(data)).first.id, 40);
-    expect(c.garrisonAt(0).map((hero) => hero.sourceId), [40, 18, 0]);
+    expect(c.garrisonAt(0).map((hero) => hero.sourceId), [40, 0, 18]);
     final march = c.dispatch(_hero(c, 1), c.world.cities[0], countryId: 1)!;
     march.position = march.destination;
     c.advance(1 / 60);
-    expect(c.battles[0]!.defender.sourceId, 0);
+    expect(c.battles[0]!.defender.sourceId, 18);
   });
 
   test('JSON按文件顺序配置月俸，不因本国身份免薪且主角仍排首位', () {

@@ -183,6 +183,15 @@ class CampaignHero {
     return a.rosterOrder.compareTo(b.rosterOrder);
   }
 
+  /// 守城名单按内政、攻击力从高到低排列，属性相同时回退到固定名册顺序。
+  static int compareDefenseOrder(CampaignHero a, CampaignHero b) {
+    final politics = b.politics.compareTo(a.politics);
+    if (politics != 0) return politics;
+    final combat = b.combat.compareTo(a.combat);
+    if (combat != 0) return combat;
+    return compareRosterOrder(a, b);
+  }
+
   /// 初次加载的英雄文件顺序，招募与进驻后仍使用同一优先级。
   final int rosterOrder;
 
@@ -1145,9 +1154,14 @@ class CampaignState {
           .toList()
         ..sort(CampaignHero.compareRosterOrder);
 
-  /// 尚未出征的守军按配置从高到低展示，重新招募或进驻仍回到对应位置。
-  List<CampaignHero> garrisonAt(int cityId) =>
-      heroesAt(cityId).where((hero) => !marches.containsKey(hero.id)).toList();
+  /// 尚未出征的守军按内政、攻击力从高到低展示，重新招募或进驻仍回到对应位置。
+  List<CampaignHero> garrisonAt(int cityId) {
+    final guards = heroesAt(cityId)
+        .where((hero) => !marches.containsKey(hero.id))
+        .toList();
+    guards.sort(CampaignHero.compareDefenseOrder);
+    return guards;
+  }
 
   /// 当前城池所属国家可调拨的兵员，同国所有城池读取同一库存。
   int soldiersAt(int cityId) => cities[cityId] == null
