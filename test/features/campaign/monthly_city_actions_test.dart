@@ -53,14 +53,16 @@ void main() {
     }
   });
 
-  test('玩家失败或放弃不耗签约次数，成功签约只扣一次', () {
+  test('抽取即占用本月机会，放弃不退次数，签收不重复扣费', () {
     final c = _game();
     final declined = c.drawHero(0)!;
     expect(c.declineHero(declined), isTrue);
-    expect(c.remainingHeroDraws(0), 1);
+    expect(c.remainingHeroDraws(0), 0);
+    expect(c.drawHero(0), isNull);
+    c.advance(60);
     final offer = c.drawHero(0)!;
     expect(c.signHero(offer, countryId: 1), isNull);
-    expect(c.remainingHeroDraws(0), 1);
+    expect(c.remainingHeroDraws(0), 0);
     expect(c.signHero(offer), isNotNull);
     final gold = c.gold, count = c.heroes.length;
     expect(c.signHero(offer), isNull);

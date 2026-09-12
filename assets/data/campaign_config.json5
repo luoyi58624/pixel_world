@@ -96,62 +96,62 @@
           // 城池显示名称。
           "name": "阿尔马",
           // 一级城池的基础月收入。
-          "baseIncome": 20,
+          "baseIncome": 10,
           // 开局城防等级，范围为 1 到 5。
           "initialLevel": 3
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 2,
           "name": "马易",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 3,
           "name": "鲍罗布",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 4,
           "name": "墨尔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 6,
           "name": "列穆",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 7,
           "name": "迪麦",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 8,
           "name": "索朗",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         }
       ]
@@ -162,67 +162,67 @@
         {
           "id": 0,
           "name": "阿尔马",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 2,
           "name": "马易",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 3,
           "name": "鲍罗布",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 4,
           "name": "墨尔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 6,
           "name": "列穆",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 7,
           "name": "迪麦",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 8,
           "name": "索朗",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 10,
           "name": "洛埃",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         }
       ]
@@ -233,73 +233,73 @@
         {
           "id": 0,
           "name": "阿尔马",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 1,
           "name": "奥尔梅",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 4
         },
         {
           "id": 2,
           "name": "马易",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 3,
           "name": "鲍罗布",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 4
         },
         {
           "id": 4,
           "name": "墨尔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 5,
           "name": "托洛诺",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 6,
           "name": "列穆",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 7,
           "name": "迪麦",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 8,
           "name": "索朗",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 9,
           "name": "本塔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         },
         {
           "id": 10,
           "name": "洛埃",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 2
         },
         {
           "id": 11,
           "name": "贝尔",
-          "baseIncome": 20,
+          "baseIncome": 10,
           "initialLevel": 3
         }
       ]

@@ -39,6 +39,7 @@ part 'march_traffic.dart';
 part 'economy/garrison_upkeep.dart';
 part 'economy/country_troops.dart';
 part 'economy/war_spoils.dart';
+part 'economy/soldier_recruitment.dart';
 part 'battles/battle_retreat.dart';
 part 'countries/country_strategy.dart';
 part 'countries/country_relations.dart';
@@ -1001,7 +1002,7 @@ class CampaignState {
   RecruitmentOffer? recruitmentOfferFor(int countryId) =>
       _recruitmentOffers[countryId];
 
-  /// 本城本月剩余签约次数，抽取后放弃或签约失败不消耗次数。
+  /// 本城本月剩余招募机会，成功抽取后即占用，放弃也不能重复抽取。
   int remainingHeroDraws(int cityId) =>
       cities.containsKey(cityId) &&
           _cityRecruitmentMonths[cityId] != settledMonths
@@ -1010,6 +1011,8 @@ class CampaignState {
 
   // 次数跟随城池，防止读档或易主后在同一个月重复购买。
   final Map<int, int> _cityRecruitmentMonths = {}, _cityUpgradeMonths = {};
+  final Map<int, int> _soldierRecruitmentMonths = {};
+  final Map<int, SoldierRecruitmentWindow> _soldierRecruitmentWindows = {};
 
   /// 已完成的经济结算次数。
   int get settledTurns => settledMonths;
@@ -1160,8 +1163,16 @@ class CampaignState {
       : 0;
 
   /// 补兵必须付现，数量同时受国库余额、全国容量和城池归属限制。
-  int maxSoldierPurchase(int cityId, {int countryId = 0}) {
-    if (isPaused) return 0;
+  int maxSoldierPurchase(
+    int cityId, {
+    int countryId = 0,
+    SoldierRecruitmentWindow? window,
+  }) {
+    if (isPaused ||
+        soldierRecruitmentBlockReason(countryId: countryId, window: window) !=
+            null) {
+      return 0;
+    }
     final city = cities[cityId];
     if (defeated || city == null || city.ownerCountryId != countryId) return 0;
     return math.min(
@@ -1174,18 +1185,29 @@ class CampaignState {
   }
 
   /// 当前一次点击能征募的人数，不超过配置批量、容量和可支付人数。
-  int soldierPurchaseBatch(int cityId, {int countryId = 0}) => math.min(
+  int soldierPurchaseBatch(
+    int cityId, {
+    int countryId = 0,
+    SoldierRecruitmentWindow? window,
+  }) => math.min(
     GameConfig.soldierRecruitBatchSize,
-    maxSoldierPurchase(cityId, countryId: countryId),
+    maxSoldierPurchase(cityId, countryId: countryId, window: window),
   );
 
   /// 在本国城池征兵，统一扣国库并加入全国储备，不接受超额或负数。
-  bool buySoldiers(int cityId, int count, {int countryId = 0}) {
+  bool buySoldiers(
+    int cityId,
+    int count, {
+    int countryId = 0,
+    SoldierRecruitmentWindow? window,
+  }) {
     if (count <= 0 ||
-        count > maxSoldierPurchase(cityId, countryId: countryId)) {
+        count >
+            maxSoldierPurchase(cityId, countryId: countryId, window: window)) {
       _rejectEvent(
         GameEventKind.soldiersRecruited,
-        '数量、金币、容量或城池状态不允许征募',
+        soldierRecruitmentBlockReason(countryId: countryId, window: window) ??
+            '数量、金币、容量或城池状态不允许征募',
         countryId: countryId,
         cityId: cityId,
         data: {'count': count},
@@ -1194,6 +1216,7 @@ class CampaignState {
     }
     final before = _eventResources(countryId);
     final cost = count * GameConfig.soldierRecruitCost;
+    _soldierRecruitmentMonths[countryId] = settledMonths;
     _countryGold[countryId] = goldFor(countryId) - cost;
     countryTroops
             .putIfAbsent(countryId, () => CountryTroops())
@@ -1311,20 +1334,10 @@ class CampaignState {
     if (defeated) return '游戏已结束';
     if (cities[cityId]?.ownerCountryId != countryId) return '只能在本国城池招募';
     if (_recruitmentOffers.containsKey(countryId)) return '请先签约或放弃当前抽到的英雄';
-    if (remainingHeroDraws(cityId) == 0) return '本城本月已招募，下月可再次招募';
+    if (remainingHeroDraws(cityId) == 0) return '本城本月已抽取，下月可再次招募';
     if (_heroPool.isEmpty) return '回收池暂时没有可招募英雄';
-    final budget =
-        GameConfig.heroDrawCost +
-        (countryId == 0
-            ? 0
-            : math.max(
-                1,
-                _heroPool.values
-                    .map((h) => h.salaryFor(countryId))
-                    .reduce(math.max),
-              ));
-    if (goldFor(countryId) <= 0 || goldFor(countryId) < budget) {
-      return countryId == 0 ? '金币不足' : '抽取及签约资金不足，需要 $budget 金币';
+    if (goldFor(countryId) < GameConfig.heroDrawCost) {
+      return '抽取资金不足，需要 ${GameConfig.heroDrawCost} 金币';
     }
     return null;
   }
@@ -1345,6 +1358,7 @@ class CampaignState {
     final choices = _heroPool.values.toList();
     final hero = choices[_recruitmentRandom.nextInt(choices.length)];
     _heroPool.remove(hero.id);
+    _cityRecruitmentMonths[cityId] = settledMonths;
     _countryGold[countryId] = goldFor(countryId) - GameConfig.heroDrawCost;
     final offer = RecruitmentOffer(
       hero: hero,
@@ -1356,7 +1370,7 @@ class CampaignState {
     _recruitmentOffers[countryId] = offer;
     _emitEvent(
       GameEventKind.heroDrawn,
-      '抽到${hero.name}，支付 ${GameConfig.heroDrawCost} 金币；将领已锁定，等待签约',
+      '抽到${hero.name}，支付 ${GameConfig.heroDrawCost} 金币，本城本月招募机会已占用',
       countryId: countryId,
       cityId: cityId,
       data: {
@@ -1368,7 +1382,7 @@ class CampaignState {
         'poolRemaining': recruitPool.length,
       },
     );
-    // 所有操作同步完成，抽取前已备足最高签约费，中途不会被其他国家抽走。
+    // 非玩家国家同次调用完成签收，不让候选被其他国家重复抽取。
     if (countryId == 0) {
       _record('${_cityName(cityId)}抽到${hero.name}，等待签约', log: false);
     } else {
@@ -1377,7 +1391,7 @@ class CampaignState {
     return offer;
   }
 
-  /// 检查签约归属、候选有效期和费用，供界面与实际签约共用。
+  /// 检查签约归属与候选有效期，抽取已付费，不再收取金币或预付月俸。
   bool canSignHero(RecruitmentOffer offer, {int countryId = 0}) =>
       !isPaused &&
       !defeated &&
@@ -1385,20 +1399,19 @@ class CampaignState {
       offer.countryId == countryId &&
       identical(_recruitmentOffers[countryId], offer) &&
       cities[offer.cityId]?.ownerCountryId == countryId &&
-      remainingHeroDraws(offer.cityId) > 0 &&
-      goldFor(countryId) > 0 &&
-      goldFor(countryId) >= offer.initialSalary &&
+      (offer.drawnMonth == settledMonths ||
+          remainingHeroDraws(offer.cityId) > 0) &&
       !heroes.any((hero) => hero.sourceId == offer.hero.id);
 
-  /// 合法城池不再限制招募人数，保留此查询供旧界面调用。
+  /// 驻军总人数不受城防限制，招募另按月度机会检查。
   bool recruitmentFull(int cityId) => cities[cityId] == null;
 
-  /// 签约时重新验证候选、归属与首月月俸，人数不受城防限制。
+  /// 签收不重复收费，月俸从下一次月度结算开始收取。
   CampaignHero? signHero(RecruitmentOffer offer, {int countryId = 0}) {
     if (!canSignHero(offer, countryId: countryId)) {
       _rejectEvent(
         GameEventKind.heroSigned,
-        '签约结果、归属、金币或游戏状态已变化',
+        '签约结果、归属或游戏状态已变化',
         countryId: countryId,
         cityId: offer.cityId,
         data: {'sourceHeroId': offer.hero.id},
@@ -1406,25 +1419,24 @@ class CampaignState {
       return null;
     }
     final goldBefore = goldFor(countryId);
-    _countryGold[countryId] = goldFor(countryId) - offer.initialSalary;
     final hero = CampaignHero.fromRom(
       offer.hero,
       cityId: offer.cityId,
       countryId: countryId,
       initialSoldiers: GameConfig.recruitedHeroSoldiers,
     );
-    hero._salaryPaidMonth = settledMonths;
     heroes.add(hero);
     _cityRecruitmentMonths[offer.cityId] = settledMonths;
     _recruitmentOffers.remove(countryId);
     _record(
-      '${hero.name}已签约${_cityName(offer.cityId)}，首月月俸 ${offer.initialSalary} 金币',
+      '${hero.name}已签收至${_cityName(offer.cityId)}，不重复收取招募费，月俸从下月结算',
       kind: GameEventKind.heroSigned,
       countryId: countryId,
       hero: hero,
       cityId: offer.cityId,
       data: {
-        'cost': offer.initialSalary,
+        'cost': 0,
+        'monthlySalary': hero.salary,
         'goldBefore': goldBefore,
         'goldAfter': goldFor(countryId),
       },
@@ -1432,25 +1444,25 @@ class CampaignState {
     return hero;
   }
 
-  /// 放弃签约返还英雄，但不退抽取费。
+  /// 放弃签收按内政等额返还金币，关闭窗口时即使暂停也可取消，不恢复月度机会。
   bool declineHero(RecruitmentOffer offer, {int countryId = 0}) {
-    if (isPaused ||
-        defeated ||
+    if (defeated ||
         offer.isExpired(settledMonths) ||
         offer.countryId != countryId ||
         !identical(_recruitmentOffers[countryId], offer)) {
       _rejectEvent(
         GameEventKind.heroDeclined,
-        '签约结果已失效或游戏暂停',
+        '签约结果已失效',
         countryId: countryId,
         cityId: offer.cityId,
         data: {'sourceHeroId': offer.hero.id},
       );
       return false;
     }
-    _releaseOffer(countryId);
+    final before = goldFor(countryId);
+    final refund = _releaseOffer(countryId, refund: true);
     _record(
-      '已放弃与${offer.hero.name}签约',
+      '已放弃${offer.hero.name}，按内政返还 $refund 金币',
       kind: GameEventKind.heroDeclined,
       countryId: countryId,
       cityId: offer.cityId,
@@ -1458,17 +1470,23 @@ class CampaignState {
         'sourceHeroId': offer.hero.id,
         'heroName': offer.hero.name,
         'poolRemaining': recruitPool.length,
+        'refund': refund,
+        'goldBefore': before,
+        'goldAfter': goldFor(countryId),
       },
     );
     return true;
   }
 
-  void _releaseOffer(int countryId) {
+  int _releaseOffer(int countryId, {bool refund = false}) {
     final offer = _recruitmentOffers.remove(countryId);
-    if (offer == null) return;
+    if (offer == null) return 0;
     if (!heroes.any((hero) => hero.sourceId == offer.hero.id)) {
       _heroPool[offer.hero.id] = offer.hero;
     }
+    final amount = refund ? offer.hero.politics : 0;
+    _countryGold[countryId] = goldFor(countryId) + amount;
+    return amount;
   }
 
   void _recycleHero(CampaignHero hero, {bool dismissed = false}) {
@@ -1580,14 +1598,18 @@ class CampaignState {
     settledMonths++;
     for (final offer in _recruitmentOffers.values.toList()) {
       if (!offer.isExpired(settledMonths)) continue;
-      _releaseOffer(offer.countryId);
+      final refund = _releaseOffer(offer.countryId, refund: true);
       _record(
-        '${offer.hero.name}签约期限已过，返回招募池',
+        '${offer.hero.name}签约期限已过，返回招募池并按内政返还 $refund 金币',
         kind: GameEventKind.heroOfferExpired,
         countryId: offer.countryId,
         cityId: offer.cityId,
         source: GameEventSource.system,
-        data: {'sourceHeroId': offer.hero.id, 'heroName': offer.hero.name},
+        data: {
+          'sourceHeroId': offer.hero.id,
+          'heroName': offer.hero.name,
+          'refund': refund,
+        },
       );
     }
   }

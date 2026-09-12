@@ -19,7 +19,7 @@ extension _AiObservationBridge on CampaignState {
       'countryIncome': GameConfig.countryMonthlyIncome,
       'garrisonFree': GameConfig.freeGarrisonHeroes,
       'garrisonFactor': GameConfig.garrisonUpkeepFactor,
-      'poorPenalty': GameConfig.harvestAdjustmentMax,
+      'poorPenalty': GameConfig.poorHarvestAdjustmentMax,
       'foreignYield': GameConfig.foreignCityYieldFactor,
       'maxLevel': GameConfig.maxCityLevel,
       'firstYearCityLevel': GameConfig.firstYearCityUpgradeLimit,
@@ -103,7 +103,7 @@ extension _AiObservationBridge on CampaignState {
   String _aiCityRevision(int id) {
     final city = cities[id]!, battle = battles[id];
     final active = battle?.isActive == true ? battle : null;
-    return '${city.ownerCountryId}:${city.level}:${garrisonAt(id).map((h) => h.id).join(',')}:${active?.attacker.id}:${active?.initialCityLevel}:${active?.victories}:${active?.defender.id}:${remainingHeroDraws(id)}:${_cityUpgradeMonths[id] == settledMonths}';
+    return '${city.ownerCountryId}:${city.level}:${garrisonAt(id).map((h) => h.id).join(',')}:${active?.attacker.id}:${active?.initialCityLevel}:${active?.victories}:${active?.defender.id}:${remainingHeroDraws(id)}:${_cityUpgradeMonths[id] == settledMonths}:${_soldierRecruitmentMonths[city.ownerCountryId] == settledMonths}';
   }
 
   AiObservation _observeAi(int countryId) {
@@ -275,10 +275,12 @@ extension _AiObservationBridge on CampaignState {
               .where((c) => c.country == id)
               .fold(
                 configFor(id).monthlyBaseIncome -
-                    GameConfig.harvestAdjustmentMax,
+                    GameConfig.poorHarvestAdjustmentMax,
                 (n, c) => n + c.income,
               ),
           baseIncome: configFor(id).monthlyBaseIncome,
+          soldierRecruitmentAllowed:
+              soldierRecruitmentBlockReason(countryId: id) == null,
 
           garrisonAccrued: id == countryId ? garrisonUpkeepAccruedFor(id) : 0,
           hatred: id == countryId ? (_countryHatred[id] ?? {}) : {},

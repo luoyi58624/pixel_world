@@ -246,183 +246,201 @@ extension _AiCommands on CampaignState {
     final assignedTasks = <Map<String, Object?>>[];
     final decisionReasons = <String>{};
     String? executionFailure;
-    for (final group in reply.plan.groups) {
-      if (!_aiGroupBudget(group, reply.country)) {
-        executionFailure =
-            group.actions
-                .where((a) => a.kind == AiActionKind.recruit && a.city != null)
-                .map(
-                  (a) =>
-                      recruitmentBlockReason(a.city!, countryId: reply.country),
-                )
-                .whereType<String>()
-                .firstOrNull ??
-            '当前资源、入城名额或抵达时限不满足整组计划';
-        reject(executionFailure);
-        break;
-      }
-      var successful = true;
-      var actionIndex = 0;
-      for (final action in group.actions) {
-        final hero = heroes.where((h) => h.id == action.hero).firstOrNull;
-        final point =
-            action.city != null &&
-                (action.kind == AiActionKind.dispatch ||
-                    action.kind == AiActionKind.move)
-            ? cityBounds(world.cities.firstWhere((c) => c.id == action.city))
-                  .center
-            : action.point == null
-            ? null
-            : GamePoint(action.point!.x, action.point!.y);
-        bool ok;
-        final before = _eventResources(reply.country);
-        final previousContext = _eventContext;
-        _eventContext = (
-          countryId: reply.country,
-          decisionId: decisionId,
-          reason: group.reason,
-        );
-        try {
-          switch (action.kind) {
-            case AiActionKind.upgrade:
-              ok =
-                  action.city != null &&
-                  hero != null &&
-                  upgradeCity(
-                    action.city!,
-                    hero: hero,
-                    countryId: reply.country,
-                  );
-            case AiActionKind.dismiss:
-              ok =
-                  hero != null &&
-                  dismissHero(hero, countryId: reply.country) != null;
-            case AiActionKind.recruit:
-              ok = false;
-              if (action.city != null && _aiSafeRecruitment(action.city!)) {
-                final offer = drawHero(action.city!, countryId: reply.country);
-                ok = offer != null;
-                if (ok && reply.country == 0) {
-                  ok = signHero(offer, countryId: 0) != null;
-                }
-              }
-            case AiActionKind.soldiers:
-              ok =
-                  action.city != null &&
-                  buySoldiers(
-                    action.city!,
-                    action.amount,
-                    countryId: reply.country,
-                  );
-            case AiActionKind.dispatch:
-              ok =
-                  hero != null &&
-                  point != null &&
-                  dispatchTo(
-                        hero,
-                        point,
-                        countryId: reply.country,
-                        staggerDeparture: true,
-                      ) !=
-                      null;
-            case AiActionKind.move:
-              ok =
-                  hero != null &&
-                  point != null &&
-                  moveTo(hero.id, point, countryId: reply.country);
-            case AiActionKind.camp:
-              ok = hero != null && camp(hero.id, countryId: reply.country);
-            case AiActionKind.retreat:
-              ok =
-                  hero != null &&
-                  retreatHero(hero.id, countryId: reply.country) != null;
-          }
-        } finally {
-          _eventContext = previousContext;
-        }
-        _emitEvent(
-          ok ? GameEventKind.commandApplied : GameEventKind.commandRejected,
-          ok
-              ? '已执行 ${_eventActionLabel(action.kind)}'
-              : '${_eventActionLabel(action.kind)}未执行',
-          countryId: reply.country,
-          hero: hero,
-          cityId: action.city,
-          source: GameEventSource.ai,
-          phase: ok ? GameEventPhase.applied : GameEventPhase.rejected,
-          decisionId: decisionId,
-          reason: group.reason,
-          data: {
-            'groupIndex': groupIndex,
-            'actionIndex': actionIndex++,
-            'action': action.toJson(),
-            'before': before,
-            'after': _eventResources(reply.country),
-          },
-        );
-        if (!ok) {
-          executionFailure = '${_eventActionLabel(action.kind)}未能执行，停止后续依赖动作';
-          successful = false;
-          diagnostics.record(
-            '国家 ${reply.country} 的 ${action.kind.name} 已失效，停止后续依赖动作',
-          );
-          coordinator.urgent(reply.country);
+    // 一份国家决策对应一次补兵窗口，批内可连续采购，结束后本月不可再补。
+    final soldierWindow = beginSoldierRecruitment(countryId: reply.country);
+    try {
+      for (final group in reply.plan.groups) {
+        if (!_aiGroupBudget(
+          group,
+          reply.country,
+          soldierWindow: soldierWindow,
+        )) {
+          executionFailure =
+              group.actions
+                  .where(
+                    (a) => a.kind == AiActionKind.recruit && a.city != null,
+                  )
+                  .map(
+                    (a) => recruitmentBlockReason(
+                      a.city!,
+                      countryId: reply.country,
+                    ),
+                  )
+                  .whereType<String>()
+                  .firstOrNull ??
+              '当前资源、入城名额或抵达时限不满足整组计划';
+          reject(executionFailure);
           break;
         }
-        changed = true;
-        appliedInReply++;
-        diagnostics.commands++;
-        executedActions.add({
-          'summary': _finalActionSummary(action, hero, group),
-          'action': action.toJson(),
-          'heroName': hero?.name,
-          'before': before,
-          'after': _eventResources(reply.country),
-        });
-        if (group.reason.isNotEmpty) decisionReasons.add(group.reason);
-      }
-      if (!successful) break;
-      for (final task in group.tasks) {
-        final hero = heroes
-            .where((h) => h.id == task.hero && h.countryId == reply.country)
-            .firstOrNull;
-        if (hero == null || _disbandAfterBattle.contains(hero.id)) continue;
-        final previousTask = coordinator.tasks[task.hero];
-        coordinator.tasks[task.hero] = task.withLeg(
-          task.leg,
-          _aiOrderVersions[task.hero] ?? 0,
-        );
-        coordinator._taskOwners[task.hero] = reply.country;
-        coordinator._taskDecisions[task.hero] = decisionId;
-        coordinator._taskNames[task.hero] = hero.name;
-        assignedTasks.add({
-          'heroName': hero.name,
-          'previousTask': previousTask?.toJson(),
-          'newTask': coordinator.tasks[task.hero]!.toJson(),
-        });
-        _emitEvent(
-          previousTask == null
-              ? GameEventKind.taskAssigned
-              : GameEventKind.taskReplaced,
-          previousTask == null
-              ? '安排${hero.name}执行${_eventTaskLabel(task.role)}${task.city != null && cities.containsKey(task.city) ? '，目标${cityName(task.city!)}国城池' : ''}'
-              : '将${hero.name}从${_eventTaskLabel(previousTask.role)}改派为${_eventTaskLabel(task.role)}',
-          countryId: reply.country,
-          hero: hero,
-          cityId: task.city,
-          source: GameEventSource.ai,
-          decisionId: decisionId,
-          reason: task.reason,
-          data: {
+        var successful = true;
+        var actionIndex = 0;
+        for (final action in group.actions) {
+          final hero = heroes.where((h) => h.id == action.hero).firstOrNull;
+          final point =
+              action.city != null &&
+                  (action.kind == AiActionKind.dispatch ||
+                      action.kind == AiActionKind.move)
+              ? cityBounds(world.cities.firstWhere((c) => c.id == action.city))
+                    .center
+              : action.point == null
+              ? null
+              : GamePoint(action.point!.x, action.point!.y);
+          bool ok;
+          final before = _eventResources(reply.country);
+          final previousContext = _eventContext;
+          _eventContext = (
+            countryId: reply.country,
+            decisionId: decisionId,
+            reason: group.reason,
+          );
+          try {
+            switch (action.kind) {
+              case AiActionKind.upgrade:
+                ok =
+                    action.city != null &&
+                    hero != null &&
+                    upgradeCity(
+                      action.city!,
+                      hero: hero,
+                      countryId: reply.country,
+                    );
+              case AiActionKind.dismiss:
+                ok =
+                    hero != null &&
+                    dismissHero(hero, countryId: reply.country) != null;
+              case AiActionKind.recruit:
+                ok = false;
+                if (action.city != null && _aiSafeRecruitment(action.city!)) {
+                  final offer = drawHero(
+                    action.city!,
+                    countryId: reply.country,
+                  );
+                  ok = offer != null;
+                  if (ok && reply.country == 0) {
+                    ok = signHero(offer, countryId: 0) != null;
+                  }
+                }
+              case AiActionKind.soldiers:
+                ok =
+                    action.city != null &&
+                    buySoldiers(
+                      action.city!,
+                      action.amount,
+                      countryId: reply.country,
+                      window: soldierWindow,
+                    );
+              case AiActionKind.dispatch:
+                ok =
+                    hero != null &&
+                    point != null &&
+                    dispatchTo(
+                          hero,
+                          point,
+                          countryId: reply.country,
+                          staggerDeparture: true,
+                        ) !=
+                        null;
+              case AiActionKind.move:
+                ok =
+                    hero != null &&
+                    point != null &&
+                    moveTo(hero.id, point, countryId: reply.country);
+              case AiActionKind.camp:
+                ok = hero != null && camp(hero.id, countryId: reply.country);
+              case AiActionKind.retreat:
+                ok =
+                    hero != null &&
+                    retreatHero(hero.id, countryId: reply.country) != null;
+            }
+          } finally {
+            _eventContext = previousContext;
+          }
+          _emitEvent(
+            ok ? GameEventKind.commandApplied : GameEventKind.commandRejected,
+            ok
+                ? '已执行 ${_eventActionLabel(action.kind)}'
+                : '${_eventActionLabel(action.kind)}未执行',
+            countryId: reply.country,
+            hero: hero,
+            cityId: action.city,
+            source: GameEventSource.ai,
+            phase: ok ? GameEventPhase.applied : GameEventPhase.rejected,
+            decisionId: decisionId,
+            reason: group.reason,
+            data: {
+              'groupIndex': groupIndex,
+              'actionIndex': actionIndex++,
+              'action': action.toJson(),
+              'before': before,
+              'after': _eventResources(reply.country),
+            },
+          );
+          if (!ok) {
+            executionFailure = '${_eventActionLabel(action.kind)}未能执行，停止后续依赖动作';
+            successful = false;
+            diagnostics.record(
+              '国家 ${reply.country} 的 ${action.kind.name} 已失效，停止后续依赖动作',
+            );
+            coordinator.urgent(reply.country);
+            break;
+          }
+          changed = true;
+          appliedInReply++;
+          diagnostics.commands++;
+          executedActions.add({
+            'summary': _finalActionSummary(action, hero, group),
+            'action': action.toJson(),
+            'heroName': hero?.name,
+            'before': before,
+            'after': _eventResources(reply.country),
+          });
+          if (group.reason.isNotEmpty) decisionReasons.add(group.reason);
+        }
+        if (!successful) break;
+        for (final task in group.tasks) {
+          final hero = heroes
+              .where((h) => h.id == task.hero && h.countryId == reply.country)
+              .firstOrNull;
+          if (hero == null || _disbandAfterBattle.contains(hero.id)) continue;
+          final previousTask = coordinator.tasks[task.hero];
+          coordinator.tasks[task.hero] = task.withLeg(
+            task.leg,
+            _aiOrderVersions[task.hero] ?? 0,
+          );
+          coordinator._taskOwners[task.hero] = reply.country;
+          coordinator._taskDecisions[task.hero] = decisionId;
+          coordinator._taskNames[task.hero] = hero.name;
+          assignedTasks.add({
+            'heroName': hero.name,
             'previousTask': previousTask?.toJson(),
             'newTask': coordinator.tasks[task.hero]!.toJson(),
-          },
+          });
+          _emitEvent(
+            previousTask == null
+                ? GameEventKind.taskAssigned
+                : GameEventKind.taskReplaced,
+            previousTask == null
+                ? '安排${hero.name}执行${_eventTaskLabel(task.role)}${task.city != null && cities.containsKey(task.city) ? '，目标${cityName(task.city!)}国城池' : ''}'
+                : '将${hero.name}从${_eventTaskLabel(previousTask.role)}改派为${_eventTaskLabel(task.role)}',
+            countryId: reply.country,
+            hero: hero,
+            cityId: task.city,
+            source: GameEventSource.ai,
+            decisionId: decisionId,
+            reason: task.reason,
+            data: {
+              'previousTask': previousTask?.toJson(),
+              'newTask': coordinator.tasks[task.hero]!.toJson(),
+            },
+          );
+        }
+        diagnostics.record(
+          '${world.countryName(reply.country)}国：${group.reason}',
         );
+        groupIndex++;
       }
-      diagnostics.record(
-        '${world.countryName(reply.country)}国：${group.reason}',
-      );
-      groupIndex++;
+    } finally {
+      endSoldierRecruitment(soldierWindow);
     }
     _finalizeAiDecision(
       reply,
@@ -443,7 +461,11 @@ extension _AiCommands on CampaignState {
     return changed;
   }
 
-  bool _aiGroupBudget(AiCommandGroup group, int countryId) {
+  bool _aiGroupBudget(
+    AiCommandGroup group,
+    int countryId, {
+    SoldierRecruitmentWindow? soldierWindow,
+  }) {
     var gold = goldFor(countryId),
         reserve = reserveSoldiersFor(countryId),
         capacity = reserveCapacityFor(countryId);
@@ -500,14 +522,15 @@ extension _AiCommands on CampaignState {
               !_aiSafeRecruitment(action.city!)) {
             return false;
           }
-          gold -=
-              GameConfig.heroDrawCost +
-              _catalog.values
-                  .map((h) => h.salaryFor(countryId))
-                  .fold(0, math.max);
+          gold -= GameConfig.heroDrawCost;
 
         case AiActionKind.soldiers:
-          if (city?.ownerCountryId != countryId ||
+          if (soldierRecruitmentBlockReason(
+                    countryId: countryId,
+                    window: soldierWindow,
+                  ) !=
+                  null ||
+              city?.ownerCountryId != countryId ||
               action.amount < 1 ||
               reserve + action.amount > capacity) {
             return false;

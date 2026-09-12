@@ -58,10 +58,14 @@ extension WorldSnapshots on WorldController {
       replay: replay,
       aiWorkerFactory: _aiWorkerFactory,
     );
+    _endSoldierRecruitment();
     campaign.dispose();
     index = next;
     campaigns[index].dispose();
     campaigns[index] = restored;
+    _soldierRecruitmentWindow = replay
+        ? restored.soldierRecruitmentWindowFor(0)
+        : null;
     camera.worldSize = world.pixelSize;
     void view(WorldCamera camera, dynamic v) {
       camera.cancelMotion();

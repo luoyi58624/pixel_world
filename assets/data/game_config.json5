@@ -47,17 +47,20 @@
   // 丰收的概率权重。
   "abundantHarvestWeight": 1,
   // 一级城池的正常月产出。
-  "cityBaseIncome": 20,
+  "cityBaseIncome": 10,
   // 每提升一级城防增加的月收入。
   "cityIncomePerLevel": 0,
   // 未单独配置国家时的每月保底收入。
   "countryMonthlyIncome": 10,
   // 外国城池收入和兵员容量的倍率。
   "foreignCityYieldFactor": 1.0,
-  // 国家丰欠收随机增减额的下限。
+  // 国家丰收随机增加金币的下限。
   "harvestAdjustmentMin": 5,
-  // 国家丰欠收随机增减额的上限。
+  // 国家丰收随机增加金币的上限。
   "harvestAdjustmentMax": 10,
+  // 每个国家欠收时减少的金币范围，包含上下界。
+  "poorHarvestAdjustmentMin": 10,
+  "poorHarvestAdjustmentMax": 20,
   // 月末是否继续扣除存活英雄的报酬。
   "chargeHeroSalary": true,
   // 每座城免维持费的驻军人数。
@@ -92,9 +95,9 @@
   // 一至五级城防攻击加成。
   "cityDefenseAttackBonuses": [0, 1, 2, 3, 4],
   // 一至五级城防士气加成。
-  "cityDefenseMoraleBonuses": [5, 10, 15, 20, 25],
+  "cityDefenseMoraleBonuses": [0, 5, 10, 15, 20],
   // 一升二至四升五的基础升级费用。
-  "cityUpgradeCosts": [30, 40, 50, 60],
+  "cityUpgradeCosts": [20, 25, 30, 40],
 
   // 全局击退强度差倍率。
   "battleRecoilDifferenceScale": 0.25,

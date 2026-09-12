@@ -1,9 +1,9 @@
 import '../../../core/config/game_config.dart';
 import '../data/rom_hero.dart';
 
-/// 已支付抽取费、尚未签约的唯一英雄；关闭面板即放弃候选并释放公共池锁定。
+/// 已付抽取费、尚未签收的唯一英雄；放弃按内政返还金币但不恢复月度机会。
 class RecruitmentOffer {
-  /// 锁定本次抽取的英雄、招募城池和签约价格。
+  /// 锁定本次抽取的英雄、招募城池和月俸报价。
   const RecruitmentOffer({
     required this.hero,
     required this.cityId,
@@ -18,10 +18,10 @@ class RecruitmentOffer {
   /// 签约后进驻的城池。
   final int cityId;
 
-  /// 支付抽取费的国家。
+  /// 拥有本次招募机会的国家。
   final int countryId;
 
-  /// 签约时立即支付的首月月俸，专属国为零。
+  /// 候选英雄的月俸报价，签收时不预付。
   final int initialSalary;
 
   /// 抽取时已结算的月份数，跨年不延长有效期，关闭面板会提前放弃。

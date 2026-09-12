@@ -174,6 +174,30 @@ class WorldController extends ChangeNotifier {
 
   /// 当前选中的城池。
   CityDefinition? _selectedCity;
+  SoldierRecruitmentWindow? _soldierRecruitmentWindow;
+
+  SoldierRecruitmentWindow? get _activeSoldierWindow =>
+      campaign.isSoldierRecruitmentOpen(_soldierRecruitmentWindow)
+      ? _soldierRecruitmentWindow
+      : null;
+
+  /// 当前窗口可以继续补充的兵数，关闭窗口后全国共享本月限制。
+  int get soldierPurchaseQuantity => selectedCity == null
+      ? 0
+      : campaign.soldierPurchaseBatch(
+          selectedCity!.id,
+          window: _activeSoldierWindow,
+        );
+
+  /// 面板显示本国本月的补兵状态。
+  String get soldierRecruitmentHint =>
+      campaign.soldierRecruitmentBlockReason(window: _activeSoldierWindow) ??
+      (_activeSoldierWindow == null ? '全国每月一次补兵' : '关闭窗口后本月不再补兵');
+
+  void _endSoldierRecruitment() {
+    campaign.endSoldierRecruitment(_soldierRecruitmentWindow);
+    _soldierRecruitmentWindow = null;
+  }
 
   /// 当前城池面板；关闭或切换城池即放弃尚未签约的候选。
   CityDefinition? get selectedCity => _selectedCity;
@@ -181,6 +205,7 @@ class WorldController extends ChangeNotifier {
   /// 切换面板时归还公共池锁定的候选将领。
   set selectedCity(CityDefinition? value) {
     if (_selectedCity?.id != value?.id) {
+      _endSoldierRecruitment();
       final offer = campaign.recruitmentOffer;
       if (offer != null && offer.cityId == _selectedCity?.id) {
         campaign.declineHero(offer);
@@ -644,8 +669,17 @@ class WorldController extends ChangeNotifier {
   /// 按点击时的金币和剩余容量征募一批兵员，面板操作不暂停时间。
   void buyCitySoldiers() {
     final city = selectedCity;
-    if (city != null &&
-        campaign.buySoldiers(city.id, campaign.soldierPurchaseBatch(city.id))) {
+    if (city == null || soldierPurchaseQuantity <= 0) return;
+    if (_activeSoldierWindow == null) {
+      _endSoldierRecruitment();
+      _soldierRecruitmentWindow = campaign.beginSoldierRecruitment();
+    }
+    if (_soldierRecruitmentWindow != null &&
+        campaign.buySoldiers(
+          city.id,
+          soldierPurchaseQuantity,
+          window: _soldierRecruitmentWindow,
+        )) {
       message = campaign.lastEvent;
       refreshUi();
     }
@@ -660,7 +694,7 @@ class WorldController extends ChangeNotifier {
     }
   }
 
-  /// 按当前展示的报价签约并选中新英雄。
+  /// 签收当前候选并选中新英雄，不重复收取抽取费。
   void signRecruitment(RecruitmentOffer offer) {
     final hero = campaign.signHero(offer);
     if (hero != null) {
@@ -670,7 +704,7 @@ class WorldController extends ChangeNotifier {
     }
   }
 
-  /// 放弃这次抽取的英雄，保留已经扣除的抽取费。
+  /// 放弃这次抽取的英雄并按内政返还金币。
   void declineRecruitment(RecruitmentOffer offer) {
     if (campaign.declineHero(offer)) {
       message = campaign.lastEvent;
@@ -884,6 +918,7 @@ class WorldController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _endSoldierRecruitment();
     for (final campaign in campaigns) {
       campaign.dispose();
     }

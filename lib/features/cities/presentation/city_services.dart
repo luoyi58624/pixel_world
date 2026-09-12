@@ -40,7 +40,7 @@ class CityServices extends StatelessWidget {
     final hero = c.selectedHero;
     final cost = campaign.upgradeCostFor(cityId, hero);
     final upgradeProblem = campaign.upgradeBlockReason(cityId, hero);
-    final quantity = campaign.soldierPurchaseBatch(cityId);
+    final quantity = c.soldierPurchaseQuantity;
     final offer = campaign.recruitmentOffer;
     final localOffer = city.isPlayer && offer?.cityId == cityId ? offer : null;
     final blocked = campaign.recruitmentBlockReason(cityId);
@@ -71,7 +71,7 @@ class CityServices extends StatelessWidget {
                             ? '金币不足'
                             : '请选择空闲将领'
                       : city.isPlayer
-                      ? '每城每月一次'
+                      ? '每月一次 · 兵员上限+${GameConfig.cityReserveCapacityPerLevel}'
                       : null,
                   onTap: city.isPlayer && upgradeProblem == null
                       ? () => onAction(c.upgradeSelectedCity)
@@ -86,6 +86,7 @@ class CityServices extends StatelessWidget {
                   value:
                       '${campaign.soldiersAt(cityId)}/${campaign.soldierCapacityAt(cityId)}',
                   valueKey: 'city-reserves',
+                  hint: city.isPlayer ? c.soldierRecruitmentHint : null,
                   action:
                       campaign.soldiersAt(cityId) >=
                           campaign.soldierCapacityAt(cityId)
@@ -105,10 +106,10 @@ class CityServices extends StatelessWidget {
                   title: '招募英雄',
                   value: '${campaign.recruitPool.length}位',
                   valueKey: 'city-recruit-pool',
-                  action: '${GameConfig.heroDrawCost}金币',
+                  action: city.isPlayer ? '${GameConfig.heroDrawCost}金币' : '—',
                   actionKey: 'city-recruit-quota',
                   hint: city.isPlayer && localOffer == null
-                      ? blocked ?? '每城每月签约一次'
+                      ? blocked ?? '每城每月抽取一次，放弃不退次数'
                       : null,
                   onTap: city.isPlayer && localOffer == null && blocked == null
                       ? () => onAction(c.drawCityHero)
@@ -240,7 +241,7 @@ class CityServices extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '签约支付首月月俸；关闭窗口即放弃。',
+          '月俸下次月结扣；关闭或放弃返还${offer.hero.politics}金币。',
           key: const ValueKey('recruit-offer-expiry'),
           style: const TextStyle(color: _muted, fontSize: 11),
         ),
@@ -267,20 +268,11 @@ class CityServices extends StatelessWidget {
                 onPressed: controller.campaign.canSignHero(offer)
                     ? () => onAction(() => controller.signRecruitment(offer))
                     : null,
-                child: Text(
-                  offer.initialSalary == 0
-                      ? '免费签约'
-                      : '签约 · ${offer.initialSalary} 金币',
-                ),
+                child: const Text('签收'),
               ),
             ),
           ],
         ),
-        if (controller.campaign.gold < offer.initialSalary)
-          const Text(
-            '金币不足，无法支付首月月俸。',
-            style: TextStyle(color: _muted, fontSize: 11),
-          ),
       ],
     ),
   );

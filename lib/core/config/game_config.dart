@@ -28,7 +28,7 @@ abstract final class GameConfig {
     'normalHarvestWeight': 2,
     'poorHarvestWeight': 1,
     'abundantHarvestWeight': 1,
-    'cityBaseIncome': 20,
+    'cityBaseIncome': 10,
     'cityIncomePerLevel': 0,
     'countryMonthlyIncome': 10,
     'foreignCityYieldFactor': 1.0,
@@ -46,6 +46,8 @@ abstract final class GameConfig {
     'aiRaidRetrySeconds': 15.0,
     'harvestAdjustmentMin': 5,
     'harvestAdjustmentMax': 10,
+    'poorHarvestAdjustmentMin': 10,
+    'poorHarvestAdjustmentMax': 20,
     'chargeHeroSalary': true,
     'freeGarrisonHeroes': 2,
     'garrisonUpkeepFactor': 0,
@@ -244,9 +246,13 @@ abstract final class GameConfig {
   /// 失败远征后重新筹备的间隔。
   static double get aiRaidRetrySeconds => _double('aiRaidRetrySeconds');
 
-  /// 国家每月丰欠收随机增减额的下限和上限。
+  /// 国家每月丰收随机增加金币的下限和上限。
   static int get harvestAdjustmentMin => _int('harvestAdjustmentMin');
   static int get harvestAdjustmentMax => _int('harvestAdjustmentMax');
+
+  /// 每个国家欠收时随机扣除的金币范围，包含上下界。
+  static int get poorHarvestAdjustmentMin => _int('poorHarvestAdjustmentMin');
+  static int get poorHarvestAdjustmentMax => _int('poorHarvestAdjustmentMax');
 
   /// 月末是否继续扣除存活英雄的报酬。
   static bool get chargeHeroSalary => _bool('chargeHeroSalary');
@@ -291,7 +297,7 @@ abstract final class GameConfig {
   /// 新签约英雄的初始随行兵数。
   static int get recruitedHeroSoldiers => _int('recruitedHeroSoldiers');
 
-  /// 每次抽取英雄的费用。
+  /// 每次抽取英雄的费用，签收不重复付费，月俸另在下次月结扣除。
   static int get heroDrawCost => _int('heroDrawCost');
 
   /// 阵亡、失城被移除的非主角英雄是否回到回收池。
@@ -398,6 +404,14 @@ abstract final class GameConfig {
   static Object? _value(String key) => _values[key];
 
   static void _validate(Map<String, Object?> values) {
+    final poorMin = values['poorHarvestAdjustmentMin'];
+    final poorMax = values['poorHarvestAdjustmentMax'];
+    if (poorMin is! int ||
+        poorMax is! int ||
+        poorMin < 0 ||
+        poorMax < poorMin) {
+      throw const FormatException('欠收金币范围必须为非负整数且上限不小于下限');
+    }
     final costs = values['cityUpgradeCosts'];
     final attack = values['cityDefenseAttackBonuses'];
     final morale = values['cityDefenseMoraleBonuses'];

@@ -145,7 +145,14 @@ extension CampaignSnapshots on CampaignState {
           '${e.key}': [e.value.initialGold, e.value.monthlyBaseIncome],
       },
       'fixedIncomeVersion': 2,
+      'cityIncomeVersion': 2,
       'cityRecruitmentMonths': _keys(_cityRecruitmentMonths),
+      'soldierRecruitmentMonths': _keys(_soldierRecruitmentMonths),
+      if (replay)
+        'soldierRecruitmentWindows': [
+          for (final window in _soldierRecruitmentWindows.values)
+            if (isSoldierRecruitmentOpen(window)) window.countryId,
+        ],
       'cityUpgradeMonths': _keys(_cityUpgradeMonths),
       'random': [
         for (final r in [
@@ -314,7 +321,13 @@ extension CampaignSnapshots on CampaignState {
           int.parse(e.key): CitySituation(
             ownerCountryId: e.value[0],
             defense: e.value[1],
-            baseIncome: e.value[2],
+            baseIncome: !replay && (d['cityIncomeVersion'] as int? ?? 1) < 2
+                ? world
+                          .setup
+                          .cities[(world.id, int.parse(e.key))]
+                          ?.baseIncome ??
+                      GameConfig.cityBaseIncome
+                : e.value[2],
             initialLevel: e.value[3],
             nativeCountryId: e.value[4],
           ).._level = e.value[5],
@@ -531,6 +544,27 @@ extension CampaignSnapshots on CampaignState {
       d['cityRecruitmentMonths'] ?? {},
       (v) => v as int,
     );
+    // 旧档中的待签约候选也已占用抽取月份的机会，放弃后不能再刷。
+    for (final offer in c._recruitmentOffers.values) {
+      c._cityRecruitmentMonths.update(
+        offer.cityId,
+        (month) => math.max(month, offer.drawnMonth),
+        ifAbsent: () => offer.drawnMonth,
+      );
+    }
+    _intMap(
+      c._soldierRecruitmentMonths,
+      d['soldierRecruitmentMonths'] ?? {},
+      (v) => v as int,
+    );
+    if (replay) {
+      for (final country in d['soldierRecruitmentWindows'] ?? const []) {
+        c._soldierRecruitmentWindows[country] = SoldierRecruitmentWindow._(
+          country,
+          c.settledMonths,
+        );
+      }
+    }
     _intMap(
       c._cityUpgradeMonths,
       d['cityUpgradeMonths'] ?? {},

@@ -283,7 +283,7 @@ class AiLedger {
               h.country == view.country && h.hp > 0 && !removed.contains(h.id),
         )
         .fold(extraSalary, (n, h) => n + h.salary);
-    // 签约时已预付本月；只抵扣下一个月结，后续月份仍需保留全额月俸。
+    // 仅兼容旧档已预付的月俸；新招募将领从下一次月结开始正常扣费。
     final prepaid = view.heroes
         .where(
           (h) =>
@@ -292,7 +292,7 @@ class AiLedger {
               !removed.contains(h.id) &&
               h.salaryPaidMonth == view.monthIndex,
         )
-        .fold(extraSalary, (n, h) => n + h.salary);
+        .fold(0, (n, h) => n + h.salary);
     final earningCities = view.owned
         .where((c) => !abandoned.contains(c.id))
         .toList();
@@ -418,11 +418,13 @@ class AiLedger {
   }
 
   /// 当前余额能支付的兵数，容量和实际缺口由采购时另行检查。
-  int get affordableSoldiers =>
-      math.max(0, gold ~/ rules.integer('soldierCost'));
+  int get affordableSoldiers => view.nation.soldierRecruitmentAllowed
+      ? math.max(0, gold ~/ rules.integer('soldierCost'))
+      : 0;
 
   /// 征兵只补明确需求，不能透支国库。
   bool buySoldiers(int count) {
+    if (!view.nation.soldierRecruitmentAllowed) return false;
     final cost = count * rules.integer('soldierCost');
     if (count <= 0 || gold <= 0 || cost > gold || reserves + count > capacity) {
       return false;
@@ -432,9 +434,9 @@ class AiLedger {
     return true;
   }
 
-  /// 抽签按最高费用和月俸预留，不能指定尚未抽到的英雄。
+  /// 抽取支付固定招募费，并为下一次月结预留候选的最高月俸。
   bool recruit(AiCity city, {bool emergency = false, int? offensiveCountry}) {
-    final cost = rules.integer('drawCost') + view.maximumSalary;
+    final cost = rules.integer('drawCost');
     final futureSalary = view.heroes
         .where(
           (h) =>

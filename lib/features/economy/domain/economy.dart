@@ -7,7 +7,7 @@ enum Harvest {
   /// 国家正常收入。
   normal('正常营收'),
 
-  /// 国家本月收入随机减少五至十金币。
+  /// 国家本月收入随机减少十至二十金币。
   poor('欠收'),
 
   /// 国家本月收入随机增加五至十金币。
@@ -21,11 +21,13 @@ enum Harvest {
   /// 抽取本国本月的实际增减额，正常月份不消耗幅度随机数。
   int drawAdjustment(math.Random random) {
     if (this == Harvest.normal) return 0;
-    final amount =
-        GameConfig.harvestAdjustmentMin +
-        random.nextInt(
-          GameConfig.harvestAdjustmentMax - GameConfig.harvestAdjustmentMin + 1,
-        );
+    final minimum = this == Harvest.poor
+        ? GameConfig.poorHarvestAdjustmentMin
+        : GameConfig.harvestAdjustmentMin;
+    final maximum = this == Harvest.poor
+        ? GameConfig.poorHarvestAdjustmentMax
+        : GameConfig.harvestAdjustmentMax;
+    final amount = minimum + random.nextInt(maximum - minimum + 1);
     return this == Harvest.poor ? -amount : amount;
   }
 

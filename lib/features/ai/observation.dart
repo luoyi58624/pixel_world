@@ -343,6 +343,7 @@ class AiCountry {
     this.poorIncome, {
     this.baseIncome,
     this.garrisonAccrued = 0,
+    this.soldierRecruitmentAllowed = true,
     Map<int, int> hatred = const {},
   }) : hatred = Map.unmodifiable(hatred);
 
@@ -356,6 +357,7 @@ class AiCountry {
     d['poor'],
     baseIncome: d['baseIncome'] as int?,
     garrisonAccrued: (d['garrisonAccrued'] as num? ?? 0).toDouble(),
+    soldierRecruitmentAllowed: d['soldierRecruitmentAllowed'] as bool? ?? true,
 
     hatred: {
       for (final e in (d['hate'] as Map).entries)
@@ -372,6 +374,9 @@ class AiCountry {
   /// 本国已累计、将于月底支付的驻军军费，不能因重新分配任务消失。
   final double garrisonAccrued;
 
+  /// 本国本月是否还可以开始一次补兵，已使用后不再规划额外采购。
+  final bool soldierRecruitmentAllowed;
+
   /// 有方向的本国仇恨。
   final Map<int, int> hatred;
 
@@ -385,6 +390,7 @@ class AiCountry {
     'poor': poorIncome,
     'baseIncome': baseIncome,
     'garrisonAccrued': garrisonAccrued,
+    'soldierRecruitmentAllowed': soldierRecruitmentAllowed,
     'hate': {for (final e in hatred.entries) '${e.key}': e.value},
   };
 }
