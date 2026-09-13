@@ -212,8 +212,21 @@ void main() {
         aiRandom: math.Random(7),
         recruitmentRandom: math.Random(11),
         economyRandom: math.Random(17),
+        siegeRandom: math.Random(23),
         retreatRandom: math.Random(31),
       );
+      addTearDown(c.dispose);
+      final overspending = <String>[];
+      for (final country in c.world.countries) {
+        final subscription = c.events.forCountry(country.id).listen((event) {
+          if (event.kind.name != 'commandApplied') return;
+          final before = (event.data['before'] as Map)['gold'] as num;
+          final after = (event.data['after'] as Map)['gold'] as num;
+          // 月结欠收允许负余额，实际采购仍必须逐笔付现，不能用对局结果替代采购校验。
+          if (after < before && after < 0) overspending.add(event.toJsonLine());
+        });
+        addTearDown(subscription);
+      }
       for (var frame = 0; frame < 10800 && !c.defeated; frame++) {
         final before = c.aiStrategicDecisions;
         c.advance(1 / 60);
@@ -222,7 +235,6 @@ void main() {
           deployments += c.marches.values.where((m) => !m.hero.isPlayer).length;
           expect(c.heroes.map((h) => h.id).toSet().length, c.heroes.length);
           for (final country in c.world.countries) {
-            expect(c.goldFor(country.id), greaterThanOrEqualTo(0));
             expect(
               c.reserveSoldiersFor(country.id),
               lessThanOrEqualTo(c.reserveCapacityFor(country.id)),
@@ -234,6 +246,7 @@ void main() {
         c.aiRouteEstimates,
         lessThanOrEqualTo(c.aiStrategicDecisions * 6000),
       );
+      expect(overspending, isEmpty);
     }
     clock.stop();
     debugPrint(

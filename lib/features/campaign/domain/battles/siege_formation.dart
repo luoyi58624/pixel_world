@@ -77,55 +77,93 @@ extension _SiegeFormation on CampaignState {
         occupied[(slot.ring, slot.index)] = m;
       }
     }
-    var remaining = queue.length;
-    // 每圈至少八位，圈数由实际部队数界定，不再硬截断为四圈。
-    for (var ring = 0; ring <= queue.length && remaining > 0; ring++) {
+    // 野战中的候战者保留原位，不能把它的站位再次交给别的军队。
+    for (final m in marches.values) {
+      final slot = m._siegeSlot;
+      if (m.target?.id == city.id &&
+          m.hero.health.alive &&
+          activeBattleForHero(m.hero.id) != null &&
+          slot != null) {
+        occupied.putIfAbsent((slot.ring, slot.index), () => m);
+      }
+    }
+    final countries = <int, List<HeroMarch>>{};
+    for (final m in queue) {
+      countries.putIfAbsent(m.hero.countryId, () => []).add(m);
+    }
+    // 先填内圈，同国自行补位；各国共享的只是物理空位，不能互算援军。
+    final maxRing = queue.length + occupied.length;
+    for (var ring = 0; ring <= maxRing; ring++) {
       final vacancies = <int>[
         for (var slot = 0; slot < rings.slots(ring); slot++)
           if (!occupied.containsKey((ring, slot)) &&
               _validSiegePoint(_siegePoint(city, rings, ring, slot)))
             slot,
       ];
-      for (final slot in vacancies) {
-        final point = _siegePoint(city, rings, ring, slot);
-        final candidates =
-            queue
-                .where((m) => m._siegeSlot == null || m._siegeSlot!.ring > ring)
-                .toList()
-              ..sort((a, b) {
-                // 外圈逐层递补；同圈按真实路程就近，同距按先到顺序。
-                final layerA = a._siegeSlot?.ring ?? 0x7fffffff;
-                final layerB = b._siegeSlot?.ring ?? 0x7fffffff;
-                if (layerA != layerB) return layerA.compareTo(layerB);
-                final distance = (a.position - point).distanceSquared.compareTo(
-                  (b.position - point).distanceSquared,
-                );
-                return distance != 0
-                    ? distance
-                    : a._siegeArrival!.order.compareTo(b._siegeArrival!.order);
-              });
-        if (candidates.isEmpty) break;
-        final m = candidates.first;
-        final old = m._siegeSlot;
-        if (old != null) occupied.remove((old.ring, old.index));
-        m._siegeSlot = (ring: ring, index: slot);
-        occupied[(ring, slot)] = m;
-        _record(
-          '${m.hero.name}前往第${ring + 1}圈围城位置',
-          kind: GameEventKind.heroMoved,
-          hero: m.hero,
-          source: GameEventSource.system,
-          reason: old == null ? '先填满内圈，再逐圈向外布阵' : '外圈就近补充内圈缺口',
-          data: {
-            'siegeRing': ring,
-            'siegeSlot': slot,
-            'previousRing': old?.ring,
-            'arrivalOrder': m._siegeArrival!.order,
-          },
-        );
-        changed = true;
+      for (final members in countries.values) {
+        while (vacancies.isNotEmpty) {
+          final candidates =
+              members
+                  .where(
+                    (m) => m._siegeSlot == null || m._siegeSlot!.ring > ring,
+                  )
+                  .toList()
+                ..sort((a, b) {
+                  // 外圈逐层递补；同圈按真实路程就近，同距按先到顺序。
+                  final layerA = a._siegeSlot?.ring ?? 0x7fffffff;
+                  final layerB = b._siegeSlot?.ring ?? 0x7fffffff;
+                  if (layerA != layerB) return layerA.compareTo(layerB);
+                  return a._siegeArrival!.order.compareTo(
+                    b._siegeArrival!.order,
+                  );
+                });
+          if (candidates.isEmpty) break;
+          var m = candidates.first;
+          var slot = vacancies.first;
+          var shortest = double.infinity;
+          // 外圈补洞选最近者；新到者依次选择身边的空位，绝不固定绕去城东。
+          final layer = m._siegeSlot?.ring;
+          final movers = layer == null
+              ? [m]
+              : candidates.where((c) => c._siegeSlot?.ring == layer);
+          for (final candidate in movers) {
+            for (final vacancy in vacancies) {
+              final distance =
+                  (candidate.position - _siegePoint(city, rings, ring, vacancy))
+                      .distanceSquared;
+              if (distance < shortest) {
+                shortest = distance;
+                m = candidate;
+                slot = vacancy;
+              }
+            }
+          }
+          vacancies.remove(slot);
+          final old = m._siegeSlot;
+          if (old != null) occupied.remove((old.ring, old.index));
+          m._siegeSlot = (ring: ring, index: slot);
+          occupied[(ring, slot)] = m;
+          _record(
+            '${m.hero.name}前往第${ring + 1}圈围城位置',
+            kind: GameEventKind.heroMoved,
+            hero: m.hero,
+            source: GameEventSource.system,
+            reason: old == null ? '先填满内圈，再逐圈向外布阵' : '外圈就近补充内圈缺口',
+            data: {
+              'siegeRing': ring,
+              'siegeSlot': slot,
+              'previousRing': old?.ring,
+              'arrivalOrder': m._siegeArrival!.order,
+            },
+          );
+          changed = true;
+        }
       }
-      remaining -= occupied.keys.where((key) => key.$1 == ring).length;
+      if (queue.every(
+        (m) => m._siegeSlot != null && m._siegeSlot!.ring <= ring,
+      )) {
+        break;
+      }
     }
     for (final m in queue) {
       final slot = m._siegeSlot;

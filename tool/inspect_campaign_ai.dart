@@ -60,6 +60,7 @@ Future<void> main(List<String> args) async {
   final countries =
       c.cities.values.map((c) => c.ownerCountryId).toSet().toList()..sort();
   final sink = File('${folder.path}/events.jsonl').openWrite();
+  final positions = File('${folder.path}/positions.jsonl').openWrite();
   final counts = <String, int>{};
   var issueFiles = 0;
   final audit = SchedulingAudit(
@@ -117,6 +118,11 @@ Future<void> main(List<String> args) async {
                   'blocked': m.waitingForTraffic,
                   'returning': m.returningFromRetreat,
                   'position': [m.position.dx, m.position.dy],
+                  'destination': [m.destination.dx, m.destination.dy],
+                  'siegeRing': m.siegeRing,
+                  'siegeSlot': m.siegeSlotIndex,
+                  'queueOrder': m.siegeQueueOrder,
+                  'waitingForSiege': m.waitingForSiegePosition,
                 },
           ],
           'tasks': [
@@ -245,6 +251,42 @@ Future<void> main(List<String> args) async {
       c.advance(16 / 60);
     }
     if (tick >= nextSample) {
+      positions.writeln(
+        jsonEncode({
+          'second': (data['strategyTime'] as num).toDouble() + (tick + 16) / 60,
+          'cities': [
+            for (final city in c.world.cities)
+              {
+                'id': city.id,
+                'owner': c.cities[city.id]!.ownerCountryId,
+                'level': c.cities[city.id]!.level,
+                'center': [
+                  c.cityBounds(city).center.dx,
+                  c.cityBounds(city).center.dy,
+                ],
+                'attacker': c.battles[city.id]?.isActive == true
+                    ? c.battles[city.id]!.attacker.id
+                    : null,
+              },
+          ],
+          'marches': [
+            for (final m in c.marches.values)
+              {
+                'hero': m.hero.id,
+                'country': m.hero.countryId,
+                'target': m.target?.id,
+                'position': [m.position.dx, m.position.dy],
+                'destination': [m.destination.dx, m.destination.dy],
+                'phase': m.phase.name,
+                'ring': m.siegeRing,
+                'slot': m.siegeSlotIndex,
+                'queue': m.siegeQueueOrder,
+                'pending': m.waitingForDeparture,
+                'returning': m.returningFromRetreat,
+              },
+          ],
+        }),
+      );
       audit.sample(
         c,
         (data['strategyTime'] as num).toDouble() + (tick + 16) / 60,
@@ -271,8 +313,12 @@ Future<void> main(List<String> args) async {
       );
     }
   }
+  final finalState = c.saveState();
+  final actualSeconds =
+      (finalState['strategyTime'] as num) - (data['strategyTime'] as num);
   final result = {
-    'seconds': seconds,
+    'requestedSeconds': seconds,
+    'seconds': actualSeconds,
     'wallMs': watch.elapsedMilliseconds,
     'counts': counts,
     'final': snapshot(),
@@ -281,14 +327,16 @@ Future<void> main(List<String> args) async {
   };
   File('${folder.path}/result.json').writeAsStringSync(jsonEncode(result));
   File('${folder.path}/final_checkpoint.json')
-      .writeAsStringSync(jsonEncode(c.saveState()));
+      .writeAsStringSync(jsonEncode(finalState));
   stdout.writeln(
     jsonEncode({
       'done': label,
+      'seconds': actualSeconds,
       'counts': counts,
       'wallMs': watch.elapsedMilliseconds,
     }),
   );
   c.dispose();
   await sink.close();
+  await positions.close();
 }

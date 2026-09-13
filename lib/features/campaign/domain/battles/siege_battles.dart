@@ -2,13 +2,14 @@ part of '../campaign.dart';
 
 extension _CitySieges on CampaignState {
   void _markSiegeArrivals() {
+    final completedStaging = <String>{};
     // 外围集结任务走完最后一段后直接纳入实际围城队列，避免另等单将胜算审批。
     for (final m in marches.values) {
       final task = aiTasks[m.hero.id];
-      if (m.target != null ||
-          m.waitingForDeparture ||
+      if (m.waitingForDeparture ||
           m.returningFromRetreat ||
-          m.phase != MarchPhase.camped ||
+          (m.phase != MarchPhase.camped &&
+              m.phase != MarchPhase.awaitingBattle) ||
           m.waitingForTraffic ||
           task?.role != 'staging' ||
           task!.leg + 1 < task.points.length) {
@@ -16,9 +17,11 @@ extension _CitySieges on CampaignState {
       }
       final city = world.cities.where((c) => c.id == task.city).firstOrNull;
       if (city != null &&
+          (m.target == null || m.target!.id == city.id) &&
           cities[city.id]!.ownerCountryId != m.hero.countryId &&
           m.hero.health.alive) {
         m.target = city;
+        completedStaging.add(m.hero.id);
       }
     }
     final outerRing = <int, int>{};
@@ -42,7 +45,8 @@ extension _CitySieges on CampaignState {
                   activeBattleForHero(m.hero.id) == null &&
                   cities[m.target!.id]!.ownerCountryId != m.hero.countryId &&
                   m._siegeArrival?.cityId != m.target!.id &&
-                  (m.phase == MarchPhase.awaitingBattle ||
+                  (completedStaging.contains(m.hero.id) ||
+                      m.phase == MarchPhase.awaitingBattle ||
                       (m.position - cityBounds(m.target!).center).distance <=
                           _siegeRings(m.target!)
                                   .radius(outerRing[m.target!.id] ?? 0) +

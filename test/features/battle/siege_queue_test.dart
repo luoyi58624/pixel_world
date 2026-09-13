@@ -107,6 +107,26 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
+  test('不同国家从两侧抵达时各自在附近候战，不被统一拖去同一侧发生无谓野战', () {
+    final c = _campaign();
+    addTearDown(c.dispose);
+    _attack(c);
+    final center = c.cityBounds(c.world.cities[1]).center;
+    final west = _dispatch(c, 1), east = _dispatch(c, 7);
+    west.position = center - const GamePoint(80, 0);
+    east.position = center + const GamePoint(80, 0);
+    c.advance(1 / 60);
+    expect(west.destination.dx, lessThan(center.dx));
+    expect(east.destination.dx, greaterThan(center.dx));
+    expect(west.siegeSlotIndex, isNot(east.siegeSlotIndex));
+    for (var frame = 0; frame < 300; frame++) {
+      c.advance(1 / 60);
+      expect(c.fieldBattles.values.where((b) => b.isActive), isEmpty);
+    }
+    expect((west.position - west.destination).distance, lessThan(1));
+    expect((east.position - east.destination).distance, lessThan(1));
+  });
+
   test('先到将领依次上场，晚到强将不能插队', () {
     final c = _campaign(retreatRoll: .99);
     addTearDown(c.dispose);

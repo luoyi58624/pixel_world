@@ -10,8 +10,23 @@ import 'package:pixel_world/core/geometry/siege_rings.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/cities/domain/city_contact.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
+import 'package:pixel_world/features/ai/protocol.dart';
+import 'package:pixel_world/features/ai/geometry.dart';
 
 import '../../support/assault_fixture.dart';
+import '../../support/national_ai_fixture.dart' show ManualAiWorker;
+
+CampaignState _pairCampaign() {
+  final template = assaultCampaign(sourceHeroes: [0, 2], targetHeroes: [7, 8]);
+  final world = template.world;
+  template.dispose();
+  return CampaignState.fromRom(
+    world,
+    decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+    aiEnabled: false,
+    startingGold: 1000,
+  );
+}
 
 CampaignState _crowd() {
   final template = assaultCampaign(
@@ -84,6 +99,133 @@ void _advance(
 }
 
 void main() {
+  for (final hasTarget in [false, true]) {
+    test('外圈集结完成即纳入队列并向内补位，不能因距离内圈太远永远扎营：$hasTarget', () {
+      final c = _pairCampaign();
+      addTearDown(c.dispose);
+      final city = c.world.cities[2],
+          center = c.cityBounds(c.world.cities[2]).center;
+      final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+      first.position = first.destination;
+      c.advance(1 / 60);
+      final point = center + const GamePoint(-160, 0);
+      final second = c.dispatchTo(scenarioHero(c, 2), point, countryId: 1)!;
+      second.position = point;
+      second.camp();
+      if (hasTarget) second.target = city;
+      final saved = c.saveState();
+      saved['aiEnabled'] = true;
+      saved['ai'] = {
+        'tasks': {
+          second.hero.id: ArmyTask(
+            hero: second.hero.id,
+            role: 'staging',
+            city: city.id,
+            targetCountry: 2,
+            points: [AiPoint(point.dx, point.dy)],
+            deadlineTick: 999999,
+            committedUntil: 0,
+            expectedOrderRevision: c
+                .aiObservationFor(1)
+                .hero(second.hero.id)!
+                .orderRevision,
+          ).toJson(),
+        },
+        'owners': {second.hero.id: 1},
+        'decisions': <String, String>{},
+        'names': <String, String>{},
+        'idle': {},
+        'seeds': {},
+        'threats': {},
+        'changedOwners': {},
+        'schedules': {},
+      };
+      final restored = CampaignSnapshots.restore(
+        saved,
+        c.world,
+        decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+        aiWorkerFactory: ManualAiWorker.new,
+      );
+      addTearDown(restored.dispose);
+      restored.advance(1 / 60);
+      final copy = restored.marches[second.hero.id]!;
+      expect(copy.siegeQueueOrder, isNotNull);
+      expect(copy.siegeRing, 0);
+      expect(copy.phase, MarchPhase.marching);
+      expect(copy.destination.dx, greaterThan(point.dx));
+      _advance(restored, 10);
+      expect((copy.position - copy.destination).distance, lessThan(1));
+    });
+  }
+
+  test('两将从原城正常行军，第二将就近候战，不绕到敌城另一侧', () {
+    final c = _pairCampaign();
+    addTearDown(c.dispose);
+    final city = c.world.cities[2],
+        center = c.cityBounds(c.world.cities[2]).center;
+    final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+    _advance(c, 2);
+    final second = c.dispatch(scenarioHero(c, 2), city, countryId: 1)!;
+    var waited = false, reached = false;
+    for (var i = 0; i < 60 * 60; i++) {
+      final before = second.position;
+      c.advance(1 / 60);
+      if (!second.waitingForSiegePosition) continue;
+      if (!waited) {
+        waited = true;
+        expect(first.target, city);
+        expect(second.destination.dx, lessThan(center.dx));
+        expect((second.destination - before).distance, lessThan(40));
+      }
+      if ((second.position - second.destination).distance < 1) {
+        reached = true;
+        break;
+      }
+    }
+    expect(waited, isTrue);
+    expect(reached, isTrue);
+  });
+
+  test('各方向来的单名候战者均选身边空位，旧存档重新排位但保留先后顺序', () {
+    for (final direction in [
+      const GamePoint(-1, 0),
+      const GamePoint(0, -1),
+      const GamePoint(1, 0),
+      const GamePoint(0, 1),
+    ]) {
+      final c = _pairCampaign();
+      addTearDown(c.dispose);
+      final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
+      final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+      first.position = first.destination;
+      c.advance(1 / 60);
+      final second = c.dispatch(scenarioHero(c, 2), city, countryId: 1)!;
+      second.position = bounds.center + direction * 80;
+      c.advance(1 / 60);
+      expect(second.waitingForSiegePosition, isTrue);
+      final offset = second.destination - bounds.center;
+      expect(
+        offset.dx * direction.dx + offset.dy * direction.dy,
+        greaterThan(0),
+      );
+      expect((second.destination - second.position).distance, lessThan(40));
+      final saved = c.saveState()..remove('siegeFormationVersion');
+      final marches = saved['marches'] as List;
+      final waiting = marches.firstWhere((m) => m['arrival'] != null);
+      waiting['siegeSlot'] = [0, 0];
+      final restored = CampaignSnapshots.restore(
+        saved,
+        c.world,
+        decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+      );
+      addTearDown(restored.dispose);
+      restored.advance(1 / 60);
+      final copy = restored.marches[second.hero.id]!;
+      expect(copy.siegeQueueOrder, second.siegeQueueOrder);
+      expect(copy.destination, second.destination);
+    }
+  });
+
   test('同侧大军步行围成多圈，完整包围才禁撤退，缺口由最近外圈补齐', () {
     final c = _crowd();
     addTearDown(c.dispose);

@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import '../core/config/game_config.dart';
 import '../core/geometry/geometry.dart';
+import '../core/geometry/siege_rings.dart';
 import '../features/campaign/domain/campaign.dart';
+import '../features/cities/domain/city_contact.dart';
 import '../features/events/domain/game_events.dart';
 import '../features/heroes/data/rom_hero.dart';
 
@@ -23,6 +25,8 @@ class SchedulingAudit {
   final _coverage = <String, int>{};
   final _counts = <String, int>{};
   final _maxWait = <String, double>{};
+  final _encircled = <String>{};
+  final _maxFormation = <String, int>{};
 
   bool _automated(CampaignState c, int id) =>
       c.aiEnabled && (id != 0 || c.aiControlsPlayer);
@@ -180,6 +184,23 @@ class SchedulingAudit {
         'destination': [m.destination.dx, m.destination.dy],
       };
       final fighting = c.activeBattleForHero(hero.id) != null;
+      _wait(
+        'stagingNotQueued',
+        hero.id,
+        !fighting &&
+            !m.waitingForDeparture &&
+            !m.waitingForTraffic &&
+            !m.returningFromRetreat &&
+            task?.role == 'staging' &&
+            task!.leg + 1 >= task.points.length &&
+            m.siegeQueueOrder == null &&
+            m.phase == MarchPhase.camped &&
+            c.cities[task.city]?.ownerCountryId != hero.countryId &&
+            (m.position - m.destination).distance < 1,
+        now,
+        5,
+        data,
+      );
       final stationary = now - position.since;
       final pending =
           m.waitingForDeparture && now - m.scheduledDepartureTime > 60;
@@ -268,6 +289,93 @@ class SchedulingAudit {
       }
     }
     final activeOwners = c.cities.values.map((v) => v.ownerCountryId).toSet();
+    for (final country in activeOwners) {
+      if (!_automated(c, country)) continue;
+      final missing =
+          c.reserveCapacityFor(country) - c.reserveSoldiersFor(country);
+      final canBuy =
+          missing > 0 &&
+          c.goldFor(country) >= GameConfig.soldierRecruitCost &&
+          c.soldierRecruitmentBlockReason(countryId: country) == null;
+      _wait(
+        'suppliesNotPurchased',
+        '$country',
+        canBuy,
+        now,
+        c.aiRulesForTesting().tuning.resourceIntervalSeconds + 12,
+        {'country': country, 'gold': c.goldFor(country), 'missing': missing},
+      );
+    }
+    for (final city in c.world.cities) {
+      final bounds = c.cityBounds(city);
+      final contact = CityContact.forAppearance(
+        city.appearanceAt(c.cities[city.id]!.level),
+      );
+      final rings = SiegeRings(
+        contact.outline.fold<double>(
+          0,
+          (r, p) => math.max(r, (bounds.topLeft + p - bounds.center).distance),
+        ),
+      );
+      final queued = <int, List<HeroMarch>>{};
+      for (final m in c.marches.values) {
+        if (m.target?.id != city.id ||
+            !m.hero.health.alive ||
+            m.returningFromRetreat ||
+            m.siegeQueueOrder == null ||
+            c.activeBattleForHero(m.hero.id) != null ||
+            c.cities[city.id]!.ownerCountryId == m.hero.countryId) {
+          continue;
+        }
+        queued.putIfAbsent(m.hero.countryId, () => []).add(m);
+      }
+      for (final entry in queued.entries) {
+        final key = '${entry.key}:${city.id}', members = entry.value;
+        final arrived = members
+            .where(
+              (m) =>
+                  m.waitingForSiegePosition &&
+                  (m.position - m.destination).distance < 2,
+            )
+            .length;
+        _maxFormation.update(
+          key,
+          (n) => math.max(n, arrived),
+          ifAbsent: () => arrived,
+        );
+        final closed = c.isCityEncircled(city.id, countryId: entry.key);
+        if (closed && _encircled.add(key)) _cover('actualEncirclement');
+        if (!closed) _encircled.remove(key);
+        if (!_automated(c, entry.key)) continue;
+        _wait(
+          'siegeFormationIncomplete',
+          key,
+          queued.length == 1 && members.length >= rings.slots(0) && !closed,
+          now,
+          120,
+          {
+            'country': entry.key,
+            'city': city.id,
+            'waiting': members.length,
+            'arrived': arrived,
+            'required': rings.slots(0),
+          },
+        );
+        _wait(
+          'siegeNotResumed',
+          key,
+          c.battles[city.id]?.isActive != true,
+          now,
+          60,
+          {
+            'country': entry.key,
+            'city': city.id,
+            'heroes': members.map((m) => m.hero.id).toList(),
+          },
+        );
+        if (arrived > 0) _cover('siegePositionReached');
+      }
+    }
     _alerts.removeWhere((id, _) => !activeOwners.contains(id));
     for (final alert in _alerts.entries) {
       if (now - alert.value > 12) {
@@ -325,6 +433,29 @@ class SchedulingAudit {
           'heroes': guards.map((h) => h.id).toList(),
         },
       );
+      final healthy = guards
+          .where(
+            (h) =>
+                h.hp >= h.maxHp * .65 &&
+                c.dispatchBlockReason(h, countryId: owner) == null,
+          )
+          .toList();
+      final calm =
+          c.battles[city.id]?.isActive != true &&
+          !visible.any(
+            (m) =>
+                m.hero.countryId != owner &&
+                (c.territories.regionAt(m.position) == city.id ||
+                    (m.position - c.cityBounds(city).center).distance <=
+                        GameConfig.aiThreatDistance),
+          );
+      final spareFront = !rear && calm && funded && healthy.length >= 3;
+      if (spareFront) _cover('frontSpareObserved');
+      _wait('frontNotMobilized', '$owner:${city.id}', spareFront, now, 90, {
+        'country': owner,
+        'city': city.id,
+        'heroes': healthy.map((h) => h.id).toList(),
+      });
     }
     _streaks.removeWhere((key, _) => !_checked.contains(key));
   }
@@ -334,6 +465,7 @@ class SchedulingAudit {
     'coverage': _coverage,
     'counts': _counts,
     'maxWaitSeconds': _maxWait,
+    'maxArrivedSiegeTroops': _maxFormation,
     'issues': _issues,
   };
 }
