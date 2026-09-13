@@ -113,7 +113,7 @@ void main() {
     expect(ledger.garrison(1).any((h) => h.type == 2), isTrue);
   });
 
-  test('首年现金充足且扩军后收入仍覆盖月俸时允许补员，长期入不敷出则拒绝', () {
+  test('首年有现款即可扩军，月俸收支不再作为招募硬门槛', () {
     final c = nationalScenario(
       ai: false,
       gold: 100,
@@ -137,13 +137,9 @@ void main() {
         rules,
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
-      expect(ledger.recruit(view.city(1)!), salary == 7);
-      expect(ledger.gold, salary == 7 ? 100 - rules.integer('drawCost') : 100);
-      expect(
-        ledger.extraSalary,
-        salary == 7 ? 8 : 0,
-        reason: '月俸预留到下次结算，不在招募时重复预付',
-      );
+      expect(ledger.recruit(view.city(1)!), isTrue);
+      expect(ledger.gold, 100 - rules.integer('drawCost'));
+      expect(ledger.extraSalary, 8, reason: '月俸照常记账，招募时不重复预付或冻结');
     }
   });
 

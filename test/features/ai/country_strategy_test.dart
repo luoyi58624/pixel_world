@@ -90,7 +90,7 @@ void main() {
     expect(c.aiTasks['rom-18']?.role, 'staging');
   });
 
-  test('仅五金币且没有储备时先补五名士兵，月结后补足再出征', () {
+  test('平时仅五金币不动用周转金，月结后补兵再出征', () {
     final c = assaultCampaign(
       ai: true,
       gold: 5,
@@ -101,8 +101,8 @@ void main() {
       heroOverrides: _balancedSiege,
     );
     advanceAi(c, .5);
-    expect(c.reserveSoldiersFor(1), 5);
-    expect(c.goldFor(1), 0);
+    expect(c.reserveSoldiersFor(1), 0);
+    expect(c.goldFor(1), 5);
     expect(c.marches.values.where((m) => m.hero.countryId == 1), isEmpty);
     for (
       var n = 0;

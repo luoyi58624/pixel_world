@@ -69,6 +69,7 @@ extension _MarchTraffic on CampaignState {
         .toList();
     // 城堡可以从任意墙面接触；同一入口被排队部队占住时改选邻近空位。
     if (march.target != null &&
+        march._siegeArrival == null &&
         !march._siegeWaiting &&
         obstacles.any(
           (p) =>
@@ -335,17 +336,28 @@ extension _MarchTraffic on CampaignState {
     required bool Function(GamePoint, GamePoint) wallClear,
     bool gridTraffic = false,
   }) {
-    final nodes = <GamePoint>[from, goal];
+    // 终点仍被人占着时寻路不可能成功，避免密集候战者每帧反复展开同一张图。
+    if (obstacles.any((p) => _trafficIntersects(goal, goal, p))) return [];
+    final corners = <GamePoint>{};
     if (around != null) {
       final origin = cityBounds(around).topLeft;
       final bounds = _cityContact(around).bounds.inflate(12);
-      nodes.addAll(
+      corners.addAll(
         [
           bounds.topLeft,
           bounds.topRight,
           bounds.bottomLeft,
           bounds.bottomRight,
         ].map((p) => origin + p).where(_containsPoint),
+      );
+      final tileBounds = cityBounds(around).inflate(8);
+      corners.addAll(
+        [
+          tileBounds.topLeft,
+          tileBounds.topRight,
+          tileBounds.bottomLeft,
+          tileBounds.bottomRight,
+        ].where(_containsPoint),
       );
     }
     // 围城每格十六像素，绕行点也必须允许贴格通过，否则十八像素拐点进不了空格。
@@ -356,10 +368,22 @@ extension _MarchTraffic on CampaignState {
       for (final dx in [-cornerMargin, cornerMargin]) {
         for (final dy in [-cornerMargin, cornerMargin]) {
           final corner = GamePoint(p.dx + dx, p.dy + dy);
-          if (_containsPoint(corner)) nodes.add(corner);
+          if (_containsPoint(corner)) corners.add(corner);
         }
       }
     }
+    // 贴格阵列共享大量拐点；合并重复点并剔除占用点，再搜索实际可走的通道。
+    final nodes = <GamePoint>[
+      from,
+      goal,
+      ...corners.where(
+        (p) =>
+            p != from &&
+            p != goal &&
+            wallClear(p, p) &&
+            obstacles.every((other) => !_trafficIntersects(p, p, other)),
+      ),
+    ];
     final distance = List.filled(nodes.length, double.infinity)..[0] = 0;
     final previous = List.filled(nodes.length, -1);
     final visited = <int>{};

@@ -106,13 +106,20 @@ void main() {
     expect(c.aiDiagnostics.rejected, greaterThan(0));
   });
 
-  test('真实AI少量现金优先补买得起的士兵，不等待满队也不透支', () {
+  test('真实AI受袭时用最后现金补兵，不等待满队也不透支', () {
     final c = nationalScenario(gold: 2, reserves: 0, recruitment: true);
     addTearDown(c.dispose);
-    final people = c.heroes.where((h) => h.countryId == 1).length;
+    approaching(c, distance: 100);
     advanceAi(c, 6);
     expect(c.goldFor(1), 0);
-    expect(c.reserveSoldiersFor(1), 2);
-    expect(c.heroes.where((h) => h.countryId == 1).length, people);
+    final purchases = c.events
+        .forCountry(1)
+        .query()
+        .where((e) => e.kind.name == 'soldiersRecruited');
+    expect(purchases, isNotEmpty, reason: c.aiDiagnostics.events.toString());
+    expect(
+      c.events.forCountry(1).query().where((e) => e.kind.name == 'heroSigned'),
+      isEmpty,
+    );
   });
 }

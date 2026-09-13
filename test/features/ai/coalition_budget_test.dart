@@ -157,7 +157,7 @@ void main() {
     expect(c.goldFor(2), 0);
   });
 
-  test('围攻提高月俸比例，充足现款也能支持普通目标的招募，签约只扣抽取费', () {
+  test('普通目标与围攻目标都按现款招募，签约只扣抽取费', () {
     for (final cities in [4, 5]) {
       final c = coalitionCampaign(enemyCities: cities, year: 1);
       addTearDown(c.dispose);
@@ -182,7 +182,7 @@ void main() {
         rules,
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
-      expect(ledger.recruit(view.city(1)!, offensiveCountry: 2), isTrue);
+      expect(ledger.recruit(view.city(1)!), isTrue);
       expect(ledger.gold, 995);
       expect(ledger.extraSalary, 6);
       expect(c.goldFor(1), 1000);

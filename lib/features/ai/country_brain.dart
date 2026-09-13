@@ -727,114 +727,18 @@ class CountryBrain {
       }
     }
 
-    // 无可执行远征时整理城防和编制，补兵以全国容量为目标。
+    // 全阶段沿用同一资源规划，避免备用入口仍禁止后方招将或仅招一城。
     if (request.stage == AiDecisionStage.full &&
-        !protectProtagonist &&
-        !launched &&
         groups.fold(0, (n, g) => n + g.actions.length) <
-            rules.tuning.maxCommands - 3) {
-      final recruitmentFronts = ledger.recruitmentFronts(
-        _view.cities.where(
-          (c) =>
-              c.country != _view.country &&
-              openingFocus.allows(c) &&
-              operations.hasCoalitionFront(c),
-        ),
-      );
-      for (final city in _view.owned) {
-        if (_reports[city.id]?.threatened == true) continue;
-        if (!work.candidate()) break;
-        final local = ledger.garrison(city.id), next = ledger.copy();
-        final governors =
-            local
-                .where(
-                  (h) => h.canUpgrade && !ledger.reservedHeroes.contains(h.id),
-                )
-                .toList()
-              ..sort((a, b) => b.politics.compareTo(a.politics));
-        final needHero =
-            recruitmentFronts.contains(city.id) &&
-            _view.cities.any((c) => c.country != _view.country) &&
-            (local.isEmpty ||
-                ledger.assignedHeroCount(city.id) <
-                    ledger.defendersToKeep(city) + requiredHeroes);
-        if (governors.isNotEmpty &&
-            (local.length >= ledger.slots(city) ||
-                needHero && local.length >= city.rearStagingCapacity)) {
-          if (next.upgrade(city, governors.first) &&
-              next.gold >= next.cash().reserve) {
-            ledger = next;
-            groups.add(
-              AiCommandGroup(
-                reason: '先扩充安全迎战名额和兵员容量，再考虑招将与远征',
-                actions: [
-                  AiAction(
-                    AiActionKind.upgrade,
-                    city: city.id,
-                    hero: governors.first.id,
-                  ),
-                ],
-                dependencies: operations.dependencies(
-                  [governors.first],
-                  [city],
-                ),
-                minimumGold: next.cash().reserve,
-              ),
-            );
-            final count = next.stockUpSoldiers();
-            if (count > 0) {
-              groups.add(
-                AiCommandGroup(
-                  reason: '城防升级后在同一次补兵窗口内尽量补满全国兵员容量',
-                  actions: [
-                    AiAction(
-                      AiActionKind.soldiers,
-                      city: city.id,
-                      amount: count,
-                    ),
-                  ],
-                  dependencies: operations.dependencies([], [city]),
-                ),
-              );
-            }
-            break;
-          }
-        }
-        if (needHero &&
-            next.recruit(
-              city,
-              offensiveCountry: _view.city(targetCity)?.country,
-            ) &&
-            next.gold >= next.cash().reserve) {
-          ledger = next;
-          groups.add(
-            AiCommandGroup(
-              reason: '为留守与远征的真实缺口抽取英雄，预留最高手续费和月俸',
-              actions: [AiAction(AiActionKind.recruit, city: city.id)],
-              dependencies: operations.dependencies([], [city]),
-              minimumGold: next.cash().reserve,
-            ),
-          );
-          break;
-        }
-        final supply = ledger.copy();
-        final count = supply.stockUpSoldiers();
-        if (count > 0) {
-          ledger = supply;
-          groups.add(
-            AiCommandGroup(
-              reason: '优先补满全国兵员容量，资金不足时买得起多少补多少，不透支',
-              actions: [
-                AiAction(AiActionKind.soldiers, city: city.id, amount: count),
-              ],
-              dependencies: operations.dependencies([], [city]),
-              minimumGold: supply.cash().reserve,
-            ),
-          );
-          break;
-        }
-        yield 7;
-      }
+            rules.tuning.maxCommands) {
+      final resources = ResourcePlanner(
+        request,
+        rules,
+        operations,
+        assessor,
+        _reports,
+      ).plan(ledger);
+      groups.addAll(resources.groups);
     }
     if (launched) phase = urgent.isEmpty ? 'attacking' : 'defending';
     final coalitionTarget = _view.city(targetCity);
@@ -845,7 +749,7 @@ class CountryBrain {
     if (groups.isEmpty) {
       notes.add(
         ledger.gold < ledger.cash().reserve
-            ? '资金不足以覆盖现有部队和欠收月俸，等待整备'
+            ? '国库已低于日常周转余额，等待收入，紧急防御仍可用款'
             : '没有满足守城、时限及静态风险约束的新增行动，保持已有任务',
       );
     }

@@ -189,7 +189,7 @@ void main() {
     expect(assessRaid(injured, city, view, rules, assessor).teamSize, 0);
   });
 
-  test('调走驻军只降低未来费用，已发生军费仍计入最低现金', () {
+  test('调走驻军更新费用诊断，历史账单不抬高十金币周转线', () {
     final c = coalitionCampaign();
     addTearDown(c.dispose);
     final original = c.aiObservationFor(1), rules = c.aiRulesForTesting();
@@ -209,7 +209,8 @@ void main() {
     }
 
     expect(ledger(0).monthlyGarrisonUpkeep, 0);
-    expect(ledger(100).cash().reserve, greaterThan(ledger(0).cash().reserve));
+    expect(ledger(100).cash().reserve, 10);
+    expect(ledger(0).cash().reserve, 10);
   });
 
   for (final situation in ['兵员完整', '兵员耗尽', '目标空城', '无处整备', '现有兵力占优']) {

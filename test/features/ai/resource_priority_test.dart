@@ -19,6 +19,7 @@ void main() {
       recruitment: true,
       // 本例验证采购顺序，弱守军确保存在可执行的进攻兵员需求。
       attackerCombat: 5,
+      guards: [0, 18],
     );
     addTearDown(c.dispose);
     final plan = coalitionPlan(c);
@@ -93,7 +94,7 @@ void main() {
     expect(actions.where((a) => a.kind == AiActionKind.soldiers), isNotEmpty);
   });
 
-  test('补兵可用最后余额但不能透支，不让招将升级抢钱', () {
+  test('受袭补兵可用最后余额但不能透支，不让招将升级抢钱', () {
     final c = nationalScenario(
       ai: false,
       gold: 1,
@@ -102,6 +103,7 @@ void main() {
       recruitment: true,
     );
     addTearDown(c.dispose);
+    approaching(c, distance: 100);
     final actions = coalitionPlan(c).groups.expand((g) => g.actions).toList();
     expect(actions, isNotEmpty);
     expect(actions.every((a) => a.kind == AiActionKind.soldiers), isTrue);

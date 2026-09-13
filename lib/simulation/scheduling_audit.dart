@@ -292,9 +292,22 @@ class SchedulingAudit {
       if (!_automated(c, country)) continue;
       final missing =
           c.reserveCapacityFor(country) - c.reserveSoldiersFor(country);
+      final invaded = c.cities.entries.any(
+        (entry) =>
+            entry.value.ownerCountryId == country &&
+            (c.battles[entry.key]?.isActive == true ||
+                visible.any(
+                  (march) =>
+                      march.hero.countryId != country &&
+                      c.territories.regionAt(march.position) == entry.key,
+                )),
+      );
+      final reserve = invaded
+          ? 0
+          : c.aiRulesForTesting().tuning.resourceCashBuffer;
       final canBuy =
           missing > 0 &&
-          c.goldFor(country) >= GameConfig.soldierRecruitCost &&
+          c.goldFor(country) >= reserve + GameConfig.soldierRecruitCost &&
           c.soldierRecruitmentBlockReason(countryId: country) == null;
       _wait(
         'suppliesNotPurchased',

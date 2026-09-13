@@ -2,28 +2,6 @@ part of '../campaign.dart';
 
 extension _CitySieges on CampaignState {
   void _markSiegeArrivals() {
-    final completedStaging = <String>{};
-    // 外围集结任务走完最后一段后直接纳入实际围城队列，避免另等单将胜算审批。
-    for (final m in marches.values) {
-      final task = aiTasks[m.hero.id];
-      if (m.waitingForDeparture ||
-          m.returningFromRetreat ||
-          (m.phase != MarchPhase.camped &&
-              m.phase != MarchPhase.awaitingBattle) ||
-          m.waitingForTraffic ||
-          task?.role != 'staging' ||
-          task!.leg + 1 < task.points.length) {
-        continue;
-      }
-      final city = world.cities.where((c) => c.id == task.city).firstOrNull;
-      if (city != null &&
-          (m.target == null || m.target!.id == city.id) &&
-          cities[city.id]!.ownerCountryId != m.hero.countryId &&
-          m.hero.health.alive) {
-        m.target = city;
-        completedStaging.add(m.hero.id);
-      }
-    }
     final outerRing = <int, int>{};
     for (final m in marches.values) {
       if (m.target != null && m._siegeSlot != null && m.hero.health.alive) {
@@ -32,6 +10,31 @@ extension _CitySieges on CampaignState {
           (r) => math.max(r, m._siegeSlot!.ring),
           ifAbsent: () => m._siegeSlot!.ring,
         );
+      }
+    }
+    final completedStaging = <String>{};
+    // 最后一段进入围城范围即接管站位，不能要求新军先穿过已闭合的队列。
+    for (final m in marches.values) {
+      final task = aiTasks[m.hero.id];
+      if (m.waitingForDeparture ||
+          m.returningFromRetreat ||
+          task?.role != 'staging' ||
+          task!.leg + 1 < task.points.length) {
+        continue;
+      }
+      final city = world.cities.where((c) => c.id == task.city).firstOrNull;
+      if (city != null &&
+          (m.target == null || m.target!.id == city.id) &&
+          cities[city.id]!.ownerCountryId != m.hero.countryId &&
+          m.hero.health.alive &&
+          activeBattleForHero(m.hero.id) == null &&
+          ((!m.waitingForTraffic &&
+                  (m.phase == MarchPhase.camped ||
+                      m.phase == MarchPhase.awaitingBattle)) ||
+              (m.position - cityBounds(city).center).distance <=
+                  _siegeRings(city).radius(outerRing[city.id] ?? 0) + 32)) {
+        m.target = city;
+        completedStaging.add(m.hero.id);
       }
     }
     final arrived =
@@ -111,11 +114,16 @@ extension _CitySieges on CampaignState {
         head._siegeSlot = null;
         head._siegeWaiting = false;
       }
+      final ready = head != null && _atCityContact(head);
       changed =
-          _arrangeSiegeRings(city, queue.where((m) => m != head).toList()) ||
+          _arrangeSiegeRings(
+            city,
+            queue.where((m) => m != head).toList(),
+            entering: ready ? null : head,
+          ) ||
           changed;
       if (head == null) continue;
-      if (!_atCityContact(head)) {
+      if (!ready) {
         changed = true;
         continue;
       }
@@ -137,7 +145,8 @@ extension _CitySieges on CampaignState {
     // 城堡扩建或在途拦截后可能已在轮廓内，不能要求向外走再被逐帧拦回。
     if (_cityContact(city).contains(march.position - origin)) return true;
     // 正在走向有效墙面时沿用已有路线，反复改令会清空避让路线并把每帧位置写入返程。
-    if ((march.phase == MarchPhase.marching || march.waitingForTraffic) &&
+    if (march.phase == MarchPhase.marching &&
+        !march.waitingForTraffic &&
         (_cityContact(city).nearest(march.destination - origin) -
                     (march.destination - origin))
                 .distanceSquared <
@@ -147,6 +156,10 @@ extension _CitySieges on CampaignState {
     // 贴格队首垂直贴向最近墙面；朝城心斜走会挤进上下相邻人物的占用格。
     final point = origin + _cityContact(city).nearest(march.position - origin);
     if ((point - march.position).distanceSquared <= 1e-8) return true;
+    if (march.waitingForTraffic &&
+        (point - march.destination).distanceSquared <= 1e-8) {
+      return false;
+    }
     march._resumeToward(point, city: city);
     return false;
   }

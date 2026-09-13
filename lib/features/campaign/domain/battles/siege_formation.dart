@@ -62,10 +62,27 @@ extension _SiegeFormation on CampaignState {
       });
 
   // 保留已分配站位；先由紧邻外圈最近的将领向内补位，再安置新到部队。
-  bool _arrangeSiegeRings(CityDefinition city, List<HeroMarch> queue) {
+  bool _arrangeSiegeRings(
+    CityDefinition city,
+    List<HeroMarch> queue, {
+    HeroMarch? entering,
+  }) {
     if (queue.isEmpty) return false;
     final rings = _siegeRings(city);
     final occupied = <(int, int), HeroMarch>{};
+    // 队首尚未贴墙时，其当前位置和进场通道不是可补位的空格。
+    bool available(int ring, int slot) {
+      final point = _siegePoint(city, rings, ring, slot);
+      return _validSiegePoint(point, city) &&
+          (entering == null ||
+              (!_trafficIntersects(point, point, entering.position) &&
+                  !_trafficIntersects(
+                    entering.position,
+                    entering.destination,
+                    point,
+                  )));
+    }
+
     var changed = false;
     for (final m in queue) {
       final slot = m._siegeSlot;
@@ -73,10 +90,7 @@ extension _SiegeFormation on CampaignState {
       if (slot.ring < 0 ||
           slot.index < 0 ||
           slot.index >= rings.slots(slot.ring) ||
-          !_validSiegePoint(
-            _siegePoint(city, rings, slot.ring, slot.index),
-            city,
-          ) ||
+          !available(slot.ring, slot.index) ||
           occupied.containsKey((slot.ring, slot.index))) {
         m._siegeSlot = null;
       } else {
@@ -102,8 +116,7 @@ extension _SiegeFormation on CampaignState {
     for (var ring = 0; ring <= maxRing; ring++) {
       final vacancies = <int>[
         for (var slot = 0; slot < rings.slots(ring); slot++)
-          if (!occupied.containsKey((ring, slot)) &&
-              _validSiegePoint(_siegePoint(city, rings, ring, slot), city))
+          if (!occupied.containsKey((ring, slot)) && available(ring, slot))
             slot,
       ];
       for (final members in countries.values) {
@@ -168,6 +181,106 @@ extension _SiegeFormation on CampaignState {
       if (queue.every(
         (m) => m._siegeSlot != null && m._siegeSlot!.ring <= ring,
       )) {
+        break;
+      }
+    }
+    // 凹角空格可能被同圈队员挡住：由相邻者先补洞，原补位者接它腾出的格子。
+    // 只交换站位任务，不交换人物位置或抵达顺序，所有步行仍经过碰撞检查。
+    final shifted = <HeroMarch>{};
+    // 建筑换形可能把两人的目的格互换；已站在目标格的人就地接位，避免对穿。
+    for (final m in queue) {
+      final slot = m._siegeSlot;
+      if (!m._trafficBlocked || slot == null || shifted.contains(m)) continue;
+      final point = _siegePoint(city, rings, slot.ring, slot.index);
+      final occupant = queue
+          .where(
+            (other) =>
+                other != m &&
+                other.hero.countryId == m.hero.countryId &&
+                other._siegeSlot != null &&
+                !shifted.contains(other) &&
+                (other.position - point).distanceSquared < 1e-8,
+          )
+          .firstOrNull;
+      if (occupant == null) continue;
+      m._siegeSlot = occupant._siegeSlot;
+      occupant._siegeSlot = slot;
+      shifted.addAll([m, occupant]);
+      changed = true;
+    }
+    final walls = _siegeWallCells(city), center = cityBounds(city).center;
+    final visible = marches.values
+        .where((m) => m.visibleOnMap && m.hero.health.alive)
+        .toList();
+    final walkingDistances = <(GamePoint, GamePoint), double>{};
+    // 对面墙后的直线距离不可走，补位必须比较绕开建筑后的路程。
+    double walkingDistance(GamePoint from, GamePoint to) =>
+        walkingDistances.putIfAbsent((from, to), () {
+          bool clear(GamePoint a, GamePoint b) =>
+              _outsideSiegeWall(a, b, walls, center);
+          final obstacles = <GamePoint>[if (entering != null) entering.position];
+          if (clear(from, to) &&
+              obstacles.every((p) => !_trafficIntersects(from, to, p))) {
+            return (from - to).distance;
+          }
+          final path = _trafficPath(
+            from,
+            to,
+            obstacles,
+            around: city,
+            wallClear: clear,
+            gridTraffic: true,
+          );
+          if (path.isEmpty) return double.infinity;
+          var distance = 0.0, previous = from;
+          for (final point in path) {
+            distance += (point - previous).distance;
+            previous = point;
+          }
+          return distance;
+        });
+    for (final m in queue) {
+      final slot = m._siegeSlot;
+      if (!m._trafficBlocked || slot == null || shifted.contains(m)) continue;
+      final hole = _siegePoint(city, rings, slot.ring, slot.index);
+      final candidates =
+          queue
+              .where(
+                (other) =>
+                    other != m &&
+                    other.hero.countryId == m.hero.countryId &&
+                    other._siegeSlot != null &&
+                    !shifted.contains(other),
+              )
+              .toList()
+            ..sort(
+              (a, b) => (a.position - hole).distanceSquared.compareTo(
+                (b.position - hole).distanceSquared,
+              ),
+            );
+      for (final other in candidates) {
+        final otherSlot = other._siegeSlot!;
+        final replacement = _siegePoint(
+          city,
+          rings,
+          otherSlot.ring,
+          otherSlot.index,
+        );
+        final before = walkingDistance(m.position, hole);
+        final after = walkingDistance(m.position, replacement);
+        if (after >= before - 1e-8 ||
+            !_outsideSiegeWall(other.position, hole, walls, center) ||
+            visible.any(
+              (obstacle) =>
+                  obstacle != other &&
+                  _trafficIntersects(other.position, hole, obstacle.position),
+            )) {
+          continue;
+        }
+        m._siegeSlot = other._siegeSlot;
+        other._siegeSlot = slot;
+        shifted.addAll([m, other]);
+        changed = true;
         break;
       }
     }

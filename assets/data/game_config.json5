@@ -170,7 +170,7 @@
     // 全国资源整理间隔。
     "resourceInterval": 10.0,
     // 常规采购后保留的最低流动金币。
-    "cashBuffer": 12,
+    "cashBuffer": 10,
     // 外聘月俸占正常月收入的上限。
     "payrollRatio": 0.65,
     // 达到该城池数后增加扩张敌对权重。

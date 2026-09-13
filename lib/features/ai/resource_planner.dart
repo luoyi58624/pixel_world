@@ -12,7 +12,7 @@ import 'raid_assessment.dart';
 import 'offensive_focus.dart';
 import 'coalition_policy.dart';
 
-/// 全国资源整理只在独立周期执行，预算包含全部存活将领的月俸。
+/// 全国统一安排采购，常规保留周转金，受袭优先使用现有现金。
 class ResourcePlanner {
   /// 复用公平观察、国库账本和静态属性评估。
   ResourcePlanner(
@@ -71,20 +71,13 @@ class ResourcePlanner {
       );
     }
     final objective = objectives.firstOrNull;
-    final recruitmentFronts = initial.recruitmentFronts(objectives);
+    final recruitmentCities = initial.recruitmentCities(objectives);
+    final underAttack = reports.values.any((r) => r.threatened);
     final coalition = objective == null
         ? null
         : CoalitionPolicy(objective.country, view, rules);
-    final earmarked = !protectProtagonist && coalition?.dangerous == true
-        ? math.min(
-            coalition!.extraGold,
-            math.max(0, initial.gold - initial.cash().reserve),
-          )
-        : 0;
-    bool affordable(AiLedger next, {bool civilian = false}) =>
-        next.gold >=
-        math.max(next.cash().reserve, rules.tuning.resourceCashBuffer) +
-            (civilian ? earmarked : 0);
+    bool affordable(AiLedger next, {bool emergency = false}) =>
+        next.gold >= next.cash(emergency: emergency).reserve;
     bool accept(
       AiLedger next,
       List<AiAction> actions,
@@ -96,7 +89,7 @@ class ResourcePlanner {
       // 升级新增的容量必须在本次决策的补兵窗口关闭前补齐。
       final supplied = next.copy();
       final topUp = actions.any((a) => a.kind == AiActionKind.upgrade)
-          ? supplied.stockUpSoldiers()
+          ? supplied.stockUpSoldiers(emergency: emergency)
           : 0;
       final commandCount = groups.fold(0, (n, g) => n + g.actions.length);
       if (commandCount + actions.length + (topUp > 0 ? 1 : 0) >
@@ -110,9 +103,7 @@ class ResourcePlanner {
           reason: reason,
           actions: actions,
           dependencies: operations.dependencies([?hero], [city]),
-          minimumGold: emergency
-              ? next.cash(emergency: true).reserve
-              : math.max(next.cash().reserve, rules.tuning.resourceCashBuffer),
+          minimumGold: next.cash(emergency: emergency).reserve,
           emergency: emergency,
         ),
       );
@@ -124,6 +115,7 @@ class ResourcePlanner {
               AiAction(AiActionKind.soldiers, city: city.id, amount: topUp),
             ],
             dependencies: operations.dependencies([], [city]),
+            minimumGold: next.cash(emergency: emergency).reserve,
             emergency: emergency,
           ),
         );
@@ -155,7 +147,7 @@ class ResourcePlanner {
     );
     if (cities.isNotEmpty) {
       final next = ledger.copy();
-      final count = next.stockUpSoldiers();
+      final count = next.stockUpSoldiers(emergency: underAttack);
       if (count > 0) {
         accept(
           next,
@@ -166,8 +158,9 @@ class ResourcePlanner {
               amount: count,
             ),
           ],
-          '优先补满全国兵员容量，资金不足时买得起多少补多少，不透支',
+          underAttack ? '遭受攻击，动用全部可用现金补充全国兵员' : '优先补满全国兵员容量，保留少量周转现金',
           cities.first,
+          emergency: underAttack,
         );
       }
     }
@@ -193,7 +186,7 @@ class ResourcePlanner {
         accept(
           next,
           [AiAction(AiActionKind.upgrade, city: city.id, hero: governor.id)],
-          '防御策略发现来敌，优先提高必要城防，升级后仍保留余额',
+          '防御策略发现来敌，动用可用现金提高必要城防',
           city,
           hero: governor,
           emergency: true,
@@ -201,7 +194,7 @@ class ResourcePlanner {
       }
     }
 
-    bool recruit(AiCity city, {required bool defense}) {
+    bool recruit(AiCity city, {required bool defense, bool emergency = false}) {
       if (ledger.recruited.contains(city.id) ||
           reports[city.id]?.threatened == true &&
               ledger.occupancy(city.id) >= city.safeSlots) {
@@ -215,14 +208,13 @@ class ResourcePlanner {
             (next.recruited.length + 1) * rules.integer('soldierLimit'),
       );
       final needed = math.max(0, troopTarget - next.reserves);
-      final soldiers = needed > 0 ? next.stockUpSoldiers() : 0;
-      if (soldiers < needed) return false;
-      if (!next.recruit(
-            city,
-            emergency: defense || reports[city.id]?.threatened == true,
-            offensiveCountry: objective?.country,
-          ) ||
-          !affordable(next)) {
+      final soldiers = needed > 0
+          ? next.stockUpSoldiers(emergency: emergency)
+          : 0;
+      // 受袭时即使本月无法再补兵，新将本身也能提供抵抗，不能因此闲置现款。
+      if (soldiers < needed && !emergency) return false;
+      if (!next.recruit(city, emergency: emergency) ||
+          !affordable(next, emergency: emergency)) {
         if (city.recruitAllowed && view.poolCount > ledger.recruited.length) {
           recruitmentPending = true;
           if (defense) defenseRecruitmentPending = true;
@@ -236,8 +228,9 @@ class ResourcePlanner {
             AiAction(AiActionKind.soldiers, city: city.id, amount: soldiers),
           AiAction(AiActionKind.recruit, city: city.id),
         ],
-        defense ? '优先补充本国守城缺口，并备齐新将兵员与月俸' : '守城缺口已优先处理，再补前线进攻将领及其兵员',
+        defense ? '优先补充防守缺口，受袭时动用全部可用现金' : '利用本城月度招募机会补充前线，后方新将到任后继续出征',
         city,
+        emergency: emergency,
       );
     }
 
@@ -253,7 +246,9 @@ class ResourcePlanner {
           ledger.occupancy(city.id) < city.safeSlots &&
           (local.isEmpty ||
               reports[city.id]?.risk?.advantage != CombatAdvantage.favorable);
-      if (missingGuard || weakDefense) recruit(city, defense: true);
+      if (missingGuard || weakDefense) {
+        recruit(city, defense: true, emergency: threatened);
+      }
     }
     // 前线警报优先动用已有后援；仍有缺口且没有在途援军时通知最近后方补募。
     for (final report in reports.values.where(
@@ -278,132 +273,32 @@ class ResourcePlanner {
                   .distance(report.city.center)
                   .compareTo(b.center.distance(report.city.center)),
             );
-      if (rear.isNotEmpty) recruit(rear.first, defense: true);
+      if (rear.isNotEmpty) recruit(rear.first, defense: true, emergency: true);
+    }
+    // 前线先招，后方接着用各自的月度额度；只按城内积压限制补员。
+    for (final city in recruitmentCities) {
+      if (groups.length >= rules.tuning.maxCommands - 2) break;
+      if ((!protectProtagonist ||
+              reports[city.id]?.protagonistInDanger == true) &&
+          ledger.needsOffensiveRecruit(city) &&
+          !defenseRecruitmentPending) {
+        final threatened = reports[city.id]?.threatened == true;
+        recruit(city, defense: threatened, emergency: threatened);
+      }
     }
     for (final city in cities) {
-      if (groups.length >= rules.tuning.maxCommands - 2) break;
-      final desiredAssault = operations.desiredAssaultHeroes(ledger);
       if (ledger.safeRear(city)) continue;
-      final strongest = view.heroes
-          .where((h) => h.country == view.country && !h.marked)
-          .fold<int>(0, (n, h) => math.max(n, h.combat));
-      final strongThreshold = math.max(12, strongest * .8);
-      final readyAssault = view.heroes
-          .where(
-            (h) =>
-                h.country == view.country &&
-                !h.marked &&
-                !ledger.removed.contains(h.id) &&
-                h.hp >= h.maxHp * .65 &&
-                h.combat >= strongThreshold &&
-                (!h.stationed || ledger.canSpareForOffense(h)),
-          )
-          .length;
-      final needQuality =
-          desiredAssault >= 2 &&
-          readyAssault + ledger.recruited.length < desiredAssault &&
-          view.cities.any((c) => c.country != view.country);
-      if (needQuality &&
-          reports[city.id]?.threatened != true &&
-          ledger.garrison(city.id).length >= city.rearStagingCapacity) {
-        final redundant =
-            ledger
-                .garrison(city.id)
-                .where(
-                  (h) =>
-                      h.canDismiss &&
-                      h.combat <= rules.tuning.attritionCombatCeiling &&
-                      h.politics <= rules.integer('drawCost') &&
-                      !valuableGovernor(h) &&
-                      ledger.canSpareForOffense(h),
-                )
-                .toList()
-              ..sort(
-                (a, b) =>
-                    heroStrategicValue(a).compareTo(heroStrategicValue(b)),
-              );
-        if (redundant.isNotEmpty) {
-          final next = ledger.copy(), hero = redundant.first;
-          if (next.dismiss(hero)) {
-            accept(
-              next,
-              [AiAction(AiActionKind.dismiss, hero: hero.id)],
-              '安全后方清理低价值冗余编制，保留实际守将和内政将领，为强攻主力补员',
-              city,
-              hero: hero,
-            );
-          }
-        }
-      }
       final local = ledger.garrison(city.id);
-      final governors = local.where((h) => h.canUpgrade).toList()
-        ..sort((a, b) => b.politics.compareTo(a.politics));
-      var extraHeroes = 1;
-      if (local.isNotEmpty) {
-        final lead = local.reduce(
-          (a, b) => heroDeploymentValue(a) > heroDeploymentValue(b) ? a : b,
-        );
-        final targets =
-            view.cities
-                .where(
-                  (c) =>
-                      c.country != view.country &&
-                      OffensiveFocus(
-                        view,
-                        ledger,
-                        rules,
-                        targetCountry: request.offensiveCountry,
-                        targetCity: request.offensiveCity,
-                      ).allows(c) &&
-                      operations.canRaidFrom(lead, c),
-                )
-                .toList()
-              ..sort(
-                (a, b) => targetPriority(
-                  b,
-                  lead,
-                  view,
-                  rules,
-                  request.seed,
-                ).compareTo(targetPriority(a, lead, view, rules, request.seed)),
-              );
-        var team = targets.isEmpty ? 0 : 2;
-        for (final target in targets.take(3)) {
-          final readiness = assessRaid(lead, target, view, rules, assessor);
-          if (readiness.teamSize > 0) {
-            if (coalition?.dangerous == true &&
-                target.country == objective?.country) {
-              team = operations.raidTeamSize(
-                readiness.teamSize,
-                target,
-                ledger,
-                lead: lead,
-              );
-              break;
-            }
-            team = operations.raidTeamSize(
-              readiness.teamSize,
-              target,
-              ledger,
-              lead: lead,
-            );
-            break;
-          }
-        }
-        // 需要轮番进攻时补齐队伍，不能永远停在“留守人数 + 一名远征军”。
-        extraHeroes = team;
-      }
+      final governors =
+          local
+              .where(
+                (h) => h.canUpgrade && !ledger.reservedHeroes.contains(h.id),
+              )
+              .toList()
+            ..sort((a, b) => b.politics.compareTo(a.politics));
       final needHero =
-          (!protectProtagonist ||
-              reports[city.id]?.protagonistInDanger == true) &&
-          (recruitmentFronts.contains(city.id) ||
-              reports[city.id]?.threatened == true) &&
-          view.cities.any((c) => c.country != view.country) &&
-          (needQuality ||
-              local.isEmpty ||
-              extraHeroes > 0 &&
-                  ledger.assignedHeroCount(city.id) <
-                      ledger.defendersToKeep(city) + extraHeroes);
+          recruitmentCities.any((c) => c.id == city.id) &&
+          ledger.needsOffensiveRecruit(city);
       if (governors.isNotEmpty &&
           city.initialBattleLevel == null &&
           (local.length > ledger.slots(city) ||
@@ -414,9 +309,6 @@ class ResourcePlanner {
         if (reports[city.id]?.threatened != true) {
           routineUpgrades.add((city, governors.first));
         }
-      }
-      if (needHero && !defenseRecruitmentPending) {
-        recruit(city, defense: reports[city.id]?.threatened == true);
       }
     }
     final spare = <AiHero>[];
@@ -582,7 +474,7 @@ class ResourcePlanner {
           if (!accept(
             next,
             purchases,
-            '按目标城防与守将配齐$teamSize名进攻将领的随军兵员，保留月俸预算',
+            '按目标城防与守将配齐$teamSize名进攻将领的随军兵员，保留周转余额',
             view.city(hero.city)!,
           )) {
             continue;
@@ -604,11 +496,11 @@ class ResourcePlanner {
           break;
         }
         final next = ledger.copy();
-        if (next.upgrade(city, governor) && affordable(next, civilian: true)) {
+        if (next.upgrade(city, governor) && affordable(next)) {
           accept(
             next,
             [AiAction(AiActionKind.upgrade, city: city.id, hero: governor.id)],
-            '完成军需安排后用余钱升级城防，仍保留月俸与周转余额',
+            '完成军需安排后用余钱升级城防，仍保留少量周转余额',
             city,
             hero: governor,
           );

@@ -119,7 +119,7 @@ void main() {
     );
   });
 
-  test('常规补员集中目标附近，不在有闲钱的远方后城继续抽将', () {
+  test('充足资金先在前线招将，再使用后方各城月度机会', () {
     final c = nationalScenario(
       ai: false,
       rearEmpire: true,
@@ -132,11 +132,10 @@ void main() {
     );
     addTearDown(c.dispose);
     final ledger = _ledger(c);
-    final fronts = ledger.recruitmentFronts(
+    final fronts = ledger.recruitmentCities(
       ledger.view.cities.where((c) => c.country != 1),
     );
-    expect(fronts, isNot(contains(1)));
-    expect(fronts, contains(3));
+    expect(fronts.map((c) => c.id), [3, 4, 1]);
     final plan = _plan(c, AiDecisionStage.resources);
     final recruit = plan.groups
         .expand((g) => g.actions)
@@ -147,7 +146,7 @@ void main() {
       contains(3),
       reason: plan.toJson().toString(),
     );
-    expect(recruit.every((a) => a.city != 1), isTrue);
+    expect(recruit.map((a) => a.city), [3, 4, 1]);
   });
 
   test('远近部队不被强塞成同一轮攻队伍，能有效攻击的本地一波先出发', () {
@@ -268,7 +267,7 @@ void main() {
     });
   }
 
-  test('安全空城不招募也不把前线军队调回，威胁出现立即恢复招募', () {
+  test('安全空城招募后援但不召回前线军队，受袭仍能紧急补防', () {
     final c = nationalScenario(
       ai: false,
       rearEmpire: true,
@@ -285,7 +284,7 @@ void main() {
         plan.groups
             .expand((g) => g.actions)
             .where((a) => a.kind == AiActionKind.recruit && a.city == 1),
-        isEmpty,
+        isNotEmpty,
       );
       expect(
         plan.groups
@@ -324,7 +323,7 @@ void main() {
     expect(_moveToFront(c), isNotNull, reason: '可沿安全路线转移去建设前线');
   });
 
-  test('后期积蓄允许突破僵硬月俸比例扩军，资金不足则拒绝', () {
+  test('扩军不受年份和月俸比例限制，普通招募仍留十金币', () {
     final c = nationalScenario(
       ai: false,
       guards: [0, 18, 19],
@@ -341,15 +340,15 @@ void main() {
     final ledger = _ledger(c), city = ledger.view.city(1)!;
     expect(ledger.recruit(city), isTrue);
     expect(ledger.gold, greaterThanOrEqualTo(ledger.cash().reserve));
-    final poor = _ledger(c)..gold = 30;
+    final poor = _ledger(c)..gold = 14;
     expect(poor.recruit(city), isFalse);
-    expect(poor.gold, 30);
+    expect(poor.gold, 14);
     c.settledMonths = 0;
     final opening = _ledger(c);
     expect(
       opening.recruit(opening.view.city(1)!),
-      isFalse,
-      reason: '开局平时不按后期扩军规则超额招募',
+      isTrue,
+      reason: '开局有现款也能扩军，不为未来月俸锁住资金',
     );
   });
 

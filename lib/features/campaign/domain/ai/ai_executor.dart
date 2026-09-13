@@ -566,11 +566,15 @@ extension _AiCommands on CampaignState {
         return false;
       }
     }
-    // 补兵可以花完现有余额；免费调动不受现金限制，其他采购仍保留经营底线。
-    final militaryOnly = group.actions.every(
-      (a) => ![AiActionKind.upgrade, AiActionKind.recruit].contains(a.kind),
+    // 所有采购复核计划余额，防御计划下限为零；免费调动不受现金影响。
+    final hasPurchase = group.actions.any(
+      (a) => [
+        AiActionKind.upgrade,
+        AiActionKind.recruit,
+        AiActionKind.soldiers,
+      ].contains(a.kind),
     );
-    if (!militaryOnly && gold < group.minimumGold) return false;
+    if (hasPurchase && gold < group.minimumGold) return false;
     final replacing = group.tasks.map((t) => t.hero).toSet();
     final departing = group.actions
         .where((a) => a.kind == AiActionKind.dispatch)

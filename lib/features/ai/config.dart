@@ -4,7 +4,7 @@ class AiTuning {
   const AiTuning({
     this.intervalSeconds = 4,
     this.resourceIntervalSeconds = 10,
-    this.resourceCashBuffer = 12,
+    this.resourceCashBuffer = 10,
     this.maxPayrollIncomeRatio = .65,
     this.dangerousCountryCityCount = 5,
     this.coalitionBudgetBaseMonths = .5,
@@ -170,7 +170,7 @@ class AiTuning {
   factory AiTuning.fromJson(Map<String, dynamic> d) => AiTuning(
     intervalSeconds: (d['interval'] as num).toDouble(),
     resourceIntervalSeconds: (d['resourceInterval'] as num? ?? 30).toDouble(),
-    resourceCashBuffer: d['cashBuffer'] as int? ?? 12,
+    resourceCashBuffer: d['cashBuffer'] as int? ?? 10,
     maxPayrollIncomeRatio: (d['payrollRatio'] as num? ?? .5).toDouble(),
     dangerousCountryCityCount:
         d['dangerousCountryCities'] as int? ??

@@ -29,13 +29,13 @@ CampaignState _pairCampaign() {
   );
 }
 
-CampaignState _crowd({bool originalCastle = false}) {
+CampaignState _crowd({bool originalCastle = false, int castleLevel = 5}) {
   final template = assaultCampaign(
     sourceHeroes: List.generate(38, (i) => i),
     targetHeroes: [38, 39],
   );
   final previous = template.world;
-  final shape = cityAppearances[5]!;
+  final shape = cityAppearances[castleLevel]!;
   final world = !originalCastle
       ? previous
       : WorldDefinition.fromJson({
@@ -51,7 +51,7 @@ CampaignState _crowd({bool originalCastle = false}) {
                 'x': city.x,
                 'y': city.y,
                 'initialOwnerId': city.initialOwnerId,
-                'initialLevel': city.id == 2 ? 5 : city.initialLevel,
+                'initialLevel': city.id == 2 ? castleLevel : city.initialLevel,
                 'width': city.id == 2 ? shape.width : city.width,
                 'height': city.id == 2 ? shape.height : city.height,
                 'shape': city.id == 2 ? shape.tiles : city.shape,
@@ -121,51 +121,76 @@ void _advance(
 }
 
 void main() {
-  test('真实五级城贴格围满后，左上凹墙外的队首能穿过相邻格进场', () {
-    final c = _crowd(originalCastle: true);
-    addTearDown(c.dispose);
-    final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
-    final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
-    first.position = first.destination;
-    c.advance(1 / 60);
-    final oldest = c.dispatch(scenarioHero(c, 1), city, countryId: 1)!;
-    oldest.position = bounds.topLeft + const GamePoint(-8, 8);
-    c.advance(1 / 60);
-    final order = oldest.siegeQueueOrder;
-    expect(order, isNotNull);
-    for (var i = 2; i < 20; i++) {
-      final m = c.dispatch(scenarioHero(c, i), city, countryId: 1)!;
-      m.position =
-          bounds.center + GamePoint(-125 - (i % 10) * 24, (i ~/ 10 - 1.5) * 26);
-    }
-    _advance(c, 240, keepBattleAlive: true);
-    expect(c.isCityEncircled(city.id, countryId: 1), isTrue);
-    expect(oldest.siegeQueueOrder, order);
-    c.battles[city.id]!.attacker.hp = 0;
-    _advance(c, 20);
-    expect(c.battles[city.id]!.isActive, isTrue);
-    expect(c.battles[city.id]!.attacker, oldest.hero);
-    expect(oldest.waitingForTraffic, isFalse);
-    final remaining =
-        c.marches.values.where((m) => m.siegeQueueOrder != null).toList()
-          ..sort((a, b) => a.siegeQueueOrder!.compareTo(b.siegeQueueOrder!));
-    for (final next in remaining) {
-      c.battles[city.id]!.attacker.hp = 0;
-      for (var frame = 0; frame < 20 * 60; frame++) {
-        c.advance(1 / 60);
-        if (c.battles[city.id]!.isActive &&
-            c.battles[city.id]!.attacker == next.hero) {
-          break;
-        }
+  for (final level in [3, 4, 5]) {
+    test('真实$level级城围满后队首保持顺序，候战队列让出进场通道', () {
+      final c = _crowd(originalCastle: true, castleLevel: level);
+      addTearDown(c.dispose);
+      final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
+      final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+      first.position = first.destination;
+      c.advance(1 / 60);
+      final oldest = c.dispatch(scenarioHero(c, 1), city, countryId: 1)!;
+      oldest.position = bounds.topLeft + const GamePoint(-8, 8);
+      c.advance(1 / 60);
+      final order = oldest.siegeQueueOrder;
+      expect(order, isNotNull);
+      for (var i = 2; i < 38; i++) {
+        final m = c.dispatch(scenarioHero(c, i), city, countryId: 1)!;
+        m.position =
+            bounds.center +
+            GamePoint(-125 - (i % 10) * 24, (i ~/ 10 - 1.5) * 26);
       }
+      _advance(c, 240, keepBattleAlive: true);
       expect(
-        c.battles[city.id]!.isActive &&
-            c.battles[city.id]!.attacker == next.hero,
+        c.isCityEncircled(city.id, countryId: 1),
         isTrue,
-        reason: '${next.hero.id}从${next.position}去${next.destination}不能被贴格队列困住',
+        reason: c.marches.values
+            .map(
+              (m) =>
+                  '${m.hero.id}: ${m.position} -> ${m.destination} ring=${m.siegeRing} slot=${m.siegeSlotIndex} phase=${m.phase}',
+            )
+            .join('\n'),
       );
-    }
-  });
+      expect(oldest.siegeQueueOrder, order);
+      c.battles[city.id]!.attacker.hp = 0;
+      _advance(c, 20);
+      expect(
+        c.battles[city.id]!.isActive,
+        isTrue,
+        reason: <String>[
+          'battle=${c.battles[city.id]!.outcome}',
+          c.marches.values
+              .map(
+                (m) =>
+                    '${m.hero.id}: ${m.position}->${m.destination} ring=${m.siegeRing} blocked=${m.waitingForTraffic} order=${m.siegeQueueOrder}',
+              )
+              .join('\n'),
+        ].join('\n'),
+      );
+      expect(c.battles[city.id]!.attacker, oldest.hero);
+      expect(oldest.waitingForTraffic, isFalse);
+      final remaining =
+          c.marches.values.where((m) => m.siegeQueueOrder != null).toList()
+            ..sort((a, b) => a.siegeQueueOrder!.compareTo(b.siegeQueueOrder!));
+      for (final next in remaining) {
+        c.battles[city.id]!.attacker.hp = 0;
+        for (var frame = 0; frame < 20 * 60; frame++) {
+          c.advance(1 / 60);
+          if (c.battles[city.id]!.isActive &&
+              c.battles[city.id]!.attacker == next.hero) {
+            break;
+          }
+        }
+        expect(
+          c.battles[city.id]!.isActive &&
+              c.battles[city.id]!.attacker == next.hero,
+          isTrue,
+          reason:
+              '${next.hero.id}从${next.position}去${next.destination}不能被贴格队列困住',
+        );
+      }
+    });
+  }
 
   test('城防受损缩小建筑时立即收紧候战格，不留下旧目的地', () {
     final c = _crowd(originalCastle: true);
@@ -200,8 +225,12 @@ void main() {
     expect(waiting.destination, isNot(previous));
   });
 
-  for (final hasTarget in [false, true]) {
-    test('外圈集结完成即纳入队列并向内补位，不能因距离内圈太远永远扎营：$hasTarget', () {
+  for (final (hasTarget, approaching) in [
+    (false, false),
+    (true, false),
+    (false, true),
+  ]) {
+    test('集结军完成路径或接近围城时纳入队列：已有目标$hasTarget、正在接近$approaching', () {
       final c = _pairCampaign();
       addTearDown(c.dispose);
       final city = c.world.cities[2],
@@ -209,10 +238,15 @@ void main() {
       final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
       first.position = first.destination;
       c.advance(1 / 60);
-      final point = center + const GamePoint(-160, 0);
-      final second = c.dispatchTo(scenarioHero(c, 2), point, countryId: 1)!;
+      final point = center + GamePoint(approaching ? -50 : -160, 0);
+      final destination = approaching ? center : point;
+      final second = c.dispatchTo(
+        scenarioHero(c, 2),
+        destination,
+        countryId: 1,
+      )!;
       second.position = point;
-      second.camp();
+      if (!approaching) second.camp();
       if (hasTarget) second.target = city;
       final saved = c.saveState();
       saved['aiEnabled'] = true;
@@ -223,7 +257,7 @@ void main() {
             role: 'staging',
             city: city.id,
             targetCountry: 2,
-            points: [AiPoint(point.dx, point.dy)],
+            points: [AiPoint(destination.dx, destination.dy)],
             deadlineTick: 999999,
             committedUntil: 0,
             expectedOrderRevision: c

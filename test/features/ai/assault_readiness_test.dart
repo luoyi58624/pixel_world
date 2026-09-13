@@ -93,10 +93,10 @@ void main() {
     expect(c.goldFor(1), greaterThanOrEqualTo(0));
   });
 
-  test('有钱但缺强攻将领时继续补员，不因普通守军人数够了而停止', () {
+  test('有钱且城内仍有补员空间时继续招将，不因已有普通守军而停止', () {
     final c = nationalScenario(
       ai: false,
-      guards: [18, 19, 20],
+      guards: [18, 19],
       level: 3,
       gold: 1000,
       recruitment: true,

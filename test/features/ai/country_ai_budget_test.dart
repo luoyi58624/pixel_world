@@ -191,24 +191,24 @@ void main() {
     }
   });
 
-  test('只剩一金币仍可补一名士兵，不升级或招募将领，不透支', () {
+  test('平时低于周转余额不再采购，免费出征照常执行', () {
     final c = _campaign(gold: 1, recruitment: true);
     final count = c.heroes.length;
     advanceAi(c, 8);
-    expect(c.goldFor(1), 0);
+    expect(c.goldFor(1), 1);
     expect(
       c.reserveSoldiersFor(1) +
           c.marches.values
               .where((m) => m.hero.countryId == 1)
               .fold(0, (n, m) => n + m.hero.soldiers),
-      13,
+      12,
     );
     expect(c.cities[1]!.level, 2);
     expect(c.heroes.length, count);
     expect(c.remainingHeroDraws(1), 1);
   });
 
-  test('全国在外部队只预留欠收与月俸，不再按距离或扎营增加费用', () {
+  test('全国常规只留十金币，月俸仍记账但不冻结采购资金', () {
     final c = _campaign(gold: 100, level: 1, salary: 2, ai: false);
     final a = c.dispatchTo(
       _hero(c, 0),
@@ -229,10 +229,10 @@ void main() {
       moving.monthlySalary,
       c.heroes.where((h) => h.countryId == 1).fold(0, (n, h) => n + h.salary),
     );
-    expect(moving.reserveGold, greaterThanOrEqualTo(5 + moving.monthlySalary));
+    expect(moving.reserveGold, 10);
     b.camp();
     expect(c.aiBudgetFor(1).reserveGold, moving.reserveGold);
-    expect(c.aiBudgetFor(0).reserveGold, 5);
+    expect(c.aiBudgetFor(0).reserveGold, 10);
     c.advance(59.9);
     expect(
       c.aiBudgetFor(1).reserveGold,
@@ -251,7 +251,7 @@ void main() {
     );
     c.dispatchTo(_hero(c, 0), const GamePoint(1900, 30), countryId: 1);
     for (var n = 0; n < 50; n++) {
-      expect(c.aiBudgetFor(1).reserveGold, 5);
+      expect(c.aiBudgetFor(1).reserveGold, 10);
     }
     expect(random.calls, 0);
   });
@@ -330,7 +330,7 @@ void main() {
     expect(c.goldFor(0), 100); // 全国基础收入二十抵消最大欠收扣款，玩家国库不受敌国经营影响。
   });
 
-  test('新招募将领的后续月俸也占预算，不能只判断抽取和签约费', () {
+  test('新将月俸纳入诊断，但不因最高候选月俸拒绝可支付的招募', () {
     final expensive = _campaign(
       gold: 50,
 
@@ -347,8 +347,10 @@ void main() {
         AiRoutes(c.aiMapForTesting(), rules, AiWorkBudget(rules.tuning)),
       );
       final before = ledger.gold;
-      expect(ledger.recruit(view.city(1)!), identical(c, cheap));
-      expect(ledger.gold, before - (identical(c, cheap) ? 5 : 0));
+      expect(ledger.recruit(view.city(1)!), isTrue);
+      expect(ledger.gold, before - 5);
+      expect(ledger.extraSalary, view.maximumSalary);
+      expect(ledger.cash().reserve, 10);
     }
   });
 

@@ -21,6 +21,7 @@ extension _AiMarchRecovery on _AiCoordinator {
           march.returningFromRetreat ||
           march.supplyHalted ||
           campaign.activeBattleForHero(hero.id) != null ||
+          march.siegeQueueOrder != null ||
           march.phase == MarchPhase.awaitingBattle ||
           (march.phase != MarchPhase.marching && !march.waitingForTraffic)) {
         _marchProgress.remove(hero.id);

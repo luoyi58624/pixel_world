@@ -452,7 +452,7 @@ void main() {
     expect(c.garrisonAt(1).length, 1);
   });
 
-  test('三张地图多国经营交战持续模拟，英雄不重复、资金和储备不越界，结束后停止AI', () {
+  test('三张地图持续模拟，英雄不重复、采购不透支、储备不越界，结束后停止AI', () {
     for (final world in _worlds()) {
       final c = CampaignState.fromRom(
         world,
@@ -463,12 +463,29 @@ void main() {
         recruitmentRandom: math.Random(17),
         economyRandom: math.Random(12),
       );
+      final checkedEvents = <int, int>{};
       for (var second = 0; second < 300 && !c.defeated; second++) {
         c.advance(1);
         final active = c.heroes.map((hero) => hero.id).toSet();
         final reserved = <int>{};
         for (final id in _configuredCountries.keys) {
-          expect(c.goldFor(id), greaterThanOrEqualTo(0));
+          // 月结可以产生欠款；必须禁止的是采购命令自身透支。
+          for (final event
+              in c.events
+                  .forCountry(id)
+                  .query(afterSequence: checkedEvents[id] ?? 0)) {
+            checkedEvents[id] = event.sequence;
+            if (event.kind.name != 'commandApplied') continue;
+            final before = (event.data['before'] as Map)['gold'] as num;
+            final after = (event.data['after'] as Map)['gold'] as num;
+            if (after < before) {
+              expect(
+                after,
+                greaterThanOrEqualTo(0),
+                reason: event.toJsonLine(),
+              );
+            }
+          }
           final offer = c.recruitmentOfferFor(id);
           if (id != 0) expect(offer, isNull);
           if (offer != null) expect(reserved.add(offer.hero.id), isTrue);

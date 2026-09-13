@@ -18,7 +18,7 @@ AiLedger ledgerFor(CampaignState c) {
 }
 
 void main() {
-  test('在途将领仍占编制，阵亡后才补充该缺口', () {
+  test('在途将领仍记录归属，但不阻止本城继续补员', () {
     final c = nationalScenario(
       guards: [0, 18],
       ai: false,
@@ -30,7 +30,7 @@ void main() {
       },
     );
     addTearDown(c.dispose);
-    c.settledMonths = 0; // 此例只验既有编制，后期追加强攻补员由独立测试覆盖。
+    c.settledMonths = 0;
     final hero = c.garrisonAt(1).first;
     c.dispatch(hero, c.world.cities[2], countryId: 1);
     expect(ledgerFor(c).assignedHeroCount(1), 2);
@@ -39,7 +39,7 @@ void main() {
       before.groups
           .expand((g) => g.actions)
           .where((a) => a.kind == AiActionKind.recruit),
-      isEmpty,
+      isNotEmpty,
     );
     c.defeatHero(hero.id, winnerCountryId: 2);
     expect(ledgerFor(c).assignedHeroCount(1), 1);

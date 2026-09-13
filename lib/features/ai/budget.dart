@@ -4,14 +4,13 @@ import 'observation.dart';
 import 'protocol.dart';
 import 'routes.dart';
 import 'rules_data.dart';
-import 'coalition_policy.dart';
 import 'combat_assessment.dart';
 import 'rear_safety.dart';
 import '../economy/domain/military_upkeep.dart';
 
-/// 国家现金低点，不预支尚未发生的收入。
+/// 采购周转底线与收支诊断，不预支尚未发生的收入。
 class CashRequirement {
-  /// 保存维持现金与检查范围。
+  /// 保存周转现金、观察周期及收支。
   const CashRequirement(
     this.reserve,
     this.horizon,
@@ -19,7 +18,7 @@ class CashRequirement {
     this.poorIncome,
   );
 
-  /// 所需最低现金、预测时长、月俸和欠收收入。
+  /// 采购保留现金、观察时长、月俸和欠收收入。
   final int reserve, salary, poorIncome;
   final double horizon;
 }
@@ -157,42 +156,37 @@ class AiLedger {
         );
   });
 
-  /// 每个进攻目标只在最近可达的友城补员，警报中的本地招募另走防守流程。
-  Set<int> recruitmentFronts(Iterable<AiCity> targets) {
-    final result = <int>{};
-    for (final target in targets.take(rules.tuning.maxTargets)) {
-      final candidates =
-          view.owned
-              .where(
-                (c) =>
-                    !abandoned.contains(c.id) &&
-                    !safeRear(c) &&
-                    c.recruitAllowed &&
-                    (c.initialBattleLevel == null ||
-                        occupancy(c.id) < slots(c)),
-              )
-              .toList()
-            ..sort(
-              (a, b) => a.center
-                  .distance(target.center)
-                  .compareTo(b.center.distance(target.center)),
-            );
-      AiCity? best;
-      var cost = double.infinity;
-      for (final city in candidates.take(3)) {
-        final seconds = routes.seconds(
-          city.center,
-          target.outline.nearest(city.center),
-        );
-        if (seconds < cost) {
-          best = city;
-          cost = seconds;
-        }
+  /// 前线优先、按最近敌城距离使用各城月度招募机会，后方同样承担补员。
+  List<AiCity> recruitmentCities(Iterable<AiCity> targets) {
+    final enemies = targets.where((c) => c.country != view.country).toList();
+    if (enemies.isEmpty) return [];
+    final distances = <int, double>{};
+    final candidates = view.owned.where((city) {
+      if (abandoned.contains(city.id) || !city.recruitAllowed) return false;
+      if (city.initialBattleLevel != null &&
+          occupancy(city.id) >= slots(city)) {
+        return false;
       }
-      if (best != null) result.add(best.id);
-    }
-    return result;
+      distances[city.id] = enemies
+          .map((enemy) => city.center.distance(enemy.center))
+          .reduce(math.min);
+      return true;
+    }).toList();
+    candidates.sort((a, b) {
+      final front = (safeRear(a) ? 1 : 0).compareTo(safeRear(b) ? 1 : 0);
+      if (front != 0) return front;
+      final distance = distances[a.id]!.compareTo(distances[b.id]!);
+      return distance != 0 ? distance : a.id.compareTo(b.id);
+    });
+    return candidates;
   }
+
+  /// 仅限制尚未出发的积压；已在外作战的将领不占本城后续补员额度。
+  bool needsOffensiveRecruit(AiCity city) =>
+      !abandoned.contains(city.id) &&
+      !recruited.contains(city.id) &&
+      city.recruitAllowed &&
+      occupancy(city.id) < defendersToKeep(city) + 2;
 
   /// 前线保留有战力的守将，安全后方释放主力，但不将低攻击内政将领用于攻城。
   bool canSpareForOffense(AiHero hero) {
@@ -256,7 +250,7 @@ class AiLedger {
     return hero.id != keeper.id;
   }
 
-  /// 核算月俸与月结前后现金低点；行军、扎营及路线长短均不增加费用。
+  /// 常规只留周转现金，受袭时不留余额；月俸与欠收产出仅供诊断。
   CashRequirement cash({bool emergency = false, double? horizon}) {
     final duration = math.min(
       rules.tuning.maxExpeditionSeconds,
@@ -268,16 +262,6 @@ class AiLedger {
               h.country == view.country && h.hp > 0 && !removed.contains(h.id),
         )
         .fold(extraSalary, (n, h) => n + h.salary);
-    // 仅兼容旧档已预付的月俸；新招募将领从下一次月结开始正常扣费。
-    final prepaid = view.heroes
-        .where(
-          (h) =>
-              h.country == view.country &&
-              h.hp > 0 &&
-              !removed.contains(h.id) &&
-              h.salaryPaidMonth == view.monthIndex,
-        )
-        .fold(0, (n, h) => n + h.salary);
     final earningCities = view.owned
         .where((c) => !abandoned.contains(c.id))
         .toList();
@@ -297,43 +281,8 @@ class AiLedger {
                           : rules.number('foreignYield')))
                   .floor(),
         );
-    final upkeep = monthlyGarrisonUpkeep;
-    int monthlyCost(int n) => n == 0
-        ? 0
-        : n * (salary - income) -
-              prepaid +
-              (view.nation.garrisonAccrued +
-                      upkeep *
-                          (view.monthRemaining / rules.number('monthSeconds') +
-                              n -
-                              1))
-                  .ceil();
-    final checkpoints = <double>{duration};
-    final monthEnds = <double>[];
-    for (
-      var at = view.monthRemaining;
-      at <= duration + 1e-9;
-      at += rules.number('monthSeconds')
-    ) {
-      checkpoints.add(at);
-      monthEnds.add(at);
-    }
-    var peak = 0;
-    for (final at in checkpoints) {
-      final months = at + 1e-9 < view.monthRemaining
-          ? 0
-          : 1 +
-                ((at - view.monthRemaining) / rules.number('monthSeconds'))
-                    .floor();
-      // 同时检查月结前现金低点，经营预算不能把未到账收入当成现有现金。
-      if (monthEnds.any((month) => (month - at).abs() < 1e-7)) {
-        peak = math.max(peak, monthlyCost(math.max(0, months - 1)));
-      }
-      peak = math.max(peak, monthlyCost(months));
-    }
     return CashRequirement(
-      // 常规经营仍预留小额现金，免费调动不受此采购预算限制。
-      math.max(0, peak) + (emergency ? 0 : rules.integer('emergencyGold')),
+      emergency ? 0 : rules.tuning.resourceCashBuffer,
       duration,
       salary,
       income,
@@ -407,11 +356,15 @@ class AiLedger {
       ? math.max(0, gold ~/ rules.integer('soldierCost'))
       : 0;
 
-  /// 在本月补兵窗口内尽量补满全国容量，资金不足时只购买当前能支付的兵员。
-  int stockUpSoldiers() {
+  /// 本月尽量补满全国容量；平时留周转金，防御采购可花完余额。
+  int stockUpSoldiers({bool emergency = false}) {
     final count = math.min(
       math.max(0, capacity - reserves),
-      affordableSoldiers,
+      math.min(
+        affordableSoldiers,
+        math.max(0, gold - cash(emergency: emergency).reserve) ~/
+            rules.integer('soldierCost'),
+      ),
     );
     return count > 0 && buySoldiers(count) ? count : 0;
   }
@@ -428,71 +381,14 @@ class AiLedger {
     return true;
   }
 
-  /// 抽取支付固定招募费，并为下一次月结预留候选的最高月俸。
-  bool recruit(AiCity city, {bool emergency = false, int? offensiveCountry}) {
+  /// 只用现款支付招募费；月俸不提前冻结，防御采购可使用最后余额。
+  bool recruit(AiCity city, {bool emergency = false}) {
     final cost = rules.integer('drawCost');
-    final futureSalary = view.heroes
-        .where(
-          (h) =>
-              h.country == view.country && h.hp > 0 && !removed.contains(h.id),
-        )
-        .fold(extraSalary + view.maximumSalary, (n, h) => n + h.salary);
-    final monthlyIncome =
-        (view.nation.baseIncome ?? rules.integer('countryIncome')) +
-        view.owned
-            .where((c) => !abandoned.contains(c.id))
-            .fold<int>(
-              0,
-              (n, c) =>
-                  n +
-                  ((c.baseIncome +
-                              ((levels[c.id] ?? c.level) - 1) *
-                                  rules.integer('incomeStep')) *
-                          (c.country == c.nativeCountry
-                              ? 1
-                              : rules.number('foreignYield')))
-                      .floor(),
-            );
-    final free = (rules.values['garrisonFree'] ?? 2).toInt();
-    final factor = (rules.values['garrisonFactor'] ?? 0).toInt();
-    final count = occupancy(city.id);
-    final futureUpkeep =
-        monthlyGarrisonUpkeep +
-        MilitaryUpkeep.monthlyCost(
-          count + 1,
-          freeHeroes: free,
-          factor: factor,
-        ) -
-        MilitaryUpkeep.monthlyCost(count, freeHeroes: free, factor: factor);
-    final withinIncome =
-        futureSalary + futureUpkeep <=
-            monthlyIncome * (emergency ? 1.3 : 1.1) &&
-        futureSalary <=
-            monthlyIncome *
-                (emergency
-                    ? 1
-                    : offensiveCountry == null
-                    ? rules.tuning.maxPayrollIncomeRatio
-                    : CoalitionPolicy(
-                        offensiveCountry,
-                        view,
-                        rules,
-                      ).payrollRatio);
-    // 后期或警报中允许用现有积蓄扩军；只额外覆盖新将近期工资与驻军费，不强留多年现金。
-    final cashBacked =
-        (view.year >= 3 ||
-            emergency ||
-            futureSalary + futureUpkeep <= monthlyIncome) &&
-        gold - cost >=
-            cash(emergency: emergency).reserve +
-                view.maximumSalary +
-                math.max(0, futureUpkeep - monthlyGarrisonUpkeep);
     if (!city.recruitAllowed ||
         recruited.contains(city.id) ||
         view.poolCount <= recruited.length ||
-        gold <= rules.integer('drawCost') ||
-        gold < cost ||
-        !(withinIncome || cashBacked)) {
+        gold <= 0 ||
+        gold < cost + cash(emergency: emergency).reserve) {
       return false;
     }
     gold -= cost;

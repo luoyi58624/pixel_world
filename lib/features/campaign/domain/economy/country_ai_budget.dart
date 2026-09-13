@@ -14,22 +14,22 @@ class CountryAiBudget {
   /// 计算时的国库余额。
   final int gold;
 
-  /// 覆盖月结前后现金低点的预留金币，包含应急余额。
+  /// 常规采购保留的少量周转金币，防御采购不受此下限限制。
   final int reserveGold;
 
-  /// 预测覆盖的未来秒数，长途攻城会延长预算周期。
+  /// 收支诊断的观察周期，不因长途行军提高采购预留。
   final double planningSeconds;
 
   /// 本国全部存活将领的月俸，含拟招募将领。
   final int monthlySalary;
 
-  /// 当前驻军规模产生的月度维持费，参与现金预留。
+  /// 当前驻军规模产生的月度维持费，仅供收支诊断。
   final int monthlyGarrisonUpkeep;
 
   /// 当前城池总收入扣一次国家欠收，未占领城市不预支收入。
   final int minimumMonthlyIncome;
 
-  /// 扣除预留后可用于经营的金币；补兵可花完余额，行军免费。
+  /// 扣除预留后可用于经营的金币；受袭时可花完余额，行军免费。
   int get spendableGold => math.max(0, gold - reserveGold);
 }
 

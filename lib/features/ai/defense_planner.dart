@@ -160,7 +160,7 @@ class DefensePlanner {
     if (!work.candidate()) return;
 
     final supplied = base.copy();
-    final count = supplied.stockUpSoldiers();
+    final count = supplied.stockUpSoldiers(emergency: true);
     if (count > 0) {
       yield _simple(report, base, supplied, [
         AiAction(AiActionKind.soldiers, city: city.id, amount: count),
@@ -553,7 +553,7 @@ class DefensePlanner {
   ) {
     final supplied = after.copy();
     final topUp = actions.any((a) => a.kind == AiActionKind.upgrade)
-        ? supplied.stockUpSoldiers()
+        ? supplied.stockUpSoldiers(emergency: true)
         : 0;
     final heroes = actions.map((a) => _view.hero(a.hero)).whereType<AiHero>();
     final losses = after.removed
