@@ -1,0 +1,308 @@
+// 战役玩法配置使用 JSON5，可在这里保留说明性注释；文件扩展名必须保持为 .json5。
+{
+  // 配置文件格式版本。
+  "version": 1,
+  // 本战役配置的用途说明。
+  "description": "各国初始货币和城防按本文件配置；开局兵员满编，上限为初始将领数×4加当前全国城防等级总和×4。主角国开局三级城。首月可经营，每城每月升级、签约各一次，补兵逐次校验资金与资源；城防升级第一年最高三级，第二年四级，第三年起五级。",
+  // 可参与战役的国家配置数组；原版中立国 12-15 不纳入玩法配置。
+  "countries": [
+    {
+      // 国家编号，必须与地图和英雄数据中的可用国家编号一致。
+      "id": 0,
+      // 国家显示名称。
+      "name": "阿尔马",
+      // 开局国库金币。
+      "initialGold": 80,
+      // 每月固定保底收入。
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 1,
+      "name": "奥尔梅",
+      "initialGold": 70,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 2,
+      "name": "马易",
+      "initialGold": 60,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 3,
+      "name": "鲍罗布",
+      "initialGold": 90,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 4,
+      "name": "墨尔",
+      "initialGold": 110,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 5,
+      "name": "托洛诺",
+      "initialGold": 120,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 6,
+      "name": "列穆",
+      "initialGold": 120,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 7,
+      "name": "迪麦",
+      "initialGold": 160,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 8,
+      "name": "索朗",
+      "initialGold": 180,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 9,
+      "name": "本塔",
+      "initialGold": 130,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 10,
+      "name": "洛埃",
+      "initialGold": 220,
+      "monthlyBaseIncome": 10
+    },
+    {
+      "id": 11,
+      "name": "贝尔",
+      "initialGold": 220,
+      "monthlyBaseIncome": 10
+    }
+  ],
+  // 各张地图的城池配置数组。
+  "worlds": [
+    {
+      // 地图编号。
+      "id": 0,
+      // 当前地图的城池配置数组。
+      "cities": [
+        {
+          // 城池编号，必须与地图定义一致。
+          "id": 0,
+          // 城池显示名称。
+          "name": "阿尔马",
+          // 一级城池的基础月收入。
+          "baseIncome": 10,
+          // 开局城防等级，范围为 1 到 5。
+          "initialLevel": 3
+        },
+        {
+          "id": 1,
+          "name": "奥尔梅",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 2,
+          "name": "马易",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 3,
+          "name": "鲍罗布",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 4,
+          "name": "墨尔",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 5,
+          "name": "托洛诺",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 6,
+          "name": "列穆",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 7,
+          "name": "迪麦",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 8,
+          "name": "索朗",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 9,
+          "name": "本塔",
+          "baseIncome": 10,
+          "initialLevel": 3
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "cities": [
+        {
+          "id": 0,
+          "name": "阿尔马",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 1,
+          "name": "奥尔梅",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 2,
+          "name": "马易",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 3,
+          "name": "鲍罗布",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 4,
+          "name": "墨尔",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 5,
+          "name": "托洛诺",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 6,
+          "name": "列穆",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 7,
+          "name": "迪麦",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 8,
+          "name": "索朗",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 9,
+          "name": "本塔",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 10,
+          "name": "洛埃",
+          "baseIncome": 10,
+          "initialLevel": 2
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "cities": [
+        {
+          "id": 0,
+          "name": "阿尔马",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 1,
+          "name": "奥尔梅",
+          "baseIncome": 10,
+          "initialLevel": 4
+        },
+        {
+          "id": 2,
+          "name": "马易",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 3,
+          "name": "鲍罗布",
+          "baseIncome": 10,
+          "initialLevel": 4
+        },
+        {
+          "id": 4,
+          "name": "墨尔",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 5,
+          "name": "托洛诺",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 6,
+          "name": "列穆",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 7,
+          "name": "迪麦",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 8,
+          "name": "索朗",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 9,
+          "name": "本塔",
+          "baseIncome": 10,
+          "initialLevel": 3
+        },
+        {
+          "id": 10,
+          "name": "洛埃",
+          "baseIncome": 10,
+          "initialLevel": 2
+        },
+        {
+          "id": 11,
+          "name": "贝尔",
+          "baseIncome": 10,
+          "initialLevel": 3
+        }
+      ]
+    }
+  ]
+}

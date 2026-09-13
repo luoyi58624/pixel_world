@@ -1,0 +1,534 @@
+// 英雄玩法配置使用 JSON5，可在这里保留字段说明。
+{
+  // 配置文件格式版本。
+  "version": 1,
+  // 英雄配置数组；数组顺序决定驻军和守城出战优先级。
+  "heroes": [
+    {
+      // 英雄唯一编号；主角使用 40，扩展英雄使用 100 起的编号。
+      "id": 40,
+      // 主角名称由玩家输入，普通英雄使用固定显示名称。
+      "name": null,
+      // 英雄类型：protagonist、advanced 或 normal。
+      "type": "protagonist",
+      // 生命上限。
+      "maxHp": 99,
+      // 攻击能力。
+      "combat": 15,
+      // 战斗士气。
+      "morale": 100,
+      // 内政能力，影响城池经营和守城排序。
+      "politics": 15,
+      // 任职月俸金币。
+      "salary": 0,
+      // 英雄初始所属国家编号，null 表示没有专属国家。
+      "nativeCountryId": 0
+    },
+    {
+      "id": 0,
+      "name": "泽拉斯",
+      "type": "advanced",
+      "maxHp": 95,
+      "combat": 15,
+      "morale": 100,
+      "politics": 15,
+      "salary": 8,
+      "nativeCountryId": 0
+    },
+    {
+      "id": 1,
+      "name": "亚彭龙",
+      "type": "advanced",
+      "maxHp": 95,
+      "combat": 15,
+      "morale": 100,
+      "politics": 15,
+      "salary": 8,
+      "nativeCountryId": null
+    },
+    {
+      "id": 2,
+      "name": "威拉斯",
+      "type": "advanced",
+      "maxHp": 94,
+      "combat": 15,
+      "morale": 100,
+      "politics": 3,
+      "salary": 7,
+      "nativeCountryId": 0
+    },
+    {
+      "id": 3,
+      "name": "波塞伊",
+      "type": "advanced",
+      "maxHp": 95,
+      "combat": 15,
+      "morale": 100,
+      "politics": 10,
+      "salary": 7,
+      "nativeCountryId": 1
+    },
+    {
+      "id": 4,
+      "name": "赫拉克",
+      "type": "advanced",
+      "maxHp": 94,
+      "combat": 15,
+      "morale": 90,
+      "politics": 13,
+      "salary": 7,
+      "nativeCountryId": 1
+    },
+    {
+      "id": 5,
+      "name": "代杜罗",
+      "type": "advanced",
+      "maxHp": 77,
+      "combat": 15,
+      "morale": 90,
+      "politics": 15,
+      "salary": 6,
+      "nativeCountryId": 1
+    },
+    {
+      "id": 6,
+      "name": "盖亚",
+      "type": "advanced",
+      "maxHp": 76,
+      "combat": 14,
+      "morale": 80,
+      "politics": 5,
+      "salary": 6,
+      "nativeCountryId": 2
+    },
+    {
+      "id": 7,
+      "name": "柏洛梅",
+      "type": "advanced",
+      "maxHp": 71,
+      "combat": 14,
+      "morale": 80,
+      "politics": 7,
+      "salary": 5,
+      "nativeCountryId": 2
+    },
+    {
+      "id": 8,
+      "name": "培尔",
+      "type": "advanced",
+      "maxHp": 73,
+      "combat": 13,
+      "morale": 80,
+      "politics": 1,
+      "salary": 5,
+      "nativeCountryId": 2
+    },
+    {
+      "id": 9,
+      "name": "希列洛",
+      "type": "advanced",
+      "maxHp": 74,
+      "combat": 13,
+      "morale": 80,
+      "politics": 15,
+      "salary": 5,
+      "nativeCountryId": 3
+    },
+    {
+      "id": 10,
+      "name": "爱吉斯",
+      "type": "normal",
+      "maxHp": 53,
+      "combat": 13,
+      "morale": 80,
+      "politics": 13,
+      "salary": 5,
+      "nativeCountryId": 3
+    },
+    {
+      "id": 11,
+      "name": "塔洛诺",
+      "type": "normal",
+      "maxHp": 71,
+      "combat": 12,
+      "morale": 75,
+      "politics": 7,
+      "salary": 4,
+      "nativeCountryId": 5
+    },
+    {
+      "id": 12,
+      "name": "亚基",
+      "type": "normal",
+      "maxHp": 40,
+      "combat": 12,
+      "morale": 75,
+      "politics": 4,
+      "salary": 4,
+      "nativeCountryId": 4
+    },
+    {
+      "id": 13,
+      "name": "乌拉诺",
+      "type": "normal",
+      "maxHp": 74,
+      "combat": 11,
+      "morale": 70,
+      "politics": 8,
+      "salary": 3,
+      "nativeCountryId": 4
+    },
+    {
+      "id": 14,
+      "name": "开伦",
+      "type": "normal",
+      "maxHp": 88,
+      "combat": 12,
+      "morale": 75,
+      "politics": 15,
+      "salary": 4,
+      "nativeCountryId": 5
+    },
+    {
+      "id": 15,
+      "name": "巴卡",
+      "type": "normal",
+      "maxHp": 38,
+      "combat": 11,
+      "morale": 70,
+      "politics": 10,
+      "salary": 1,
+      "nativeCountryId": null
+    },
+    {
+      "id": 16,
+      "name": "迪亚",
+      "type": "normal",
+      "maxHp": 56,
+      "combat": 10,
+      "morale": 70,
+      "politics": 2,
+      "salary": 3,
+      "nativeCountryId": 6
+    },
+    {
+      "id": 17,
+      "name": "卡斯",
+      "type": "normal",
+      "maxHp": 89,
+      "combat": 10,
+      "morale": 70,
+      "politics": 2,
+      "salary": 2,
+      "nativeCountryId": 6
+    },
+    {
+      "id": 18,
+      "name": "海伦",
+      "type": "normal",
+      "maxHp": 36,
+      "combat": 9,
+      "morale": 60,
+      "politics": 9,
+      "salary": 3,
+      "nativeCountryId": 7
+    },
+    {
+      "id": 19,
+      "name": "奥伊",
+      "type": "normal",
+      "maxHp": 58,
+      "combat": 9,
+      "morale": 60,
+      "politics": 10,
+      "salary": 2,
+      "nativeCountryId": 7
+    },
+    {
+      "id": 20,
+      "name": "拉伊奥",
+      "type": "normal",
+      "maxHp": 23,
+      "combat": 8,
+      "morale": 60,
+      "politics": 3,
+      "salary": 4,
+      "nativeCountryId": 7
+    },
+    {
+      "id": 21,
+      "name": "帕狄奥",
+      "type": "normal",
+      "maxHp": 54,
+      "combat": 8,
+      "morale": 60,
+      "politics": 7,
+      "salary": 3,
+      "nativeCountryId": 8
+    },
+    {
+      "id": 22,
+      "name": "杜洛斯",
+      "type": "normal",
+      "maxHp": 41,
+      "combat": 7,
+      "morale": 50,
+      "politics": 4,
+      "salary": 2,
+      "nativeCountryId": 8
+    },
+    {
+      "id": 23,
+      "name": "亚杜尼",
+      "type": "normal",
+      "maxHp": 59,
+      "combat": 7,
+      "morale": 50,
+      "politics": 9,
+      "salary": 4,
+      "nativeCountryId": 9
+    },
+    {
+      "id": 24,
+      "name": "尼列沃",
+      "type": "normal",
+      "maxHp": 71,
+      "combat": 6,
+      "morale": 50,
+      "politics": 10,
+      "salary": 3,
+      "nativeCountryId": 9
+    },
+    {
+      "id": 25,
+      "name": "伊",
+      "type": "normal",
+      "maxHp": 40,
+      "combat": 6,
+      "morale": 50,
+      "politics": 14,
+      "salary": 3,
+      "nativeCountryId": 10
+    },
+    {
+      "id": 26,
+      "name": "普亚金",
+      "type": "normal",
+      "maxHp": 57,
+      "combat": 5,
+      "morale": 40,
+      "politics": 5,
+      "salary": 2,
+      "nativeCountryId": 10
+    },
+    {
+      "id": 27,
+      "name": "笛沃卡",
+      "type": "normal",
+      "maxHp": 23,
+      "combat": 5,
+      "morale": 40,
+      "politics": 3,
+      "salary": 3,
+      "nativeCountryId": 10
+    },
+    {
+      "id": 28,
+      "name": "帕里斯",
+      "type": "normal",
+      "maxHp": 38,
+      "combat": 4,
+      "morale": 40,
+      "politics": 9,
+      "salary": 2,
+      "nativeCountryId": 11
+    },
+    {
+      "id": 29,
+      "name": "塔列安",
+      "type": "normal",
+      "maxHp": 53,
+      "combat": 4,
+      "morale": 40,
+      "politics": 4,
+      "salary": 2,
+      "nativeCountryId": 11
+    },
+    {
+      "id": 30,
+      "name": "赫尔梅",
+      "type": "normal",
+      "maxHp": 38,
+      "combat": 3,
+      "morale": 30,
+      "politics": 4,
+      "salary": 1,
+      "nativeCountryId": 11
+    },
+    {
+      "id": 31,
+      "name": "思笛沃",
+      "type": "normal",
+      "maxHp": 63,
+      "combat": 3,
+      "morale": 30,
+      "politics": 8,
+      "salary": 1,
+      "nativeCountryId": 1
+    },
+    {
+      "id": 32,
+      "name": "纳尔基",
+      "type": "normal",
+      "maxHp": 62,
+      "combat": 2,
+      "morale": 30,
+      "politics": 6,
+      "salary": 1,
+      "nativeCountryId": 1
+    },
+    {
+      "id": 33,
+      "name": "奥杜塞",
+      "type": "normal",
+      "maxHp": 45,
+      "combat": 2,
+      "morale": 30,
+      "politics": 5,
+      "salary": 1,
+      "nativeCountryId": 3
+    },
+    {
+      "id": 34,
+      "name": "埃庇梅",
+      "type": "normal",
+      "maxHp": 29,
+      "combat": 11,
+      "morale": 70,
+      "politics": 9,
+      "salary": 2,
+      "nativeCountryId": 3
+    },
+    {
+      "id": 35,
+      "name": "帕伊安",
+      "type": "normal",
+      "maxHp": 44,
+      "combat": 9,
+      "morale": 60,
+      "politics": 10,
+      "salary": 2,
+      "nativeCountryId": 4
+    },
+    {
+      "id": 36,
+      "name": "萨丁亚",
+      "type": "normal",
+      "maxHp": 40,
+      "combat": 7,
+      "morale": 50,
+      "politics": 11,
+      "salary": 1,
+      "nativeCountryId": null
+    },
+    {
+      "id": 37,
+      "name": "库里奥",
+      "type": "normal",
+      "maxHp": 26,
+      "combat": 6,
+      "morale": 50,
+      "politics": 14,
+      "salary": 1,
+      "nativeCountryId": 6
+    },
+    {
+      "id": 38,
+      "name": "莫伊",
+      "type": "normal",
+      "maxHp": 39,
+      "combat": 4,
+      "morale": 40,
+      "politics": 9,
+      "salary": 2,
+      "nativeCountryId": null
+    },
+    {
+      "id": 39,
+      "name": "流卡奥",
+      "type": "normal",
+      "maxHp": 24,
+      "combat": 2,
+      "morale": 30,
+      "politics": 8,
+      "salary": 2,
+      "nativeCountryId": null
+    },
+    {
+      "id": 100,
+      "name": "哈梅耶",
+      "type": "advanced",
+      "maxHp": 150,
+      "combat": 5,
+      "morale": 10,
+      "politics": 15,
+      "salary": 5,
+      "nativeCountryId": null
+    },
+    {
+      "id": 101,
+      "name": "扎克",
+      "type": "advanced",
+      "maxHp": 20,
+      "combat": 18,
+      "morale": 100,
+      "politics": 0,
+      "salary": 7,
+      "nativeCountryId": null
+    },
+    {
+      "id": 102,
+      "name": "莫莫",
+      "type": "advanced",
+      "maxHp": 122,
+      "combat": 13,
+      "morale": 100,
+      "politics": 12,
+      "salary": 5,
+      "nativeCountryId": null
+    },
+    {
+      "id": 103,
+      "name": "巴库",
+      "type": "advanced",
+      "maxHp": 80,
+      "combat": 14,
+      "morale": 80,
+      "politics": 0,
+      "salary": 4,
+      "nativeCountryId": null
+    },
+    {
+      "id": 104,
+      "name": "基拉",
+      "type": "advanced",
+      "maxHp": 80,
+      "combat": 14,
+      "morale": 80,
+      "politics": 0,
+      "salary": 4,
+      "nativeCountryId": null
+    },
+    {
+      "id": 105,
+      "name": "戈鲁格",
+      "type": "advanced",
+      "maxHp": 96,
+      "combat": 15,
+      "morale": 90,
+      "politics": 15,
+      "salary": 6,
+      "nativeCountryId": null
+    }
+  ]
+}
