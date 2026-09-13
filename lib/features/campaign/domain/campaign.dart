@@ -343,6 +343,8 @@ class HeroMarch {
   /// 暂时避让时仍保留原行军任务，不能当作主动扎营或抵达目的地。
   bool get waitingForTraffic => _trafficBlocked;
   final List<GamePoint> _trafficRoute = [];
+  List<Object?>? _failedTrafficScene;
+  List<Object?>? _failedContactScene;
 
   void _rememberPosition() {
     if (!_returningFromRetreat && _outboundRoute.last != position) {
@@ -381,6 +383,8 @@ class HeroMarch {
 
   /// 从当前位置改道，保留连续位置和步行动画进度。
   void moveTo(GamePoint point, {CityDefinition? city}) {
+    _failedTrafficScene = null;
+    _failedContactScene = null;
     _arrivalWaitLogged = false;
     _trafficBlocked = false;
     _trafficRoute.clear();
@@ -401,6 +405,8 @@ class HeroMarch {
 
   /// 立即停止当前行程，不回城、不回血，也不影响其他部队。
   void camp() {
+    _failedTrafficScene = null;
+    _failedContactScene = null;
     _trafficBlocked = false;
     _trafficRoute.clear();
     _rememberPosition();
@@ -625,6 +631,10 @@ class CampaignState {
   // 成功脱战的双方在拉开接触距离前不重复开打，其他敌军仍可拦截。
   final Set<(String, String)> _retreatSeparations = {};
   int _siegeArrivalSerial = 0;
+  // 只缓存未改变的物理排位输入；读档、易主和部队状态改变后自动重新安排。
+  final Map<int, List<Object?>> _siegeFormationScenes = {};
+  final Map<int, ({List<Object?> geometry, Map<GamePoint, bool> valid})>
+  _siegePointValidity = {};
 
   /// 是否运行非玩家国家的自动经营；测试可以单独关闭以隔离原有规则。
   final bool aiEnabled;

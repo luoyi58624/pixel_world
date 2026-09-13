@@ -135,7 +135,16 @@ extension _MarchTraffic on CampaignState {
         !clear(march.position, march._trafficRoute.first)) {
       march._trafficRoute.clear();
     }
-    if (march._trafficRoute.isEmpty) {
+    final scene = <Object?>[
+      march.position,
+      march.destination,
+      around,
+      if (around != null) around.appearanceAt(cities[around.id]!.level),
+      march._siegeArrival != null || march.returningFromRetreat,
+      ...obstacles,
+    ];
+    if (march._trafficRoute.isEmpty &&
+        !_sameMarchScene(march._failedTrafficScene, scene)) {
       if (clear(march.position, march.destination)) {
         march._trafficRoute.add(march.destination);
       } else {
@@ -151,6 +160,8 @@ extension _MarchTraffic on CampaignState {
           ),
         );
       }
+      // 同一个起点、终点和障碍布局的失败结果可复用，障碍一移动就立即重试。
+      march._failedTrafficScene = march._trafficRoute.isEmpty ? scene : null;
     }
     if (march._trafficRoute.isEmpty) {
       if (march.returningFromRetreat) {
@@ -451,6 +462,14 @@ extension _MarchTraffic on CampaignState {
   }
 }
 
+bool _sameMarchScene(List<Object?>? previous, List<Object?> current) {
+  if (previous == null || previous.length != current.length) return false;
+  for (var i = 0; i < current.length; i++) {
+    if (previous[i] != current[i]) return false;
+  }
+  return true;
+}
+
 GamePoint _projectOnTrafficEdge(GamePoint point, GamePoint a, GamePoint b) {
   final edge = b - a;
   final t =
@@ -463,24 +482,25 @@ GamePoint _projectOnTrafficEdge(GamePoint point, GamePoint a, GamePoint b) {
 bool _trafficIntersects(GamePoint from, GamePoint to, GamePoint center) {
   var enter = 0.0, leave = 1.0;
   const radius = _trafficSize - 1e-6;
-  final offset = from - center, movement = to - from;
+  final offsetX = from.dx - center.dx, offsetY = from.dy - center.dy;
+  final movementX = to.dx - from.dx, movementY = to.dy - from.dy;
   // 交战收尾或外观变更可能留下已有重叠，只允许向外脱离，不能向内穿人。
-  if (offset.dx.abs() < radius &&
-      offset.dy.abs() < radius &&
-      offset.dx * movement.dx + offset.dy * movement.dy >= 0 &&
+  if (offsetX.abs() < radius &&
+      offsetY.abs() < radius &&
+      offsetX * movementX + offsetY * movementY >= 0 &&
       math.max((to.dx - center.dx).abs(), (to.dy - center.dy).abs()) >
-          math.max(offset.dx.abs(), offset.dy.abs())) {
+          math.max(offsetX.abs(), offsetY.abs())) {
     return false;
   }
-  for (final axis in [
-    (from.dx, to.dx - from.dx, center.dx),
-    (from.dy, to.dy - from.dy, center.dy),
-  ]) {
-    if (axis.$2.abs() < 1e-10) {
-      if ((axis.$1 - axis.$3).abs() >= radius) return false;
+  // 碰撞检测位于寻路内层循环，直接计算两轴，避免每条候选边分配临时点和列表。
+  for (var axis = 0; axis < 2; axis++) {
+    final offset = axis == 0 ? offsetX : offsetY;
+    final movement = axis == 0 ? movementX : movementY;
+    if (movement.abs() < 1e-10) {
+      if (offset.abs() >= radius) return false;
     } else {
-      final a = (axis.$3 - radius - axis.$1) / axis.$2;
-      final b = (axis.$3 + radius - axis.$1) / axis.$2;
+      final a = (-radius - offset) / movement;
+      final b = (radius - offset) / movement;
       enter = math.max(enter, math.min(a, b));
       leave = math.min(leave, math.max(a, b));
       if (enter > leave) return false;

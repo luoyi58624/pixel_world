@@ -121,6 +121,102 @@ void _advance(
 }
 
 void main() {
+  test('五级城凹角堵住最近墙面时，队首沿空闲墙面接战而非整队停滞', () {
+    final original = _crowd(originalCastle: true);
+    addTearDown(original.dispose);
+    final city = original.world.cities[2],
+        bounds = original.cityBounds(original.world.cities[2]);
+    final shape = city.appearanceAt(5);
+    final rings = SiegeRings(shape.width, shape.height, tiles: shape.tiles);
+    GamePoint point(int ring, int slot) {
+      final offset = rings.offset(ring, slot);
+      return bounds.center + GamePoint(offset.x, offset.y);
+    }
+
+    final head = original.dispatch(
+      scenarioHero(original, 0),
+      city,
+      countryId: 1,
+    )!;
+    final blocker = original.dispatch(
+      scenarioHero(original, 1),
+      city,
+      countryId: 1,
+    )!;
+    // 用格子关系还原实局：队首在右下外格，候战者在凹角，空位在左下方。
+    final slots = <(int, int)>[
+      for (var i = 0; i < rings.slots(0); i++)
+        if (![12, 15, 16, 17].contains(i)) (0, i),
+      (1, 3),
+      (1, 6),
+      (1, 8),
+      (1, 10),
+      (1, 12),
+    ];
+    for (var i = 0; i < slots.length; i++) {
+      original.dispatch(scenarioHero(original, i + 2), city, countryId: 1);
+    }
+    final data = original.saveState();
+    final rows = data['marches'] as List;
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i] as Map;
+      final pos = i == 0
+          ? point(0, 17)
+          : i == 1
+          ? point(0, 12)
+          : point(slots[i - 2].$1, slots[i - 2].$2);
+      final goal = i == 0
+          ? bounds.topLeft +
+                CityContact.forAppearance(shape).nearest(pos - bounds.topLeft)
+          : i == 1
+          ? point(0, 15)
+          : pos;
+      row.addAll(<String, Object?>{
+        'position': [pos.dx, pos.dy],
+        'destination': [goal.dx, goal.dy],
+        'arrival': [city.id, i + 1],
+        'blocked': i < 2,
+        'pending': false,
+        'siegeWaiting': i != 0,
+        'siegeSlot': i == 0
+            ? null
+            : i == 1
+            ? [0, 15]
+            : [slots[i - 2].$1, slots[i - 2].$2],
+        'phase': (i < 2 ? MarchPhase.camped : MarchPhase.awaitingBattle).index,
+        'traffic': <Object>[],
+      });
+    }
+    data['arrivalSerial'] = rows.length;
+    final c = CampaignSnapshots.restore(
+      data,
+      original.world,
+      decodeRomHeroes(File('assets/data/heroes.json5').readAsStringSync()),
+    );
+    addTearDown(c.dispose);
+    for (var n = 0; n < 10 * 60; n++) {
+      c.advance(1 / 60);
+      final visible = c.marches.values.where((m) => m.visibleOnMap).toList();
+      for (var i = 0; i < visible.length; i++) {
+        for (var j = i + 1; j < visible.length; j++) {
+          final delta = visible[i].position - visible[j].position;
+          expect(
+            delta.dx.abs() >= 16 - 1e-6 || delta.dy.abs() >= 16 - 1e-6,
+            isTrue,
+            reason:
+                '第 $n 步：${visible[i].hero.id} ${visible[i].position} / ${visible[j].hero.id} ${visible[j].position}，队首改选墙面不能穿人',
+          );
+        }
+      }
+      if (c.battles[city.id]?.isActive == true) break;
+    }
+    expect(c.battles[city.id]?.attacker.id, head.hero.id);
+    expect(c.battles[city.id]?.isActive, isTrue);
+    expect(c.marches[blocker.hero.id]!.siegeQueueOrder, 2);
+    _advance(c, 10, keepBattleAlive: true);
+    expect(c.marches.values.any((m) => m.waitingForTraffic), isFalse);
+  });
+
   for (final level in [3, 4, 5]) {
     test('真实$level级城围满后队首保持顺序，候战队列让出进场通道', () {
       final c = _crowd(originalCastle: true, castleLevel: level);

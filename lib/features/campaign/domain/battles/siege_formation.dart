@@ -1,5 +1,8 @@
 part of '../campaign.dart';
 
+// 建筑模板不可变，复用逐圈格子，避免每个游戏步长重新展开同一建筑。
+final _siegeRingsCache = Expando<SiegeRings>();
+
 /// 围城闭合状态按真实到位部队计算，不能把在途承诺当成已经包围。
 extension SiegeFormation on CampaignState {
   /// 指定国家是否已实际占满敌城的第一圈，野战和撤退部队不计入。
@@ -34,7 +37,7 @@ extension SiegeFormation on CampaignState {
 extension _SiegeFormation on CampaignState {
   SiegeRings _siegeRings(CityDefinition city) {
     final appearance = city.appearanceAt(cities[city.id]!.level);
-    return SiegeRings(
+    return _siegeRingsCache[appearance] ??= SiegeRings(
       appearance.width,
       appearance.height,
       tiles: appearance.tiles,
@@ -67,13 +70,61 @@ extension _SiegeFormation on CampaignState {
     List<HeroMarch> queue, {
     HeroMarch? entering,
   }) {
-    if (queue.isEmpty) return false;
+    if (queue.isEmpty) {
+      _siegeFormationScenes.remove(city.id);
+      _siegePointValidity.remove(city.id);
+      return false;
+    }
+    final geometry = <Object?>[
+      for (final c in world.cities) c.appearanceAt(cities[c.id]!.level),
+    ];
+    final scene = <Object?>[
+      ...geometry,
+      for (final c in world.cities) cities[c.id]!.ownerCountryId,
+      entering,
+      entering?.position,
+      entering?.destination,
+      for (final m in queue)
+        (
+          m,
+          m.hero.countryId,
+          m.position,
+          m.destination,
+          m.phase,
+          m._trafficBlocked,
+          m._siegeSlot,
+          m._siegeWaiting,
+          m._siegeArrival,
+        ),
+      // 队外的野战、撤退和其他国家部队也会占位，不能只比较本国队列。
+      for (final m in marches.values)
+        if (m.visibleOnMap && m.hero.health.alive ||
+            activeBattleForHero(m.hero.id) != null)
+          (
+            m,
+            m.hero.countryId,
+            m.position,
+            m.target,
+            m._siegeSlot,
+            m.visibleOnMap,
+            m.hero.health.alive,
+            activeBattleForHero(m.hero.id),
+          ),
+    ];
+    if (_sameMarchScene(_siegeFormationScenes[city.id], scene)) return false;
+    _siegeFormationScenes[city.id] = scene;
+    // 排位点是否压住建筑只受地图几何影响，部队每走一步不必扫描全部城墙。
+    final previousValidity = _siegePointValidity[city.id];
+    final valid = _sameMarchScene(previousValidity?.geometry, geometry)
+        ? previousValidity!.valid
+        : <GamePoint, bool>{};
+    _siegePointValidity[city.id] = (geometry: geometry, valid: valid);
     final rings = _siegeRings(city);
     final occupied = <(int, int), HeroMarch>{};
     // 队首尚未贴墙时，其当前位置和进场通道不是可补位的空格。
     bool available(int ring, int slot) {
       final point = _siegePoint(city, rings, ring, slot);
-      return _validSiegePoint(point, city) &&
+      return valid.putIfAbsent(point, () => _validSiegePoint(point, city)) &&
           (entering == null ||
               (!_trafficIntersects(point, point, entering.position) &&
                   !_trafficIntersects(
@@ -218,7 +269,9 @@ extension _SiegeFormation on CampaignState {
         walkingDistances.putIfAbsent((from, to), () {
           bool clear(GamePoint a, GamePoint b) =>
               _outsideSiegeWall(a, b, walls, center);
-          final obstacles = <GamePoint>[if (entering != null) entering.position];
+          final obstacles = <GamePoint>[
+            if (entering != null) entering.position,
+          ];
           if (clear(from, to) &&
               obstacles.every((p) => !_trafficIntersects(from, to, p))) {
             return (from - to).distance;
@@ -266,10 +319,8 @@ extension _SiegeFormation on CampaignState {
           otherSlot.ring,
           otherSlot.index,
         );
-        final before = walkingDistance(m.position, hole);
-        final after = walkingDistance(m.position, replacement);
-        if (after >= before - 1e-8 ||
-            !_outsideSiegeWall(other.position, hole, walls, center) ||
+        // 先剔除根本无法挪动的队员，再计算绕墙路程，密集队列大多在此即可排除。
+        if (!_outsideSiegeWall(other.position, hole, walls, center) ||
             visible.any(
               (obstacle) =>
                   obstacle != other &&
@@ -277,6 +328,9 @@ extension _SiegeFormation on CampaignState {
             )) {
           continue;
         }
+        final before = walkingDistance(m.position, hole);
+        final after = walkingDistance(m.position, replacement);
+        if (after >= before - 1e-8) continue;
         m._siegeSlot = other._siegeSlot;
         other._siegeSlot = slot;
         shifted.addAll([m, other]);

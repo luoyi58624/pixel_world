@@ -106,7 +106,11 @@ extension _CitySieges on CampaignState {
               (a, b) =>
                   a._siegeArrival!.order.compareTo(b._siegeArrival!.order),
             );
-      if (queue.isEmpty) continue;
+      if (queue.isEmpty) {
+        _siegeFormationScenes.remove(city.id);
+        _siegePointValidity.remove(city.id);
+        continue;
+      }
       // 整场交战及换守将期间不换进攻者；下一支按实际抵达顺序接续。
       final busy = battles[city.id]?.isActive == true;
       final head = busy ? null : queue.first;
@@ -156,12 +160,94 @@ extension _CitySieges on CampaignState {
     // 贴格队首垂直贴向最近墙面；朝城心斜走会挤进上下相邻人物的占用格。
     final point = origin + _cityContact(city).nearest(march.position - origin);
     if ((point - march.position).distanceSquared <= 1e-8) return true;
+    if (march.waitingForTraffic) {
+      final passage = _unblockedCityContact(march);
+      if (passage != null) {
+        march._resumeToward(passage.point, city: city);
+        march._trafficRoute.addAll(passage.path);
+        return false;
+      }
+    }
     if (march.waitingForTraffic &&
         (point - march.destination).distanceSquared <= 1e-8) {
       return false;
     }
     march._resumeToward(point, city: city);
     return false;
+  }
+
+  // 凹角最近墙面可能被候战者挡住，队首沿实际空隙接触邻近墙面，不能锁死整队。
+  ({GamePoint point, List<GamePoint> path})? _unblockedCityContact(
+    HeroMarch march,
+  ) {
+    final city = march.target!, origin = cityBounds(march.target!).topLeft;
+    final obstacles = marches.values
+        .where(
+          (m) =>
+              m != march &&
+              m.visibleOnMap &&
+              m.hero.health.alive &&
+              (m.hero.countryId == march.hero.countryId ||
+                  activeBattleForHero(m.hero.id) != null) &&
+              (m.position - march.position).distance < 96,
+        )
+        .map((m) => m.position)
+        .toList();
+    final scene = <Object?>[
+      march.position,
+      march.destination,
+      city,
+      city.appearanceAt(cities[city.id]!.level),
+      ...obstacles,
+    ];
+    if (_sameMarchScene(march._failedContactScene, scene)) return null;
+    final outline = _cityContact(city).outline;
+    final projections = <GamePoint>{march.position - origin};
+    // 障碍的格子边缘正是可贴边通过的通道，不用任意加大围城间距。
+    for (final p in obstacles) {
+      for (final dx in [-_trafficSize, _trafficSize]) {
+        for (final dy in [-_trafficSize, _trafficSize]) {
+          projections.add(p - origin + GamePoint(dx, dy));
+        }
+      }
+    }
+    final candidates =
+        <GamePoint>{
+              for (var i = 0; i < outline.length; i++)
+                for (final p in projections)
+                  origin +
+                      _projectOnTrafficEdge(
+                        p,
+                        outline[i],
+                        outline[(i + 1) % outline.length],
+                      ),
+            }
+            .where(
+              (p) =>
+                  _containsPoint(p) &&
+                  obstacles.every((o) => !_trafficIntersects(p, p, o)),
+            )
+            .toList()
+          ..sort(
+            (a, b) => (a - march.position).distanceSquared.compareTo(
+              (b - march.position).distanceSquared,
+            ),
+          );
+    for (final point in candidates) {
+      final path =
+          obstacles.every((o) => !_trafficIntersects(march.position, point, o))
+          ? [point]
+          : _trafficPath(
+              march.position,
+              point,
+              obstacles,
+              wallClear: (_, _) => true,
+              gridTraffic: true,
+            );
+      if (path.isNotEmpty) return (point: point, path: path);
+    }
+    march._failedContactScene = scene;
+    return null;
   }
 
   CampaignHero? _pickDefender(int cityId) {

@@ -54,6 +54,36 @@ HeroMarch send(
 }
 
 void main() {
+  for (final change in ['移开障碍', '障碍死亡', '更改目标']) {
+    test('静止堵塞复用失败路线后，$change立即恢复行军', () {
+      final c = fixture();
+      addTearDown(c.dispose);
+      const goal = GamePoint(300, 200);
+      final front = send(c, 0, goal)..position = goal;
+      front.camp();
+      final rear = send(c, 2, goal)..position = const GamePoint(240, 200);
+      final start = rear.position;
+      for (var i = 0; i < 120; i++) {
+        c.advance(1 / 60);
+      }
+      expect(rear.waitingForTraffic, isTrue);
+      expect(rear.position, start);
+      switch (change) {
+        case '移开障碍':
+          front.moveTo(const GamePoint(300, 260));
+        case '障碍死亡':
+          front.hero.hp = 0;
+        case '更改目标':
+          rear.moveTo(const GamePoint(240, 260));
+      }
+      for (var i = 0; i < 600; i++) {
+        c.advance(1 / 60);
+      }
+      expect(rear.waitingForTraffic, isFalse);
+      expect((rear.position - start).distance, greaterThan(40));
+    });
+  }
+
   test('读档后尚无排队编号的贴城部队也能向外让行，不被敌城接触逐帧拦回', () {
     final original = fixture();
     addTearDown(original.dispose);
