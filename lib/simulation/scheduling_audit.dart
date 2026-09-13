@@ -4,7 +4,6 @@ import '../core/config/game_config.dart';
 import '../core/geometry/geometry.dart';
 import '../features/campaign/domain/campaign.dart';
 import '../features/events/domain/game_events.dart';
-import '../features/battle/domain/battle_simulation.dart';
 import '../features/heroes/data/rom_hero.dart';
 
 /// 只观察实际状态和事件的验收器，检查结果不得反馈给运行时 AI。
@@ -61,6 +60,25 @@ class SchedulingAudit {
   /// 观察警报、调令和真实战斗开场，记录已覆盖的状态转换。
   void event(CampaignState c, GameEvent e) {
     final now = e.tick / 60;
+    if (e.kind == GameEventKind.heroMoved && e.data['siegeRing'] is int) {
+      _cover('siegeRing:${e.data['siegeRing']}');
+      if (e.data['previousRing'] is int &&
+          (e.data['previousRing'] as int) > (e.data['siegeRing'] as int)) {
+        _cover('siegeRingRefilled');
+      }
+    }
+    if (e.kind == GameEventKind.retreatRequested &&
+        e.phase == GameEventPhase.applied &&
+        e.heroId != null) {
+      final battle = c.activeBattleForHero(e.heroId!);
+      if (battle is CityBattle &&
+          c.isCityEncircled(
+            battle.city.id,
+            countryId: battle.attacker.countryId,
+          )) {
+        _issue('encircledRetreat', e.heroId!, now, {'city': battle.city.id});
+      }
+    }
     if (e.kind == GameEventKind.territoryEntered &&
         e.countryId != null &&
         _automated(c, e.countryId!)) {
@@ -106,9 +124,7 @@ class SchedulingAudit {
       // 同一支军队连胜后的下一波不重新选人，不能把合法连战当作抢队。
       if (battle == null || battle.wave != 1) return;
       final chosen = battle.attacker;
-      double power(CampaignHero h) =>
-          h.combat * h.hp / h.maxHp +
-          h.soldiers * BattleSimulation.soldierAttack;
+      final selectedOrder = e.data['arrivalOrder'] as int?;
       for (final m in c.marches.values) {
         if (m.hero.countryId != chosen.countryId ||
             m.hero == chosen ||
@@ -120,12 +136,12 @@ class SchedulingAudit {
           continue;
         }
         _cover('siegePriorityCompared');
-        if (power(m.hero) > power(chosen) + 1e-8) {
-          _issue('weakerAttackerSelected', '${e.sequence}', now, {
+        if (selectedOrder != null && m.siegeQueueOrder! < selectedOrder) {
+          _issue('siegeQueueOvertaken', '${e.sequence}', now, {
             'country': chosen.countryId,
             'city': e.cityId,
             'selected': chosen.id,
-            'stronger': m.hero.id,
+            'earlier': m.hero.id,
           });
         }
       }

@@ -64,7 +64,12 @@ void main() {
       isEmpty,
       reason: plan.toJson().toString(),
     );
-    expect(plan.notes.any((n) => n.contains('已临近主攻目标')), isTrue);
+    expect(march.target?.id, 2);
+    expect(
+      march.siegeQueueOrder != null || march.phase == MarchPhase.fighting,
+      isTrue,
+    );
+    expect(c.aiObservationFor(1).hero(march.hero.id)!.canMove, isFalse);
   });
 
   test('中途路点短暂停靠，有后续行军段时继续原远征', () {

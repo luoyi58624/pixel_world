@@ -89,6 +89,9 @@ extension CampaignSnapshots on CampaignState {
           'blocked': m._trafficBlocked,
           'arrivalWaitLogged': m._arrivalWaitLogged,
           'siegeWaiting': m._siegeWaiting,
+          'siegeSlot': m._siegeSlot == null
+              ? null
+              : [m._siegeSlot!.ring, m._siegeSlot!.index],
           'traffic': m._trafficRoute.map(_point).toList(),
           'arrival': m._siegeArrival == null
               ? null
@@ -398,6 +401,12 @@ extension CampaignSnapshots on CampaignState {
         march._siegeArrival = (
           cityId: m['arrival'][0] as int,
           order: m['arrival'][1] as int,
+        );
+      }
+      if (m['siegeSlot'] != null) {
+        march._siegeSlot = (
+          ring: m['siegeSlot'][0] as int,
+          index: m['siegeSlot'][1] as int,
         );
       }
       c.marches[march.hero.id] = march;

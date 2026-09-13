@@ -92,7 +92,11 @@ void main() {
       expect(back.phase, isNot(MarchPhase.camped));
     }
     expect((back.position - start).distance, greaterThan(50));
-    expect(blocker.walkDistance, greaterThan(20));
+    expect(
+      blocker.walkDistance > 20 || !blocker.visibleOnMap,
+      isTrue,
+      reason: '让行或按队列进入城战后都不再占据撤退通路',
+    );
     expect(back.waitingForTraffic, isFalse);
   });
 

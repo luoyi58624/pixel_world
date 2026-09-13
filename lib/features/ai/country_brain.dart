@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
+import '../../core/geometry/siege_rings.dart';
+
 import 'budget.dart';
+import 'geometry.dart';
 import 'combat_assessment.dart';
 import 'defense_planner.dart';
 import 'observation.dart';
@@ -1078,7 +1081,8 @@ class CountryBrain {
         break;
       }
       final route = routes.to(h, target.center, _view, target: target);
-      if (!route.complete || route.seconds > rules.tuning.raidArrivalSpread * 2) {
+      if (!route.complete ||
+          route.seconds > rules.tuning.raidArrivalSpread * 2) {
         continue;
       }
       final first = math.min(earliest, route.seconds),
@@ -1088,8 +1092,7 @@ class CountryBrain {
           rules.attack(h.combat, field: false) +
           h.soldierCount * rules.integer('soldierPower');
       final ratio = power / math.max(1, enemyPower);
-      support +=
-          (h.hp + h.soldiers.fold(0.0, (a, b) => a + b)) * ratio * .85;
+      support += (h.hp + h.soldiers.fold(0.0, (a, b) => a + b)) * ratio * .85;
       team.add((hero: h, route: route));
       earliest = first;
       latest = last;
@@ -1153,26 +1156,29 @@ class CountryBrain {
               .compareTo(hero.position.distance(b.center)),
         );
     for (final target in enemies.take(3)) {
-      final assigned = ledger.tasks.values
-          .where((t) => t.city == target.id && t.role == 'staging')
-          .length;
-      final radius =
-          target.outline.points.fold<double>(
-            0,
-            (r, p) => math.max(r, p.distance(target.center)),
-          ) +
-          36 +
-          (assigned ~/ 8) * 40;
-      final startAngle = math.atan2(
-        hero.position.y - target.center.y,
-        hero.position.x - target.center.x,
+      final rings = SiegeRings(
+        target.outline.points.fold<double>(
+          0,
+          (r, p) => math.max(r, p.distance(target.center)),
+        ),
       );
-      for (var offset = 0; offset < 8; offset++) {
-        final angle = startAngle + ((assigned + offset) % 8) * math.pi / 4;
-        final point = target.center.translated(
-          math.cos(angle) * radius,
-          math.sin(angle) * radius,
-        );
+      final points = <AiPoint>[];
+      for (var ring = 0; ring <= _view.heroes.length ~/ 8 + 1; ring++) {
+        final circle =
+            <AiPoint>[
+              for (var slot = 0; slot < rings.slots(ring); slot++)
+                target.center.translated(
+                  rings.offset(ring, slot).x,
+                  rings.offset(ring, slot).y,
+                ),
+            ]..sort(
+              (a, b) => hero.position
+                  .distance(a)
+                  .compareTo(hero.position.distance(b)),
+            );
+        points.addAll(circle);
+      }
+      for (final point in points) {
         if (!map.contains(point) ||
             _view.cities.any((c) => c.outline.contains(point)) ||
             ledger.tasks.values.any(
@@ -1193,7 +1199,7 @@ class CountryBrain {
             protection,
             math.max(0, ledger.capacity - rules.integer('soldierLimit')),
           ),
-          reason: '释放后方及前线多余兵力，前往最近敌城外围分散集结，强将优先进攻',
+          reason: '释放后方及前线多余兵力，前往最近敌城按固定圆环集结，到达后依次轮攻',
         );
         if (operation != null) return operation;
       }

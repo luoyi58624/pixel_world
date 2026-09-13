@@ -107,7 +107,7 @@ void _withdraw(CampaignState c, HeroMarch march) {
 }
 
 void main() {
-  test('同国强将晚到仍先上场，弱将保持外围候战', () {
+  test('先到将领依次上场，晚到强将不能插队', () {
     final c = _campaign(retreatRoll: .99);
     addTearDown(c.dispose);
     final active = _attack(c);
@@ -118,10 +118,10 @@ void main() {
     _withdraw(c, active);
     _until(
       c,
-      () => c.battles[1]!.isActive && c.battles[1]!.attacker == strong.hero,
+      () => c.battles[1]!.isActive && c.battles[1]!.attacker == weak.hero,
     );
-    expect(c.activeBattleForHero(weak.hero.id), isNull);
-    expect(weak.target?.id, 1);
+    expect(c.activeBattleForHero(strong.hero.id), isNull);
+    expect(strong.target?.id, 1);
   });
 
   test('成功撤退可穿过围攻通路返城，不被候战队友堵成扎营', () {

@@ -30,6 +30,10 @@ extension BattleRetreatCommands on CampaignState {
       return '守城将领不能撤退';
     }
     if (_disbandAfterBattle.contains(heroId)) return '出发城已失守';
+    if (battle is CityBattle &&
+        isCityEncircled(battle.city.id, countryId: countryId)) {
+      return '本国部队已形成完整包围，继续轮攻，禁止撤退';
+    }
     if (!battle.simulation.canRetreat) return '战斗结果已确定';
     return null;
   }

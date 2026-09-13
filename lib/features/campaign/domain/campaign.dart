@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:convert';
 
 import '../../../core/geometry/geometry.dart';
+import '../../../core/geometry/siege_rings.dart';
 
 import '../../../core/config/game_config.dart';
 import '../../../core/persistence/state_random.dart';
@@ -35,6 +36,7 @@ import '../../ai/runtime/build_stamp.dart';
 part 'economy/country_ai_budget.dart';
 part 'battles/field_battles.dart';
 part 'battles/siege_battles.dart';
+part 'battles/siege_formation.dart';
 part 'march_traffic.dart';
 part 'economy/garrison_upkeep.dart';
 part 'economy/country_troops.dart';
@@ -325,6 +327,13 @@ class HeroMarch {
 
   /// 正在向分散的城外围攻位置移动或等待，不属于主动扎营。
   bool get waitingForSiegePosition => _siegeWaiting;
+
+  /// 围城站位所在的圈数，从第一圈的零开始，未编入圆环时为空。
+  int? get siegeRing => _siegeSlot?.ring;
+
+  /// 所在圆环内的固定站位编号。
+  int? get siegeSlotIndex => _siegeSlot?.index;
+  ({int ring, int index})? _siegeSlot;
   bool _departurePending = false;
   double _departureAt = 0;
   bool _trafficBlocked = false;
@@ -379,6 +388,7 @@ class HeroMarch {
     if (phase != MarchPhase.marching) _walkAnimation.reset();
     _siegeArrival = null;
     _siegeWaiting = false;
+    _siegeSlot = null;
     target = city;
     destination = point;
     if (point != position) {
@@ -397,6 +407,7 @@ class HeroMarch {
     _walkAnimation.reset();
     _siegeArrival = null;
     _siegeWaiting = false;
+    _siegeSlot = null;
     target = null;
     destination = position;
     phase = MarchPhase.camped;
@@ -404,8 +415,10 @@ class HeroMarch {
 
   void _resumeToward(GamePoint point, {CityDefinition? city}) {
     final arrival = _siegeArrival;
+    final slot = target?.id == city?.id ? _siegeSlot : null;
     moveTo(point, city: city);
     if (arrival?.cityId == city?.id) _siegeArrival = arrival;
+    _siegeSlot = slot;
   }
 
   /// 推进行军，抵达后由战役规则决定何时交战。
@@ -2009,16 +2022,8 @@ class CampaignState {
     for (final march in marches.values.where(
       (march) => march.target?.id == cityId,
     )) {
-      if (march._siegeWaiting) {
-        final origin = cityBounds(march.target!).topLeft;
-        final nearest =
-            origin +
-            _cityContact(march.target!).nearest(march.destination - origin);
-        if ((nearest - march.destination).distance < 24) {
-          _positionSiegeQueue(march, avoid: march.position);
-        }
-        continue;
-      }
+      // 统一圆环在下一步按新轮廓调整位置，不再为每名候战将领单独旋转站位。
+      if (march._siegeWaiting) continue;
       if (march.phase == MarchPhase.dueling ||
           march.phase == MarchPhase.awaitingBattle) {
         continue;

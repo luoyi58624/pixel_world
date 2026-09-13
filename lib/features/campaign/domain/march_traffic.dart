@@ -108,8 +108,10 @@ extension _MarchTraffic on CampaignState {
         march._trafficRoute.clear();
       }
     }
+    final around = march._siegeWaiting ? march.target : null;
     bool clear(GamePoint from, GamePoint to) =>
-        obstacles.every((p) => !_trafficIntersects(from, to, p));
+        obstacles.every((p) => !_trafficIntersects(from, to, p)) &&
+        (around == null || _outsideSiegeWall(from, to, around));
     if (march._trafficRoute.isNotEmpty &&
         !clear(march.position, march._trafficRoute.first)) {
       march._trafficRoute.clear();
@@ -119,7 +121,12 @@ extension _MarchTraffic on CampaignState {
         march._trafficRoute.add(march.destination);
       } else {
         march._trafficRoute.addAll(
-          _trafficPath(march.position, march.destination, obstacles),
+          _trafficPath(
+            march.position,
+            march.destination,
+            obstacles,
+            around: around,
+          ),
         );
       }
     }
@@ -302,9 +309,22 @@ extension _MarchTraffic on CampaignState {
   List<GamePoint> _trafficPath(
     GamePoint from,
     GamePoint goal,
-    List<GamePoint> obstacles,
-  ) {
+    List<GamePoint> obstacles, {
+    CityDefinition? around,
+  }) {
     final nodes = <GamePoint>[from, goal];
+    if (around != null) {
+      final origin = cityBounds(around).topLeft;
+      final bounds = _cityContact(around).bounds.inflate(12);
+      nodes.addAll(
+        [
+          bounds.topLeft,
+          bounds.topRight,
+          bounds.bottomLeft,
+          bounds.bottomRight,
+        ].map((p) => origin + p).where(_containsPoint),
+      );
+    }
     for (final p in obstacles) {
       for (final dx in [-_trafficMargin, _trafficMargin]) {
         for (final dy in [-_trafficMargin, _trafficMargin]) {
@@ -336,6 +356,8 @@ extension _MarchTraffic on CampaignState {
       visited.add(best);
       for (var i = 0; i < nodes.length; i++) {
         if (visited.contains(i) ||
+            around != null &&
+                !_outsideSiegeWall(nodes[best], nodes[i], around) ||
             obstacles.any(
               (p) => _trafficIntersects(nodes[best], nodes[i], p),
             )) {
@@ -349,6 +371,17 @@ extension _MarchTraffic on CampaignState {
       }
     }
     return [];
+  }
+
+  // 圆环换位必须绕过城堡；旧存档贴墙者只允许先向外脱离。
+  bool _outsideSiegeWall(GamePoint from, GamePoint to, CityDefinition city) {
+    final origin = cityBounds(city).topLeft, contact = _cityContact(city);
+    if (contact.contains(from - origin)) {
+      final outward = from - cityBounds(city).center, movement = to - from;
+      return outward.dx * movement.dx + outward.dy * movement.dy >= -1e-8;
+    }
+    return !contact.contains(to - origin) &&
+        contact.entryFraction(from - origin, to - origin) == null;
   }
 }
 

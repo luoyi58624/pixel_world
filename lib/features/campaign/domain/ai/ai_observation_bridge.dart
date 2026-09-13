@@ -97,7 +97,10 @@ extension _AiObservationBridge on CampaignState {
       _aiKnownHeroes[hero.id] = hero;
       _aiLifeVersions.update(hero.id, (n) => n + 1, ifAbsent: () => 0);
     }
-    return '${_aiLifeVersions[hero.id]}:${hero.countryId}:${hero.cityId}:${hero.hp}:${hero.squad.map((s) => s.hp).join(',')}:${_aiArmyState(hero).index}:${_disbandAfterBattle.contains(hero.id)}:${hero.countryId == observer ? (_aiOrderVersions[hero.id] ?? 0) : 0}';
+    final queued = hero.countryId == observer
+        ? marches[hero.id]?.siegeQueueOrder
+        : null;
+    return '$queued:${_aiLifeVersions[hero.id]}:${hero.countryId}:${hero.cityId}:${hero.hp}:${hero.squad.map((s) => s.hp).join(',')}:${_aiArmyState(hero).index}:${_disbandAfterBattle.contains(hero.id)}:${hero.countryId == observer ? (_aiOrderVersions[hero.id] ?? 0) : 0}';
   }
 
   String _aiCityRevision(int id) {
@@ -231,7 +234,11 @@ extension _AiObservationBridge on CampaignState {
             for (final p in returnPath.take(64)) AiPoint(p.dx, p.dy),
           ],
           canDispatch: own && _dispatchProblem(hero, countryId) == null,
-          canMove: own && _moveProblem(hero.id, countryId) == null,
+          canMove:
+              own &&
+              _moveProblem(hero.id, countryId) == null &&
+              !(march?._siegeArrival != null &&
+                  cities[march?.target?.id]?.ownerCountryId != countryId),
           canDismiss:
               own && dismissalBlockReason(hero, countryId: countryId) == null,
           canUpgrade:
