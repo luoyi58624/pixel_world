@@ -61,6 +61,33 @@ List<GameEvent> _recoveries(CampaignState c, String hero) => c.events
     .toList();
 
 void main() {
+  test('受伤将领成功撤退途中不再被整备计划改令，保留原路让行状态', () {
+    final c = nationalScenario(
+      ai: false,
+      gold: 1000,
+      guards: [0, 18],
+      retreatRandom: const FixedSiegeRandom(.99),
+    );
+    addTearDown(c.dispose);
+    final hero = c.garrisonAt(1).first;
+    final march = c.dispatch(hero, c.world.cities[2], countryId: 1)!;
+    march.position = march.destination;
+    c.advance(1 / 60);
+    final battle = c.battles[2]!;
+    expect(c.retreatHero(hero.id, countryId: 1), isTrue);
+    for (var n = 0; n < 600 && battle.isActive; n++) {
+      c.advance(1 / 60);
+    }
+    hero.hp = hero.maxHp * .2;
+    expect(march.returningFromRetreat, isTrue);
+    final plan = planFor(c);
+    expect(
+      plan.groups.expand((g) => g.actions).where((a) => a.hero == hero.id),
+      isEmpty,
+      reason: plan.toJson().toString(),
+    );
+  });
+
   test('撤退返程到满员战城等待，不强行入城挤掉下一场守军', () {
     final c = nationalScenario(
       workerFactory: ManualAiWorker.new,

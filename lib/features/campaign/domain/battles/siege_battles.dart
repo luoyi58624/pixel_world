@@ -144,7 +144,8 @@ extension _CitySieges on CampaignState {
             1e-8) {
       return false;
     }
-    final point = _contactPoint(march.position, cityBounds(city).center, city);
+    // 贴格队首垂直贴向最近墙面；朝城心斜走会挤进上下相邻人物的占用格。
+    final point = origin + _cityContact(city).nearest(march.position - origin);
     if ((point - march.position).distanceSquared <= 1e-8) return true;
     march._resumeToward(point, city: city);
     return false;

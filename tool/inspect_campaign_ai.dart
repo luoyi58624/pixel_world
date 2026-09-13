@@ -61,6 +61,8 @@ Future<void> main(List<String> args) async {
       c.cities.values.map((c) => c.ownerCountryId).toSet().toList()..sort();
   final sink = File('${folder.path}/events.jsonl').openWrite();
   final positions = File('${folder.path}/positions.jsonl').openWrite();
+  final capturedFormations = <String>{};
+  final peakFormations = <String, int>{};
   final counts = <String, int>{};
   var issueFiles = 0;
   final audit = SchedulingAudit(
@@ -291,6 +293,33 @@ Future<void> main(List<String> args) async {
         c,
         (data['strategyTime'] as num).toDouble() + (tick + 16) / 60,
       );
+      // 保存首次实际闭合的原始状态，供正式地图绘制器复核贴格效果。
+      for (final city in c.world.cities) {
+        for (final country in countries) {
+          final key = '${city.id}_$country';
+          final arrived = c.marches.values
+              .where(
+                (m) =>
+                    m.hero.countryId == country &&
+                    m.target?.id == city.id &&
+                    m.waitingForSiegePosition &&
+                    m.visibleOnMap &&
+                    (m.position - m.destination).distance < 1e-5,
+              )
+              .length;
+          if (arrived >= 2 && arrived > (peakFormations[key] ?? 0)) {
+            peakFormations[key] = arrived;
+            File('${folder.path}/formation_peak_$key.json')
+                .writeAsStringSync(jsonEncode(c.saveState()));
+          }
+          if (!capturedFormations.contains(key) &&
+              c.isCityEncircled(city.id, countryId: country)) {
+            capturedFormations.add(key);
+            File('${folder.path}/encircled_$key.json')
+                .writeAsStringSync(jsonEncode(c.saveState()));
+          }
+        }
+      }
       nextSample += 60;
     }
     if (realtime) {

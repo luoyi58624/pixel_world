@@ -1,3 +1,4 @@
+import '../../core/geometry/siege_rings.dart';
 import 'geometry.dart';
 
 /// 显式可见状态，不携带战斗内存或敌军隐藏命令。
@@ -228,6 +229,9 @@ class AiCity {
     this.nextWaveSeconds = 0,
     this.defenderFallen = false,
     this.dangerSeconds = 0,
+    this.gridWidth = 0,
+    this.gridHeight = 0,
+    this.gridTiles = const [],
   });
 
   /// 解码城市记录。
@@ -257,6 +261,9 @@ class AiCity {
     nextWaveSeconds: (d['next'] as num).toDouble(),
     defenderFallen: d['fallen'] as bool? ?? false,
     dangerSeconds: (d['danger'] as num).toDouble(),
+    gridWidth: d['gridWidth'] as int? ?? 0,
+    gridHeight: d['gridHeight'] as int? ?? 0,
+    gridTiles: (d['gridTiles'] as List?)?.cast<int>() ?? const [],
   );
 
   /// 城市身份、归属、原生国家与建筑等级。
@@ -268,6 +275,27 @@ class AiCity {
   /// 实际中心及接触轮廓。
   final AiPoint center;
   final AiOutline outline;
+
+  /// 绘制建筑的真实格子，后台不从城墙外接圆猜测围城站位。
+  final int gridWidth, gridHeight;
+  final List<int> gridTiles;
+
+  /// 旧观察按接触外框去掉人物直径恢复矩形格子，新观察使用完整建筑模板。
+  SiegeRings get siegeRings {
+    if (gridWidth > 0 && gridHeight > 0) {
+      return SiegeRings(
+        gridWidth,
+        gridHeight,
+        tiles: gridTiles.length == gridWidth * gridHeight ? gridTiles : null,
+      );
+    }
+    final xs = outline.points.map((p) => p.x).toList()..sort();
+    final ys = outline.points.map((p) => p.y).toList()..sort();
+    return SiegeRings(
+      ((xs.last - xs.first - 16) / 16).ceil().clamp(1, 256),
+      ((ys.last - ys.first - 16) / 16).ceil().clamp(1, 256),
+    );
+  }
 
   /// 城池月收入及容量；poorIncome 兼容旧协议，现等于 income，国家统一扣欠收。
   final int income, poorIncome, capacityContribution, rearStagingCapacity;
@@ -317,6 +345,9 @@ class AiCity {
     'level': level,
     'xy': center.toJson(),
     'outline': [for (final p in outline.points) p.toJson()],
+    'gridWidth': gridWidth,
+    'gridHeight': gridHeight,
+    'gridTiles': gridTiles,
     'income': income,
     'baseIncome': baseIncome,
     'poor': poorIncome,

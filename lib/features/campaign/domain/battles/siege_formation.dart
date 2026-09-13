@@ -33,12 +33,11 @@ extension SiegeFormation on CampaignState {
 
 extension _SiegeFormation on CampaignState {
   SiegeRings _siegeRings(CityDefinition city) {
-    final bounds = cityBounds(city);
+    final appearance = city.appearanceAt(cities[city.id]!.level);
     return SiegeRings(
-      _cityContact(city).outline.fold<double>(
-        0,
-        (r, p) => math.max(r, (bounds.topLeft + p - bounds.center).distance),
-      ),
+      appearance.width,
+      appearance.height,
+      tiles: appearance.tiles,
     );
   }
 
@@ -52,11 +51,15 @@ extension _SiegeFormation on CampaignState {
     return cityBounds(city).center + GamePoint(offset.x, offset.y);
   }
 
-  bool _validSiegePoint(GamePoint p) =>
+  bool _validSiegePoint(GamePoint p, CityDefinition target) =>
       _containsPoint(p) &&
-      !world.cities.any(
-        (c) => _cityContact(c).contains(p - cityBounds(c).topLeft),
-      );
+      !world.cities.any((c) {
+        final local = p - cityBounds(c).topLeft, contact = _cityContact(c);
+        // 相邻格的英雄恰好贴墙，只排除进入墙体的点，不排除边缘相接。
+        return contact.contains(local) &&
+            (c.id != target.id ||
+                (contact.nearest(local) - local).distance > 1e-7);
+      });
 
   // 保留已分配站位；先由紧邻外圈最近的将领向内补位，再安置新到部队。
   bool _arrangeSiegeRings(CityDefinition city, List<HeroMarch> queue) {
@@ -70,7 +73,10 @@ extension _SiegeFormation on CampaignState {
       if (slot.ring < 0 ||
           slot.index < 0 ||
           slot.index >= rings.slots(slot.ring) ||
-          !_validSiegePoint(_siegePoint(city, rings, slot.ring, slot.index)) ||
+          !_validSiegePoint(
+            _siegePoint(city, rings, slot.ring, slot.index),
+            city,
+          ) ||
           occupied.containsKey((slot.ring, slot.index))) {
         m._siegeSlot = null;
       } else {
@@ -97,7 +103,7 @@ extension _SiegeFormation on CampaignState {
       final vacancies = <int>[
         for (var slot = 0; slot < rings.slots(ring); slot++)
           if (!occupied.containsKey((ring, slot)) &&
-              _validSiegePoint(_siegePoint(city, rings, ring, slot)))
+              _validSiegePoint(_siegePoint(city, rings, ring, slot), city))
             slot,
       ];
       for (final members in countries.values) {

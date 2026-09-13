@@ -4,7 +4,6 @@ import '../core/config/game_config.dart';
 import '../core/geometry/geometry.dart';
 import '../core/geometry/siege_rings.dart';
 import '../features/campaign/domain/campaign.dart';
-import '../features/cities/domain/city_contact.dart';
 import '../features/events/domain/game_events.dart';
 import '../features/heroes/data/rom_hero.dart';
 
@@ -308,14 +307,11 @@ class SchedulingAudit {
     }
     for (final city in c.world.cities) {
       final bounds = c.cityBounds(city);
-      final contact = CityContact.forAppearance(
-        city.appearanceAt(c.cities[city.id]!.level),
-      );
+      final appearance = city.appearanceAt(c.cities[city.id]!.level);
       final rings = SiegeRings(
-        contact.outline.fold<double>(
-          0,
-          (r, p) => math.max(r, (bounds.topLeft + p - bounds.center).distance),
-        ),
+        appearance.width,
+        appearance.height,
+        tiles: appearance.tiles,
       );
       final queued = <int, List<HeroMarch>>{};
       for (final m in c.marches.values) {
@@ -328,6 +324,39 @@ class SchedulingAudit {
           continue;
         }
         queued.putIfAbsent(m.hero.countryId, () => []).add(m);
+        if (m.waitingForSiegePosition &&
+            m.siegeRing != null &&
+            (m.position - m.destination).distance < 1e-5) {
+          // 独立从建筑格量实到距离，不能只检查是否走到了算法自己给出的错误目的地。
+          final local = m.position - bounds.topLeft;
+          var gap = double.infinity;
+          for (var y = 0; y < appearance.height; y++) {
+            for (var x = 0; x < appearance.width; x++) {
+              if (appearance.tiles[y * appearance.width + x] == 0) continue;
+              gap = math.min(
+                gap,
+                math.max(
+                  (local.dx - (x + .5) * 16).abs(),
+                  (local.dy - (y + .5) * 16).abs(),
+                ),
+              );
+            }
+          }
+          if ((gap - (m.siegeRing! + 1) * 16).abs() > 1e-5 ||
+              ((local.dx - 8) / 16 - ((local.dx - 8) / 16).round()).abs() >
+                  1e-5 ||
+              ((local.dy - 8) / 16 - ((local.dy - 8) / 16).round()).abs() >
+                  1e-5) {
+            _issue('siegeOffGrid', m.hero.id, now, {
+              'city': city.id,
+              'hero': m.hero.id,
+              'ring': m.siegeRing,
+              'gap': gap,
+            });
+          } else {
+            _cover('siegeGridPositionReached');
+          }
+        }
       }
       for (final entry in queued.entries) {
         final key = '${entry.key}:${city.id}', members = entry.value;

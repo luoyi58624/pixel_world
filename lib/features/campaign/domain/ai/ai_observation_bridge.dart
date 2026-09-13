@@ -124,6 +124,9 @@ extension _AiObservationBridge on CampaignState {
           nativeCountry: city.nativeCountryId,
           level: city.level,
           center: AiPoint(rect.center.dx, rect.center.dy),
+          gridWidth: definition.appearanceAt(city.level).width,
+          gridHeight: definition.appearanceAt(city.level).height,
+          gridTiles: definition.appearanceAt(city.level).tiles,
           outline: AiOutline([
             for (final p in _cityContact(definition).outline)
               AiPoint(rect.left + p.dx, rect.top + p.dy),

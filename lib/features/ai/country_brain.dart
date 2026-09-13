@@ -256,6 +256,15 @@ class CountryBrain {
     for (final hero in availableField) {
       if (ledger.reservedHeroes.contains(hero.id)) continue;
       final task = ledger.tasks[hero.id];
+      final waitingForReturnSlot =
+          hero.state == AiArmyState.retreating &&
+          hero.returnPath.length <= 1 &&
+          hero.destination != null &&
+          hero.position.distance(hero.destination!) < 1;
+      // 成功撤退由运行时原路护送，途中改派会取消让行状态，把伤员重新卡在围城队列里。
+      if (hero.state == AiArmyState.retreating && !waitingForReturnSlot) {
+        continue;
+      }
       final needsRecovery = _needsAssaultRecovery(hero, task);
       final expired = task != null && task.deadlineTick < _view.tick;
       if (task?.role == 'staging' && hero.hp >= hero.maxHp * .65) {
@@ -286,11 +295,6 @@ class CountryBrain {
           ) ??
           false;
       // 返程已抵达但被驻军名额挡住时，旧进攻任务常因撤退改令而失效，仍须另选整备城。
-      final waitingForReturnSlot =
-          hero.state == AiArmyState.retreating &&
-          hero.returnPath.length <= 1 &&
-          hero.destination != null &&
-          hero.position.distance(hero.destination!) < 1;
       final stopped =
           task != null &&
           hero.state == AiArmyState.camped &&
@@ -1156,12 +1160,7 @@ class CountryBrain {
               .compareTo(hero.position.distance(b.center)),
         );
     for (final target in enemies.take(3)) {
-      final rings = SiegeRings(
-        target.outline.points.fold<double>(
-          0,
-          (r, p) => math.max(r, p.distance(target.center)),
-        ),
-      );
+      final rings = target.siegeRings;
       final points = <AiPoint>[];
       for (var ring = 0; ring <= _view.heroes.length ~/ 8 + 1; ring++) {
         final circle =
@@ -1180,13 +1179,23 @@ class CountryBrain {
       }
       for (final point in points) {
         if (!map.contains(point) ||
-            _view.cities.any((c) => c.outline.contains(point)) ||
+            _view.cities.any(
+              (c) =>
+                  c.outline.contains(point) &&
+                  (c.id != target.id ||
+                      c.outline.nearest(point).distance(point) > 1e-7),
+            ) ||
             ledger.tasks.values.any(
-              (t) => t.points.isNotEmpty && t.points.last.distance(point) < 34,
+              (t) =>
+                  t.points.isNotEmpty &&
+                  (t.points.last.x - point.x).abs() <
+                      SiegeRings.cellSize - 1e-7 &&
+                  (t.points.last.y - point.y).abs() <
+                      SiegeRings.cellSize - 1e-7,
             )) {
           continue;
         }
-        final route = routes.to(hero, point, _view);
+        final route = routes.to(hero, point, _view, stagingTarget: target);
         if (!route.complete) continue;
         final operation = operations.send(
           ledger,
@@ -1199,7 +1208,7 @@ class CountryBrain {
             protection,
             math.max(0, ledger.capacity - rules.integer('soldierLimit')),
           ),
-          reason: '释放后方及前线多余兵力，前往最近敌城按固定圆环集结，到达后依次轮攻',
+          reason: '释放后方及前线多余兵力，贴着最近敌城的外围格子集结，到达后依次轮攻',
         );
         if (operation != null) return operation;
       }

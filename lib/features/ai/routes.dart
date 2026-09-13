@@ -73,6 +73,7 @@ class AiRoutes {
     AiPoint aim,
     AiObservation view, {
     AiCity? target,
+    AiCity? stagingTarget,
     bool safe = false,
   }) {
     final home = view.city(hero.city);
@@ -83,12 +84,15 @@ class AiRoutes {
     if (!map.contains(end)) {
       return const AiRoute([], double.infinity, complete: false);
     }
-    bool blocked(AiPoint a, AiPoint b) => view.cities.any(
-      (c) =>
-          c.country != hero.country &&
-          c.id != target?.id &&
-          c.outline.entry(a, b) != null,
-    );
+    bool blocked(AiPoint a, AiPoint b) => view.cities.any((c) {
+      if (c.country == hero.country || c.id == target?.id) return false;
+      final entry = c.outline.entry(a, b);
+      // 集结终点可以恰好贴到目标墙面，途中穿城仍然禁止。
+      return entry != null &&
+          !(c.id == stagingTarget?.id &&
+              b.distance(end) < 1e-7 &&
+              entry >= 1 - 1e-7);
+    });
     bool threatened(AiPoint a, AiPoint b) => view.heroes.any((h) {
       if (h.country == hero.country || h.stationed || h.marked || h.hp <= 0) {
         return false;

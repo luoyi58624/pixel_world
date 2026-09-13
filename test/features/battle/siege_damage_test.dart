@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_world/core/config/game_config.dart';
 import 'package:pixel_world/features/battle/domain/battle_simulation.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
@@ -85,14 +86,14 @@ void _win(CampaignState c, CityBattle battle) {
 }
 
 void main() {
-  test('三级城临时加成为6、4、2，真实攻击同步递减，第三胜占领', () {
+  test('三级城临时加成按当前配置逐级递减，真实攻击同步变化，第三胜占领', () {
     final rolls = _Rolls([0]);
     final c = _campaign(rolls);
     final battle = _start(c);
     final remaining = c.garrisonAt(1).map((hero) => hero.id).toSet();
     for (var wave = 1; wave <= 3; wave++) {
       expect(battle.wave, wave);
-      final bonus = [6, 4, 2][wave - 1];
+      final bonus = GameConfig.cityDefenseAttackBonuses[3 - wave];
       expect(battle.simulation.defenderAttackBonus, bonus);
       expect(
         battle.simulation.basePower(BattleSide.defender),
@@ -188,7 +189,10 @@ void main() {
     c.settledMonths = 24;
     c.upgradeCity(1, hero: c.garrisonAt(1).first, countryId: 1);
     expect(c.cities[1]!.level, 4);
-    expect(battle.simulation.defenderAttackBonus, 4);
+    expect(
+      battle.simulation.defenderAttackBonus,
+      GameConfig.cityDefenseAttackBonuses[1],
+    );
     expect(battle.initialCityLevel, 3);
     expect(c.retreatHero(battle.attacker.id), isTrue);
     _until(c, () => !battle.isActive);

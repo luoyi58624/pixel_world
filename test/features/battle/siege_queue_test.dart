@@ -113,8 +113,8 @@ void main() {
     _attack(c);
     final center = c.cityBounds(c.world.cities[1]).center;
     final west = _dispatch(c, 1), east = _dispatch(c, 7);
-    west.position = center - const GamePoint(80, 0);
-    east.position = center + const GamePoint(80, 0);
+    west.position = center - const GamePoint(60, 0);
+    east.position = center + const GamePoint(60, 0);
     c.advance(1 / 60);
     expect(west.destination.dx, lessThan(center.dx));
     expect(east.destination.dx, greaterThan(center.dx));

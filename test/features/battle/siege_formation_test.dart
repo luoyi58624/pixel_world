@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:io';
 import 'dart:convert';
 
@@ -9,6 +8,8 @@ import 'package:pixel_world/core/geometry/geometry.dart';
 import 'package:pixel_world/core/geometry/siege_rings.dart';
 import 'package:pixel_world/features/campaign/domain/campaign.dart';
 import 'package:pixel_world/features/cities/domain/city_contact.dart';
+import 'package:pixel_world/features/cities/domain/city_appearance.dart';
+import 'package:pixel_world/features/world_map/domain/world_data.dart';
 import 'package:pixel_world/features/heroes/data/rom_hero.dart';
 import 'package:pixel_world/features/ai/protocol.dart';
 import 'package:pixel_world/features/ai/geometry.dart';
@@ -28,12 +29,36 @@ CampaignState _pairCampaign() {
   );
 }
 
-CampaignState _crowd() {
+CampaignState _crowd({bool originalCastle = false}) {
   final template = assaultCampaign(
     sourceHeroes: List.generate(38, (i) => i),
     targetHeroes: [38, 39],
   );
-  final world = template.world;
+  final previous = template.world;
+  final shape = cityAppearances[5]!;
+  final world = !originalCastle
+      ? previous
+      : WorldDefinition.fromJson({
+          'id': previous.id,
+          'width': previous.width,
+          'height': previous.height,
+          'tiles': previous.terrain,
+          'cities': [
+            for (final city in previous.cities)
+              {
+                'id': city.id,
+                'name': city.name,
+                'x': city.x,
+                'y': city.y,
+                'initialOwnerId': city.initialOwnerId,
+                'initialLevel': city.id == 2 ? 5 : city.initialLevel,
+                'width': city.id == 2 ? shape.width : city.width,
+                'height': city.id == 2 ? shape.height : city.height,
+                'shape': city.id == 2 ? shape.tiles : city.shape,
+                'unitIds': city.unitIds,
+              },
+          ],
+        }, List<int>.filled(128, 0));
   template.dispose();
   final data = json5Decode(File('assets/data/heroes.json5').readAsStringSync());
   for (final h in data['heroes'] as List) {
@@ -55,14 +80,11 @@ CampaignState _crowd() {
   CampaignState c,
 ) {
   final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
-  final contact = CityContact.forAppearance(
-    city.appearanceAt(c.cities[2]!.level),
-  );
+  final appearance = city.appearanceAt(c.cities[2]!.level);
   final rings = SiegeRings(
-    contact.outline.fold<double>(
-      0,
-      (r, p) => math.max(r, (bounds.topLeft + p - bounds.center).distance),
-    ),
+    appearance.width,
+    appearance.height,
+    tiles: appearance.tiles,
   );
   final attacker = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
   attacker.position = attacker.destination;
@@ -71,7 +93,7 @@ CampaignState _crowd() {
   final waiting = <HeroMarch>[];
   for (var i = 1; i < 38; i++) {
     final m = c.dispatch(scenarioHero(c, i), city, countryId: 1)!;
-    // 多支部队从同一侧陆续到达，实际步行绕城展开，不能直接摆到圆环上。
+    // 多支部队从同一侧陆续到达，实际步行沿格子展开，不能直接摆到候战位上。
     m.position =
         bounds.center + GamePoint(-125 - (i % 10) * 24, (i ~/ 10 - 1.5) * 26);
     m.moveTo(m.destination, city: city);
@@ -99,6 +121,85 @@ void _advance(
 }
 
 void main() {
+  test('真实五级城贴格围满后，左上凹墙外的队首能穿过相邻格进场', () {
+    final c = _crowd(originalCastle: true);
+    addTearDown(c.dispose);
+    final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
+    final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+    first.position = first.destination;
+    c.advance(1 / 60);
+    final oldest = c.dispatch(scenarioHero(c, 1), city, countryId: 1)!;
+    oldest.position = bounds.topLeft + const GamePoint(-8, 8);
+    c.advance(1 / 60);
+    final order = oldest.siegeQueueOrder;
+    expect(order, isNotNull);
+    for (var i = 2; i < 20; i++) {
+      final m = c.dispatch(scenarioHero(c, i), city, countryId: 1)!;
+      m.position =
+          bounds.center + GamePoint(-125 - (i % 10) * 24, (i ~/ 10 - 1.5) * 26);
+    }
+    _advance(c, 240, keepBattleAlive: true);
+    expect(c.isCityEncircled(city.id, countryId: 1), isTrue);
+    expect(oldest.siegeQueueOrder, order);
+    c.battles[city.id]!.attacker.hp = 0;
+    _advance(c, 20);
+    expect(c.battles[city.id]!.isActive, isTrue);
+    expect(c.battles[city.id]!.attacker, oldest.hero);
+    expect(oldest.waitingForTraffic, isFalse);
+    final remaining =
+        c.marches.values.where((m) => m.siegeQueueOrder != null).toList()
+          ..sort((a, b) => a.siegeQueueOrder!.compareTo(b.siegeQueueOrder!));
+    for (final next in remaining) {
+      c.battles[city.id]!.attacker.hp = 0;
+      for (var frame = 0; frame < 20 * 60; frame++) {
+        c.advance(1 / 60);
+        if (c.battles[city.id]!.isActive &&
+            c.battles[city.id]!.attacker == next.hero) {
+          break;
+        }
+      }
+      expect(
+        c.battles[city.id]!.isActive &&
+            c.battles[city.id]!.attacker == next.hero,
+        isTrue,
+        reason: '${next.hero.id}从${next.position}去${next.destination}不能被贴格队列困住',
+      );
+    }
+  });
+
+  test('城防受损缩小建筑时立即收紧候战格，不留下旧目的地', () {
+    final c = _crowd(originalCastle: true);
+    addTearDown(c.dispose);
+    final city = c.world.cities[2], bounds = c.cityBounds(c.world.cities[2]);
+    final first = c.dispatch(scenarioHero(c, 0), city, countryId: 1)!;
+    first.position = first.destination;
+    c.advance(1 / 60);
+    final waiting = c.dispatch(scenarioHero(c, 1), city, countryId: 1)!;
+    waiting.position = bounds.bottomLeft + const GamePoint(8, 8);
+    c.advance(1 / 60);
+    final previous = waiting.position;
+    expect(waiting.waitingForSiegePosition, isTrue);
+    expect(
+      c.defeatHero(
+        scenarioHero(c, 38).id,
+        winnerCountryId: 1,
+        defendedCityId: city.id,
+      ),
+      isNotNull,
+    );
+    expect(c.cities[city.id]!.level, 4);
+    expect(waiting.position, previous, reason: '重排只改目的地，不瞬移人物');
+    final shape = city.appearanceAt(4), origin = c.cityBounds(city).topLeft;
+    final rings = SiegeRings(shape.width, shape.height, tiles: shape.tiles);
+    final offset = rings.offset(waiting.siegeRing!, waiting.siegeSlotIndex!);
+    expect(
+      waiting.destination,
+      origin +
+          GamePoint(shape.width * 8 + offset.x, shape.height * 8 + offset.y),
+    );
+    expect(waiting.destination, isNot(previous));
+  });
+
   for (final hasTarget in [false, true]) {
     test('外圈集结完成即纳入队列并向内补位，不能因距离内圈太远永远扎营：$hasTarget', () {
       final c = _pairCampaign();
@@ -168,14 +269,13 @@ void main() {
     final second = c.dispatch(scenarioHero(c, 2), city, countryId: 1)!;
     var waited = false, reached = false;
     for (var i = 0; i < 60 * 60; i++) {
-      final before = second.position;
       c.advance(1 / 60);
       if (!second.waitingForSiegePosition) continue;
       if (!waited) {
         waited = true;
         expect(first.target, city);
         expect(second.destination.dx, lessThan(center.dx));
-        expect((second.destination - before).distance, lessThan(40));
+        expect(second.destination.dx, c.cityBounds(city).left - 8);
       }
       if ((second.position - second.destination).distance < 1) {
         reached = true;
@@ -200,7 +300,7 @@ void main() {
       first.position = first.destination;
       c.advance(1 / 60);
       final second = c.dispatch(scenarioHero(c, 2), city, countryId: 1)!;
-      second.position = bounds.center + direction * 80;
+      second.position = bounds.center + direction * 60;
       c.advance(1 / 60);
       expect(second.waitingForSiegePosition, isTrue);
       final offset = second.destination - bounds.center;
@@ -209,7 +309,7 @@ void main() {
         greaterThan(0),
       );
       expect((second.destination - second.position).distance, lessThan(40));
-      final saved = c.saveState()..remove('siegeFormationVersion');
+      final saved = c.saveState()..['siegeFormationVersion'] = 2;
       final marches = saved['marches'] as List;
       final waiting = marches.firstWhere((m) => m['arrival'] != null);
       waiting['siegeSlot'] = [0, 0];
@@ -243,7 +343,10 @@ void main() {
         final visible = c.marches.values.where((m) => m.visibleOnMap).toList();
         for (final m in visible.where((m) => m.waitingForSiegePosition)) {
           expect(
-            contact.contains(m.position - origin),
+            contact.contains(m.position - origin) &&
+                (contact.nearest(m.position - origin) - (m.position - origin))
+                        .distance >
+                    1e-6,
             isFalse,
             reason: '${m.hero.id}围城换位不能穿城',
           );
@@ -284,11 +387,14 @@ void main() {
     );
     final hole = removed.destination, holeIndex = removed.siegeSlotIndex;
     final nextRing = group.waiting.where((m) => m.siegeRing == 1).toList()
-      ..sort(
-        (a, b) => (a.position - hole).distanceSquared.compareTo(
+      ..sort((a, b) {
+        final distance = (a.position - hole).distanceSquared.compareTo(
           (b.position - hole).distanceSquared,
-        ),
-      );
+        );
+        return distance != 0
+            ? distance
+            : a.siegeQueueOrder!.compareTo(b.siegeQueueOrder!);
+      });
     final nearest = nextRing.first;
     // 一名围城者失去战斗力，实到位置与预定位置之间必须有真实补位过程。
     removed.hero.hp = 0;

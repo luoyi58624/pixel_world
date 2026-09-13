@@ -77,9 +77,19 @@ extension _MarchTraffic on CampaignState {
         )) {
       final city = march.target!, origin = cityBounds(march.target!).topLeft;
       final contact = _cityContact(city);
+      final outline = contact.outline;
+      final local = march.position - origin;
       final candidates =
           <GamePoint>[
-            for (final point in contact.outline) origin + point,
+            origin + contact.nearest(march.position - origin),
+            // 同距的墙面投影都参与选择，凹角的首个最近点可能被旁边将领挡住。
+            for (var i = 0; i < outline.length; i++)
+              origin +
+                  _projectOnTrafficEdge(
+                    local,
+                    outline[i],
+                    outline[(i + 1) % outline.length],
+                  ),
             for (final offset in [
               const GamePoint(24, 0),
               const GamePoint(-24, 0),
@@ -109,9 +119,17 @@ extension _MarchTraffic on CampaignState {
       }
     }
     final around = march._siegeWaiting ? march.target : null;
+    final wallCells = around == null
+        ? const <GamePoint>[]
+        : _siegeWallCells(around);
+    final wallCenter = around == null
+        ? GamePoint.zero
+        : cityBounds(around).center;
+    bool wallClear(GamePoint from, GamePoint to) =>
+        _outsideSiegeWall(from, to, wallCells, wallCenter);
     bool clear(GamePoint from, GamePoint to) =>
         obstacles.every((p) => !_trafficIntersects(from, to, p)) &&
-        (around == null || _outsideSiegeWall(from, to, around));
+        wallClear(from, to);
     if (march._trafficRoute.isNotEmpty &&
         !clear(march.position, march._trafficRoute.first)) {
       march._trafficRoute.clear();
@@ -126,6 +144,9 @@ extension _MarchTraffic on CampaignState {
             march.destination,
             obstacles,
             around: around,
+            wallClear: wallClear,
+            gridTraffic:
+                march._siegeArrival != null || march.returningFromRetreat,
           ),
         );
       }
@@ -311,6 +332,8 @@ extension _MarchTraffic on CampaignState {
     GamePoint goal,
     List<GamePoint> obstacles, {
     CityDefinition? around,
+    required bool Function(GamePoint, GamePoint) wallClear,
+    bool gridTraffic = false,
   }) {
     final nodes = <GamePoint>[from, goal];
     if (around != null) {
@@ -325,9 +348,13 @@ extension _MarchTraffic on CampaignState {
         ].map((p) => origin + p).where(_containsPoint),
       );
     }
+    // 围城每格十六像素，绕行点也必须允许贴格通过，否则十八像素拐点进不了空格。
+    final cornerMargin = around == null && !gridTraffic
+        ? _trafficMargin
+        : _trafficSize;
     for (final p in obstacles) {
-      for (final dx in [-_trafficMargin, _trafficMargin]) {
-        for (final dy in [-_trafficMargin, _trafficMargin]) {
+      for (final dx in [-cornerMargin, cornerMargin]) {
+        for (final dy in [-cornerMargin, cornerMargin]) {
           final corner = GamePoint(p.dx + dx, p.dy + dy);
           if (_containsPoint(corner)) nodes.add(corner);
         }
@@ -356,8 +383,7 @@ extension _MarchTraffic on CampaignState {
       visited.add(best);
       for (var i = 0; i < nodes.length; i++) {
         if (visited.contains(i) ||
-            around != null &&
-                !_outsideSiegeWall(nodes[best], nodes[i], around) ||
+            !wallClear(nodes[best], nodes[i]) ||
             obstacles.any(
               (p) => _trafficIntersects(nodes[best], nodes[i], p),
             )) {
@@ -373,16 +399,40 @@ extension _MarchTraffic on CampaignState {
     return [];
   }
 
-  // 圆环换位必须绕过城堡；旧存档贴墙者只允许先向外脱离。
-  bool _outsideSiegeWall(GamePoint from, GamePoint to, CityDefinition city) {
-    final origin = cityBounds(city).topLeft, contact = _cityContact(city);
-    if (contact.contains(from - origin)) {
-      final outward = from - cityBounds(city).center, movement = to - from;
+  List<GamePoint> _siegeWallCells(CityDefinition city) {
+    final origin = cityBounds(city).topLeft;
+    return [
+      for (final cell in _siegeRings(city).occupied)
+        origin + GamePoint((cell.x + .5) * 16, (cell.y + .5) * 16),
+    ];
+  }
+
+  // 一次寻路复用墙格；格子换位允许贴边，但人物不能穿过建筑占用格。
+  bool _outsideSiegeWall(
+    GamePoint from,
+    GamePoint to,
+    List<GamePoint> walls,
+    GamePoint center,
+  ) {
+    // 旧存档或刚接触城墙的队员可能位于扩张格内，只能向外脱离，不能被锁在墙中。
+    if (walls.any(
+      (p) =>
+          (from.dx - p.dx).abs() < 16 - 1e-6 &&
+          (from.dy - p.dy).abs() < 16 - 1e-6,
+    )) {
+      final outward = from - center, movement = to - from;
       return outward.dx * movement.dx + outward.dy * movement.dy >= -1e-8;
     }
-    return !contact.contains(to - origin) &&
-        contact.entryFraction(from - origin, to - origin) == null;
+    return walls.every((p) => !_trafficIntersects(from, to, p));
   }
+}
+
+GamePoint _projectOnTrafficEdge(GamePoint point, GamePoint a, GamePoint b) {
+  final edge = b - a;
+  final t =
+      ((point - a).dx * edge.dx + (point - a).dy * edge.dy) /
+      edge.distanceSquared;
+  return a + edge * t.clamp(0.0, 1.0);
 }
 
 // 连续线段与人物扩张矩形相交检测，避免跨帧穿人；边缘接触不算重叠。

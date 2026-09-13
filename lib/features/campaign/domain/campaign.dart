@@ -328,10 +328,10 @@ class HeroMarch {
   /// 正在向分散的城外围攻位置移动或等待，不属于主动扎营。
   bool get waitingForSiegePosition => _siegeWaiting;
 
-  /// 围城站位所在的圈数，从第一圈的零开始，未编入圆环时为空。
+  /// 围城站位所在的格子圈数，从第一圈的零开始，未排位时为空。
   int? get siegeRing => _siegeSlot?.ring;
 
-  /// 所在圆环内的固定站位编号。
+  /// 所在格子圈内的固定站位编号。
   int? get siegeSlotIndex => _siegeSlot?.index;
   ({int ring, int index})? _siegeSlot;
   bool _departurePending = false;
@@ -2019,11 +2019,20 @@ class CampaignState {
 
   // 建筑变化时更新在途目标；已经交战的部队只调整贴城位置，不重开战斗。
   void _refreshCityApproaches(int cityId) {
+    final waiting = <HeroMarch>[];
     for (final march in marches.values.where(
       (march) => march.target?.id == cityId,
     )) {
-      // 统一圆环在下一步按新轮廓调整位置，不再为每名候战将领单独旋转站位。
-      if (march._siegeWaiting) continue;
+      // 城防改变后原格子编号已经失效，当场重排目的地，人物仍按实际速度走过去。
+      if (march._siegeWaiting) {
+        if (!march.returningFromRetreat &&
+            march._siegeArrival?.cityId == cityId &&
+            activeBattleForHero(march.hero.id) == null) {
+          march._siegeSlot = null;
+          waiting.add(march);
+        }
+        continue;
+      }
       if (march.phase == MarchPhase.dueling ||
           march.phase == MarchPhase.awaitingBattle) {
         continue;
@@ -2053,6 +2062,10 @@ class CampaignState {
         march.destination = march.position;
       }
     }
+    waiting.sort(
+      (a, b) => a._siegeArrival!.order.compareTo(b._siegeArrival!.order),
+    );
+    if (waiting.isNotEmpty) _arrangeSiegeRings(waiting.first.target!, waiting);
   }
 
   void _endBattle(HeroMarch march, String outcome) {

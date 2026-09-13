@@ -123,7 +123,7 @@ extension CampaignSnapshots on CampaignState {
       'version': 1,
       'payrollVersion': 2,
       'stateRevision': 2,
-      'siegeFormationVersion': 2,
+      'siegeFormationVersion': 3,
       'world': world.id,
       'aiEnabled': aiEnabled,
       'cities': {
@@ -404,9 +404,9 @@ extension CampaignSnapshots on CampaignState {
           order: m['arrival'][1] as int,
         );
       }
-      // 旧版固定从城东排位会把少量候战者赶远，续玩时保留先后顺序并就近重排。
+      // 旧圆环离城过远，续玩时保留排队顺序并按建筑网格重排。
       if (m['siegeSlot'] != null &&
-          (replay || d['siegeFormationVersion'] == 2)) {
+          (replay || d['siegeFormationVersion'] == 3)) {
         march._siegeSlot = (
           ring: m['siegeSlot'][0] as int,
           index: m['siegeSlot'][1] as int,
