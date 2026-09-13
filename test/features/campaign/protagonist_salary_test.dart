@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+
 import 'package:json5/json5.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -54,7 +55,7 @@ void main() {
     }
   });
 
-  test('三张地图开局月俸15，正常月结净增15，AI 预算同步免除主角费用', () {
+  test('三张地图开局月俸15，正常月结净增5，AI 预算同步免除主角费用', () {
     for (final world in worlds) {
       final c = CampaignState.fromRom(
         world,
@@ -68,13 +69,14 @@ void main() {
         0,
       );
       expect(c.salaryCost, 15);
-      expect(c.netIncome, 15);
+      expect(c.grossIncome, 20);
+      expect(c.netIncome, 5);
       expect(c.aiObservationFor(0).nation.salary, 15);
       expect(c.aiBudgetFor(0).monthlySalary, 15);
       c.advance(60);
       expect(c.lastSettlementFor(0)!.salary, 15);
-      expect(c.lastSettlementFor(0)!.actualChange, 15);
-      expect(c.gold, 95);
+      expect(c.lastSettlementFor(0)!.actualChange, 5);
+      expect(c.gold, 85);
     }
   });
 

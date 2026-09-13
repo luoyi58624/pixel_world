@@ -98,12 +98,16 @@ class MonthlySettlement {
     required this.baseIncome,
     required this.adjustment,
     required this.salary,
+    int? salaryDue,
+    this.departureIncome = 0,
+    this.departedHeroes = 0,
     this.garrisonUpkeep = 0,
     required this.goldBefore,
     required this.goldAfter,
     this.fixedIncome = 0,
     List<CityIncomeSettlement> cityIncomes = const [],
-  }) : cityIncomes = List.unmodifiable(cityIncomes);
+  }) : salaryDue = salaryDue ?? salary,
+       cityIncomes = List.unmodifiable(cityIncomes);
 
   /// 已结算的年份。
   final int year;
@@ -130,8 +134,14 @@ class MonthlySettlement {
   /// 国家保底与所有城池正常产出的合计，未计收成增减。
   final int baseIncome;
 
-  /// 本月英雄报酬。
+  /// 本月实际付出的英雄报酬，不包含欠薪离职者。
   final int salary;
+
+  /// 发俸前所有在职将领的应付月俸。
+  final int salaryDue;
+
+  /// 本月欠薪离职返还的内政收入与离职人数。
+  final int departureIncome, departedHeroes;
 
   /// 本月实际驻城时间累积的额外军费，与将领个人月俸分列。
   final int garrisonUpkeep;
@@ -139,14 +149,15 @@ class MonthlySettlement {
   /// 结算前的金币。
   final int goldBefore;
 
-  /// 扣除支出后的金币，允许透支为负。
+  /// 扣除支出后的金币，月俸不透支，原有债务与其他收支仍保留。
   final int goldAfter;
 
   /// 收成带来的额外收支。
   final int adjustment;
 
   /// 应结算净收入，允许负值。
-  int get netIncome => baseIncome + adjustment - salary - garrisonUpkeep;
+  int get netIncome =>
+      baseIncome + adjustment + departureIncome - salary - garrisonUpkeep;
 
   /// 国库实际变化，收入、工资与透支完整计入。
   int get actualChange => goldAfter - goldBefore;

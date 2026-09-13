@@ -12,7 +12,7 @@ def audit(directory):
     kinds = {
         'cityUpgraded', 'soldiersRecruited', 'heroDrawn', 'heroSigned',
         'heroDismissed', 'supplyPaid', 'monthSettled',
-        'treasuryCaptured',
+        'treasuryCaptured', 'treasuryCleared',
     }
     for run in runs:
         final = {r['country']: r for r in run['final']}
@@ -42,18 +42,21 @@ def audit(directory):
                     months.add(key)
                     upkeep = d.get('garrisonUpkeep', 0)
                     credit = d.get('economyVersion', 1) >= 2
-                    expected = before + d['income'] - d['salary'] - upkeep
+                    departure_income = d.get('departureIncome', 0)
+                    expected = before + d['income'] + departure_income - d['salary'] - upkeep
                     if after != (expected if credit else max(0, expected)):
                         errors.append({'file': file.name, 'event': e['sequence'], 'error': '月结算式错误'})
                     if 'fixedIncome' in d and d['baseIncome'] != d['fixedIncome'] + sum(c.get('baseIncome', c['income']) for c in d['cities']):
                         errors.append({'file': file.name, 'event': e['sequence'], 'error': '城池收入重复或漏算'})
                     if credit:
-                        if d['income'] != d['fixedIncome'] + sum(c['income'] for c in d['cities']):
+                        country_adjustment = d.get('adjustment', 0) if d.get('economyVersion', 1) >= 3 else 0
+                        if d['income'] != d['fixedIncome'] + sum(c['income'] for c in d['cities']) + country_adjustment:
                             errors.append({'file': file.name, 'event': e['sequence'], 'error': '逐城实际收入合计错误'})
                         for city in d['cities']:
                             if city['income'] != city['baseIncome'] + city['adjustment']:
                                 errors.append({'file': file.name, 'event': e['sequence'], 'error': '单城收成算式错误', 'city': city['id']})
                     changes['grossIncome'] += d['income']
+                    changes['departureIncome'] += departure_income
                     changes['salaryCharged'] += d['salary'] if credit else min(d['salary'], max(0, before + d['income']))
                     changes['garrisonUpkeepCharged'] += upkeep if credit else min(upkeep, max(0, before + d['income'] - d['salary']))
                 changes[kind] += after - before

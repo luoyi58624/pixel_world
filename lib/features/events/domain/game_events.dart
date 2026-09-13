@@ -29,6 +29,7 @@ enum GameEventKind {
   heroDeclined('放弃签约', GameEventCategory.action),
   heroOfferExpired('签约到期', GameEventCategory.lifecycle),
   heroDismissed('解雇将领', GameEventCategory.action),
+  heroDeparted('欠薪离职', GameEventCategory.economy),
   heroDispatched('将领出征', GameEventCategory.action),
   heroMoved('改变行军目标', GameEventCategory.action),
   heroCamped('将领扎营', GameEventCategory.action),
@@ -39,6 +40,7 @@ enum GameEventKind {
   supplyHalted('粮草耗尽', GameEventCategory.economy),
   monthSettled('月度结算', GameEventCategory.economy),
   treasuryCaptured('灭国战利品', GameEventCategory.economy),
+  treasuryCleared('亡国清库', GameEventCategory.economy),
   battleQueued('城下等待', GameEventCategory.battle),
   battleStarted('开始交战', GameEventCategory.battle),
   battleWaveEnded('对阵结束', GameEventCategory.battle),
@@ -131,7 +133,9 @@ class GameEvent {
       isFinalDecision ||
       kind == GameEventKind.reinforcementsRequested ||
       kind == GameEventKind.monthSettled ||
-      kind == GameEventKind.treasuryCaptured;
+      kind == GameEventKind.heroDeparted ||
+      kind == GameEventKind.treasuryCaptured ||
+      kind == GameEventKind.treasuryCleared;
 
   /// 固定逻辑帧及游戏年月；暂停期间不会增加。
   final int tick, year, month;

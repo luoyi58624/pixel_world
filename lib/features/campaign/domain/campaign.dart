@@ -34,6 +34,7 @@ import '../../ai/runtime/worker.dart';
 import '../../ai/runtime/build_stamp.dart';
 
 part 'economy/country_ai_budget.dart';
+part 'economy/hero_payroll.dart';
 part 'battles/field_battles.dart';
 part 'battles/siege_battles.dart';
 part 'battles/siege_formation.dart';
@@ -1537,6 +1538,7 @@ class CampaignState {
   }
 
   void _settleMonth() {
+    final interruptedBattles = <WorldBattle>{};
     for (final id in _countryGold.keys.toList()..sort()) {
       final owned =
           cities.entries
@@ -1566,16 +1568,6 @@ class CampaignState {
         (sum, city) => sum + city.baseIncome,
       );
       final income = base + adjustment;
-      final salary = GameConfig.chargeHeroSalary
-          ? heroes
-                .where(
-                  (hero) =>
-                      hero.countryId == id &&
-                      hero.health.alive &&
-                      hero._salaryPaidMonth != settledMonths,
-                )
-                .fold(0, (sum, hero) => sum + hero.salary)
-          : 0;
       final before = goldFor(id);
       final accrued = owned.isEmpty || GameConfig.garrisonUpkeepFactor == 0
           ? 0.0
@@ -1586,8 +1578,10 @@ class CampaignState {
       } else {
         _garrisonBills[id] = math.max(0, accrued - upkeep);
       }
-      final after = before + income - salary - upkeep;
-      _countryGold[id] = after;
+      _countryGold[id] = before + income - upkeep;
+      final payroll = _payHeroSalaries(id, interruptedBattles);
+      final salary = payroll.paid;
+      final after = goldFor(id);
       final report = MonthlySettlement(
         year: year,
         month: month,
@@ -1596,6 +1590,9 @@ class CampaignState {
         baseIncome: base,
         adjustment: income - base,
         salary: salary,
+        salaryDue: payroll.due,
+        departureIncome: payroll.income,
+        departedHeroes: payroll.departed,
         garrisonUpkeep: upkeep,
         goldBefore: before,
         goldAfter: after,
@@ -1605,18 +1602,22 @@ class CampaignState {
       _settlements[id] = report;
       _emitEvent(
         GameEventKind.monthSettled,
-        '${world.countryName(id)}国 $dateLabel ${report.harvestLabel}，收入 $income，月俸 $salary${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
+        '${world.countryName(id)}国 $dateLabel ${report.harvestLabel}，收入 $income，实付月俸 $salary${payroll.departed > 0 ? '，${payroll.departed} 名将领欠薪离职，内政收入 ${payroll.income}' : ''}${upkeep > 0 ? '，驻军维持费 $upkeep' : ''}，国库 $before → $after',
         countryId: id,
         source: GameEventSource.system,
         data: {
           'baseIncome': base,
-          'economyVersion': 3,
+          'economyVersion': 4,
           'harvestScope': 'country',
           'adjustment': adjustment,
           'fixedIncome': fixed,
           'cities': [for (final city in cityIncomes) city.toJson()],
           'income': income,
           'salary': salary,
+          'salaryDue': payroll.due,
+          'unpaidSalary': payroll.due - salary,
+          'departureIncome': payroll.income,
+          'departedHeroes': payroll.departed,
           'garrisonUpkeep': upkeep,
           'harvest': harvest.name,
           'cityCount': owned.length,
@@ -1626,11 +1627,13 @@ class CampaignState {
       );
       if (id == 0) {
         _record(
-          '$dateLabel结算 · ${report.harvestLabel} · 正常收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，月俸 -$salary，军费 -$upkeep，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
+          '$dateLabel结算 · ${report.harvestLabel} · 正常收入 $base，收成 ${report.adjustment >= 0 ? '+' : ''}${report.adjustment}，实付月俸 -$salary，离职内政收入 +${payroll.income}，军费 -$upkeep，国库 ${report.actualChange >= 0 ? '+' : ''}${report.actualChange}',
           log: false,
         );
       }
     }
+    // 所有国家先按同一月末归属结账，避免守将离职引发占城而改变后结算国家的收入。
+    _resolvePayrollBattles(interruptedBattles);
     settledMonths++;
     for (final offer in _recruitmentOffers.values.toList()) {
       if (!offer.isExpired(settledMonths)) continue;

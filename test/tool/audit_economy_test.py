@@ -43,6 +43,24 @@ class EconomyAuditTest(unittest.TestCase):
         self.assertEqual(report['errors'], [])
         self.assertEqual(report['accounts'][0]['changes']['salaryCharged'], 11)
 
+    def test_departure_income_is_counted_once_with_country_harvest(self):
+        entries = [
+            ('heroDeparted', {'before': {'gold': 1}, 'after': {'gold': 16},
+                              'reward': 15, 'settledIn': 'monthSettled'}),
+            ('monthSettled', {'economyVersion': 4, 'goldBefore': 1, 'goldAfter': 11,
+                              'baseIncome': 20, 'fixedIncome': 10, 'adjustment': -20,
+                              'income': 0, 'salaryDue': 30, 'salary': 5,
+                              'departureIncome': 15, 'departedHeroes': 1,
+                              'cities': [{'id': 0, 'baseIncome': 10,
+                                          'adjustment': 0, 'income': 10}]}),
+        ]
+        report = self.run_audit(entries, 11)
+        self.assertEqual(report['errors'], [])
+        self.assertEqual(report['accounts'][0]['changes']['departureIncome'], 15)
+        entries[1][1]['goldAfter'] += 15
+        report = self.run_audit(entries, 26)
+        self.assertTrue(any(e['error'] == '月结算式错误' for e in report['errors']))
+
     def test_invalid_city_income_is_reported(self):
         report = self.run_audit([('monthSettled', {
             'economyVersion': 2, 'goldBefore': 1, 'goldAfter': 11,
@@ -50,6 +68,13 @@ class EconomyAuditTest(unittest.TestCase):
             'cities': [{'id': 0, 'baseIncome': 20, 'adjustment': -30, 'income': 0}],
         })], 11)
         self.assertTrue(any(e['error'] == '单城收成算式错误' for e in report['errors']))
+
+    def test_defeated_treasury_clear_is_an_explicit_outflow(self):
+        report = self.run_audit([('treasuryCleared', {
+            'goldBefore': 1, 'goldAfter': 0,
+        })], 0)
+        self.assertEqual(report['errors'], [])
+        self.assertEqual(report['accounts'][0]['changes']['treasuryCleared'], -1)
 
 
 if __name__ == '__main__':
