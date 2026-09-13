@@ -1,0 +1,57 @@
+name: 部署游戏到 GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 所有发布共用队列，避免多个构建同时更新部署分支。
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 构建并发布网页
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v6
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.1'
+          cache: true
+
+      - name: 安装锁定的依赖
+        run: flutter pub get --enforce-lockfile
+
+      - name: 检查 AI Worker 与源码一致
+        run: dart run tool/build_ai_worker.dart --check
+
+      - name: 构建网页
+        shell: bash
+        run: |
+          # 项目站点使用仓库名作为前缀，仓库改名后自动适配。
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          base_href="/${repository_name}/"
+          if [[ "${repository_name,,}" == "${GITHUB_REPOSITORY_OWNER,,}.github.io" ]]; then
+            base_href="/"
+          fi
+          flutter build web --release --no-pub --base-href "$base_href" --no-web-resources-cdn
+          # 直接发布 Flutter 产物，跳过 Jekyll 处理。
+          touch build/web/.nojekyll
+
+      - name: 发布到 Pages 分支
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: docs_web_page
+          folder: build/web
+          clean: true
+          force: false

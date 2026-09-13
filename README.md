@@ -13,6 +13,10 @@ flutter run -d windows
 
 Windows 发布构建：`flutter build windows --release`。输出在 `build/windows/x64/runner/Release/`，分发时保留整个目录。
 
+## 网页部署
+
+推送到 `main` 分支后自动构建 Flutter Web，并发布到 `docs_web_page` 分支；也支持在 GitHub Actions 手动执行。网页前缀自动跟随 GitHub 仓库名，游戏目录或仓库改名后无需修改工作流。首次发布需要在仓库 Pages 设置中选择该分支，具体步骤和命名建议见 [部署说明](docs/deployment.md)。
+
 ## 调整数值
 
 将领属性、月俸和顺序统一放在 `assets/data/heroes.json5`；国家初始金币，以及每座城的初始兵员、基础产出和城防等级配置在 [`assets/data/campaign_config.json5`](assets/data/campaign_config.json5)。全局时间、经济、战斗、行军和 AI 规则配置在 [`assets/data/game_config.json5`](assets/data/game_config.json5)，使用 JSON5 语法，可以写中文注释。字段说明见 [开局配置说明](docs/campaign_config.md)。保存配置后热重启，新的开局才会读取；可调月俸使用 `salary`，原版报酬见离线提取的 [英雄CSV](docs/nes_heroes.csv)。
